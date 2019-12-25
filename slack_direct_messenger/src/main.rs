@@ -3,13 +3,15 @@
 extern crate tokio;
 extern crate hyper;
 extern crate reqwest;
+extern crate clap;
 
 use std::cmp::Ordering;
 use std::collections::HashMap;
+use clap::{Arg, App};
 use tokio::prelude::*;
 use tokio::net::TcpListener;
 use hyper::Client;
-use serde::{Serialize, Deserialize};
+use serde::Deserialize; // Serialize
 
 
 async fn test_tokio_server() -> Result<(), Box<dyn std::error::Error>>{
@@ -391,10 +393,42 @@ async fn main() -> Result<(), Box<dyn std::error::Error>> {
     
     //perform_get_request_with_reqwest().await?;
 
-    let id = match find_user_id_by_email(TOKEN, EMAIL).await {
+    // Parse parameters
+    let matches = App::new("slack_direct_messenger")
+                            .version("1.0")
+                            .author("Pavel Ershov")
+                            .about("Send direct messages to slack")
+                            .arg(Arg::with_name("email")
+                                .long("slack_user_email")
+                                .help("Slack user email"))
+                            .arg(Arg::with_name("user")
+                                .long("slack_user")
+                                .help("Username"))
+                            .arg(Arg::with_name("text")
+                                .long("slack_user_text")
+                                .help("Text"))
+                            .arg(Arg::with_name("qr_comment")
+                                .long("slack_user_qr_commentary")
+                                .help("QR code commentary"))
+                            .arg(Arg::with_name("qr_text")
+                                .long("slack_user_qr_text")
+                                .help("QR code text"))
+                          .get_matches();
+
+    // Gets a value for config if supplied by user, or defaults to "default.conf"
+    let email = matches.value_of("email").unwrap_or("");
+    let user = matches.value_of("user").unwrap_or("");
+    //let text = matches.value_of("text").unwrap_or("");
+    //let qr_commentary = matches.value_of("qr_comment").unwrap_or("");
+    //let qr_text = matches.value_of("qr_text").unwrap_or("");
+
+    // Api token
+    let api_token = std::env::var("SLACK_API_TOKEN").expect("SLACK_API_TOKEN environment variable is missing");
+
+    let id = match find_user_id_by_email(api_token.as_str(), email).await {
         Ok(id) => id,
         Err(_)=>{
-            match find_user_id_by_name(TOKEN, NAME).await {
+            match find_user_id_by_name(api_token.as_str(), user).await {
                 Ok(id) => id,
                 Err(err) => {
                     println!("{}", err);
