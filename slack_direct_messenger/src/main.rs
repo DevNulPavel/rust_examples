@@ -4,14 +4,22 @@ extern crate tokio;
 extern crate hyper;
 extern crate reqwest;
 extern crate clap;
+extern crate dirs;
+extern crate serde_json;
 
+use std::fs::File;
+use std::io::Read;
+use std::io::Write;
+use std::path::PathBuf;
+use std::path::Path;
 use std::cmp::Ordering;
 use std::collections::HashMap;
 use clap::{Arg, App};
 use tokio::prelude::*;
 use tokio::net::TcpListener;
 use hyper::Client;
-use serde::Deserialize; // Serialize
+use serde::Deserialize;
+use serde::Serialize;
 
 
 async fn test_tokio_server() -> Result<(), Box<dyn std::error::Error>>{
@@ -149,10 +157,8 @@ async fn find_user_id_by_email(api_token: &str, email: &str) -> Result<String, B
     return Err(Box::from(format!("User is not found for this email: {}", email)));
 }
 
-//////////////////////////////////////////////////////////////////////////////////////////////////
-
 // Создаем структурки, в которых будут нужные значения
-#[derive(Deserialize, Debug, Clone)]
+#[derive(Deserialize, Serialize, Debug, Clone)]
 struct UserInfo {
     id: String,
     name: String,
@@ -260,26 +266,31 @@ async fn find_user_id_by_name(api_token: &str, src_user_name: &str) -> Result<St
     }
 
     let user = src_user_name.to_lowercase();
+        
+    let cache_file_folder = PathBuf::new().join(dirs::home_dir().unwrap()).join(".cache/slack_direct_messenger/");
+    let cache_file_name = Path::new("users_cache.json");    
+    let cache_file_full_path = PathBuf::new().join(&cache_file_folder).join(&cache_file_name);
 
-//     user = user.toLowerCase();
-//     if (!USERS_CACHE) {
-//         const fullPath = path.join(CACHE_FILE_FOLDER, CACHE_FILE_NAME);
-//         const exists = fs.existsSync(fullPath);
-//         if (exists) {
-//             try{
-//                 const rawdata = fs.readFileSync(fullPath);
-//                 USERS_CACHE = JSON.parse(rawdata.toString());    
-//             }catch(_){
-//                 USERS_CACHE = {};
-//             }
-//         }else {
-//             USERS_CACHE = {};
-//         }
-//     }
-//     const foundUserInfo = USERS_CACHE[user];
-//     if (foundUserInfo) {
-//         return foundUserInfo.id;
-//     }
+    let mut users_cache: HashMap<String, UserInfo> = match File::open(&cache_file_full_path){
+        Ok(mut file) => {
+            let mut data = String::new();
+            match file.read_to_string(&mut data) {
+                Ok(_)=> {
+                    match serde_json::from_str::<HashMap<String, UserInfo>>(data.as_str()){
+                        Ok(result) => result,
+                        Err(_) => HashMap::new(),
+                    }
+                },
+                Err(_) => HashMap::new()
+            }        
+        },
+        Err(_)=> HashMap::new()
+    };
+
+    // Ищем в кеше
+    if let Some(found) = users_cache.get(&user){
+        return Ok(found.id.clone()); // TODO: Избавиться от клонирования, можно мувить результат
+    }
 
     let mut found_info: Option<UserInfo> = None;
 
@@ -331,8 +342,10 @@ async fn find_user_id_by_name(api_token: &str, src_user_name: &str) -> Result<St
         }
     }
     
+    let mut result_found_user: Option<UserInfo> = None;
     if let Some(info) = found_info{
-        return Ok(info.id);
+        users_cache.insert(user.to_owned(), info.clone());
+        result_found_user = Some(info);
     }else{
         found_users.sort_by(|val1, val2|-> Ordering {
             if val1.priority > val2.priority{
@@ -343,43 +356,26 @@ async fn find_user_id_by_name(api_token: &str, src_user_name: &str) -> Result<St
             return Ordering::Equal;
         });
 
-        if let Some(user) = found_users.first(){
-            return Ok(user.info.id.clone());
+        for user_info in found_users {
+            users_cache.insert(user.to_owned(), user_info.info.clone()); // TODO: !!!
+            result_found_user = Some(user_info.info);
         }
     }
 
+    if let Some(user_info) = result_found_user{
+        if cache_file_folder.exists() == false{
+            if std::fs::create_dir_all(cache_file_folder).is_err() {
+            }
+        }
+        if let Ok(mut file) = File::open(&cache_file_full_path) {
+            if let Ok(json_text) = serde_json::to_string(&users_cache){
+                if file.write_all(json_text.as_bytes()).is_ok(){
+                }
+            }
+        }
 
-//     if (foundInfo) {
-//         USERS_CACHE[user] = foundInfo;
-//     }else if (foundUsers.length > 0) {
-//         const sortedUsers = foundUsers.sort((a, b) => {
-//             if (a.priority && b.priority) {
-//                 return b.priority - a.priority;
-//             }
-//             if (a.priority) {
-//                 return 0 - a.priority;
-//             }
-//             if (b.priority) {
-//                 return b.priority - 0;
-//             }
-//             return 999999999;
-//         });
-//         foundInfo = sortedUsers[0];
-//         delete foundInfo.priority;
-//         USERS_CACHE[user] = foundInfo;
-//     }
-
-//     if (foundInfo) {
-//         if(fs.existsSync(CACHE_FILE_FOLDER) === false){
-//             fs.mkdirSync(CACHE_FILE_FOLDER, { recursive: true });
-//         }
-
-//         const fullPath = path.join(CACHE_FILE_FOLDER, CACHE_FILE_NAME);
-//         const data = JSON.stringify(USERS_CACHE, null, 4);
-//         fs.writeFileSync(fullPath, data);
-        
-//         return foundInfo.id;
-//     }
+        return Ok(user_info.id.clone());
+    }
 
     return Err(Box::from("User id is not found"));
 }
@@ -388,9 +384,7 @@ async fn find_user_id_by_name(api_token: &str, src_user_name: &str) -> Result<St
 async fn main() -> Result<(), Box<dyn std::error::Error>> {
     // let result = test_tokio_server();
     // result.await?;
-
     //perform_get_request_with_hyper().await?;
-    
     //perform_get_request_with_reqwest().await?;
 
     // Parse parameters
