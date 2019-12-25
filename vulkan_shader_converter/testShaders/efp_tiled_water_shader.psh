@@ -1,0 +1,37 @@
+uniform sampler2D u_texture;
+uniform vec4 u_color;
+uniform float u_brightness;
+#if defined BUILD_IOS
+    uniform highp float u_time;
+    uniform highp float u_speed;
+    #define FLOAT highp float
+    #define VEC2 highp vec2
+#elif defined BUILD_ANDROID
+    uniform highp float u_time;
+    uniform highp float u_speed;
+    #define FLOAT highp float
+    #define VEC2 highp vec2
+#else
+    uniform float u_time;
+    uniform float u_speed;
+    #define FLOAT float
+    #define VEC2 vec2
+#endif
+
+uniform float u_tex_scaling;
+
+varying vec2 v_texcoord;
+
+//SKY_COLOUR  vec4(64.0, 153.0, 194.0, 255.0) / 255.0
+
+void main(void)
+{
+    vec4 color = u_color * texture2D(u_texture, v_texcoord);
+
+    float tex_coord = v_texcoord.y / u_tex_scaling;
+
+    vec4 result_color;
+    result_color.w = u_color.w;
+    result_color.xyz = mix(color.xyz, vec3(0.3490196, 0.8980392, 0.9372549) * tex_coord, tex_coord);
+    gl_FragColor = clamp(result_color, 0.0, 1.0);
+}

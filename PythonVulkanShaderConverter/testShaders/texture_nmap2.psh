@@ -1,0 +1,52 @@
+varying vec2 v_texcoord;
+varying vec4 v_worldpos;
+varying vec4 v_position;
+
+uniform sampler2D u_texture;
+uniform sampler2D u_texture2;
+uniform vec4 u_color;
+
+#if defined BUILD_IOS
+uniform highp float u_time2;
+#elif defined BUILD_ANDROID
+uniform highp float u_time2;
+#else
+uniform float u_time2;
+#endif
+
+uniform vec4 world_pos;
+uniform float pixels_x;
+uniform float pixels_y;
+
+#define STR 512.0
+
+void main(void)
+{
+    vec4 color = u_color * texture2D(u_texture, v_texcoord);
+    
+    float kt = u_time2;
+    vec2 tx = v_texcoord;
+    tx.y *= 1.0 + v_position.y / pixels_y * 1.5;
+    vec4 nmap1 = texture2D(u_texture2, tx+vec2(-kt,+kt)+0.25);
+    vec4 nmap2 = texture2D(u_texture2, tx+vec2(+kt,-kt));
+    vec4 nmap = mix(nmap1, nmap2, 0.5);
+    vec3 normal = normalize(nmap.xyz);
+
+    vec3 light = normalize(vec3(0.86, 0.75, 0.5));
+
+    float vcoef = v_position.y / pixels_y / 1.2;
+
+    //if (color.a > 0.85) {
+        vec3 R = normalize(reflect(-light, normal * min(color.a * 2.0, 1.0)));
+        float specular = dot(R, normalize(vec3(0.0, 0.15, 0.75)));
+        //float specular = dot(R, normalize(-v_worldpos.xyz));
+        specular /= STR - specular * STR + specular;
+        specular *= max(vcoef - 0.35, 0.0) * (1.0 - color.b) * color.a;
+    //}
+
+    //color.rgb = normal * vec3(0.0,0.25,0.36) * (dot(normal, normalize(vec3(0.86, 0.75, 0.5))) * 2.5) + specular;
+    //color.rgb = color.rgb * (dot(normal, normalize(vec3(0.86, 0.75, 0.5)))) + specular;
+    color.rgb += specular;
+    //color.rgb += max(vcoef - 0.55, 0.0) * (1.9 - specular * 2.0) * color.a;
+	gl_FragColor = clamp(color, 0.0, 1.0);
+}

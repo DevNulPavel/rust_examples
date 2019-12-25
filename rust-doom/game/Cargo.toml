@@ -1,0 +1,23 @@
+[package]
+name = "game"
+version = "0.1.0"
+authors = ["Cristi Cobzarenco <cristi.cobzarenco@gmail.com>"]
+edition = "2018"
+
+[dependencies]
+engine = { path = "../engine" }
+math = { path = "../math" }
+wad = { path = "../wad" }
+
+vec_map = "0.8.1"
+idcontain = "0.7.6"
+failure = "0.1.5"
+failchain = "0.1015"
+
+[dependencies.log]
+features = ["release_max_level_info"]
+version = "0.4.3"
+
+[dependencies.glium]
+features = ["glutin"]
+version = "0.25.1"

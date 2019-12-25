@@ -1,0 +1,16 @@
+varying vec2 v_texcoord;
+
+uniform sampler2D u_texture;
+uniform vec4 u_color;
+uniform float u_brightness;
+uniform float u_time;
+
+void main(void)
+{
+	vec4 color1 = u_color * texture2D(u_texture, v_texcoord);
+	color1.a *= 0.5;
+	float gray = dot(color1.rgb, vec3(0.299, 0.587, 0.114));
+	gray *= color1.a;
+
+    gl_FragColor = vec4(gray, gray, gray, color1.a);
+}

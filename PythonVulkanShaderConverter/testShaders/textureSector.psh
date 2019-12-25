@@ -1,0 +1,17 @@
+varying vec2 v_texcoord;
+
+uniform sampler2D u_texture;
+uniform vec4 u_color;
+uniform float u_angle;
+
+#define M_PI 3.1415926535897932384626433832795
+
+void main(void) {
+	vec4 color = texture2D(u_texture, v_texcoord);   
+    vec2 delta = v_texcoord - vec2(0.5);
+    
+    float ang = - atan( -delta.x, delta.y );
+    ang = ang - M_PI * 2.0 * floor(ang / (M_PI * 2.0) );
+
+    gl_FragColor = u_color * color * vec4(float(ang < u_angle));
+}

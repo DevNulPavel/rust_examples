@@ -1,0 +1,17 @@
+[package]
+name = "vulkan_shader_converter"
+version = "0.1.0"
+authors = ["Pavel Ershov <pershov@game-insight.com>"]
+edition = "2018"
+
+[dependencies]
+clap = "2.33.0"
+regex = "1"
+lazy_static = "1.4.0"
+crossbeam = "0.7"
+crossbeam-channel = "0.3"
+num_cpus = "*"
+
+[target.aarch64-linux-android]
+ar = "<project path>/NDK/arm64/bin/aarch64-linux-android-ar"
+linker = "<project path>/NDK/arm64/bin/aarch64-linux-android-clang"

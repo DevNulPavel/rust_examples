@@ -1,0 +1,17 @@
+varying vec3 v_normal;
+varying float v_alpha;
+varying vec2 v_texcoord;
+
+uniform sampler2D u_texture;
+uniform float u_time;
+uniform vec4 u_color;
+
+void main(void)
+{
+	vec3 light = normalize(vec3(-1.0, 0.5, 1.0));
+    float coef = max(dot(normalize(v_normal), light), 0.50);
+    vec4 color = texture2D(u_texture, v_texcoord);
+    color.rgb *= coef * 1.33;
+    color.a *= v_alpha;
+	gl_FragColor = u_color * color;
+}

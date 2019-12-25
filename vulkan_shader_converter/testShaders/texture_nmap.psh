@@ -1,0 +1,19 @@
+varying vec2 v_texcoord;
+
+uniform sampler2D u_texture;
+uniform sampler2D u_texture2;
+uniform vec4 u_color;
+uniform float u_brightness;
+uniform float u_time;
+
+void main(void)
+{
+    vec4 color = u_color * texture2D(u_texture, v_texcoord);
+    vec3 normal = texture2D(u_texture2, v_texcoord).xyz;
+    color.rgb = clamp(color.rgb * u_brightness, 0.0, 1.0);
+    float time = abs(u_time * 5.0);
+    vec3 light = normalize(vec3(1.0 * sin(time),0.75,1.0 * -cos(time)));
+    color.rgb = color.rgb * max(dot(normalize(normal), light), 0.33);
+
+	gl_FragColor = color;
+}

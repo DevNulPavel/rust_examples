@@ -1,0 +1,19 @@
+[package]
+name = "wad"
+version = "0.1.0"
+authors = ["Cristi Cobzarenco <cristi.cobzarenco@gmail.com>"]
+edition = "2018"
+
+[dependencies]
+math = { path = "../math" }
+
+bincode = "1.0.1"
+byteorder = "1.2.3"
+log = "0.4.3"
+regex = "1.0.1"
+serde = { version = "1.0.68", features = ["derive"] }
+toml = "0.5.0"
+vec_map = "0.8.1"
+indexmap = "1.0.1"
+failchain = "0.1015"
+failure = "0.1.5"

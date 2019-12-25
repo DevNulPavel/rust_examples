@@ -1,0 +1,46 @@
+#if defined BUILD_IOS
+#define PLATFORM_PRECISION highp
+#elif defined BUILD_ANDROID
+#define PLATFORM_PRECISION highp
+#else
+#define PLATFORM_PRECISION
+#endif
+
+varying PLATFORM_PRECISION vec2 v_texcoord;
+varying PLATFORM_PRECISION vec2 v_texcoord1;
+varying vec2 v_texcoord2;
+varying vec3 v_normal;
+
+uniform sampler2D u_texture;
+uniform sampler2D u_texture2;
+
+void main(void)
+{
+        vec4 waterColor1 = texture2D(u_texture, v_texcoord);
+        vec4 waterColor2 = texture2D(u_texture, v_texcoord1);
+        vec4 color2 = texture2D(u_texture2, v_texcoord2);
+
+        vec4 waterColor = (waterColor1 + waterColor2);
+        float foam = clamp(1.25 * (color2.g - 0.2), 0.0, 1.0);
+        float opacity = color2.r - foam * 0.2;
+        float light = color2.b;
+
+        vec4 colorNew = mix(vec4(0.0, 0.5, 0.8, opacity), waterColor1, 0.25);
+        vec4 color = mix(vec4(0.35, 0.9, 0.55, opacity), colorNew, opacity);
+        //vec4 color = mix(vec4(0.25, 0.95, 0.315, opacity), colorNew, opacity);
+
+        float wSum = (waterColor.r + waterColor.g + waterColor.b);
+
+        float wFoam = wSum * (wSum - 3.2);
+        //wSum = (clamp(wFoam, 0.0, 1.0) * 0.5) + (foam * clamp(-wFoam, 0.0, 1.0));
+        //wFoam = (clamp(wFoam * (0.25 - foam), 0.0, 1.0));
+
+        float border = clamp(v_normal.b, 0.0, 1.0);
+        wFoam = (clamp(wFoam * 0.275 + foam * 2.0 * border, 0.0, 1.0));
+
+        color = mix(color, vec4(1.0, 1.0, 1.0, 1.0), wFoam); // пенка
+        color = mix(color, vec4(0.376, 0.894, 0.901, 1.0), light);
+
+        color.a = mix(color.a, 0.0, border);
+        gl_FragColor = color;
+}

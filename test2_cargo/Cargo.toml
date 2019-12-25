@@ -1,0 +1,16 @@
+[package]
+name = "test2_cargo"
+version = "0.1.0"
+authors = ["Pavel Ershov <pershov@game-insight.com>"]
+edition = "2018"
+
+# https://crates.io/search
+[dependencies]
+rand = "0.7.0"
+
+# Таким образом можно настраивать релизную и дебажную сборку
+[profile.dev]
+opt-level = 0
+
+[profile.release]
+opt-level = 3

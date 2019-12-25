@@ -1,0 +1,15 @@
+varying vec2 v_texcoord;
+
+uniform sampler2D u_texture;
+uniform vec4 u_color;
+
+void main(void)
+{
+	vec4 color = u_color * texture2D(u_texture, v_texcoord);
+	const vec3 grayColor = vec3(0.299, 0.587, 0.114);
+	float gray = dot(mix(color.rgb, vec3(1.0), 0.4), grayColor) * 1.05;
+
+	const vec3 sepia = vec3(1.1290, 1.0081, 0.8103);
+
+	gl_FragColor = vec4(vec3(gray * sepia.r, gray * sepia.g, gray * sepia.b)*color.a, color.a);
+}
