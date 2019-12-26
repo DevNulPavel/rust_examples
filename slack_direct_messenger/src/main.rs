@@ -393,14 +393,24 @@ async fn send_qr_to_channel(api_token: &str, channel: &str, qr_text: &str, qr_co
     use reqwest::multipart::Part;
     use reqwest::multipart::Form;
 
+    let post_params = vec![
+        ("channel", channel.to_owned()),
+        ("initial_comment", commentary.to_owned()),
+        ("filename", filename.to_owned()),
+    ];
     let form = Form::new()
-        .part("channel", Part::text(channel.to_owned()))
-        .part("initial_comment", Part::text(commentary.to_owned()))
-        .part("filename", Part::text(filename.to_owned()))
-        .part("file", Part::bytes(file_data).file_name(filename.to_owned()));
+        //.part("channel", Part::text(channel.to_owned()))
+        //.part("initial_comment", Part::text(commentary.to_owned()))
+        //.part("filename", Part::text(filename.to_owned()))
+        .part("file", Part::bytes(file_data))
+        //.part("content", Part::bytes(file_data))
+        .percent_encode_attr_chars();
+    println!("{}", form.boundary());
+
     let client = reqwest::Client::new();
     let response = client.post("https://slack.com/api/files.upload")
         .bearer_auth(api_token)
+        .form(&post_params)
         .multipart(form)
         .send()
         .await?;
@@ -411,6 +421,7 @@ async fn send_qr_to_channel(api_token: &str, channel: &str, qr_text: &str, qr_co
 
 #[tokio::main]
 async fn main() -> Result<(), Box<dyn std::error::Error>> {
+    // TODO: Использовать клиент для переиспользования соединений
 
     // Parse parameters
     let matches = App::new("slack_direct_messenger")
