@@ -1,11 +1,16 @@
 #![allow(dead_code)]
 
+#[macro_use(defer)] 
+extern crate scopeguard;
 extern crate tokio;
 extern crate hyper;
 extern crate reqwest;
 extern crate clap;
 extern crate dirs;
 extern crate serde_json;
+extern crate qrcode;
+extern crate image;
+extern crate uuid;
 
 use std::fs::File;
 use std::io::Read;
@@ -15,103 +20,18 @@ use std::path::Path;
 use std::cmp::Ordering;
 use std::collections::HashMap;
 use clap::{Arg, App};
-use tokio::prelude::*;
-use tokio::net::TcpListener;
-use hyper::Client;
 use serde::Deserialize;
 use serde::Serialize;
+use qrcode::QrCode;
+use image::Luma;
 
 
-async fn test_tokio_server() -> Result<(), Box<dyn std::error::Error>>{
-    // Создаем серверный сокет
-    let mut listener = TcpListener::bind("127.0.0.1:8080").await?;
-
-    loop {
-        // В цикле получаем новые подключения
-        let (mut socket, _) = listener.accept().await?;
-
-        // Закидываем на обработку новые асинхронные функции для обработки подключения
-        tokio::spawn(async move {
-            // Создаем буффер
-            let mut buf = [0; 1024];
-
-            // Начинаем читать в цикле из сокета
-            loop {
-                // Пробуем прочитать в сокет    
-                let n = match socket.read(&mut buf).await {
-                    // Сокет у нас закрыт, прочитали 0 данных - значит выходим из данного обработчика сокета
-                    Ok(n) if (n == 0) => {
-                        return;
-                    },
-                    // Если у нас ненулевое значение прочитано, значит все ок
-                    Ok(n) => {
-                        n
-                    },
-                    // Если ошибка, выводим ее и выходим из обработчика сокета
-                    Err(e) => {
-                        eprintln!("failed to read from socket; err = {:?}", e);
-                        return;
-                    }
-                };
-
-                // Пишем данные назад, в случае ошибки - выводим ее и выходим
-                if let Err(e) = socket.write_all(&buf[0..n]).await {
-                    eprintln!("failed to write to socket; err = {:?}", e);
-                    return;
-                }
-            }
-        });
-    }
-    //Ok(())
-}
-
-async fn perform_get_request_with_hyper() -> Result<(), Box<dyn std::error::Error>> {
-    // Still inside `async fn main`...
-    let client = Client::new();
-
-    // Parse an `http::Uri`...
-    let uri = "http://httpbin.org/ip".parse()?;
-
-    // Await the response...
-    let resp = client.get(uri).await?;
-
-    println!("Response status: {}", resp.status());
-
-    // And now...
-    // while let Some(chunk) = resp.body_mut().data().await {
-    //     stdout().write_all(&chunk?).await?;
-    // }
-
-    Ok(())
-}
-
-async fn perform_get_request_with_reqwest() -> Result<(), Box<dyn std::error::Error>> {
-    // let resp: HashMap<String, String> = reqwest::get("https://httpbin.org/ip")
-    //     .await?
-    //     .json()
-    //     .await?;
-    // println!("{:#?}", resp);
-
-    // let body = reqwest::get("https://www.rust-lang.org")
-    //     .await?
-    //     .text()
-    //     .await?;
-    //println!("body = {:?}", body);
-
-    //https://docs.rs/reqwest/0.10.0-alpha.2/reqwest/
-
-    // This will POST a body of `{"lang":"rust","body":"json"}`
-    let mut map = HashMap::new();
-    map.insert("lang", "rust");
-    map.insert("body", "json");
-    let client = reqwest::Client::new();
-    let res = client.post("http://httpbin.org/post")
-        .json(&map)
-        .send()
-        .await?;
-    println!("result = {:?}", res);
-
-    Ok(())
+// Создаем структурки, в которых будут нужные значения
+#[derive(Deserialize, Serialize, Debug, Clone)]
+struct UserInfo {
+    id: String,
+    name: String,
+    real_name: Option<String>
 }
 
 async fn find_user_id_by_email(api_token: &str, email: &str) -> Result<String, Box<dyn std::error::Error>> {
@@ -155,14 +75,6 @@ async fn find_user_id_by_email(api_token: &str, email: &str) -> Result<String, B
     }
 
     return Err(Box::from(format!("User is not found for this email: {}", email)));
-}
-
-// Создаем структурки, в которых будут нужные значения
-#[derive(Deserialize, Serialize, Debug, Clone)]
-struct UserInfo {
-    id: String,
-    name: String,
-    real_name: Option<String>
 }
 
 // Result<Vec<UserInfo>, Box<dyn std::error::Error>>
@@ -380,12 +292,125 @@ async fn find_user_id_by_name(api_token: &str, src_user_name: &str) -> Result<St
     return Err(Box::from("User id is not found"));
 }
 
+async fn open_direct_message_channel(api_token: &str, user_id: &str) -> Result<String, Box<dyn std::error::Error>>{
+    // Выполняем POST запрос
+    let post_params = vec![
+        ("user", user_id),
+    ];
+    let client = reqwest::Client::new();
+    let response = client.post("https://slack.com/api/im.open")
+        .bearer_auth(api_token)
+        .form(&post_params)
+        .send()
+        .await?;
+    //println!("{:?}", response);
+    
+    // Создаем структурки, в которых будут нужные значения
+    #[derive(Deserialize, Debug)]
+    struct ChannelInfo {
+        id: String,
+    }
+    #[derive(Deserialize, Debug)]
+    struct ResponseInfo {
+        ok: bool,
+        channel: ChannelInfo,
+    }
+
+    // Парсим ответ в json
+    let response_json = response
+        .json::<ResponseInfo>()
+        .await?;
+    //println!("{:?}", response_json);
+    
+    // Результат, если все ок
+    if response_json.ok {
+        return Ok(response_json.channel.id);
+    }
+
+    Err(Box::from("Direct message channel opening failed"))
+}
+
+async fn send_direct_message_to_channel(api_token: &str, channel: &str, text: &str) -> Result<(), Box<dyn std::error::Error>>{
+    // Выполняем POST запрос
+    let post_params = vec![
+        ("channel", channel),
+        ("text", text)
+    ];
+    let client = reqwest::Client::new();
+    client.post("https://slack.com/api/chat.postMessage")
+        .bearer_auth(api_token)
+        .form(&post_params)
+        .send()
+        .await?;
+    //println!("{:?}", response);
+    
+    Ok(())
+}
+
+async fn send_qr_to_channel(api_token: &str, channel: &str, qr_text: &str, qr_commentary: &str) -> Result<(), Box<dyn std::error::Error>>{
+    // Encode some data into bits.
+    let code = QrCode::new(qr_text.as_bytes()).unwrap();
+
+    // Render the bits into an image.
+    let image = code.render::<Luma<u8>>().build();
+
+    // File path
+    let new_uuid = uuid::Uuid::new_v4();
+    let filename = format!("{}.png", new_uuid);
+    let temp_dir = std::env::temp_dir();
+    let result_file_path = PathBuf::new().join(temp_dir).join(filename.as_str());
+    println!("{:?}", result_file_path);
+
+    // Save the image.
+    image.save(&result_file_path).unwrap();
+
+    // Сразу прописываем отложенное удаление
+    defer!(std::fs::remove_file(&result_file_path).unwrap());
+
+    // TODO: Читаем файлик
+    let file_data: Vec<u8> = match File::open(&result_file_path){
+        Ok(mut file) => {
+            let mut data: Vec<u8> = Vec::new();
+            match file.read_to_end(&mut data) {
+                Ok(_)=> {
+                    data
+                },
+                Err(_) => {
+                    data
+                }
+            }        
+        },
+        Err(_)=> Vec::new()
+    };
+    //println!("{:?}", file_data);
+
+    // Выполняем POST запрос
+    let commentary = match qr_commentary.len(){
+        0 => qr_commentary,
+        _ => qr_text
+    };
+
+    use reqwest::multipart::Part;
+    use reqwest::multipart::Form;
+
+    let form = Form::new()
+        .part("channel", Part::text(channel.to_owned()))
+        .part("initial_comment", Part::text(commentary.to_owned()))
+        .part("filename", Part::text(filename.to_owned()))
+        .part("file", Part::bytes(file_data).file_name(filename.to_owned()));
+    let client = reqwest::Client::new();
+    let response = client.post("https://slack.com/api/files.upload")
+        .bearer_auth(api_token)
+        .multipart(form)
+        .send()
+        .await?;
+    println!("{:?}", response);
+
+    Ok(())
+}
+
 #[tokio::main]
 async fn main() -> Result<(), Box<dyn std::error::Error>> {
-    // let result = test_tokio_server();
-    // result.await?;
-    //perform_get_request_with_hyper().await?;
-    //perform_get_request_with_reqwest().await?;
 
     // Parse parameters
     let matches = App::new("slack_direct_messenger")
@@ -394,27 +419,32 @@ async fn main() -> Result<(), Box<dyn std::error::Error>> {
                             .about("Send direct messages to slack")
                             .arg(Arg::with_name("email")
                                 .long("slack_user_email")
-                                .help("Slack user email"))
+                                .help("Slack user email")
+                                .takes_value(true))
                             .arg(Arg::with_name("user")
                                 .long("slack_user")
-                                .help("Username"))
+                                .help("Username")
+                                .takes_value(true))
                             .arg(Arg::with_name("text")
                                 .long("slack_user_text")
-                                .help("Text"))
+                                .help("Text")
+                                .takes_value(true))
                             .arg(Arg::with_name("qr_comment")
                                 .long("slack_user_qr_commentary")
-                                .help("QR code commentary"))
+                                .help("QR code commentary")
+                                .takes_value(true))
                             .arg(Arg::with_name("qr_text")
                                 .long("slack_user_qr_text")
-                                .help("QR code text"))
-                          .get_matches();
+                                .help("QR code text")
+                                .takes_value(true))
+                            .get_matches();
 
     // Gets a value for config if supplied by user, or defaults to "default.conf"
     let email = matches.value_of("email").unwrap_or("");
     let user = matches.value_of("user").unwrap_or("");
-    //let text = matches.value_of("text").unwrap_or("");
-    //let qr_commentary = matches.value_of("qr_comment").unwrap_or("");
-    //let qr_text = matches.value_of("qr_text").unwrap_or("");
+    let text = matches.value_of("text").unwrap_or("");
+    let qr_commentary = matches.value_of("qr_comment").unwrap_or("");
+    let qr_text = matches.value_of("qr_text").unwrap_or("");
 
     // Api token
     let api_token = std::env::var("SLACK_API_TOKEN").expect("SLACK_API_TOKEN environment variable is missing");
@@ -432,6 +462,18 @@ async fn main() -> Result<(), Box<dyn std::error::Error>> {
         }
     };
     println!("{}", id);
+
+    let channel_id = open_direct_message_channel(api_token.as_str(), id.as_str()).await?;
+    println!("{}", channel_id);
+    
+    if text.len() > 0 {
+        // String можно преобразовать в &String, затем вызовется deref() -> &str
+        send_direct_message_to_channel(&api_token, &channel_id, text).await?;
+    }
+
+    if qr_text.len() > 0{
+        send_qr_to_channel(&api_token, &channel_id, qr_text, qr_commentary).await?;
+    }
 
     Ok(())
 }

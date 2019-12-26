@@ -100,12 +100,18 @@ struct Task {
 ////////////////////////////////////////////////////////////////////////////////
 
 fn new_executor_and_spawner() -> (Executor, Spawner) {
-    // Maximum number of tasks to allow queueing in the channel at once.
-    // This is just to make `sync_channel` happy, and wouldn't be present in
-    // a real executor.
-    const MAX_QUEUED_TASKS: usize = 10_000;
+    const MAX_QUEUED_TASKS: usize = 1000;
+    
+    // Создаем синхронный канал на определенное количество элементов
     let (task_sender, ready_queue) = sync_channel(MAX_QUEUED_TASKS);
-    (Executor { ready_queue }, Spawner { task_sender })
+    
+    let executor = Executor { 
+        ready_queue 
+    };
+    let spawner = Spawner { 
+        task_sender 
+    };
+    (executor, spawner)
 }
 
 ////////////////////////////////////////////////////////////////////////////////
