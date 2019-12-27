@@ -403,7 +403,7 @@ async fn send_qr_to_channel(api_token: &str, channel: &str, qr_text: &str, qr_co
         //.part("initial_comment", Part::text(commentary.to_owned()))
         //.part("filename", Part::text(filename.to_owned()))
         .part("file", Part::bytes(file_data))
-        //.part("content", Part::bytes(file_data))
+        //.part("content", Part::stream(file_data))
         .percent_encode_attr_chars();
     println!("{}", form.boundary());
 
