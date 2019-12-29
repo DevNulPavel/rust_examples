@@ -104,6 +104,7 @@ op!(add_assign, Add, +=, add);
 op!(mul_assign, Mul, *=, mul);
 op!(sub_assign, Sub, -=, sub);
 
+#[allow(unused_macros)]
 macro_rules! calculate {
     (eval $e:expr) => {{
         {
