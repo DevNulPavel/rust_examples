@@ -1,10 +1,16 @@
+all: TEST_RELEASE
+
+clean: CLEAN
+
+########################################################################################
+
 # | - значит, что запускать не параллельно, а последовательно
 
 BUILD_RUST_LIB_RELEASE:
-	cargo build --release
+	cargo build --release --lib
 
 BUILD_RUST_LIB_DEBUG:
-	cargo build
+	cargo build --lib
 
 MAKE_RUST_INCLUDE_HEADER:
 	cbindgen --config "CBindgen.toml" --crate "test19_cbindgen" --output "shared_include/library.h"
@@ -38,4 +44,8 @@ TEST_DEBUG: | BUILD_DEBUG
 	./cpp_app/build_debug/cpp_rust_app
 
 CLEAN:
-
+	rm -rf shared_include;
+	cargo clean;
+	pushd cpp_app && \
+	rm -rf build_*; \
+	popd;

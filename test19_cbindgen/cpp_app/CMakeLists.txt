@@ -4,10 +4,10 @@ project(cpp_rust_app VERSION 0.1.0)
 include_directories("${CMAKE_CURRENT_SOURCE_DIR}/../shared_include/")
 
 if(${CMAKE_BUILD_TYPE} STREQUAL "Release")
-    set(LINK_LIBS "${CMAKE_CURRENT_SOURCE_DIR}/../target/release/libtest19_cbindgen.rlib")
+    set(LINK_LIBS "${CMAKE_CURRENT_SOURCE_DIR}/../target/release/libtest19_cbindgen.a")
     message("LIBRARY: ${LINK_LIBS}")
 elseif(${CMAKE_BUILD_TYPE} STREQUAL "Debug")
-    set(LINK_LIBS "${CMAKE_CURRENT_SOURCE_DIR}/../target/debug/libtest19_cbindgen.rlib")
+    set(LINK_LIBS "${CMAKE_CURRENT_SOURCE_DIR}/../target/debug/libtest19_cbindgen.a")
     message("LIBRARY: ${LINK_LIBS}")
 endif()
 
