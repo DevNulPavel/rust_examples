@@ -5,11 +5,10 @@ extern crate timer_future;
 
 use {
 	futures::{
-		future::{FutureExt, BoxFuture},
+		future::{FutureExt, BoxFuture, Future}, // Аналогичено std::future::Future, просто переопределение стандартного типа библиотекой
 		task::{ArcWake, waker_ref},
 	},
 	std::{
-		future::Future,
 		sync::{Arc, Mutex},
 		sync::mpsc::{sync_channel, SyncSender, Receiver},
 		task::{Context, Poll},

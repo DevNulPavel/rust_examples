@@ -1,5 +1,5 @@
 [package]
-name = "test14_async"
+name = "test20_cpupool"
 version = "0.1.0"
 authors = ["DevNul <devnulpavel@gmail.com>"]
 edition = "2018"
@@ -7,6 +7,5 @@ edition = "2018"
 # See more keys and their definitions at https://doc.rust-lang.org/cargo/reference/manifest.html
 
 [dependencies]
-futures = "0.3.1"
-pin-utils = "0.1.0-alpha.4"
-timer_future = {path="libs/timer_future"}
+futures-cpupool = "0.1.8"
+futures = "0.1.29" # Нужна именно эта версия, с версиями выше не работает
