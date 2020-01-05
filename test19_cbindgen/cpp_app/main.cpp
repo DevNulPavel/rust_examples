@@ -1,15 +1,21 @@
-#include <library.h>
 #include <cstdio>
 #include <cstring>
 
+// Так как библиотека C-шная, то нужно указывать соглашение о вызовах
+// Если используем C++ библиотеку - убрать
+// Если в самой библиотеке прописан формат вызова - тоже не нужно
+// extern "C" {
+    #include <library.h>
+// }
+
 int main(int argc, char const *argv[]){
     {
-        int32_t result = rust_lib::function_1(10);
+        int32_t result = function_1(10);
         std::printf("Value from RUST: %d\n", result);
     }
 
     {
-        rust_lib::Buffer<int32_t> buffer;
+        Buffer_i32 buffer;
         std::memset(buffer.data, 0, sizeof(buffer.data));
         buffer.data[0] = 10;
         buffer.data[1] = 20;

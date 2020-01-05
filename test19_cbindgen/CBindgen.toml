@@ -1,11 +1,11 @@
 # https://github.com/eqrion/cbindgen/blob/master/template.toml
 
-language = "C++"
+language = "C" # "C++" / "C"
 include_version = true
-namespace = "rust_lib"  # Пространство имен библиотеки
+namespace = ""  # Пространство имен библиотеки, "rust_lib"
 namespaces = []         # Пространство имен библиотеки
 using_namespaces = []
-sys_includes = ["cstdio", "cstring"] # Какие инклюды в <> должны быть в библиотеке в .h
+sys_includes = [] # Какие инклюды в <> должны быть в библиотеке в .h ("cstdio", "cstring")
 includes = []   # Какие инклюды в "" должны быть в библиотеке в .h
 no_includes = false
 braces = "SameLine"
@@ -35,21 +35,21 @@ renaming_overrides_prefixing = false
 [export.body]
 
 [fn]
-rename_args = "CamelCase" # переименование полей в camelCase
-args = "auto"
-# must_use = "MUST_USE_FUNC"
-# prefix = "START_FUNC"
+prefix = 'extern "C"' # Если выставлен язык C - тогда мы добавляем префикс
+# args = "auto"
+# rename_args = "CamelCase" # переименование полей в camelCase
+# must_use = "RUST"
 # postfix = "END_FUNC"
 
 [struct]
-rename_fields = "CamelCase"
 derive_constructor = false   # Конструктор у структур
-derive_eq = true            # EQ у структур
+derive_eq = false            # EQ у структур
 derive_neq = false
 derive_lt = false
 derive_lte = false
 derive_gt = false
 derive_gte = false
+# rename_fields = "CamelCase"
 # must_use = "MUST_USE_STRUCT"
 
 [enum]
@@ -61,7 +61,7 @@ derive_const_casts = false
 derive_mut_casts = false
 derive_tagged_enum_destructor = false
 derive_tagged_enum_copy_constructor = false
-enum_class = true
+enum_class = false
 private_default_tagged_enum_constructor = false
 # cast_assert_name = "ASSERT"
 # must_use = "MUST_USE_ENUM"

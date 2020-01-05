@@ -8,7 +8,7 @@ edition = "2018"
 
 [lib]
 name = "test19_cbindgen"
-crate-type = ["staticlib"] # Создаем статическую библиотеку, dylib, rlib, staticlib, cdylib, and proc-macro
+crate-type = ["staticlib", "cdylib"] # Создаем статическую библиотеку, dylib, rlib, staticlib, cdylib, and proc-macro
 
 [profile.dev]
 opt-level = 0
