@@ -6,6 +6,8 @@ import os.path
 import ctypes
 import cffi
 
+# https://habr.com/ru/post/466499/
+
 SCRIPT_FOLDER = os.path.dirname(os.path.realpath(__file__))
 
 def test_cdll():
@@ -31,10 +33,28 @@ def test_cdll():
     lib = ctypes.cdll.LoadLibrary(lib_path)
 
     function_1 = lib.function_1
+    function_2 = lib.function_2
 
     input = 4
     output = function_1(input)
-    print('{} = {}'.format(input, output))
+    print("{} = {}".format(input, output))
+
+    # Объявляем структуру в Python аналогичную в C
+    EightIntegers = ctypes.c_int32 * 8
+    class Buffer(ctypes.Structure):
+        _fields_ = [("data", EightIntegers), 
+                    ("len", ctypes.c_size_t)]
+
+    # Указываем, что функция принимает аргумент Buffer
+    function_2.argtypes = [Buffer] 
+    # Указываем, что функция возвращает int32_t
+    function_2.restype = ctypes.c_int32
+
+    # Создаем буффер, параметры идут в том же порядке, в котором они были описаны
+    buf = Buffer(EightIntegers(10, 10, 10, 10, 10, 10, 10, 10), 8)
+
+    result = function_2(buf)
+    print('{}'.format(result))
 
 
 def test_ffi():
@@ -42,8 +62,8 @@ def test_ffi():
 
 
 def main():
-    # test_cdll()
-    test_ffi()
+    test_cdll()
+    # test_ffi()
 
 
 if __name__ == "__main__":

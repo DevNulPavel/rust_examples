@@ -1,0 +1,59 @@
+[package]
+name = "test20_bindgen"
+version = "0.1.0"
+authors = ["DevNul <devnulpavel@gmail.com>"]
+edition = "2018"
+build = "build.rs"
+# links = "snappy"
+
+# See more keys and their definitions at https://doc.rust-lang.org/cargo/reference/manifest.html
+
+[profile.dev]
+opt-level = 0
+debug = true # Дебажная информация
+rpath = false
+lto = false # Оптимизация линковки, чтобы бинарь был поменьше
+debug-assertions = true
+codegen-units = 16 # Степень параллельной сборки
+panic = "unwind"   # Что  делсть в случае паники, "abort"
+incremental = true # Инкрементальная сборка
+overflow-checks = true
+# rustc-link-search = ["./libs/snappy/build_debug"]
+# rustc-link-lib = ["snappy"]
+
+[profile.release]
+opt-level = 3
+debug = false
+rpath = false
+lto = false
+debug-assertions = false
+codegen-units = 16
+panic = "unwind"
+incremental = false
+overflow-checks = false
+# rustc-link-search = ["./libs/snappy/build_release"]
+# rustc-link-lib = ["snappy"]
+
+
+[profile.test]
+opt-level = 0
+debug = 2
+rpath = false
+lto = false
+debug-assertions = true
+codegen-units = 16
+incremental = true
+overflow-checks = true
+
+[profile.bench]
+opt-level = 3
+debug = false
+rpath = false
+lto = false
+debug-assertions = false
+codegen-units = 16
+incremental = false
+overflow-checks = false
+
+[dependencies]
+libc = "0.2.66"
