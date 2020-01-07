@@ -24,6 +24,24 @@ BUILD_SNAPPY_LIB_DEBUG:
 		popd && \
 	popd
 
+BUILD_CUSTOM_LIB_RELEASE:
+	pushd libs/custom_lib && \
+		mkdir -p build_release && \
+		pushd build_release && \
+			cmake -G "Unix Makefiles" -DCMAKE_BUILD_TYPE="Release" ../ && \
+			make -j5; \
+		popd && \
+	popd
+
+BUILD_CUSTOM_LIB_DEBUG:
+	pushd libs/custom_lib && \
+		mkdir -p build_debug && \
+		pushd build_debug && \
+			cmake -G "Unix Makefiles" -DCMAKE_BUILD_TYPE="Debug" ../ && \
+			make -j5; \
+		popd && \
+	popd
+
 BUILD_RUST_APP_RELEASE:
 	# export LD_LIBRARY_PATH=$PREFIX/lib:$LD_LIBRARY_PATH
 	cargo build --release
@@ -31,9 +49,9 @@ BUILD_RUST_APP_RELEASE:
 BUILD_RUST_APP_DEBUG:
 	cargo build
 
-BUILD_RELEASE: | BUILD_SNAPPY_LIB_RELEASE BUILD_RUST_APP_RELEASE
+BUILD_RELEASE: | BUILD_SNAPPY_LIB_RELEASE BUILD_CUSTOM_LIB_RELEASE BUILD_RUST_APP_RELEASE
 
-BUILD_DEBUG: | BUILD_SNAPPY_LIB_DEBUG BUILD_RUST_APP_DEBUG
+BUILD_DEBUG: | BUILD_SNAPPY_LIB_DEBUG BUILD_CUSTOM_LIB_RELEASE BUILD_RUST_APP_DEBUG
 
 TEST_RELEASE: | BUILD_RELEASE
 	./target/release/test20_bindgen
