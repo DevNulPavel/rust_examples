@@ -1,6 +1,11 @@
 #![allow(dead_code)]
 
+extern crate libc;
+
 use std::ops::DerefMut;
+use std::ffi::CString;
+use std::ffi::CStr;
+use std::os::raw::c_char;
 
 ////////////////////////////////////////////////////////////////////////////////////////////////////
 
@@ -11,6 +16,7 @@ extern {
     fn trigger_callback_int32();
     fn register_callback_obj(target: *mut RustObject, cb: extern "C" fn(*mut RustObject, i32)) -> i32;
     fn trigger_callback_obj();
+    fn test_string_code(text: *const c_char) -> *const c_char;
 }
 
 ////////////////////////////////////////////////////////////////////////////////////////////////////
@@ -65,7 +71,29 @@ fn test_obj_cb() {
 
 ////////////////////////////////////////////////////////////////////////////////////////////////////
 
+fn test_string_to_c(){
+    // Создаем строку с NULL в конце
+    let to_c_string = CString::new("Hello, world!").expect("CString::new failed");
+
+    let c_str = unsafe {
+        // Вызываем C-шную функцию с данными
+        let text = test_string_code(to_c_string.as_ptr());
+        // Оборачиваем указатель на данные в Rust ссылку
+        CStr::from_ptr(text).to_owned()
+    };
+    // Создаем CopyOnWrite объект, который владеет данными, но копируем из только при необходимости
+    //let from_c_string = c_str.to_string_lossy();
+
+    // Создаем строку RUST
+    let from_c_string = c_str.to_str().unwrap();
+
+    println!("{}", from_c_string);
+}
+
+////////////////////////////////////////////////////////////////////////////////////////////////////
+
 pub fn test_custom_lib() {
     test_simple_cb();
     test_obj_cb();
+    test_string_to_c();
 }

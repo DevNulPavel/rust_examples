@@ -1,15 +1,14 @@
 #include "lib.h"
-
-// Описываем тип коллбека
-typedef void (*RustCallbackInt32)(int32_t);
-typedef void (*RustCallbackObj)(void*, int32_t);
+#include <stdlib.h>
+#include <stdio.h>
+#include <string.h>
 
 // Переменная, в которой у нас будет храниться коллбек
-RustCallbackInt32 cbInt32 = NULL;
+static RustCallbackInt32 cbInt32 = NULL;
 
 // Коллбек + объект
-RustCallbackObj cbObj = NULL;
-void* cbObjTarget = NULL;
+static RustCallbackObj cbObj = NULL;
+static void* cbObjTarget = NULL;
 
 #ifdef __cplusplus
 extern "C" {
@@ -26,7 +25,7 @@ extern "C" {
         }
     }
 
-    int32_t register_callback_obj(void* target, rust_callback callback) {
+    int32_t register_callback_obj(void* target, RustCallbackObj callback) {
         cbObj = callback;
         cbObjTarget = target;
         return 1;
@@ -36,6 +35,18 @@ extern "C" {
         if(cbObj && cbObjTarget){
             cbObj(cbObjTarget, 7); // Вызовет callback(&rustObject, 7) в Rust
         }
+    }
+
+    const char* test_string_code(const char* inputText){
+        if (inputText == NULL){
+            return "";
+        }
+
+        const char* prefix = "PREFIX: ";
+        char* newText = malloc(strlen(inputText) + strlen(prefix) + 1);
+        sprintf(newText, "%s%s", prefix, inputText);
+
+        return newText;
     }
 
 #ifdef __cplusplus
