@@ -58,10 +58,15 @@ fn test_obj_cb() {
         a: 0
     });
 
+    // Получаем указатель на наш сырой объект в куче, что интересно - это все вне unsafe блока
+    // Данная конструкция ниже читается так изнутри - наружу
+    //      - сначала мы разыменовываем сырой указатель для полу чения нашего объекта в памяти
+    //      - затем мы берем ссылку на тот самый объект в памяти
+    //      - приводим эту ссылку к указателю, срасывая отслеживание lifetime
+    let raw_pointer: *mut RustObject = &mut *rust_object; // то же самое, что ниже
+    // let raw_pointer: &mut RustObject = rust_object.deref_mut();
+
     unsafe {
-        // Получаем указатель на наш сырой объект в куче
-        // let raw_pointer: *mut RustObject = &mut *rust_object; - то же самое, что ниже
-        let raw_pointer: &mut RustObject = rust_object.deref_mut();
         register_callback_obj(raw_pointer, callback_obj);
         trigger_callback_obj();
     }
@@ -92,8 +97,34 @@ fn test_string_to_c(){
 
 ////////////////////////////////////////////////////////////////////////////////////////////////////
 
+fn test_some_unsafe_code(){
+    fn get_pair_mut_from_array<T>(arr: &mut [T], index_1: usize, index_2: usize)-> (&mut T, &mut T){
+        // Здесь мы приводим ссылку к сырому указателю + узбавляемся от lifetime нашей мутабельной ссылки
+        // Что интересно - мы это делаем не в unsafe блоке
+        let var_1: *mut T = &mut (arr[index_1]);
+        let var_2: *mut T = &mut (arr[index_2]);
+
+        unsafe{
+            // Assert работает даже в release сборке, это значит, что будет происходить проверка всегда в коде
+            assert_ne!(index_1, index_2);
+            // Данная конструкция ниже читается так изнутри - наружу
+            //      - сначала мы разыменовываем сырой указатель для получения нашего объекта в памяти
+            //      - затем мы берем ссылку на тот самый объект в памяти
+            (&mut *var_1, &mut *var_2)
+        }
+    }
+    
+    let mut test_array = [10, 20, 30, 40];
+    //  Вызов с одинаковыми параметрами приведет к UndefinedBehaviour, для этого внутри assert
+    let pair = get_pair_mut_from_array(&mut test_array, 0, 1);
+    println!("{:?}", pair);
+}
+
+////////////////////////////////////////////////////////////////////////////////////////////////////
+
 pub fn test_custom_lib() {
     test_simple_cb();
     test_obj_cb();
     test_string_to_c();
+    test_some_unsafe_code();
 }
