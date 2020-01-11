@@ -9,12 +9,14 @@ use std::time::Instant;
 use structopt::StructOpt;
 use wad::Archive;
 
+// Описание послей приложения для парсинга
 #[derive(StructOpt)]
 #[structopt(
     name = "Rusty Doom",
     setting = structopt::clap::AppSettings::ColoredHelp
 )]
 struct App {
+    // Имя WAD файлика
     #[structopt(
         short = "i",
         long = "iwad",
@@ -22,9 +24,9 @@ struct App {
         value_name = "FILE",
         parse(from_os_str)
     )]
-    /// Initial WAD file to use.
     iwad: PathBuf,
 
+    /// Path to TOML metadata file.
     #[structopt(
         short = "m",
         long = "metadata",
@@ -32,9 +34,9 @@ struct App {
         value_name = "FILE",
         parse(from_os_str)
     )]
-    /// Path to TOML metadata file.
     metadata: PathBuf,
 
+    /// Size of the game window.
     #[structopt(
         short = "r",
         long = "resolution",
@@ -42,9 +44,9 @@ struct App {
         value_name = "WIDTHxHEIGHT",
         parse(try_from_str = parse_resolution)
     )]
-    /// Size of the game window.
     resolution: (u32, u32),
 
+    /// The index of the level to render (0-based).
     #[structopt(
         short = "l",
         long = "level",
@@ -52,54 +54,63 @@ struct App {
         help = "the index of the level to render",
         value_name = "N"
     )]
-    /// The index of the level to render (0-based).
     level_index: usize,
 
+    /// Horizontal field of view.
     #[structopt(
         short = "f",
         long = "fov",
         default_value = "65",
         value_name = "DEGREES"
     )]
-    /// Horizontal field of view.
     fov: f32,
 
     #[structopt(subcommand)]
     command: Option<Command>,
 }
 
+// Варианты команд
 #[derive(StructOpt, Copy, Clone)]
 enum Command {
-    /// Load metadata and all levels in WAD, then exit.
+    // Прогрузить все метаданные, уровни - затем выйти
     #[structopt(name = "check")]
     Check,
 
-    /// List the names and indices of all the leves in the WAD, then exit.
+    // Список всех имен и индексов уровней в WAD файлике, затем выйти
     #[structopt(name = "list-levels")]
     ListLevelNames,
 }
 
 impl App {
-    /// Parse options from command-line arguments and run.
+    // Парсинг-метод опций коммандной строки
     pub fn run_from_args() -> Result<(), Error> {
+        // Парсим аргументы и вызываем run
         Self::from_args().run()
     }
 
-    /// Either play the game (if no `Command` was passed), or perform the command.
+    // Запускаем приложение или обрабатываем входную команду
     pub fn run(self) -> Result<(), Error> {
-        // Init logging, with default `info` level.
-        env_logger::Builder::from_env(
-            env_logger::Env::default().filter_or(env_logger::DEFAULT_FILTER_ENV, "info"),
-        )
-        .format_timestamp(None)
-        .init();
+        // Устанавливаем уровень логирования на info
+        env_logger::Builder::from_env(env_logger::Env::default().filter_or(env_logger::DEFAULT_FILTER_ENV, "info"))
+            .format_timestamp(None)
+            .init();
 
+        // Смотрим, какая у нас прилетела команда
         match self.command {
+            // Если никакой команды - создаем игру и запускаем ее
             None => {
-                let mut game = game::create(&self.into_config())?;
+                // Получаем конфиг
+                let config = self.into_config();
+                // Создаем игру
+                let mut game = game::create(&config)?;
+                // Конфиг уже не нужен
+                drop(config);
+
+                // Стартуем игровой цикл
                 game.run()?;
                 info!("Game main loop ended, shutting down...");
             }
+            // Если прилетела команда Check
             Some(Command::Check) => {
                 let mut game = game::create(&GameConfig {
                     initial_level_index: 0,
@@ -115,6 +126,7 @@ impl App {
                     t0.elapsed().f64_seconds()
                 );
             }
+            // Команда списка уровней
             Some(Command::ListLevelNames) => {
                 let wad = Archive::open(&self.iwad, &self.metadata)?;
                 for i_level in 0..wad.num_levels() {
@@ -126,7 +138,7 @@ impl App {
         Ok(())
     }
 
-    /// Populate `GameConfig` fields from the parsed command-line arguments.
+    // Формирует игровой конфиг из полей, которые мы распарсили
     fn into_config(self) -> GameConfig {
         GameConfig {
             wad_file: self.iwad,
@@ -165,6 +177,7 @@ fn parse_resolution(size_str: &str) -> Result<(u32, u32), Error> {
 }
 
 fn main() {
+    // Запускаем приложение, в случае ошибки пишем сообщения об ошибке
     if let Err(error) = App::run_from_args() {
         error!("Fatal error: {}", error);
         let mut cause = error.as_fail();

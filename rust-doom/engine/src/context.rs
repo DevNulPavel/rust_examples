@@ -5,6 +5,8 @@ use failchain::ResultExt;
 use log::info;
 use std::marker::PhantomData;
 
+/////////////////////////////////////////////////////////////////
+
 pub trait Context {
     fn quit_requested(&self) -> bool;
     fn step(&mut self) -> Result<()>;
@@ -18,18 +20,26 @@ pub trait Context {
     }
 }
 
+/////////////////////////////////////////////////////////////////
+
 pub struct ControlFlow {
     pub quit_requested: bool,
 }
 
+/////////////////////////////////////////////////////////////////
+
 pub struct ContextBuilder<SystemListT> {
+    // Список подключенных систем у контекста
     systems: SystemListT,
 }
 
 impl ContextBuilder<Cons<InjectMut<ControlFlow>, Nil>> {
+    // Конструктор билдера
     pub fn new() -> Self {
         Self {
+            // Инициализируем систему связынным списком
             systems: Cons {
+                // Где самый первый элемент - это структурка, которая позволяет завершить приложение
                 head: InjectMut(ControlFlow {
                     quit_requested: false,
                 }),
@@ -39,17 +49,18 @@ impl ContextBuilder<Cons<InjectMut<ControlFlow>, Nil>> {
     }
 }
 
+// Реализация Default трейта для создания стандарного объeкта
 impl Default for ContextBuilder<Cons<InjectMut<ControlFlow>, Nil>> {
     fn default() -> Self {
         Self::new()
     }
 }
 
+// Реализация работы со списком 
 impl<SystemListT> ContextBuilder<SystemListT> {
-    pub fn inject<InjectT>(
-        self,
-        value: InjectT,
-    ) -> ContextBuilder<Cons<Inject<InjectT>, SystemListT>> {
+    // Добавление нового компонента
+    pub fn inject<InjectT>(self, value: InjectT) -> ContextBuilder<Cons<Inject<InjectT>, SystemListT>> {
+        // Создаем новый билдер, где хвостом является прошлый список, а новый элемент добавляется в начало
         ContextBuilder {
             systems: Cons {
                 head: Inject(value),
@@ -58,10 +69,8 @@ impl<SystemListT> ContextBuilder<SystemListT> {
         }
     }
 
-    pub fn inject_mut<InjectT>(
-        self,
-        value: InjectT,
-    ) -> ContextBuilder<Cons<InjectMut<InjectT>, SystemListT>> {
+    // Добавление нового mut компонента
+    pub fn inject_mut<InjectT>(self, value: InjectT) -> ContextBuilder<Cons<InjectMut<InjectT>, SystemListT>> {
         ContextBuilder {
             systems: Cons {
                 head: InjectMut(value),
@@ -70,13 +79,8 @@ impl<SystemListT> ContextBuilder<SystemListT> {
         }
     }
 
-    pub fn system<SystemT, IndicesT>(
-        mut self,
-        _: BoundSystem<SystemT>,
-    ) -> Result<ContextBuilder<Cons<SystemT, SystemListT>>>
-    where
-        SystemT: for<'context> RawCreate<'context, SystemListT, IndicesT>,
-    {
+    pub fn system<SystemT, IndicesT>(mut self, _: BoundSystem<SystemT>) -> Result<ContextBuilder<Cons<SystemT, SystemListT>>>
+    where SystemT: for<'context> RawCreate<'context, SystemListT, IndicesT> {  
         let head = SystemT::raw_create(&mut self.systems)?;
         Ok(ContextBuilder {
             systems: Cons {
@@ -86,12 +90,8 @@ impl<SystemListT> ContextBuilder<SystemListT> {
         })
     }
 
-    pub fn build<ControlIndexT, IndicesT>(
-        mut self,
-    ) -> Result<ContextObject<SystemListT, (ControlIndexT, IndicesT)>>
-    where
-        SystemListT: SystemList<IndicesT> + Peek<ControlFlow, ControlIndexT>,
-    {
+    pub fn build<ControlIndexT, IndicesT>(mut self) -> Result<ContextObject<SystemListT, (ControlIndexT, IndicesT)>>
+    where SystemListT: SystemList<IndicesT> + Peek<ControlFlow, ControlIndexT> {
         SystemListT::setup_list(&mut self.systems).chain_err(|| ErrorKind::Context("setup"))?;
         info!("Context set up.");
         Ok(ContextObject {
@@ -100,6 +100,8 @@ impl<SystemListT> ContextBuilder<SystemListT> {
         })
     }
 }
+
+/////////////////////////////////////////////////////////////////
 
 pub struct ContextObject<SystemListT, IndicesT> {
     systems: Option<SystemListT>,

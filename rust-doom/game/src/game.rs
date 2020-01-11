@@ -15,12 +15,16 @@ use failchain::ResultExt;
 use std::marker::PhantomData;
 use std::path::PathBuf;
 
+////////////////////////////////////////////////////////////////////////////////////////////////
+
 pub trait Game {
     fn run(&mut self) -> Result<()>;
     fn destroy(&mut self) -> Result<()>;
     fn num_levels(&self) -> usize;
     fn load_level(&mut self, level_index: usize) -> Result<()>;
 }
+
+////////////////////////////////////////////////////////////////////////////////////////////////
 
 #[derive(Clone)]
 pub struct GameConfig {
@@ -33,8 +37,12 @@ pub struct GameConfig {
     pub initial_level_index: usize,
 }
 
+////////////////////////////////////////////////////////////////////////////////////////////////
+
 pub fn create(config: &GameConfig) -> Result<impl Game> {
+    // Создаем лямбду с контекстом
     let context = (|| {
+        // Создаем новый билдер контекста
         ContextBuilder::new()
             // Engine configs and systems.
             .inject(TickConfig {

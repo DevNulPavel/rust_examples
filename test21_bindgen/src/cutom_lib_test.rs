@@ -1,4 +1,5 @@
 #![allow(dead_code)]
+#![allow(unused_imports)]
 
 extern crate libc;
 
@@ -117,14 +118,19 @@ fn test_some_unsafe_code(){
     let mut test_array = [10, 20, 30, 40];
     //  Вызов с одинаковыми параметрами приведет к UndefinedBehaviour, для этого внутри assert
     let pair = get_pair_mut_from_array(&mut test_array, 0, 1);
-    println!("{:?}", pair);
+    println!("Received from unsafe: {:?}", pair);
 }
 
 ////////////////////////////////////////////////////////////////////////////////////////////////////
 
 pub fn test_custom_lib() {
-    test_simple_cb();
-    test_obj_cb();
-    test_string_to_c();
+    
+    // Выполняем условную компиляцию
+    // #[cfg(USE_CUSTOM_LIB)]
+    {
+        test_simple_cb();
+        test_obj_cb();
+        test_string_to_c();
+    }
     test_some_unsafe_code();
 }
