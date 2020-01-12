@@ -7,12 +7,16 @@ use std::marker::PhantomData;
 
 /////////////////////////////////////////////////////////////////
 
+// Интерфейс компонента игры
 pub trait Context {
+    // Методы, которые надо реализовать
     fn quit_requested(&self) -> bool;
     fn step(&mut self) -> Result<()>;
     fn destroy(&mut self) -> Result<()>;
 
+    // Главный цикл приложения
     fn run(&mut self) -> Result<()> {
+        // Пока не запрошен выход - выполняем итерацию
         while !self.quit_requested() {
             self.step()?;
         }
@@ -79,6 +83,7 @@ impl<SystemListT> ContextBuilder<SystemListT> {
         }
     }
 
+    // TODO: ???
     pub fn system<SystemT, IndicesT>(mut self, _: BoundSystem<SystemT>) -> Result<ContextBuilder<Cons<SystemT, SystemListT>>>
     where SystemT: for<'context> RawCreate<'context, SystemListT, IndicesT> {  
         let head = SystemT::raw_create(&mut self.systems)?;
@@ -90,6 +95,7 @@ impl<SystemListT> ContextBuilder<SystemListT> {
         })
     }
 
+    // Непосредственно создание системы?
     pub fn build<ControlIndexT, IndicesT>(mut self) -> Result<ContextObject<SystemListT, (ControlIndexT, IndicesT)>>
     where SystemListT: SystemList<IndicesT> + Peek<ControlFlow, ControlIndexT> {
         SystemListT::setup_list(&mut self.systems).chain_err(|| ErrorKind::Context("setup"))?;
@@ -103,18 +109,24 @@ impl<SystemListT> ContextBuilder<SystemListT> {
 
 /////////////////////////////////////////////////////////////////
 
+// Непосредственно описание контекста
 pub struct ContextObject<SystemListT, IndicesT> {
+    // Системы в контексте
     systems: Option<SystemListT>,
+    // TODO: ???
     indices: PhantomData<IndicesT>,
 }
 
+// Реализация методов у контекстного объекта
 impl<SystemListT, IndicesT> ContextObject<SystemListT, IndicesT> {
+    // Получшение списка систем
     fn systems_mut(&mut self) -> &mut SystemListT {
         self.systems
             .as_mut()
             .expect("call on destroyed context: systems_mut")
     }
 
+    // Получение сиска систем
     fn systems(&self) -> &SystemListT {
         self.systems
             .as_ref()
@@ -122,22 +134,25 @@ impl<SystemListT, IndicesT> ContextObject<SystemListT, IndicesT> {
     }
 }
 
+// Реализация интерфейса обхода компонентов
 impl<'a, SystemListT, IndicesT, LookupT, IndexT> Pluck<LookupT, IndexT>
     for &'a ContextObject<SystemListT, IndicesT>
 where
-    &'a SystemListT: Pluck<LookupT, IndexT>,
+    &'a SystemListT: Pluck<LookupT, IndexT>
 {
     type Rest = ();
+
     fn pluck(self) -> (LookupT, ()) {
         let (lookup, _) = self.systems().pluck();
         (lookup, ())
     }
 }
 
+// Реализация интерфейса обхода компонентов
 impl<'a, SystemListT, IndicesT, LookupT, IndexT> Pluck<LookupT, IndexT>
-    for &'a mut ContextObject<SystemListT, IndicesT>
-where
-    &'a mut SystemListT: Pluck<LookupT, IndexT>,
+        for &'a mut ContextObject<SystemListT, IndicesT>
+    where
+        &'a mut SystemListT: Pluck<LookupT, IndexT>
 {
     type Rest = ();
     fn pluck(self) -> (LookupT, ()) {
@@ -146,19 +161,26 @@ where
     }
 }
 
+// Реализация основных методов приложения
 impl<SystemListT, ControlIndexT, IndicesT> Context
-    for ContextObject<SystemListT, (ControlIndexT, IndicesT)>
-where
-    SystemListT: SystemList<IndicesT> + Peek<ControlFlow, ControlIndexT>,
+        for ContextObject<SystemListT, (ControlIndexT, IndicesT)>
+    where
+        SystemListT: SystemList<IndicesT> + Peek<ControlFlow, ControlIndexT>,
 {
+    // Нужно ли завершить приложение или нет?
     fn quit_requested(&self) -> bool {
         self.systems().peek().quit_requested
     }
 
+    // Очередная итерация в цикле приложения, смена кадра
     fn step(&mut self) -> Result<()> {
-        SystemListT::update_list(self.systems_mut()).chain_err(|| ErrorKind::Context("update"))
+        // Вызываем обновление у списка всех компонентов системы
+        SystemListT::update_list(self.systems_mut()).chain_err(|| {
+            ErrorKind::Context("update")
+        })
     }
 
+    // Иничтожение всех систем
     fn destroy(&mut self) -> Result<()> {
         let mut systems = if let Some(systems) = self.systems.take() {
             systems
@@ -202,13 +224,19 @@ where
     }
 }
 
+////////////////////////////////////////////////////////////////////////////////////////////////
+
+// Интерфейс списка всех систем приложения
 pub trait SystemList<IndicesT> {
+    // Конфигурирование списка
     fn setup_list(&mut self) -> Result<()>;
+    // Обновление всего в списке
     fn update_list(&mut self) -> Result<()>;
     fn teardown_list(&mut self) -> Result<()>;
     fn destroy_list(self) -> Result<()>;
 }
 
+// Пустая реализация для NIL
 impl SystemList<()> for Nil {
     fn setup_list(&mut self) -> Result<()> {
         Ok(())
@@ -227,11 +255,12 @@ impl SystemList<()> for Nil {
     }
 }
 
+// Обычная реализация для связанного списка
 impl<HeadIndicesT, TailIndicesT, HeadT, TailT> SystemList<(HeadIndicesT, TailIndicesT)>
-    for Cons<HeadT, TailT>
-where
-    TailT: SystemList<TailIndicesT>,
-    HeadT: for<'context> RawSystem<'context, TailT, HeadIndicesT>,
+        for Cons<HeadT, TailT>
+    where
+        TailT: SystemList<TailIndicesT>,
+        HeadT: for<'context> RawSystem<'context, TailT, HeadIndicesT>,
 {
     fn setup_list(&mut self) -> Result<()> {
         self.tail.setup_list()?;

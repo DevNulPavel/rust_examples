@@ -3,14 +3,21 @@ use std::fmt::{Display, Formatter, Result as FmtResult};
 use std::marker::PhantomData;
 use std::result::Result as StdResult;
 
+// Интерфейс, который должен реализовать системный компонент
 pub trait System<'context>: Sized + 'context {
+    // Типы, которые должна описать унаследованная реализация
     type Dependencies;
     type Error: Fail;
 
+    ////////////////////////////////////////////////////////////////////////////////////////////
+    // Методы, которые надо реализовать
+    ////////////////////////////////////////////////////////////////////////////////////////////
     fn debug_name() -> &'static str;
-
     fn create(dependencies: Self::Dependencies) -> StdResult<Self, Self::Error>;
 
+    ////////////////////////////////////////////////////////////////////////////////////////////
+    // Стандартные реализации методов
+    ////////////////////////////////////////////////////////////////////////////////////////////
     #[inline]
     fn setup(&mut self, _dependencies: Self::Dependencies) -> StdResult<(), Self::Error> {
         Ok(())
@@ -37,13 +44,17 @@ pub trait System<'context>: Sized + 'context {
     }
 }
 
+// Трейт надежной системы
 pub trait InfallibleSystem<'context>: Sized + 'context {
     type Dependencies;
 
+    // Имя
     fn debug_name() -> &'static str;
 
+    // Создание
     fn create(dependencies: Self::Dependencies) -> Self;
 
+    // Настройка
     #[inline]
     fn setup(&mut self, _dependencies: Self::Dependencies) {}
 
@@ -112,4 +123,7 @@ where
     }
 }
 
+// Вспомогательная структура, которая описывает связанный компонент системы
+// PhantomData нужна для того, чтобы описать некоторый объект, который ведет себя так же, как параметр в шаблоне,
+// но при этом не содержит сам объект. То есть - некторая заглушка
 pub struct BoundSystem<SystemT>(PhantomData<SystemT>);

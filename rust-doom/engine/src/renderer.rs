@@ -61,7 +61,7 @@ impl<'context> System<'context> for Renderer {
 
     fn update(&mut self, deps: Dependencies) -> Result<()> {
         // If the current tick isn't a frame, skip all rendering.
-        if !deps.tick.is_frame() {
+        if !deps.tick.need_render_frame() {
             return Ok(());
         }
 

@@ -212,7 +212,7 @@ impl<'context> InfallibleSystem<'context> for FrameTimers {
         }
 
         self.start(tick_timer);
-        if tick.is_frame() {
+        if tick.need_render_frame() {
             let frame_timer = self.frame_timer;
             self.start(frame_timer);
         }

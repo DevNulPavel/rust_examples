@@ -44,7 +44,7 @@ pub fn create(config: &GameConfig) -> Result<impl Game> {
     let context = (|| {
         // Создаем новый билдер контекста
         ContextBuilder::new()
-            // Engine configs and systems.
+            // Добавление конфигов
             .inject(TickConfig {
                 timestep: 1.0 / 60.0,
             })
@@ -56,6 +56,7 @@ pub fn create(config: &GameConfig) -> Result<impl Game> {
             .inject(ShaderConfig {
                 root_path: SHADER_ROOT.into(),
             })
+            // Добавление систем, bind создает некоторую пустую заглушку объекта
             .system(Tick::bind())?
             .system(FrameTimers::bind())?
             .system(Window::bind())?
@@ -69,7 +70,7 @@ pub fn create(config: &GameConfig) -> Result<impl Game> {
             .system(Materials::bind())?
             .system(RenderPipeline::bind())?
             .system(TextRenderer::bind())?
-            // Game configs and systems.
+            // Снова описываем конфиги
             .inject(WadConfig {
                 wad_path: config.wad_file.clone(),
                 metadata_path: config.metadata_file.clone(),
@@ -78,6 +79,7 @@ pub fn create(config: &GameConfig) -> Result<impl Game> {
             .inject(HudBindings::default())
             .inject(PlayerBindings::default())
             .inject(PlayerConfig::default())
+            // Снова добавляем системы
             .system(WadSystem::bind())?
             .system(GameShaders::bind())?
             .system(Level::bind())?
@@ -86,11 +88,18 @@ pub fn create(config: &GameConfig) -> Result<impl Game> {
             .system(Renderer::bind())?
             .build()
     })()
-    .chain_err(|| ErrorKind("during setup".to_owned()))?;
+    // Подписываемся на возникающую ошибку
+    .chain_err(|| {
+        ErrorKind("during setup".to_owned())
+    })?;
 
+    // Создаем непосредственно игру с контекстом
     Ok(GameImpl::new(context))
 }
 
+////////////////////////////////////////////////////////////////////////////////////////////////
+
+// Описываем структуру игры с контекстом внутри
 struct GameImpl<WadIndexT, ContextT>
 where
     ContextT: Context + Peek<WadSystem, WadIndexT>,
@@ -99,10 +108,12 @@ where
     phantom: PhantomData<WadIndexT>,
 }
 
+// Описываем методы реализации нашей структуры
 impl<WadIndexT, ContextT> GameImpl<WadIndexT, ContextT>
 where
     ContextT: Context + Peek<WadSystem, WadIndexT>,
 {
+    // Метод создания реализации игры
     fn new(context: ContextT) -> Self {
         Self {
             context,
@@ -111,25 +122,35 @@ where
     }
 }
 
+// Описываем реализацию интерфейса игры для реализации игры
 impl<WadIndexT, ContextT> Game for GameImpl<WadIndexT, ContextT>
 where
     ContextT: Context + Peek<WadSystem, WadIndexT>,
 {
+    // Метод запуска игрового цикла
     fn run(&mut self) -> Result<()> {
         self.context
             .run()
-            .chain_err(|| ErrorKind("during run".to_owned()))?;
+            .chain_err(|| {
+                ErrorKind("during run".to_owned())
+            })?;
+
         self.context
             .destroy()
-            .chain_err(|| ErrorKind("during shutdown".to_owned()))?;
+            .chain_err(|| {
+                ErrorKind("during shutdown".to_owned())
+            })?;
+        
         Ok(())
     }
 
+    // Метод получения числа уровней
     fn num_levels(&self) -> usize {
         let wad = self.context.peek();
         wad.archive.num_levels()
     }
 
+    // Метод подгрузки уровней
     fn load_level(&mut self, level_index: usize) -> Result<()> {
         let wad = self.context.peek_mut();
         wad.change_level(level_index);
@@ -142,6 +163,7 @@ where
         Ok(())
     }
 
+    // Разрушение игры
     fn destroy(&mut self) -> Result<()> {
         self.context
             .destroy()

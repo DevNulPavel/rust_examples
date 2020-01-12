@@ -2,17 +2,33 @@ use super::system::InfallibleSystem;
 use std::thread;
 use std::time::{Duration, Instant};
 
+// Конфигурация частоты кадров
 pub struct Config {
     pub timestep: f32,
 }
 
+// Комер тика с начала работы приложения
 #[derive(Copy, Clone, Eq, PartialEq, Ord, PartialOrd, Debug)]
 pub struct TickIndex(pub u64);
 
+pub struct Tick {
+    // Время с последнего кадра
+    timestep: f32,
+    // Индекс тика со старта приложения
+    index: TickIndex,
+
+    // Отклонение во времени
+    drift: f32,
+    slept: f32,
+    last_time: Option<Instant>,
+    need_render_frame: bool,
+}
+
+// Реализация структуры тика
 impl Tick {
     #[inline]
-    pub fn is_frame(&self) -> bool {
-        self.is_frame
+    pub fn need_render_frame(&self) -> bool {
+        self.need_render_frame
     }
 
     #[inline]
@@ -45,23 +61,16 @@ impl Tick {
     }
 }
 
-pub struct Tick {
-    timestep: f32,
-    index: TickIndex,
-
-    drift: f32,
-    slept: f32,
-    last_time: Option<Instant>,
-    is_frame: bool,
-}
-
+// Реализация методов системного компонента для Tick
 impl<'context> InfallibleSystem<'context> for Tick {
     type Dependencies = &'context Config;
 
+    // Отладочное имя
     fn debug_name() -> &'static str {
         "tick"
     }
 
+    // Создание объекта из конфига, вызывается при конструировании системы
     fn create(config: &Config) -> Self {
         Tick {
             timestep: config.timestep,
@@ -70,12 +79,15 @@ impl<'context> InfallibleSystem<'context> for Tick {
             drift: 0.0,
             slept: 0.0,
             last_time: None,
-            is_frame: true,
+            need_render_frame: true,
         }
     }
 
+    // Вызов очередного обновления кадра
     fn update(&mut self, _: &Config) {
+        // Получаем текущее время
         let mut current_time = Instant::now();
+        // Получаем прошлое время если есть, иначе не надо ничего обновлять
         let last_time = if let Some(instant) = self.last_time {
             instant
         } else {
@@ -83,20 +95,20 @@ impl<'context> InfallibleSystem<'context> for Tick {
             return;
         };
 
-        // Accumulate drift: real_time - simulation_time
+        // Накапливаем ошибку, Accumulate drift: real_time - simulation_time
         let real_delta = duration_to_seconds(current_time.duration_since(last_time));
         self.drift += real_delta - self.timestep;
 
-        // If we just renderered a frame, but simulation is still ahead of real time by more than
-        // one timestep, sleep to get back in sync.
+        // Если мы отрендерили кадр, но симуляция все еще опережает реальное время более чем на время очередного шага
+        // тогда мы спим до момента синхронизации
         if self.drift < -self.timestep {
             let sleep_duration = duration_from_seconds(-self.drift - self.timestep + 1e-3);
             let sleep_until = current_time + sleep_duration;
 
-            // Sleep for the entire time minus one millisecond.
+            // Спим указанное время, минус 1 мСек
             thread::sleep(sleep_duration - Duration::from_millis(1));
 
-            // Busy wait remaining time (approx 1ms).
+            // Для точности активным образом ждем указанное время в цикле
             let new_current_time = loop {
                 let new_current_time = Instant::now();
                 if new_current_time >= sleep_until {
@@ -105,7 +117,7 @@ impl<'context> InfallibleSystem<'context> for Tick {
                 thread::yield_now();
             };
 
-            // Update drift with newly waited time.
+            // Обновляем значенияя
             self.slept = duration_to_seconds(new_current_time.duration_since(current_time));
             self.drift += self.slept;
 
@@ -116,10 +128,10 @@ impl<'context> InfallibleSystem<'context> for Tick {
         }
         self.last_time = Some(current_time);
 
-        // Render a frame this tick iff the drift is less than one timestep.
-        self.is_frame = self.drift <= self.timestep;
+        // Рендерим кадр, если отклонение меньше, чем один временной шаг
+        self.need_render_frame = self.drift <= self.timestep;
 
-        // Update the deterministic tick index.
+        // Обновляем индекс тика
         self.index.0 += 1;
     }
 }
