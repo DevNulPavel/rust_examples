@@ -53,3 +53,5 @@ incremental = false
 overflow-checks = false
 
 [dependencies]
+libc = "0.2.66"
+maplit = "1.0.2"
