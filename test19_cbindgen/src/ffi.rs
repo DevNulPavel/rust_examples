@@ -115,7 +115,8 @@ pub extern "C" fn parse_arithmetic(s: *const c_char) -> *mut ExpressionFfi {
                 return data;
             }
         }
-        return 0 as *mut ExpressionFfi;
+        // Можно создавать нулевой указатель используя пакет ptr из стандартной библиотеки
+        return std::ptr::null_mut();
     }
 }
 
@@ -123,6 +124,7 @@ pub extern "C" fn parse_arithmetic(s: *const c_char) -> *mut ExpressionFfi {
 #[no_mangle]
 pub extern "C" fn destroy(expression: *mut ExpressionFfi) {
     // У указателей есть метод is_null
+    // https://doc.rust-lang.org/std/primitive.pointer.html
     if expression.is_null(){
         return;
     }

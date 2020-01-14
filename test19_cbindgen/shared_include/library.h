@@ -42,14 +42,12 @@ typedef struct Buffer_i32 {
 #ifdef __cplusplus
 extern "C" {
 #endif
-    
-    void destroy(ExpressionFfi *expression);
-    
     int32_t function_1(int32_t param);
-    
     int32_t function_2(Buffer_i32 buffer);
+    void test_raw_pointers();
     
     ExpressionFfi *parse_arithmetic(const char *s);
+    void destroy(ExpressionFfi *expression);
     
 #ifdef __cplusplus
 }
