@@ -122,7 +122,8 @@ pub extern "C" fn parse_arithmetic(s: *const c_char) -> *mut ExpressionFfi {
 // Функция уничтожения выражения из памяти
 #[no_mangle]
 pub extern "C" fn destroy(expression: *mut ExpressionFfi) {
-    if expression == (0 as *mut ExpressionFfi) {
+    // У указателей есть метод is_null
+    if expression.is_null(){
         return;
     }
 

@@ -1,24 +1,40 @@
-all: TEST_RELEASE
+all: TEST_APP_RELEASE
 
 clean: CLEAN
 
 ########################################################################################
-
-# | - значит, что запускать не параллельно, а последовательно
+# Установка зависимостей
 
 INSTALL_PYTHON_DEPS:
 	pip3 install cffi
 
-BUILD_RUST_LIB_RELEASE:
+# https://mozilla.github.io/firefox-browser-architecture/experiments/2017-09-06-rust-on-ios.html
+INSTALL_IOS_DEPS:
+	rustup target add aarch64-apple-ios armv7-apple-ios armv7s-apple-ios x86_64-apple-ios i386-apple-ios
+	cargo install cargo-lipo
+
+########################################################################################
+# | - значит, что запускать не параллельно, а последовательно
+
+_BUILD_RUST_LIB_RELEASE:
 	cargo build --release --lib
 
-BUILD_RUST_LIB_DEBUG:
+_BUILD_RUST_LIB_DEBUG:
 	cargo build --lib
 
-MAKE_RUST_INCLUDE_HEADER:
-	cbindgen --config "CBindgen.toml" --crate "test19_cbindgen" --output "shared_include/library.h"
+_BUILD_RUST_IOS_LIB_RELEASE:
+	cargo lipo --targets aarch64-apple-ios,armv7-apple-ios,armv7s-apple-ios,x86_64-apple-ios --release
 
-BUILD_CPP_APP_RELEASE:
+_BUILD_RUST_IOS_LIB_DEBUG:
+	cargo lipo --targets aarch64-apple-ios,armv7-apple-ios,armv7s-apple-ios,x86_64-apple-ios,
+
+# Создает, но не очень подходящий хедер
+# _MAKE_RUST_INCLUDE_HEADER:
+# 	cbindgen --config "CBindgen.toml" --crate "test19_cbindgen" --output "shared_include/library.h"
+
+_MAKE_RUST_INCLUDE_HEADER:
+
+_BUILD_CPP_APP_RELEASE:
 	pushd cpp_app && \
 		mkdir -p build_release && \
 		pushd build_release && \
@@ -27,7 +43,7 @@ BUILD_CPP_APP_RELEASE:
 		popd && \
 	popd
 
-BUILD_CPP_APP_DEBUG:
+_BUILD_CPP_APP_DEBUG:
 	pushd cpp_app && \
 		mkdir -p build_debug && \
 		pushd build_debug && \
@@ -36,15 +52,21 @@ BUILD_CPP_APP_DEBUG:
 		popd && \
 	popd
 
-BUILD_RELEASE: | BUILD_RUST_LIB_RELEASE MAKE_RUST_INCLUDE_HEADER BUILD_CPP_APP_RELEASE
+########################################################################################
 
-BUILD_DEBUG: | BUILD_RUST_LIB_DEBUG MAKE_RUST_INCLUDE_HEADER BUILD_CPP_APP_DEBUG
+BUILD_RELEASE_APP: | _BUILD_RUST_LIB_RELEASE _MAKE_RUST_INCLUDE_HEADER _BUILD_CPP_APP_RELEASE
 
-TEST_RELEASE: | BUILD_RELEASE
+BUILD_DEBUG_APP: | _BUILD_RUST_LIB_DEBUG _MAKE_RUST_INCLUDE_HEADER _BUILD_CPP_APP_DEBUG
+
+BUILD_RELEASE_IOS_LIB: | _BUILD_RUST_IOS_LIB_RELEASE _MAKE_RUST_INCLUDE_HEADER
+
+BUILD_DEBUG_IOS_LIB: | _BUILD_RUST_IOS_LIB_DEBUG _MAKE_RUST_INCLUDE_HEADER
+
+TEST_APP_RELEASE: | BUILD_RELEASE_APP
 	./cpp_app/build_release/cpp_rust_app
 	./python_app/main.py -release
 
-TEST_DEBUG: | BUILD_DEBUG
+TEST_APP_DEBUG: | BUILD_DEBUG_APP
 	./cpp_app/build_debug/cpp_rust_app
 	./python_app/main.py -debug
 
