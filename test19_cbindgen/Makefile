@@ -13,6 +13,14 @@ INSTALL_IOS_DEPS:
 	rustup target add aarch64-apple-ios armv7-apple-ios armv7s-apple-ios x86_64-apple-ios i386-apple-ios
 	cargo install cargo-lipo
 
+INSTALL_WASM_DEPS:
+	rustup target add wasm32-unknown-emscripten wasm32-unknown-unknown wasm32-wasi
+	pushd /Users/devnul/Projects/emsdk/
+	./emsdk install latest
+	./emsdk activate latest
+	source ./emsdk_env.fish
+	popd
+
 ########################################################################################
 # | - значит, что запускать не параллельно, а последовательно
 
@@ -26,7 +34,13 @@ _BUILD_RUST_IOS_LIB_RELEASE:
 	cargo lipo --targets aarch64-apple-ios,armv7-apple-ios,armv7s-apple-ios,x86_64-apple-ios --release
 
 _BUILD_RUST_IOS_LIB_DEBUG:
-	cargo lipo --targets aarch64-apple-ios,armv7-apple-ios,armv7s-apple-ios,x86_64-apple-ios,
+	cargo lipo --targets aarch64-apple-ios,armv7-apple-ios,armv7s-apple-ios,x86_64-apple-ios
+
+_BUILD_RUST_WASM_LIB_RELEASE:
+	cargo build --target wasm32-unknown-emscripten --release
+
+_BUILD_RUST_WASM_LIB_DEBUG:
+	cargo build --target wasm32-unknown-emscripten
 
 # Создает, но не очень подходящий хедер
 # _MAKE_RUST_INCLUDE_HEADER:
