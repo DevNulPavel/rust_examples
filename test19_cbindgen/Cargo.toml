@@ -8,7 +8,11 @@ edition = "2018"
 
 [lib]
 name = "test19_cbindgen"
-crate-type = ["staticlib"] # Создаем статическую библиотеку, dylib, rlib, staticlib, cdylib, and proc-macro
+crate-type = ["staticlib"] # Создаем статическую библиотеку, для python - cdylib, варианты: dylib, rlib, staticlib, cdylib, proc-macro
+
+[target.armv7-linux-androideabi]
+
+[target.aarch64-linux-android]
 
 [profile.dev]
 opt-level = 0
