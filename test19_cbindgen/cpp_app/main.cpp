@@ -55,6 +55,10 @@ int main(int argc, char const *argv[]){
     }
 
     {
+        test_panic_catch();
+    }
+
+    {
         ExpressionFfi* expr = parse_arithmetic("100 + (200*120 + 3)");
         std::printf("Expression: ");
         print_expression(expr);

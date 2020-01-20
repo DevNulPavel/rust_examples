@@ -91,11 +91,11 @@ BUILD_DEBUG_IOS_LIB: | _BUILD_RUST_IOS_LIB_DEBUG _MAKE_RUST_INCLUDE_HEADER
 
 TEST_APP_RELEASE: | BUILD_RELEASE_APP
 	./cpp_app/build_release/cpp_rust_app
-	./python_app/main.py -release
+	#./python_app/main.py -release
 
 TEST_APP_DEBUG: | BUILD_DEBUG_APP
 	./cpp_app/build_debug/cpp_rust_app
-	./python_app/main.py -debug
+	#./python_app/main.py -debug
 
 CLEAN:
 	rm -rf shared_include;

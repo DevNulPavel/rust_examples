@@ -45,6 +45,7 @@ extern "C" {
     int32_t function_1(int32_t param);
     int32_t function_2(Buffer_i32 buffer);
     void test_raw_pointers();
+    void test_panic_catch();
     
     ExpressionFfi *parse_arithmetic(const char *s);
     void destroy(ExpressionFfi *expression);

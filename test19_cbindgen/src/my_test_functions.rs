@@ -136,6 +136,58 @@ pub extern "C" fn test_raw_pointers() {
     }
 }
 
+#[no_mangle] 
+pub extern "C" fn test_panic_catch() {
+    // https://doc.rust-lang.org/std/panic/fn.catch_unwind.html
+
+    // Мы можем запускать что-то внутри блока, чтобы отлавливать ошибки
+    let result = std::panic::catch_unwind(|| {
+        println!("hello!");
+    });
+    assert!(result.is_ok());
+
+    // Отлавливаем ошибку внутри блока, но нужно помнить, что не все ошибки могут отлавливаться
+    let result = std::panic::catch_unwind(|| {
+        panic!("oh no!");
+    });
+    assert!(result.is_err());
+
+    // Однако имеется возможность вызвать панику с сохранением стека и тд
+    // как-то можно использовать для проброса паники из C
+    /*{
+        let result = std::panic::catch_unwind(|| {
+            panic!("oh no!");
+        });
+        if let Err(err) = result {
+            std::panic::resume_unwind(err);
+        }    
+    }*/
+
+    // Так же мы можем назначить обработчик, который вызывается перед системным вызовом паники
+    {
+        std::panic::set_hook(Box::new(|panic_info| {
+            //panic_info: std::panic::PanicInfo
+    
+            // Можно получить метаинформацию о краше в виде строки
+            if let Some(s) = panic_info.payload().downcast_ref::<&str>() {
+                println!("panic occurred: {:?}", s);
+            } else {
+                println!("panic occurred");
+            }
+    
+            // Можно пполучить месторасположение
+            if let Some(location) = panic_info.location() {
+                println!("panic occurred in file '{}' at line {}, column {}", 
+                    location.file(), location.line(), location.column());
+            } else {
+                println!("panic occurred but can't get location information...");
+            }
+        }));
+        panic!("Normal panic");
+    }
+    
+}
+
 #[cfg(test)]
 mod tests {
     use crate::my_test_functions::*;
