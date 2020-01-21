@@ -60,22 +60,22 @@ _BUILD_RUST_ANDROID_LIB_DEBUG:
 _MAKE_RUST_INCLUDE_HEADER:
 
 _BUILD_CPP_APP_RELEASE:
-	pushd cpp_app && \
+	cd cpp_app && \
 		mkdir -p build_release && \
-		pushd build_release && \
+		cd build_release && \
 			cmake -G "Unix Makefiles" -DCMAKE_BUILD_TYPE="Release" ../ && \
 			make -j5; \
-		popd && \
-	popd
+		cd ../ && \
+	cd ../
 
 _BUILD_CPP_APP_DEBUG:
-	pushd cpp_app && \
+	cd cpp_app && \
 		mkdir -p build_debug && \
-		pushd build_debug && \
+		cd build_debug && \
 			cmake -G "Unix Makefiles" -DCMAKE_BUILD_TYPE="Debug" ../ && \
 			make -j5; \
-		popd && \
-	popd
+		cd ../ && \
+	cd ../
 
 ########################################################################################
 

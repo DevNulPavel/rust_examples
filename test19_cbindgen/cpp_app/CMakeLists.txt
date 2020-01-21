@@ -18,7 +18,7 @@ endif()
 message("LIBRARY: ${LINK_LIBS}")
 
 add_executable(${PROJECT_NAME} main.cpp)
-target_link_libraries(${PROJECT_NAME} ${LINK_LIBS})
+#target_link_libraries(${PROJECT_NAME} ${LINK_LIBS})
 
 set(CPACK_PROJECT_NAME ${PROJECT_NAME})
 set(CPACK_PROJECT_VERSION ${PROJECT_VERSION})
