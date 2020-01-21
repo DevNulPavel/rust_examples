@@ -17,7 +17,8 @@ endif()
 
 message("LIBRARY: ${LINK_LIBS}")
 
-set(CXX_FLAGS "-pthreads")
+# set(CMAKE_CXX_FLAGS "${CXX_FLAGS} -lstdc++ -ldl")
+set(CMAKE_EXE_LINKER_FLAGS "${CMAKE_EXE_LINKER_FLAGS} -lstdc++ -ldl")
 
 add_executable(${PROJECT_NAME} main.cpp)
 
