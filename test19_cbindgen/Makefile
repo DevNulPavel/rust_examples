@@ -98,7 +98,6 @@ TEST_APP_DEBUG: | BUILD_DEBUG_APP
 	#./python_app/main.py -debug
 
 CLEAN:
-	rm -rf shared_include;
 	cargo clean;
 	pushd cpp_app && \
 	rm -rf build_*; \
