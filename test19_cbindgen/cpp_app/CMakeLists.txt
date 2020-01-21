@@ -1,6 +1,10 @@
 cmake_minimum_required(VERSION 3.0.0)
 project(cpp_rust_app VERSION 0.1.0)
 
+set(CMAKE_CXX_STANDARD 14)
+set(CMAKE_CXX_STANDARD_REQUIRED ON)
+set(CMAKE_CXX_EXTENSIONS OFF)
+
 include_directories("${CMAKE_CURRENT_SOURCE_DIR}/../shared_include/")
 
 if(${CMAKE_BUILD_TYPE} STREQUAL "Release")

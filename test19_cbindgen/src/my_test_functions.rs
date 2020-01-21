@@ -1,7 +1,23 @@
+// #![feature(test)]
+// #![allow(soft_unstable)]
 #![allow(unused_variables)]
+#![allow(unused_macros)]
 
+// #[macro_use]
+// extern crate lazy_static;
 extern crate libc;
 
+// extern crate test;
+
+use std::ffi::CStr;
+use std::os::raw::c_char;
+use std::cell::RefCell;
+use std::sync::Arc;
+use std::rc::Rc;
+use std::sync::Mutex;
+use std::collections::HashMap;
+use std::thread::ThreadId;
+use lazy_static::lazy_static;
 
 // Перед структурой можно указывать кастомные параметры
 /// cbindgen:field-names=[data, len]
@@ -188,12 +204,248 @@ pub extern "C" fn test_panic_catch() {
     
 }
 
+#[no_mangle] 
+pub extern "C" fn icmp1_RUST_CODE(s2: *const c_char, s1: *const c_char) -> i32 {
+    if s2.is_null(){
+        return 0;
+    }
+
+    // Создаем Rust ссылочную строку из С-шной
+    let s2_convert_result = unsafe { CStr::from_ptr(s2).to_str() };
+
+    // Если не смогли сконвертить в Rust строку - выходим
+    let s2_test_str = match s2_convert_result {
+        Ok(string) =>{
+            string
+        },
+        Err(_) => {
+            return 0;
+        }
+    };
+
+    lazy_static! {
+        static ref THREAD_STORRAGES: Arc<Mutex<String>> = Arc::new(Mutex::new(String::new()));
+    }
+
+    // Если есть исходная строка, тогда делаем ее в нижнем регистре
+    if s1.is_null() == false {
+        // Создаем Rust ссылочную строку из С-шной
+        let s1_convert_result = unsafe { CStr::from_ptr(s1).to_str() };
+
+        // Если не смогли сконвертить в Rust строку - выходим
+        if s1_convert_result.is_err() {
+            return 0;
+        }
+
+        // Переводим в нижний регистр
+        let s1_lowercase = s1_convert_result.unwrap().to_ascii_lowercase();
+        
+        match THREAD_STORRAGES.lock(){
+            Ok(mut storrage) => {
+                storrage.clone_from(&s1_lowercase);
+            },
+            Err(_)=>{
+                return 0;
+            }
+        }
+    }
+    
+    match THREAD_STORRAGES.lock(){
+        Ok(storrage) => {
+            let equals = s2_test_str.eq(&(*storrage));
+            if equals {
+                return 1;
+            }else{
+                return 0;
+            }
+        },
+        Err(_)=>{
+            return 0;
+        }
+    }
+}
+
+/*#[no_mangle] 
+pub extern "C" fn icmp1_RUST_CODE(s2: *const c_char, s1: *const c_char) -> i32 {
+    if s2.is_null(){
+        return 0;
+    }
+
+    // Создаем Rust ссылочную строку из С-шной
+    let s2_convert_result = unsafe { CStr::from_ptr(s2).to_str() };
+
+    // Если не смогли сконвертить в Rust строку - выходим
+    let s2_test_str = match s2_convert_result {
+        Ok(string) =>{
+            string
+        },
+        Err(_) => {
+            return 0;
+        }
+    };
+
+    lazy_static! {
+        static ref THREAD_STORRAGES: Mutex<HashMap<ThreadId, Arc<Mutex<String>>>> = Mutex::new(HashMap::new());
+    }
+
+    let storrage = match THREAD_STORRAGES.lock(){
+        Ok(mut locked_storrage) => {
+            let cur_thread_id = std::thread::current().id();
+        
+            let storrage = locked_storrage.entry(cur_thread_id).or_insert(Arc::new(Mutex::new(String::new())));
+
+            storrage.clone()
+        },
+        Err(_) => {
+            return 0;
+        }
+    };
+
+    // Если есть исходная строка, тогда делаем ее в нижнем регистре
+    if s1.is_null() == false {
+        // Создаем Rust ссылочную строку из С-шной
+        let s1_convert_result = unsafe { CStr::from_ptr(s1).to_str() };
+
+        // Если не смогли сконвертить в Rust строку - выходим
+        if s1_convert_result.is_err() {
+            return 0;
+        }
+
+        // Переводим в нижний регистр
+        let s1_lowercase = s1_convert_result.unwrap().to_ascii_lowercase();
+
+        match storrage.lock() {
+            Ok(mut data)=>{
+                (*data).clone_from(&s1_lowercase);
+            },
+            Err(_)=>{
+                return 0;
+            }
+        }
+    }
+    
+    let equals = match storrage.lock() {
+        Ok(data)=>{
+            let equals = s2_test_str.eq(&(*data));
+            equals
+        },
+        Err(_)=>{
+            return 0;
+        }
+    };
+
+    if equals {
+        return 1;
+    }else{
+        return 0;
+    }
+
+    // Пользуемся блокировкой для обновления статической переменной
+    /*match THREAD_STORRAGES.lock(){
+        Ok(mut locked_storrage) => {
+            let cur_thread_id = std::thread::current().id();
+        
+            let storrage = locked_storrage.entry(cur_thread_id).or_insert(String::new());
+    
+            // Если есть исходная строка, тогда делаем ее в нижнем регистре
+            if s1.is_null() == false {
+                // Создаем Rust ссылочную строку из С-шной
+                let s1_convert_result = unsafe { CStr::from_ptr(s1).to_str() };
+    
+                // Если не смогли сконвертить в Rust строку - выходим
+                if s1_convert_result.is_err() {
+                    return 0;
+                }
+    
+                // Переводим в нижний регистр
+                let s1_lowercase = s1_convert_result.unwrap().to_ascii_lowercase();
+    
+                *storrage = s1_lowercase;
+            }
+            
+            let equals = s2_test_str.eq(storrage);
+            if equals {
+                return 1;
+            }else{
+                return 0;
+            }
+        },
+        Err(_) => {
+            return 0;
+        }
+    };*/
+}*/
+
 #[cfg(test)]
 mod tests {
-    use crate::my_test_functions::*;
+    use super::*;
+    //use crate::my_test_functions::*;
+    use std::ffi::CString;
+    // use test::Bencher;
+
+    macro_rules! to_c_str {
+        ($val:expr) => (
+            CString::new($val).unwrap().as_ptr()
+        )
+    }
+    
+    macro_rules! test_func {
+        // У макроса может быть несколько вариантов
+        ($val1:expr, $val2:expr) => (
+            icmp1_RUST_CODE(to_c_str!($val1), to_c_str!($val2))
+        );
+        ($val1:expr) => (
+            icmp1_RUST_CODE(to_c_str!($val1), std::ptr::null())
+        )
+    }
 
     #[test]
-    fn test() {
-        test_raw_pointers();
+    fn icmp1_test() {
+        assert_eq!(test_func!("test1", "test1"), 1);
+        assert_eq!(test_func!("test1", "TEST2"), 0);
+        assert_eq!(test_func!("test2"), 1);
+        assert_eq!(test_func!("test0"), 0);
+        assert_eq!(test_func!(""), 0);
+        assert_eq!(test_func!("  фывфыв"), 0);
+        assert_eq!(test_func!("asdasd", "ASDASD"), 1);
+        assert_eq!(test_func!("asda", "ASDASD"), 0);
+        assert_eq!(test_func!("as", "ASD"), 0);
+        assert_eq!(test_func!("as", "ASDDADASDS"), 0);
+        assert_eq!(test_func!("asddadasds", "ASDDADASDS"), 1);
+        assert_eq!(test_func!("add", "ASDDADASDS"), 0);
+        assert_eq!(test_func!("add"), 0);
+        assert_eq!(test_func!("asddadasds"), 1);
+        assert_eq!(test_func!("asd", "ASD"), 1);
+        assert_eq!(test_func!("asd"), 1);
+        assert_eq!(test_func!("asd_"), 0);
+        assert_eq!(test_func!("asd____"), 0);
+        assert_eq!(test_func!("a"), 0);
+        assert_eq!(test_func!(""), 0);
     }
+
+    // #[bench]
+    // fn icmp1_bench(b: &mut Bencher) {
+    //     b.iter(|| {
+    //         test_func!("test1", "test1");
+    //         test_func!("test1", "TEST2");
+    //         test_func!("test2");
+    //         test_func!("test0");
+    //         test_func!("");
+    //         test_func!("  фывфыв");
+    //         test_func!("asdasd", "ASDASD");
+    //         test_func!("asda", "ASDASD");
+    //         test_func!("as", "ASD");
+    //         test_func!("as", "ASDDADASDS");
+    //         test_func!("asddadasds", "ASDDADASDS");
+    //         test_func!("add", "ASDDADASDS");
+    //         test_func!("add");
+    //         test_func!("asddadasds");
+    //         test_func!("asd", "ASD");
+    //         test_func!("asd");
+    //         test_func!("asd_");
+    //         test_func!("asd____");
+    //         test_func!("a");
+    //         test_func!("");
+    //     });
+    // }
 }

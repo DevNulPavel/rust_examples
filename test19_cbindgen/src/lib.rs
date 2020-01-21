@@ -4,7 +4,7 @@ mod ffi;
 mod parser;
 mod scanner;
 
-mod my_test_functions;
+pub mod my_test_functions;
 
 // pub use self::error::*;
 // pub use self::expression::*;
@@ -12,3 +12,4 @@ mod my_test_functions;
 // pub use self::parser::*;
 // pub use self::scanner::*;
 
+pub use self::my_test_functions::*;
