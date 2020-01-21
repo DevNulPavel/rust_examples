@@ -26,7 +26,7 @@ crate-type = ["staticlib"] # Создаем статическую библио�
 # overflow-checks = true
 
 # [profile.release]
-# opt-level = 2
+# opt-level = 3
 # debug = false
 # rpath = false
 # lto = false

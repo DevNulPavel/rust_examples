@@ -14,7 +14,7 @@ use std::os::raw::c_char;
 use std::sync::Mutex;
 use std::collections::HashMap;
 use std::thread::ThreadId;
-// use std::cell::RefCell;
+use std::cell::RefCell;
 // use std::sync::Arc;
 // use std::rc::Rc;
 use lazy_static::lazy_static;
@@ -266,7 +266,7 @@ pub extern "C" fn icmp1_RUST_CODE(s2: *const c_char, s1: *const c_char) -> i32 {
     }
 }*/
 
-#[no_mangle] 
+/*#[no_mangle] 
 pub extern "C" fn icmp1_RUST_CODE(s2: *const c_char, s1: *const c_char) -> i32 {
     if s2.is_null(){
         return 0;
@@ -388,6 +388,63 @@ pub extern "C" fn icmp1_RUST_CODE(s2: *const c_char, s1: *const c_char) -> i32 {
             return 0;
         }
     };
+}*/
+
+
+thread_local!{
+    static THREAD_STORRAGES: RefCell<String> = RefCell::new(String::new());
+}
+
+#[no_mangle] 
+pub extern "C" fn icmp1_RUST_CODE(s2: *const c_char, s1: *const c_char) -> i32 {
+    if s2.is_null(){
+        return 0;
+    }
+
+    // Создаем Rust ссылочную строку из С-шной
+    // Если не смогли сконвертить в Rust строку - выходим
+    let s2_test_str = match unsafe { CStr::from_ptr(s2).to_str() } {
+        Ok(string) =>{
+            string
+        },
+        Err(_) => {
+            return 0;
+        }
+    };
+
+    // Если есть исходная строка, тогда делаем ее в нижнем регистре
+    let s1_lowercase = if s1.is_null() == false {
+        // Создаем Rust ссылочную строку из С-шной
+        // Если не смогли сконвертить в Rust строку - выходим
+        match unsafe { CStr::from_ptr(s1).to_str() } {
+            Ok(res) =>{
+                // Переводим в нижний регистр
+                let s1_lowercase = res.to_ascii_lowercase();
+                Some(s1_lowercase)
+            }
+            Err(_)=>{
+                return 0;
+            }
+        }
+    }else{
+        None
+    };
+
+    if let Some(lowercase_str) = s1_lowercase {
+        THREAD_STORRAGES.with(|st| {
+            let mut mutable_str = st.borrow_mut();
+            (*mutable_str).clone_from(&lowercase_str);
+        });
+    }
+
+    return THREAD_STORRAGES.with(|st| {
+        let test_str = st.borrow();
+        if s2_test_str.eq(&(*test_str)) {
+            return 1;
+        }else{
+            return 0;
+        }
+    });
 }
 
 #[cfg(test)]

@@ -1,4 +1,10 @@
-#include <cassert>
+#ifdef NDEBUG
+    #undef NDEBUG
+    #include <cassert>
+#else
+    #include <cassert>
+#endif
+
 #include <cstdio>
 #include <cstring>
 #include <cctype>      // tolower
@@ -7,6 +13,7 @@
 #include <unordered_map>
 #include <chrono>
 #include <iostream>
+#include <thread>
 
 // Так как библиотека C-шная, то нужно указывать соглашение о вызовах
 // Если используем C++ библиотеку - убрать
@@ -63,8 +70,8 @@ int icmp1_C_CODE_V1 (const char* s2, const char* s1 = 0)
 
 int icmp1_C_CODE_V2 (const char* s2, const char* s1 = 0){
     // Буффер для предыдущей строки s1
-    static size_t sz = 32;
-    static char* str = 0;
+    thread_local static size_t sz = 32;
+    thread_local static char* str = 0;
     
     // Если предудущей строки нету
     if (str == 0){
@@ -128,7 +135,13 @@ int icmp1_C_CODE_V3(const char* s2, const char* s1 = 0)
             str(NULL){}
     };
     
-#ifndef BUILD_EMSCRIPTEN
+#ifndef BUILD_EMSCRIPTEN    
+    thread_local static ThreadStorrage storrage;
+#else
+    static ThreadStorrage storrage;
+#endif
+
+/*#ifndef BUILD_EMSCRIPTEN
     static std::mutex mutex;
     static std::unordered_map<std::thread::id, ThreadStorrage> storrages;
     
@@ -137,7 +150,7 @@ int icmp1_C_CODE_V3(const char* s2, const char* s1 = 0)
     mutex.unlock();
 #else
     static ThreadStorrage storrage;
-#endif
+#endif*/
     
     // Если предудущей строки нету
     if (storrage.str == 0){
@@ -251,76 +264,76 @@ int main(int argc, char const *argv[]){
     // Некий аналог unit тестов
     #define TEST_FUNC(...) icmp1_C_CODE_V1(__VA_ARGS__)
     {
-            assert(TEST_FUNC("test1", "test1") == 1);
-            assert(TEST_FUNC("test1", "TEST2") == 0);
-            assert(TEST_FUNC("test2") == 1);
-            assert(TEST_FUNC("test0") == 0);
-            assert(TEST_FUNC("") == 0);
-            assert(TEST_FUNC("  фывфыв") == 0);
-            assert(TEST_FUNC("asdasd", "ASDASD") == 1);
-            assert(TEST_FUNC("asda", "ASDASD") == 0);
-            assert(TEST_FUNC("as", "ASD") == 0);
-            assert(TEST_FUNC("as", "ASDDADASDS") == 0);
-            assert(TEST_FUNC("asddadasds", "ASDDADASDS") == 1);
-            assert(TEST_FUNC("add", "ASDDADASDS") == 0);
-            assert(TEST_FUNC("add") == 0);
-            assert(TEST_FUNC("asddadasds") == 1);
-            assert(TEST_FUNC("asd", "ASD") == 1);
-            assert(TEST_FUNC("asd") == 1);
-            assert(TEST_FUNC("asd_") == 0);
-            assert(TEST_FUNC("asd____") == 0);
-            assert(TEST_FUNC("a") == 0);
-            assert(TEST_FUNC("") == 0);
-
-            // Сравнение времени исполнения
-            auto start = std::chrono::high_resolution_clock::now();
-            for(size_t i = 0; i < 1000000; i++){
-                TEST_FUNC("test1", "test1");
-                TEST_FUNC("test1", "TEST2");
-                TEST_FUNC("asdasd", "ASDASD");
-                TEST_FUNC("asddadasds", "ASDDADASDS");
-                TEST_FUNC("asddadasds");
-                TEST_FUNC("asd");
+        auto start = std::chrono::high_resolution_clock::now();
+        auto f = [](){
+            for(size_t i = 0; i < 100000; i++){
+                assert(TEST_FUNC("test1", "test1") == 1);
+                assert(TEST_FUNC("test1", "TEST2") == 0);
+                assert(TEST_FUNC("test2") == 1);
+                assert(TEST_FUNC("test0") == 0);
+                assert(TEST_FUNC("") == 0);
+                assert(TEST_FUNC("  фывфыв") == 0);
+                assert(TEST_FUNC("asdasd", "ASDASD") == 1);
+                assert(TEST_FUNC("asda", "ASDASD") == 0);
+                assert(TEST_FUNC("as", "ASD") == 0);
+                assert(TEST_FUNC("as", "ASDDADASDS") == 0);
+                assert(TEST_FUNC("asddadasds", "ASDDADASDS") == 1);
+                assert(TEST_FUNC("add", "ASDDADASDS") == 0);
+                assert(TEST_FUNC("add") == 0);
+                assert(TEST_FUNC("asddadasds") == 1);
+                assert(TEST_FUNC("asd", "ASD") == 1);
+                assert(TEST_FUNC("asd") == 1);
+                assert(TEST_FUNC("asd_") == 0);
+                assert(TEST_FUNC("asd____") == 0);
+                assert(TEST_FUNC("a") == 0);
+                assert(TEST_FUNC("") == 0);
             }
-            auto finish = std::chrono::high_resolution_clock::now();
-            std::chrono::duration<double> elapsed = finish - start;
-            std::cout << "V1 elapsed time: " << elapsed.count() << " s\n";
+        };
+        std::thread t1(f);
+        std::thread t2(f);
+        std::thread t3(f);
+        t1.join();
+        t2.join();
+        t3.join();
+        auto finish = std::chrono::high_resolution_clock::now();
+        std::chrono::duration<double> elapsed = finish - start;
+        std::cout << "V1 elapsed time: " << elapsed.count() << " s\n";
     }
     #undef TEST_FUNC
 
     #define TEST_FUNC(...) icmp1_C_CODE_V2(__VA_ARGS__)
     {
-        assert(TEST_FUNC("test1", "test1") == 1);
-        assert(TEST_FUNC("test1", "TEST2") == 0);
-        assert(TEST_FUNC("test2") == 1);
-        assert(TEST_FUNC("test0") == 0);
-        assert(TEST_FUNC("") == 0);
-        assert(TEST_FUNC("  фывфыв") == 0);
-        assert(TEST_FUNC("asdasd", "ASDASD") == 1);
-        assert(TEST_FUNC("asda", "ASDASD") == 0);
-        assert(TEST_FUNC("as", "ASD") == 0);
-        assert(TEST_FUNC("as", "ASDDADASDS") == 0);
-        assert(TEST_FUNC("asddadasds", "ASDDADASDS") == 1);
-        assert(TEST_FUNC("add", "ASDDADASDS") == 0);
-        assert(TEST_FUNC("add") == 0);
-        assert(TEST_FUNC("asddadasds") == 1);
-        assert(TEST_FUNC("asd", "ASD") == 1);
-        assert(TEST_FUNC("asd") == 1);
-        assert(TEST_FUNC("asd_") == 0);
-        assert(TEST_FUNC("asd____") == 0);
-        assert(TEST_FUNC("a") == 0);
-        assert(TEST_FUNC("") == 0);
-
-        // Сравнение времени исполнения
         auto start = std::chrono::high_resolution_clock::now();
-        for(size_t i = 0; i < 1000000; i++){
-            TEST_FUNC("test1", "test1");
-            TEST_FUNC("test1", "TEST2");
-            TEST_FUNC("asdasd", "ASDASD");
-            TEST_FUNC("asddadasds", "ASDDADASDS");
-            TEST_FUNC("asddadasds");
-            TEST_FUNC("asd");
-        }
+        auto f = [](){
+            for(size_t i = 0; i < 100000; i++){
+                assert(TEST_FUNC("test1", "test1") == 1);
+                assert(TEST_FUNC("test1", "TEST2") == 0);
+                assert(TEST_FUNC("test2") == 1);
+                assert(TEST_FUNC("test0") == 0);
+                assert(TEST_FUNC("") == 0);
+                assert(TEST_FUNC("  фывфыв") == 0);
+                assert(TEST_FUNC("asdasd", "ASDASD") == 1);
+                assert(TEST_FUNC("asda", "ASDASD") == 0);
+                assert(TEST_FUNC("as", "ASD") == 0);
+                assert(TEST_FUNC("as", "ASDDADASDS") == 0);
+                assert(TEST_FUNC("asddadasds", "ASDDADASDS") == 1);
+                assert(TEST_FUNC("add", "ASDDADASDS") == 0);
+                assert(TEST_FUNC("add") == 0);
+                assert(TEST_FUNC("asddadasds") == 1);
+                assert(TEST_FUNC("asd", "ASD") == 1);
+                assert(TEST_FUNC("asd") == 1);
+                assert(TEST_FUNC("asd_") == 0);
+                assert(TEST_FUNC("asd____") == 0);
+                assert(TEST_FUNC("a") == 0);
+                assert(TEST_FUNC("") == 0);
+            }
+        };
+        std::thread t1(f);
+        std::thread t2(f);
+        std::thread t3(f);
+        t1.join();
+        t2.join();
+        t3.join();
         auto finish = std::chrono::high_resolution_clock::now();
         std::chrono::duration<double> elapsed = finish - start;
         std::cout << "V2 elapsed time: " << elapsed.count() << " s\n";
@@ -329,37 +342,38 @@ int main(int argc, char const *argv[]){
 
     #define TEST_FUNC(...) icmp1_C_CODE_V3(__VA_ARGS__)
     {
-        assert(TEST_FUNC("test1", "test1") == 1);
-        assert(TEST_FUNC("test1", "TEST2") == 0);
-        assert(TEST_FUNC("test2") == 1);
-        assert(TEST_FUNC("test0") == 0);
-        assert(TEST_FUNC("") == 0);
-        assert(TEST_FUNC("  фывфыв") == 0);
-        assert(TEST_FUNC("asdasd", "ASDASD") == 1);
-        assert(TEST_FUNC("asda", "ASDASD") == 0);
-        assert(TEST_FUNC("as", "ASD") == 0);
-        assert(TEST_FUNC("as", "ASDDADASDS") == 0);
-        assert(TEST_FUNC("asddadasds", "ASDDADASDS") == 1);
-        assert(TEST_FUNC("add", "ASDDADASDS") == 0);
-        assert(TEST_FUNC("add") == 0);
-        assert(TEST_FUNC("asddadasds") == 1);
-        assert(TEST_FUNC("asd", "ASD") == 1);
-        assert(TEST_FUNC("asd") == 1);
-        assert(TEST_FUNC("asd_") == 0);
-        assert(TEST_FUNC("asd____") == 0);
-        assert(TEST_FUNC("a") == 0);
-        assert(TEST_FUNC("") == 0);
-
-        // Сравнение времени исполнения
         auto start = std::chrono::high_resolution_clock::now();
-        for(size_t i = 0; i < 1000000; i++){
-            TEST_FUNC("test1", "test1");
-            TEST_FUNC("test1", "TEST2");
-            TEST_FUNC("asdasd", "ASDASD");
-            TEST_FUNC("asddadasds", "ASDDADASDS");
-            TEST_FUNC("asddadasds");
-            TEST_FUNC("asd");
-        }
+        auto f = [](){
+            for(size_t i = 0; i < 100000; i++){
+                assert(TEST_FUNC("test1", "test1") == 1);
+                assert(TEST_FUNC("test1", "test1") == 1);
+                assert(TEST_FUNC("test1", "TEST2") == 0);
+                assert(TEST_FUNC("test2") == 1);
+                assert(TEST_FUNC("test0") == 0);
+                assert(TEST_FUNC("") == 0);
+                assert(TEST_FUNC("  фывфыв") == 0);
+                assert(TEST_FUNC("asdasd", "ASDASD") == 1);
+                assert(TEST_FUNC("asda", "ASDASD") == 0);
+                assert(TEST_FUNC("as", "ASD") == 0);
+                assert(TEST_FUNC("as", "ASDDADASDS") == 0);
+                assert(TEST_FUNC("asddadasds", "ASDDADASDS") == 1);
+                assert(TEST_FUNC("add", "ASDDADASDS") == 0);
+                assert(TEST_FUNC("add") == 0);
+                assert(TEST_FUNC("asddadasds") == 1);
+                assert(TEST_FUNC("asd", "ASD") == 1);
+                assert(TEST_FUNC("asd") == 1);
+                assert(TEST_FUNC("asd_") == 0);
+                assert(TEST_FUNC("asd____") == 0);
+                assert(TEST_FUNC("a") == 0);
+                assert(TEST_FUNC("") == 0);
+            }
+        };
+        std::thread t1(f);
+        std::thread t2(f);
+        std::thread t3(f);
+        t1.join();
+        t2.join();
+        t3.join();
         auto finish = std::chrono::high_resolution_clock::now();
         std::chrono::duration<double> elapsed = finish - start;
         std::cout << "V3 elapsed time: " << elapsed.count() << " s\n";
@@ -369,37 +383,38 @@ int main(int argc, char const *argv[]){
 
     #define TEST_FUNC(...) icmp1_RUST_CODE(__VA_ARGS__)
     {
-        assert(TEST_FUNC("test1", "test1") == 1);
-        assert(TEST_FUNC("test1", "TEST2") == 0);
-        assert(TEST_FUNC("test2") == 1);
-        assert(TEST_FUNC("test0") == 0);
-        assert(TEST_FUNC("") == 0);
-        assert(TEST_FUNC("  фывфыв") == 0);
-        assert(TEST_FUNC("asdasd", "ASDASD") == 1);
-        assert(TEST_FUNC("asda", "ASDASD") == 0);
-        assert(TEST_FUNC("as", "ASD") == 0);
-        assert(TEST_FUNC("as", "ASDDADASDS") == 0);
-        assert(TEST_FUNC("asddadasds", "ASDDADASDS") == 1);
-        assert(TEST_FUNC("add", "ASDDADASDS") == 0);
-        assert(TEST_FUNC("add") == 0);
-        assert(TEST_FUNC("asddadasds") == 1);
-        assert(TEST_FUNC("asd", "ASD") == 1);
-        assert(TEST_FUNC("asd") == 1);
-        assert(TEST_FUNC("asd_") == 0);
-        assert(TEST_FUNC("asd____") == 0);
-        assert(TEST_FUNC("a") == 0);
-        assert(TEST_FUNC("") == 0);
-
         // Сравнение времени исполнения
         auto start = std::chrono::high_resolution_clock::now();
-        for(size_t i = 0; i < 1000000; i++){
-            TEST_FUNC("test1", "test1");
-            TEST_FUNC("test1", "TEST2");
-            TEST_FUNC("asdasd", "ASDASD");
-            TEST_FUNC("asddadasds", "ASDDADASDS");
-            TEST_FUNC("asddadasds");
-            TEST_FUNC("asd");
-        }
+        auto f = [](){
+            for(size_t i = 0; i < 100000; i++){
+                assert(TEST_FUNC("test1", "test1") == 1);
+                assert(TEST_FUNC("test1", "TEST2") == 0);
+                assert(TEST_FUNC("test2") == 1);
+                assert(TEST_FUNC("test0") == 0);
+                assert(TEST_FUNC("") == 0);
+                assert(TEST_FUNC("  фывфыв") == 0);
+                assert(TEST_FUNC("asdasd", "ASDASD") == 1);
+                assert(TEST_FUNC("asda", "ASDASD") == 0);
+                assert(TEST_FUNC("as", "ASD") == 0);
+                assert(TEST_FUNC("as", "ASDDADASDS") == 0);
+                assert(TEST_FUNC("asddadasds", "ASDDADASDS") == 1);
+                assert(TEST_FUNC("add", "ASDDADASDS") == 0);
+                assert(TEST_FUNC("add") == 0);
+                assert(TEST_FUNC("asddadasds") == 1);
+                assert(TEST_FUNC("asd", "ASD") == 1);
+                assert(TEST_FUNC("asd") == 1);
+                assert(TEST_FUNC("asd_") == 0);
+                assert(TEST_FUNC("asd____") == 0);
+                assert(TEST_FUNC("a") == 0);
+                assert(TEST_FUNC("") == 0);
+            }
+        };
+        std::thread t1(f);
+        std::thread t2(f);
+        std::thread t3(f);
+        t1.join();
+        t2.join();
+        t3.join();
         auto finish = std::chrono::high_resolution_clock::now();
         std::chrono::duration<double> elapsed = finish - start;
         std::cout << "Rust elapsed time: " << elapsed.count() << " s\n";        
