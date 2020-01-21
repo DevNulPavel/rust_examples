@@ -381,7 +381,7 @@ int main(int argc, char const *argv[]){
     #undef TEST_FUNC
 
 
-    /*#define TEST_FUNC(...) icmp1_RUST_CODE(__VA_ARGS__)
+    #define TEST_FUNC(...) icmp1_RUST_CODE(__VA_ARGS__)
     {
         // Сравнение времени исполнения
         auto start = std::chrono::high_resolution_clock::now();
@@ -419,7 +419,9 @@ int main(int argc, char const *argv[]){
         std::chrono::duration<double> elapsed = finish - start;
         std::cout << "Rust elapsed time: " << elapsed.count() << " s\n";        
     }
-    #undef TEST_FUNC*/
+    #undef TEST_FUNC
+
+
 
     return 0;
 }

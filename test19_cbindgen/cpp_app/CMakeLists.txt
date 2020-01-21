@@ -22,8 +22,7 @@ set(CXX_FLAGS "-pthreads")
 add_executable(${PROJECT_NAME} main.cpp)
 
 find_package (Threads)
-target_link_libraries (${PROJECT_NAME} ${CMAKE_THREAD_LIBS_INIT})
-#target_link_libraries(${PROJECT_NAME} ${LINK_LIBS})
+target_link_libraries (${PROJECT_NAME} ${CMAKE_THREAD_LIBS_INIT} ${LINK_LIBS})
 
 set(CPACK_PROJECT_NAME ${PROJECT_NAME})
 set(CPACK_PROJECT_VERSION ${PROJECT_VERSION})

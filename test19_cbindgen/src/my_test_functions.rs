@@ -5,7 +5,7 @@
 
 // #[macro_use]
 // extern crate lazy_static;
-extern crate libc;
+// extern crate libc;
 
 // extern crate test;
 
@@ -115,7 +115,7 @@ pub extern "C" fn test_raw_pointers() {
     }
 
     // Помимо прочего, можно аллоцировать все руками и уничтожать руками
-    {
+    /*{
         unsafe {
             let int32_size = std::mem::size_of::<i32>();
             // Можно вызывать метод cast у указателя для приведения типов вместо оператора as
@@ -126,7 +126,7 @@ pub extern "C" fn test_raw_pointers() {
             libc::free(my_num.cast::<libc::c_void>()); // my_num as *mut libc::c_void
         }
         println!("Manual alloc/dealloc success");
-    }
+    }*/
 
     {
         let s: [i32; 7] = [1, 2, 3, 4, 5, 6, 7];

@@ -57,6 +57,6 @@ crate-type = ["staticlib"] # Создаем статическую библио�
 # overflow-checks = false
 
 [dependencies]
-libc = "0.2.66"
+# libc = "0.2.66"
 maplit = "1.0.2"
 lazy_static = "1.4.0"
