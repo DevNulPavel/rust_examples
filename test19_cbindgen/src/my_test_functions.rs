@@ -11,13 +11,14 @@ extern crate libc;
 
 use std::ffi::CStr;
 use std::os::raw::c_char;
-use std::cell::RefCell;
-use std::sync::Arc;
-use std::rc::Rc;
 use std::sync::Mutex;
 use std::collections::HashMap;
 use std::thread::ThreadId;
+// use std::cell::RefCell;
+// use std::sync::Arc;
+// use std::rc::Rc;
 use lazy_static::lazy_static;
+
 
 // Перед структурой можно указывать кастомные параметры
 /// cbindgen:field-names=[data, len]
@@ -204,7 +205,7 @@ pub extern "C" fn test_panic_catch() {
     
 }
 
-#[no_mangle] 
+/*#[no_mangle] 
 pub extern "C" fn icmp1_RUST_CODE(s2: *const c_char, s1: *const c_char) -> i32 {
     if s2.is_null(){
         return 0;
@@ -263,9 +264,9 @@ pub extern "C" fn icmp1_RUST_CODE(s2: *const c_char, s1: *const c_char) -> i32 {
             return 0;
         }
     }
-}
+}*/
 
-/*#[no_mangle] 
+#[no_mangle] 
 pub extern "C" fn icmp1_RUST_CODE(s2: *const c_char, s1: *const c_char) -> i32 {
     if s2.is_null(){
         return 0;
@@ -284,7 +285,7 @@ pub extern "C" fn icmp1_RUST_CODE(s2: *const c_char, s1: *const c_char) -> i32 {
         }
     };
 
-    lazy_static! {
+    /*lazy_static! {
         static ref THREAD_STORRAGES: Mutex<HashMap<ThreadId, Arc<Mutex<String>>>> = Mutex::new(HashMap::new());
     }
 
@@ -302,7 +303,7 @@ pub extern "C" fn icmp1_RUST_CODE(s2: *const c_char, s1: *const c_char) -> i32 {
     };
 
     // Если есть исходная строка, тогда делаем ее в нижнем регистре
-    if s1.is_null() == false {
+    let equals = if s1.is_null() == false {
         // Создаем Rust ссылочную строку из С-шной
         let s1_convert_result = unsafe { CStr::from_ptr(s1).to_str() };
 
@@ -317,20 +318,23 @@ pub extern "C" fn icmp1_RUST_CODE(s2: *const c_char, s1: *const c_char) -> i32 {
         match storrage.lock() {
             Ok(mut data)=>{
                 (*data).clone_from(&s1_lowercase);
+
+                let equals = s2_test_str.eq(&(*data));
+                equals
             },
             Err(_)=>{
                 return 0;
             }
         }
-    }
-    
-    let equals = match storrage.lock() {
-        Ok(data)=>{
-            let equals = s2_test_str.eq(&(*data));
-            equals
-        },
-        Err(_)=>{
-            return 0;
+    }else{
+        match storrage.lock() {
+            Ok(data)=>{
+                let equals = s2_test_str.eq(&(*data));
+                equals
+            },
+            Err(_)=>{
+                return 0;
+            }
         }
     };
 
@@ -338,33 +342,43 @@ pub extern "C" fn icmp1_RUST_CODE(s2: *const c_char, s1: *const c_char) -> i32 {
         return 1;
     }else{
         return 0;
+    }*/
+
+    // Если есть исходная строка, тогда делаем ее в нижнем регистре
+    let s1_lowercase = if s1.is_null() == false {
+        // Создаем Rust ссылочную строку из С-шной
+        let s1_convert_result = unsafe { CStr::from_ptr(s1).to_str() };
+
+        // Если не смогли сконвертить в Rust строку - выходим
+        if s1_convert_result.is_err() {
+            return 0;
+        }
+
+        // Переводим в нижний регистр
+        let s1_lowercase = s1_convert_result.unwrap().to_ascii_lowercase();
+
+        Some(s1_lowercase)
+    }else{
+        None
+    };
+
+    lazy_static! {
+        static ref THREAD_STORRAGES: Mutex<HashMap<ThreadId, String>> = Mutex::new(HashMap::new());
     }
 
+    let cur_thread_id = std::thread::current().id();
+
     // Пользуемся блокировкой для обновления статической переменной
-    /*match THREAD_STORRAGES.lock(){
+    match THREAD_STORRAGES.lock(){
         Ok(mut locked_storrage) => {
-            let cur_thread_id = std::thread::current().id();
-        
+                   
             let storrage = locked_storrage.entry(cur_thread_id).or_insert(String::new());
-    
-            // Если есть исходная строка, тогда делаем ее в нижнем регистре
-            if s1.is_null() == false {
-                // Создаем Rust ссылочную строку из С-шной
-                let s1_convert_result = unsafe { CStr::from_ptr(s1).to_str() };
-    
-                // Если не смогли сконвертить в Rust строку - выходим
-                if s1_convert_result.is_err() {
-                    return 0;
-                }
-    
-                // Переводим в нижний регистр
-                let s1_lowercase = s1_convert_result.unwrap().to_ascii_lowercase();
-    
-                *storrage = s1_lowercase;
+
+            if let Some(lowercase_str) = s1_lowercase{
+                *storrage = lowercase_str;
             }
-            
-            let equals = s2_test_str.eq(storrage);
-            if equals {
+
+            if s2_test_str.eq(storrage) {
                 return 1;
             }else{
                 return 0;
@@ -373,8 +387,8 @@ pub extern "C" fn icmp1_RUST_CODE(s2: *const c_char, s1: *const c_char) -> i32 {
         Err(_) => {
             return 0;
         }
-    };*/
-}*/
+    };
+}
 
 #[cfg(test)]
 mod tests {

@@ -28,10 +28,10 @@ INSTALL_WASM_DEPS:
 # | - значит, что запускать не параллельно, а последовательно
 
 _BUILD_RUST_LIB_RELEASE:
-	cargo build --release --lib
+	cargo build --release
 
 _BUILD_RUST_LIB_DEBUG:
-	cargo build --lib
+	cargo build
 
 _BUILD_RUST_IOS_LIB_RELEASE:
 	cargo lipo --targets aarch64-apple-ios,armv7-apple-ios,armv7s-apple-ios,x86_64-apple-ios --release

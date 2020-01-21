@@ -10,51 +10,51 @@ edition = "2018"
 name = "test19_cbindgen"
 crate-type = ["staticlib"] # Создаем статическую библиотеку, для python - cdylib, варианты: dylib, rlib, staticlib, cdylib, proc-macro
 
-[target.armv7-linux-androideabi]
+# [target.armv7-linux-androideabi]
 
-[target.aarch64-linux-android]
+# [target.aarch64-linux-android]
 
-[profile.dev]
-opt-level = 0
-debug = true # Дебажная информация
-rpath = false
-lto = false # Оптимизация линковки, чтобы бинарь был поменьше
-debug-assertions = true
-codegen-units = 16 # Степень параллельной сборки
-panic = "unwind"   # Что  делсть в случае паники, "abort"
-incremental = true # Инкрементальная сборка
-overflow-checks = true
+# [profile.dev]
+# opt-level = 0
+# debug = true # Дебажная информация
+# rpath = false
+# lto = false # Оптимизация линковки, чтобы бинарь был поменьше
+# debug-assertions = true
+# codegen-units = 16 # Степень параллельной сборки
+# panic = "unwind"   # Что  делсть в случае паники, "abort"
+# incremental = true # Инкрементальная сборка
+# overflow-checks = true
 
-[profile.release]
-opt-level = 3
-debug = false
-rpath = false
-lto = false
-debug-assertions = false
-codegen-units = 16
-panic = "unwind"
-incremental = false
-overflow-checks = false
+# [profile.release]
+# opt-level = 2
+# debug = false
+# rpath = false
+# lto = false
+# debug-assertions = false
+# codegen-units = 16
+# panic = "unwind"
+# incremental = false
+# overflow-checks = false
 
-[profile.test]
-opt-level = 0
-debug = 2
-rpath = false
-lto = false
-debug-assertions = true
-codegen-units = 16
-incremental = true
-overflow-checks = true
+# [profile.test]
+# opt-level = 0
+# debug = 2
+# rpath = false
+# lto = false
+# debug-assertions = true
+# codegen-units = 16
+# incremental = true
+# overflow-checks = true
 
-[profile.bench]
-opt-level = 3
-debug = false
-rpath = false
-lto = false
-debug-assertions = false
-codegen-units = 16
-incremental = false
-overflow-checks = false
+# [profile.bench]
+# opt-level = 3
+# debug = false
+# rpath = false
+# lto = false
+# debug-assertions = false
+# codegen-units = 16
+# incremental = false
+# overflow-checks = false
 
 [dependencies]
 libc = "0.2.66"

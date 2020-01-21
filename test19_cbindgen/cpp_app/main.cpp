@@ -271,6 +271,20 @@ int main(int argc, char const *argv[]){
             assert(TEST_FUNC("asd____") == 0);
             assert(TEST_FUNC("a") == 0);
             assert(TEST_FUNC("") == 0);
+
+            // Сравнение времени исполнения
+            auto start = std::chrono::high_resolution_clock::now();
+            for(size_t i = 0; i < 1000000; i++){
+                TEST_FUNC("test1", "test1");
+                TEST_FUNC("test1", "TEST2");
+                TEST_FUNC("asdasd", "ASDASD");
+                TEST_FUNC("asddadasds", "ASDDADASDS");
+                TEST_FUNC("asddadasds");
+                TEST_FUNC("asd");
+            }
+            auto finish = std::chrono::high_resolution_clock::now();
+            std::chrono::duration<double> elapsed = finish - start;
+            std::cout << "V1 elapsed time: " << elapsed.count() << " s\n";
     }
     #undef TEST_FUNC
 
