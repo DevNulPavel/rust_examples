@@ -395,7 +395,7 @@ pub extern "C" fn icmp1_RUST_CODE(s2: *const c_char, s1: *const c_char) -> i32 {
 
 #[no_mangle] 
 pub extern "C" fn icmp1_RUST_CODE(s2: *const c_char, s1: *const c_char) -> i32 {
-    if s2.is_null(){
+    if s2.is_null() {
         return 0;
     }
 

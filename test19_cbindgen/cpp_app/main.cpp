@@ -126,6 +126,10 @@ int icmp1_C_CODE_V2 (const char* s2, const char* s1 = 0){
 
 int icmp1_C_CODE_V3(const char* s2, const char* s1 = 0)
 {
+    if(s2 == nullptr){
+        return 0;
+    }
+
     struct ThreadStorrage {
         size_t sz;
         char* str;
@@ -275,38 +279,47 @@ int main(int argc, char const *argv[]){
     const char* invalid_buffer_big = (const char*)malloc(2048);
     const char* invalid_buffer_small = (const char*)malloc(58);
 
+    #define TEST_CODE \
+        assert(TEST_FUNC(0, 0) == 0);   \
+        assert(TEST_FUNC(0) == 0);      \
+        assert(TEST_FUNC(0, "asdsad") == 0);    \
+        assert(TEST_FUNC("asdsad") == 0);   \
+        assert(TEST_FUNC("asdsad", "asdsad") == 1);     \
+        assert(TEST_FUNC("test1", "test1") == 1);   \
+        assert(TEST_FUNC("test1", "test1") == 1);   \
+        assert(TEST_FUNC("test1", "TEST2") == 0);   \
+        assert(TEST_FUNC("test2") == 1);    \
+        assert(TEST_FUNC("test0") == 0);    \
+        assert(TEST_FUNC("") == 0);     \
+        assert(TEST_FUNC("  фывфыв") == 0);     \
+        assert(TEST_FUNC("asdasd", "ASDASD") == 1);     \
+        assert(TEST_FUNC("asda", "ASDASD") == 0);   \
+        assert(TEST_FUNC("as", "ASD") == 0);    \
+        assert(TEST_FUNC("as", "ASDDADASDS") == 0);     \
+        assert(TEST_FUNC("asddadasds", "ASDDADASDS") == 1);     \
+        assert(TEST_FUNC("add", "ASDDADASDS") == 0);    \
+        assert(TEST_FUNC("add") == 0);      \
+        assert(TEST_FUNC("asddadasds") == 1);   \
+        assert(TEST_FUNC("asd", "ASD") == 1);   \
+        assert(TEST_FUNC("asd") == 1);      \
+        assert(TEST_FUNC("asd_") == 0);     \
+        assert(TEST_FUNC("asd____") == 0);      \
+        assert(TEST_FUNC("a") == 0);    \
+        assert(TEST_FUNC("") == 0);     \
+        assert(TEST_FUNC(invalid_buffer_big, "asads") == 0);    \
+        assert(TEST_FUNC("ASD", invalid_buffer_big) == 0);      \
+        assert(TEST_FUNC("asdsd") == 0);    \
+        assert(TEST_FUNC(invalid_buffer_small, "asads") == 0);      \
+        assert(TEST_FUNC("ASD", invalid_buffer_small) == 0);    \
+        assert(TEST_FUNC("asdsd") == 0);
+
     // Некий аналог unit тестов
-    #define TEST_FUNC(...) icmp1_C_CODE_V1(__VA_ARGS__)
+    /*#define TEST_FUNC(...) icmp1_C_CODE_V1(__VA_ARGS__)
     {
         auto start = std::chrono::high_resolution_clock::now();
         auto f = [&](){
             for(size_t i = 0; i < 100000; i++){
-                assert(TEST_FUNC("test1", "test1") == 1);
-                assert(TEST_FUNC("test1", "TEST2") == 0);
-                assert(TEST_FUNC("test2") == 1);
-                assert(TEST_FUNC("test0") == 0);
-                assert(TEST_FUNC("") == 0);
-                assert(TEST_FUNC("  фывфыв") == 0);
-                assert(TEST_FUNC("asdasd", "ASDASD") == 1);
-                assert(TEST_FUNC("asda", "ASDASD") == 0);
-                assert(TEST_FUNC("as", "ASD") == 0);
-                assert(TEST_FUNC("as", "ASDDADASDS") == 0);
-                assert(TEST_FUNC("asddadasds", "ASDDADASDS") == 1);
-                assert(TEST_FUNC("add", "ASDDADASDS") == 0);
-                assert(TEST_FUNC("add") == 0);
-                assert(TEST_FUNC("asddadasds") == 1);
-                assert(TEST_FUNC("asd", "ASD") == 1);
-                assert(TEST_FUNC("asd") == 1);
-                assert(TEST_FUNC("asd_") == 0);
-                assert(TEST_FUNC("asd____") == 0);
-                assert(TEST_FUNC("a") == 0);
-                assert(TEST_FUNC("") == 0);
-                assert(TEST_FUNC(invalid_buffer_big, "asads") == 0);
-                assert(TEST_FUNC("ASD", invalid_buffer_big) == 0);
-                assert(TEST_FUNC("asdsd") == 0);
-                assert(TEST_FUNC(invalid_buffer_small, "asads") == 0);
-                assert(TEST_FUNC("ASD", invalid_buffer_small) == 0);
-                assert(TEST_FUNC("asdsd") == 0);
+                TEST_CODE
             }
         };
         std::thread t1(f);
@@ -326,32 +339,7 @@ int main(int argc, char const *argv[]){
         auto start = std::chrono::high_resolution_clock::now();
         auto f = [&](){
             for(size_t i = 0; i < 100000; i++){
-                assert(TEST_FUNC("test1", "test1") == 1);
-                assert(TEST_FUNC("test1", "TEST2") == 0);
-                assert(TEST_FUNC("test2") == 1);
-                assert(TEST_FUNC("test0") == 0);
-                assert(TEST_FUNC("") == 0);
-                assert(TEST_FUNC("  фывфыв") == 0);
-                assert(TEST_FUNC("asdasd", "ASDASD") == 1);
-                assert(TEST_FUNC("asda", "ASDASD") == 0);
-                assert(TEST_FUNC("as", "ASD") == 0);
-                assert(TEST_FUNC("as", "ASDDADASDS") == 0);
-                assert(TEST_FUNC("asddadasds", "ASDDADASDS") == 1);
-                assert(TEST_FUNC("add", "ASDDADASDS") == 0);
-                assert(TEST_FUNC("add") == 0);
-                assert(TEST_FUNC("asddadasds") == 1);
-                assert(TEST_FUNC("asd", "ASD") == 1);
-                assert(TEST_FUNC("asd") == 1);
-                assert(TEST_FUNC("asd_") == 0);
-                assert(TEST_FUNC("asd____") == 0);
-                assert(TEST_FUNC("a") == 0);
-                assert(TEST_FUNC("") == 0);
-                assert(TEST_FUNC(invalid_buffer_big, "asads") == 0);
-                assert(TEST_FUNC("ASD", invalid_buffer_big) == 0);
-                assert(TEST_FUNC("asdsd") == 0);
-                assert(TEST_FUNC(invalid_buffer_small, "asads") == 0);
-                assert(TEST_FUNC("ASD", invalid_buffer_small) == 0);
-                assert(TEST_FUNC("asdsd") == 0);                
+                TEST_CODE              
             }
         };
         std::thread t1(f);
@@ -364,40 +352,14 @@ int main(int argc, char const *argv[]){
         std::chrono::duration<double> elapsed = finish - start;
         std::cout << "V2 elapsed time: " << elapsed.count() << " s\n";
     }
-    #undef TEST_FUNC
+    #undef TEST_FUNC*/
 
     #define TEST_FUNC(...) icmp1_C_CODE_V3(__VA_ARGS__)
     {
         auto start = std::chrono::high_resolution_clock::now();
         auto f = [&](){
             for(size_t i = 0; i < 100000; i++){
-                assert(TEST_FUNC("test1", "test1") == 1);
-                assert(TEST_FUNC("test1", "test1") == 1);
-                assert(TEST_FUNC("test1", "TEST2") == 0);
-                assert(TEST_FUNC("test2") == 1);
-                assert(TEST_FUNC("test0") == 0);
-                assert(TEST_FUNC("") == 0);
-                assert(TEST_FUNC("  фывфыв") == 0);
-                assert(TEST_FUNC("asdasd", "ASDASD") == 1);
-                assert(TEST_FUNC("asda", "ASDASD") == 0);
-                assert(TEST_FUNC("as", "ASD") == 0);
-                assert(TEST_FUNC("as", "ASDDADASDS") == 0);
-                assert(TEST_FUNC("asddadasds", "ASDDADASDS") == 1);
-                assert(TEST_FUNC("add", "ASDDADASDS") == 0);
-                assert(TEST_FUNC("add") == 0);
-                assert(TEST_FUNC("asddadasds") == 1);
-                assert(TEST_FUNC("asd", "ASD") == 1);
-                assert(TEST_FUNC("asd") == 1);
-                assert(TEST_FUNC("asd_") == 0);
-                assert(TEST_FUNC("asd____") == 0);
-                assert(TEST_FUNC("a") == 0);
-                assert(TEST_FUNC("") == 0);
-                assert(TEST_FUNC(invalid_buffer_big, "asads") == 0);
-                assert(TEST_FUNC("ASD", invalid_buffer_big) == 0);
-                assert(TEST_FUNC("asdsd") == 0);
-                assert(TEST_FUNC(invalid_buffer_small, "asads") == 0);
-                assert(TEST_FUNC("ASD", invalid_buffer_small) == 0);
-                assert(TEST_FUNC("asdsd") == 0);
+                TEST_CODE
             }
         };
         std::thread t1(f);
@@ -419,32 +381,7 @@ int main(int argc, char const *argv[]){
         auto start = std::chrono::high_resolution_clock::now();
         auto f = [&](){
             for(size_t i = 0; i < 100000; i++){
-                assert(TEST_FUNC("test1", "test1") == 1);
-                assert(TEST_FUNC("test1", "TEST2") == 0);
-                assert(TEST_FUNC("test2") == 1);
-                assert(TEST_FUNC("test0") == 0);
-                assert(TEST_FUNC("") == 0);
-                assert(TEST_FUNC("  фывфыв") == 0);
-                assert(TEST_FUNC("asdasd", "ASDASD") == 1);
-                assert(TEST_FUNC("asda", "ASDASD") == 0);
-                assert(TEST_FUNC("as", "ASD") == 0);
-                assert(TEST_FUNC("as", "ASDDADASDS") == 0);
-                assert(TEST_FUNC("asddadasds", "ASDDADASDS") == 1);
-                assert(TEST_FUNC("add", "ASDDADASDS") == 0);
-                assert(TEST_FUNC("add") == 0);
-                assert(TEST_FUNC("asddadasds") == 1);
-                assert(TEST_FUNC("asd", "ASD") == 1);
-                assert(TEST_FUNC("asd") == 1);
-                assert(TEST_FUNC("asd_") == 0);
-                assert(TEST_FUNC("asd____") == 0);
-                assert(TEST_FUNC("a") == 0);
-                assert(TEST_FUNC("") == 0);
-                assert(TEST_FUNC(invalid_buffer_big, "asads") == 0);
-                assert(TEST_FUNC("ASD", invalid_buffer_big) == 0);
-                assert(TEST_FUNC("asdsd") == 0);
-                assert(TEST_FUNC(invalid_buffer_small, "asads") == 0);
-                assert(TEST_FUNC("ASD", invalid_buffer_small) == 0);
-                assert(TEST_FUNC("asdsd") == 0);                
+                TEST_CODE             
             }
         };
         std::thread t1(f);
