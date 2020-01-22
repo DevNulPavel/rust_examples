@@ -489,9 +489,11 @@ pub extern "C" fn icmp1_RUST_CODE(s2: *const c_char, s1: *const c_char) -> i32 {
                 //     *(storrage.buffer.get_unchecked_mut(i)) = lowercase_byte;
                 // }
                 
-                if let Some(val) = storrage.buffer.get_mut(i) {
-                    *val = lowercase_byte;
-                }
+                storrage.buffer[i] = lowercase_byte;
+                
+                // if let Some(val) = storrage.buffer.get_mut(i) {
+                //     *val = lowercase_byte;
+                // }
 
                 // src_string.insert(i, lowercase_byte);
 
