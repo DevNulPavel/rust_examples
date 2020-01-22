@@ -401,14 +401,7 @@ pub extern "C" fn icmp1_RUST_CODE(s2: *const c_char, s1: *const c_char) -> i32 {
 
     // Создаем Rust ссылочную строку из С-шной
     // Если не смогли сконвертить в Rust строку - выходим
-    let s2_test_str = match unsafe { CStr::from_ptr(s2).to_str() } {
-        Ok(string) =>{
-            string
-        },
-        Err(_) => {
-            return 0;
-        }
-    };
+    let s2_test_str = unsafe { CStr::from_ptr(s2) }.to_bytes();
 
     // Защита от кривых данных
     if s2_test_str.len() > 1024{
@@ -418,11 +411,12 @@ pub extern "C" fn icmp1_RUST_CODE(s2: *const c_char, s1: *const c_char) -> i32 {
     struct Storrage{
         buffer: Vec<u8>,
         string_len: usize,
+        // str_raw: String
         // str_raw: &'a str
-        //str_raw: RefCell<Cow<'a, str>>,
+        // str_raw: RefCell<Cow<'a, str>>,
         // str_raw: Cow<'a, str>,
     };
-    impl Storrage{
+    impl<'a> Storrage{
         fn new() -> Storrage {
             // let buffer: Vec<u8> = Vec::new();
             
@@ -437,11 +431,21 @@ pub extern "C" fn icmp1_RUST_CODE(s2: *const c_char, s1: *const c_char) -> i32 {
                 // str_raw: RefCell::new(Cow::default())
                 // str_raw: Cow::default()
                 // str_raw: ""
+                // str_raw: String::new()
             };
             // st.str_raw = RefCell::new(String::from_utf8_lossy(&st.buffer[0..0]));
 
             st
         }
+
+        /*fn update_inside_string(&mut self){
+            let bytes_slice: &[u8] = &self.buffer[0..self.string_len];
+            let string = String::from_utf8_lossy(bytes_slice);
+            let test_str: &str = &*string;
+            // storrage.str_raw = RefCell::new(string);
+            // self.str_raw = string;
+            // self.str_raw = String::from(test_str);
+        }*/
     }
 
     thread_local!{
@@ -452,86 +456,94 @@ pub extern "C" fn icmp1_RUST_CODE(s2: *const c_char, s1: *const c_char) -> i32 {
     if s1.is_null() == false {
         // Создаем Rust ссылочную строку из С-шной
         // Если не смогли сконвертить в Rust строку - выходим
-        match unsafe { CStr::from_ptr(s1).to_str() } {
-            Ok(res) =>{
-                // Защита от кривых данных
-                if res.len() > 1024{
-                    return 0;
+        let res = unsafe { CStr::from_ptr(s1) }.to_bytes();
+
+        // Защита от кривых данных
+        if res.len() > 1024{
+            return 0;
+        }
+
+        THREAD_STORRAGES.with(|st| {
+            // RefCell::new(String::new()).borrow_mut();
+            let storrage: &mut Storrage = &mut *st.borrow_mut();
+
+            // Увеличиваем размер буффера
+            if storrage.buffer.len() < res.len(){
+                // println!("Resize {}", res.len());
+                storrage.buffer.resize(res.len(), 0);
+            }
+
+            // let mut bytes_iter = String::new().chars();
+            //bytes_iter = 2 as char;
+            // *(bytes_iter.by_ref()) = 2 as u8;
+            // bytes_iter.next();
+
+            // Переводим в нижний регистр
+            let mut i = 0 as usize;
+            // let mut src_string_it = st.borrow_mut().chars();
+            // let vec = unsafe { src_string.as_mut_vec() };
+            for byte in res {
+                let lowercase_byte = byte.to_ascii_lowercase() as u8;
+
+                // unsafe{
+                //     *(storrage.buffer.get_unchecked_mut(i)) = lowercase_byte;
+                // }
+                
+                if let Some(val) = storrage.buffer.get_mut(i) {
+                    *val = lowercase_byte;
                 }
 
-                THREAD_STORRAGES.with(|st| {
-                    // RefCell::new(String::new()).get_mut();
-                    let storrage = &mut *st.borrow_mut();
+                // src_string.insert(i, lowercase_byte);
 
-                    // Увеличиваем размер буффера
-                    if storrage.buffer.len() < res.len(){
-                        // println!("Resize {}", res.len());
-                        storrage.buffer.resize(res.len(), 0);
-                    }
+                // String::new().
+                // let vec: Vec<u8> = Vec::new();
+                // vec.get
 
-                    // let mut bytes_iter = String::new().chars();
-                    //bytes_iter = 2 as char;
-                    // *(bytes_iter.by_ref()) = 2 as u8;
-                    // bytes_iter.next();
+                // src_string_it = lowercase_byte;
+                // src_string_it.next();
 
-                    // Переводим в нижний регистр
-                    let mut i = 0 as usize;
-                    // let mut src_string_it = st.borrow_mut().chars();
-                    // let vec = unsafe { src_string.as_mut_vec() };
-                    let bytes_iter = res.chars();
-                    for byte in bytes_iter {
-                        let lowercase_byte = byte.to_ascii_lowercase() as u8;
-                        if let Some(val) = storrage.buffer.get_mut(i) {
-                            *val = lowercase_byte;
-                        }
-
-                        // src_string.insert(i, lowercase_byte);
-
-                        // String::new().
-                        // let vec: Vec<u8> = Vec::new();
-                        // vec.get
-
-                        // src_string_it = lowercase_byte;
-                        // src_string_it.next();
-
-                        // if let Some(val) = src_string.get_mut(i) {
-                        //     *val = lowercase_byte;
-                        // }
-                        i += 1;
-                    }
-                    storrage.string_len = i;
-
-                    // let bytes_slice: &[u8] = &storrage.buffer[..storrage.string_len];
-                    // let string = String::from_utf8_lossy(bytes_slice);
-                    // let test_str: &str = &*string;
-                    // storrage.str_raw = RefCell::new(string);
-                    // storrage.str_raw = string;
-                    // storrage.str_raw = test_str;
-
-                    // String::from_utf8(bytes).unwrap()
-                    // Cell::new(String::new()).set()
-                    // ;
-
-                    // src_string.truncate(i);
-
-                    // println!("TEST {}", src_string);
-                });
+                // if let Some(val) = src_string.get_mut(i) {
+                //     *val = lowercase_byte;
+                // }
+                i += 1;
             }
-            Err(_)=>{
-                return 0;
-            }
-        }
+            storrage.string_len = i;
+
+            // storrage.update_inside_string();
+
+            // storrage.str_raw = string;
+
+            // let bytes_slice: &[u8] = &storrage.buffer[..storrage.string_len];
+            // let string = String::from_utf8_lossy(bytes_slice);
+            // let test_str: &str = &*string;
+            // storrage.str_raw = RefCell::new(string);
+            // storrage.str_raw = string;
+            // storrage.str_raw = test_str;
+
+            // String::from_utf8(bytes).unwrap()
+            // Cell::new(String::new()).set()
+            // ;
+
+            // src_string.truncate(i);
+
+            // println!("TEST {}", src_string);
+        });
     }
 
     return THREAD_STORRAGES.with(|st| {
-        //(*(RefCell::new(Storrage::new()).borrow()))
+        // (*(RefCell::new(Storrage::new()).borrow()))
         let storrage: &Storrage = &(*st.borrow());
 
-        let bytes_slice: &[u8] = &storrage.buffer[..storrage.string_len];
-        let string = String::from_utf8_lossy(bytes_slice);
-        let test_str: &str = &*string;
+        // let bytes_slice: &[u8] = &storrage.buffer[..storrage.string_len];
+        // let string = String::from_utf8_lossy(bytes_slice);
+        // let test_str: &str = &*string;
 
-        if s2_test_str.eq(&(*test_str)) {
+        //let test_str: &str = &*storrage.str_raw;
+
+        let length = storrage.string_len;
+        let bytes_slice: &[u8] = &storrage.buffer[0..length];
+
+        if s2_test_str.eq(bytes_slice) {
             return 1;
         }else{
             return 0;
