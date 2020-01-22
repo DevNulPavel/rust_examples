@@ -2,6 +2,7 @@
 // #![allow(soft_unstable)]
 #![allow(unused_variables)]
 #![allow(unused_macros)]
+#![allow(unused_imports)]
 
 // #[macro_use]
 // extern crate lazy_static;
@@ -409,6 +410,11 @@ pub extern "C" fn icmp1_RUST_CODE(s2: *const c_char, s1: *const c_char) -> i32 {
         }
     };
 
+    // Защита от кривых данных
+    if s2_test_str.len() > 1024{
+        return 0;
+    }
+
     struct Storrage{
         buffer: Vec<u8>,
         string_len: usize,
@@ -448,13 +454,18 @@ pub extern "C" fn icmp1_RUST_CODE(s2: *const c_char, s1: *const c_char) -> i32 {
         // Если не смогли сконвертить в Rust строку - выходим
         match unsafe { CStr::from_ptr(s1).to_str() } {
             Ok(res) =>{
+                // Защита от кривых данных
+                if res.len() > 1024{
+                    return 0;
+                }
+
                 THREAD_STORRAGES.with(|st| {
                     // RefCell::new(String::new()).get_mut();
                     let storrage = &mut *st.borrow_mut();
 
                     // Увеличиваем размер буффера
                     if storrage.buffer.len() < res.len(){
-                        println!("Resize {}", res.len());
+                        // println!("Resize {}", res.len());
                         storrage.buffer.resize(res.len(), 0);
                     }
 

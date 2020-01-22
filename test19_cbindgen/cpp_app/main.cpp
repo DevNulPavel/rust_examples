@@ -167,7 +167,11 @@ int icmp1_C_CODE_V3(const char* s2, const char* s1 = 0)
     // Если параметр был передан, тогда
     if (s1){
         // Вычисляем размер переданной строки
-        size_t sz1 = strlen (s1);
+        size_t sz1 = strlen(s1);
+        // Делаем некоторую защиту от кривых входных данных
+        if(sz1 > 1024){
+            return 0;
+        }
         // Если размер переданной строки больше, чем прошлый буффер
         if (sz1 > storrage.sz){
             // Тогда обновляем значение размера буффера
@@ -196,6 +200,13 @@ int icmp1_C_CODE_V3(const char* s2, const char* s1 = 0)
         }
     }
     
+    // Делаем некоторую защиту от кривых входных данных
+    size_t sz2 = strlen(s2);
+    if(sz2 > 1024){
+        return 0;
+    }
+
+    // Сравниваем
     if (storrage.str){
         return strcmp(storrage.str, s2) == 0 ? 1 : 0;
     }
@@ -261,11 +272,14 @@ int main(int argc, char const *argv[]){
         destroy(expr);
     }*/
 
+    const char* invalid_buffer_big = (const char*)malloc(2048);
+    const char* invalid_buffer_small = (const char*)malloc(58);
+
     // Некий аналог unit тестов
     #define TEST_FUNC(...) icmp1_C_CODE_V1(__VA_ARGS__)
     {
         auto start = std::chrono::high_resolution_clock::now();
-        auto f = [](){
+        auto f = [&](){
             for(size_t i = 0; i < 100000; i++){
                 assert(TEST_FUNC("test1", "test1") == 1);
                 assert(TEST_FUNC("test1", "TEST2") == 0);
@@ -287,6 +301,12 @@ int main(int argc, char const *argv[]){
                 assert(TEST_FUNC("asd____") == 0);
                 assert(TEST_FUNC("a") == 0);
                 assert(TEST_FUNC("") == 0);
+                assert(TEST_FUNC(invalid_buffer_big, "asads") == 0);
+                assert(TEST_FUNC("ASD", invalid_buffer_big) == 0);
+                assert(TEST_FUNC("asdsd") == 0);
+                assert(TEST_FUNC(invalid_buffer_small, "asads") == 0);
+                assert(TEST_FUNC("ASD", invalid_buffer_small) == 0);
+                assert(TEST_FUNC("asdsd") == 0);
             }
         };
         std::thread t1(f);
@@ -304,7 +324,7 @@ int main(int argc, char const *argv[]){
     #define TEST_FUNC(...) icmp1_C_CODE_V2(__VA_ARGS__)
     {
         auto start = std::chrono::high_resolution_clock::now();
-        auto f = [](){
+        auto f = [&](){
             for(size_t i = 0; i < 100000; i++){
                 assert(TEST_FUNC("test1", "test1") == 1);
                 assert(TEST_FUNC("test1", "TEST2") == 0);
@@ -326,6 +346,12 @@ int main(int argc, char const *argv[]){
                 assert(TEST_FUNC("asd____") == 0);
                 assert(TEST_FUNC("a") == 0);
                 assert(TEST_FUNC("") == 0);
+                assert(TEST_FUNC(invalid_buffer_big, "asads") == 0);
+                assert(TEST_FUNC("ASD", invalid_buffer_big) == 0);
+                assert(TEST_FUNC("asdsd") == 0);
+                assert(TEST_FUNC(invalid_buffer_small, "asads") == 0);
+                assert(TEST_FUNC("ASD", invalid_buffer_small) == 0);
+                assert(TEST_FUNC("asdsd") == 0);                
             }
         };
         std::thread t1(f);
@@ -343,7 +369,7 @@ int main(int argc, char const *argv[]){
     #define TEST_FUNC(...) icmp1_C_CODE_V3(__VA_ARGS__)
     {
         auto start = std::chrono::high_resolution_clock::now();
-        auto f = [](){
+        auto f = [&](){
             for(size_t i = 0; i < 100000; i++){
                 assert(TEST_FUNC("test1", "test1") == 1);
                 assert(TEST_FUNC("test1", "test1") == 1);
@@ -366,6 +392,12 @@ int main(int argc, char const *argv[]){
                 assert(TEST_FUNC("asd____") == 0);
                 assert(TEST_FUNC("a") == 0);
                 assert(TEST_FUNC("") == 0);
+                assert(TEST_FUNC(invalid_buffer_big, "asads") == 0);
+                assert(TEST_FUNC("ASD", invalid_buffer_big) == 0);
+                assert(TEST_FUNC("asdsd") == 0);
+                assert(TEST_FUNC(invalid_buffer_small, "asads") == 0);
+                assert(TEST_FUNC("ASD", invalid_buffer_small) == 0);
+                assert(TEST_FUNC("asdsd") == 0);
             }
         };
         std::thread t1(f);
@@ -385,7 +417,7 @@ int main(int argc, char const *argv[]){
     {
         // Сравнение времени исполнения
         auto start = std::chrono::high_resolution_clock::now();
-        auto f = [](){
+        auto f = [&](){
             for(size_t i = 0; i < 100000; i++){
                 assert(TEST_FUNC("test1", "test1") == 1);
                 assert(TEST_FUNC("test1", "TEST2") == 0);
@@ -407,6 +439,12 @@ int main(int argc, char const *argv[]){
                 assert(TEST_FUNC("asd____") == 0);
                 assert(TEST_FUNC("a") == 0);
                 assert(TEST_FUNC("") == 0);
+                assert(TEST_FUNC(invalid_buffer_big, "asads") == 0);
+                assert(TEST_FUNC("ASD", invalid_buffer_big) == 0);
+                assert(TEST_FUNC("asdsd") == 0);
+                assert(TEST_FUNC(invalid_buffer_small, "asads") == 0);
+                assert(TEST_FUNC("ASD", invalid_buffer_small) == 0);
+                assert(TEST_FUNC("asdsd") == 0);                
             }
         };
         std::thread t1(f);
