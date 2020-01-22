@@ -26,8 +26,8 @@ crate-type = ["staticlib"] # Создаем статическую библио�
 # overflow-checks = true
 
 # [profile.release]
-# opt-level = 3
-# debug = false
+# debug = true  # Выставляем для профилирования
+# opt-level = 0 # Выставляем для профилирования
 # rpath = false
 # lto = false
 # debug-assertions = false

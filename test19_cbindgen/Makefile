@@ -24,14 +24,17 @@ INSTALL_WASM_DEPS:
 	source ./emsdk_env.fish
 	popd
 
+INSTALL_PERF_DEPS:
+	brew install gperftools
+
 ########################################################################################
 # | - значит, что запускать не параллельно, а последовательно
 
 _BUILD_RUST_LIB_RELEASE:
-	cargo build --release
+	cargo build --release --lib
 
 _BUILD_RUST_LIB_DEBUG:
-	cargo build
+	cargo build --lib
 
 _BUILD_RUST_IOS_LIB_RELEASE:
 	cargo lipo --targets aarch64-apple-ios,armv7-apple-ios,armv7s-apple-ios,x86_64-apple-ios --release
@@ -40,18 +43,18 @@ _BUILD_RUST_IOS_LIB_DEBUG:
 	cargo lipo --targets aarch64-apple-ios,armv7-apple-ios,armv7s-apple-ios,x86_64-apple-ios
 
 _BUILD_RUST_WASM_LIB_RELEASE:
-	cargo build --target wasm32-unknown-emscripten --release
+	cargo build --target wasm32-unknown-emscripten --release --lib
 
 _BUILD_RUST_WASM_LIB_DEBUG:
-	cargo build --target wasm32-unknown-emscripten
+	cargo build --target wasm32-unknown-emscripten --lib
 
 _BUILD_RUST_ANDROID_LIB_RELEASE:
-	cargo build --target armv7-linux-androideabi --release
-	cargo build --target aarch64-linux-android --release
+	cargo build --target armv7-linux-androideabi --release --lib
+	cargo build --target aarch64-linux-android --release --lib
 
 _BUILD_RUST_ANDROID_LIB_DEBUG:
-	cargo build --target armv7-linux-androideabi
-	cargo build --target aarch64-linux-android
+	cargo build --target armv7-linux-androideabi --lib
+	cargo build --target aarch64-linux-android --lib
 
 # Создает, но не очень подходящий хедер
 # _MAKE_RUST_INCLUDE_HEADER:
@@ -96,6 +99,11 @@ TEST_APP_RELEASE: | BUILD_RELEASE_APP
 TEST_APP_DEBUG: | BUILD_DEBUG_APP
 	./cpp_app/build_debug/cpp_rust_app
 	#./python_app/main.py -debug
+
+PERF_RUST_CODE:
+	cargo build --release
+	# Можно пользоваться стандартным профилировщиком XCode
+	# gperf record -g ./target/release/test19_cbindgen
 
 CLEAN:
 	cargo clean;

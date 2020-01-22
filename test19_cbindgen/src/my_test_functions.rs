@@ -15,6 +15,8 @@ use std::sync::Mutex;
 use std::collections::HashMap;
 use std::thread::ThreadId;
 use std::cell::RefCell;
+use std::cell::Cell;
+use std::borrow::Cow;
 // use std::sync::Arc;
 // use std::rc::Rc;
 use lazy_static::lazy_static;
@@ -390,11 +392,6 @@ pub extern "C" fn icmp1_RUST_CODE(s2: *const c_char, s1: *const c_char) -> i32 {
     };
 }*/
 
-
-thread_local!{
-    static THREAD_STORRAGES: RefCell<String> = RefCell::new(String::new());
-}
-
 #[no_mangle] 
 pub extern "C" fn icmp1_RUST_CODE(s2: *const c_char, s1: *const c_char) -> i32 {
     if s2.is_null(){
@@ -412,33 +409,117 @@ pub extern "C" fn icmp1_RUST_CODE(s2: *const c_char, s1: *const c_char) -> i32 {
         }
     };
 
+    struct Storrage{
+        buffer: Vec<u8>,
+        string_len: usize,
+        // str_raw: &'a str
+        //str_raw: RefCell<Cow<'a, str>>,
+        // str_raw: Cow<'a, str>,
+    };
+    impl Storrage{
+        fn new() -> Storrage {
+            // let buffer: Vec<u8> = Vec::new();
+            
+            // let bytes_slice: &[u8] = ;
+            // let string = String::from_utf8_lossy(&buffer[0..0]);
+            // let test_str: &str = ;
+
+            let st = Storrage{
+                buffer: Vec::new(),
+                string_len: 0,
+                // str_raw: RefCell::new(String::from_utf8_lossy(&buffer[0..0]))
+                // str_raw: RefCell::new(Cow::default())
+                // str_raw: Cow::default()
+                // str_raw: ""
+            };
+            // st.str_raw = RefCell::new(String::from_utf8_lossy(&st.buffer[0..0]));
+
+            st
+        }
+    }
+
+    thread_local!{
+        static THREAD_STORRAGES: RefCell<Storrage> = RefCell::new(Storrage::new());
+    }
+
     // Если есть исходная строка, тогда делаем ее в нижнем регистре
-    let s1_lowercase = if s1.is_null() == false {
+    if s1.is_null() == false {
         // Создаем Rust ссылочную строку из С-шной
         // Если не смогли сконвертить в Rust строку - выходим
         match unsafe { CStr::from_ptr(s1).to_str() } {
             Ok(res) =>{
-                // Переводим в нижний регистр
-                let s1_lowercase = res.to_ascii_lowercase();
-                Some(s1_lowercase)
+                THREAD_STORRAGES.with(|st| {
+                    // RefCell::new(String::new()).get_mut();
+                    let storrage = &mut *st.borrow_mut();
+
+                    // Увеличиваем размер буффера
+                    if storrage.buffer.len() < res.len(){
+                        println!("Resize {}", res.len());
+                        storrage.buffer.resize(res.len(), 0);
+                    }
+
+                    // let mut bytes_iter = String::new().chars();
+                    //bytes_iter = 2 as char;
+                    // *(bytes_iter.by_ref()) = 2 as u8;
+                    // bytes_iter.next();
+
+                    // Переводим в нижний регистр
+                    let mut i = 0 as usize;
+                    // let mut src_string_it = st.borrow_mut().chars();
+                    // let vec = unsafe { src_string.as_mut_vec() };
+                    let bytes_iter = res.chars();
+                    for byte in bytes_iter {
+                        let lowercase_byte = byte.to_ascii_lowercase() as u8;
+                        if let Some(val) = storrage.buffer.get_mut(i) {
+                            *val = lowercase_byte;
+                        }
+
+                        // src_string.insert(i, lowercase_byte);
+
+                        // String::new().
+                        // let vec: Vec<u8> = Vec::new();
+                        // vec.get
+
+                        // src_string_it = lowercase_byte;
+                        // src_string_it.next();
+
+                        // if let Some(val) = src_string.get_mut(i) {
+                        //     *val = lowercase_byte;
+                        // }
+                        i += 1;
+                    }
+                    storrage.string_len = i;
+
+                    // let bytes_slice: &[u8] = &storrage.buffer[..storrage.string_len];
+                    // let string = String::from_utf8_lossy(bytes_slice);
+                    // let test_str: &str = &*string;
+                    // storrage.str_raw = RefCell::new(string);
+                    // storrage.str_raw = string;
+                    // storrage.str_raw = test_str;
+
+                    // String::from_utf8(bytes).unwrap()
+                    // Cell::new(String::new()).set()
+                    // ;
+
+                    // src_string.truncate(i);
+
+                    // println!("TEST {}", src_string);
+                });
             }
             Err(_)=>{
                 return 0;
             }
         }
-    }else{
-        None
-    };
-
-    if let Some(lowercase_str) = s1_lowercase {
-        THREAD_STORRAGES.with(|st| {
-            let mut mutable_str = st.borrow_mut();
-            (*mutable_str).clone_from(&lowercase_str);
-        });
     }
 
     return THREAD_STORRAGES.with(|st| {
-        let test_str = st.borrow();
+        //(*(RefCell::new(Storrage::new()).borrow()))
+        let storrage: &Storrage = &(*st.borrow());
+
+        let bytes_slice: &[u8] = &storrage.buffer[..storrage.string_len];
+        let string = String::from_utf8_lossy(bytes_slice);
+        let test_str: &str = &*string;
+
         if s2_test_str.eq(&(*test_str)) {
             return 1;
         }else{
@@ -447,51 +528,55 @@ pub extern "C" fn icmp1_RUST_CODE(s2: *const c_char, s1: *const c_char) -> i32 {
     });
 }
 
+
+macro_rules! to_c_str {
+    ($val:expr) => (
+        std::ffi::CString::new($val).unwrap().as_ptr()
+    )
+}
+
+macro_rules! test_func {
+    // У макроса может быть несколько вариантов
+    ($val1:expr, $val2:expr) => (
+        icmp1_RUST_CODE(to_c_str!($val1), to_c_str!($val2))
+    );
+    ($val1:expr) => (
+        icmp1_RUST_CODE(to_c_str!($val1), std::ptr::null())
+    )
+}
+
+pub fn test_icmp(){
+    assert_eq!(test_func!("test1", "test1"), 1);
+    assert_eq!(test_func!("test1", "TEST2"), 0);
+    assert_eq!(test_func!("test2"), 1);
+    assert_eq!(test_func!("test0"), 0);
+    assert_eq!(test_func!(""), 0);
+    assert_eq!(test_func!("  фывфыв"), 0);
+    assert_eq!(test_func!("asdasd", "ASDASD"), 1);
+    assert_eq!(test_func!("asda", "ASDASD"), 0);
+    assert_eq!(test_func!("as", "ASD"), 0);
+    assert_eq!(test_func!("as", "ASDDADASDS"), 0);
+    assert_eq!(test_func!("asddadasds", "ASDDADASDS"), 1);
+    assert_eq!(test_func!("add", "ASDDADASDS"), 0);
+    assert_eq!(test_func!("add"), 0);
+    assert_eq!(test_func!("asddadasds"), 1);
+    assert_eq!(test_func!("asd", "ASD"), 1);
+    assert_eq!(test_func!("asd"), 1);
+    assert_eq!(test_func!("asd_"), 0);
+    assert_eq!(test_func!("asd____"), 0);
+    assert_eq!(test_func!("a"), 0);
+    assert_eq!(test_func!(""), 0);
+}
+
 #[cfg(test)]
 mod tests {
     use super::*;
     //use crate::my_test_functions::*;
-    use std::ffi::CString;
     // use test::Bencher;
-
-    macro_rules! to_c_str {
-        ($val:expr) => (
-            CString::new($val).unwrap().as_ptr()
-        )
-    }
-    
-    macro_rules! test_func {
-        // У макроса может быть несколько вариантов
-        ($val1:expr, $val2:expr) => (
-            icmp1_RUST_CODE(to_c_str!($val1), to_c_str!($val2))
-        );
-        ($val1:expr) => (
-            icmp1_RUST_CODE(to_c_str!($val1), std::ptr::null())
-        )
-    }
 
     #[test]
     fn icmp1_test() {
-        assert_eq!(test_func!("test1", "test1"), 1);
-        assert_eq!(test_func!("test1", "TEST2"), 0);
-        assert_eq!(test_func!("test2"), 1);
-        assert_eq!(test_func!("test0"), 0);
-        assert_eq!(test_func!(""), 0);
-        assert_eq!(test_func!("  фывфыв"), 0);
-        assert_eq!(test_func!("asdasd", "ASDASD"), 1);
-        assert_eq!(test_func!("asda", "ASDASD"), 0);
-        assert_eq!(test_func!("as", "ASD"), 0);
-        assert_eq!(test_func!("as", "ASDDADASDS"), 0);
-        assert_eq!(test_func!("asddadasds", "ASDDADASDS"), 1);
-        assert_eq!(test_func!("add", "ASDDADASDS"), 0);
-        assert_eq!(test_func!("add"), 0);
-        assert_eq!(test_func!("asddadasds"), 1);
-        assert_eq!(test_func!("asd", "ASD"), 1);
-        assert_eq!(test_func!("asd"), 1);
-        assert_eq!(test_func!("asd_"), 0);
-        assert_eq!(test_func!("asd____"), 0);
-        assert_eq!(test_func!("a"), 0);
-        assert_eq!(test_func!(""), 0);
+        test_icmp();
     }
 
     // #[bench]
