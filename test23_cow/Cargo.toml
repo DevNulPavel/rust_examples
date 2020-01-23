@@ -1,0 +1,5 @@
+[package]
+name = "test23_cow"
+version = "0.1.0"
+authors = ["DevNul <devnulpavel@gmail.com>"]
+edition = "2018"
