@@ -401,7 +401,7 @@ pub extern "C" fn icmp1_RUST_CODE(s2: *const c_char, s1: *const c_char) -> i32 {
 
     // Создаем Rust ссылочную строку из С-шной
     // Если не смогли сконвертить в Rust строку - выходим
-    let s2_test_str = unsafe { CStr::from_ptr(s2) }.to_bytes();
+    let s2_test_str = unsafe { CStr::from_ptr(s2).to_bytes() };
 
     // Защита от кривых данных
     if s2_test_str.len() > 1024{
@@ -464,8 +464,9 @@ pub extern "C" fn icmp1_RUST_CODE(s2: *const c_char, s1: *const c_char) -> i32 {
         }
 
         THREAD_STORRAGES.with(|st| {
-            // RefCell::new(String::new()).borrow_mut();
+            //RefCell::new(String::new()).into_inner();
             let storrage: &mut Storrage = &mut *st.borrow_mut();
+            // let storrage: Storrage = st.into_inner;
 
             // Увеличиваем размер буффера
             if storrage.buffer.len() < res.len(){
@@ -479,11 +480,13 @@ pub extern "C" fn icmp1_RUST_CODE(s2: *const c_char, s1: *const c_char) -> i32 {
             // bytes_iter.next();
 
             // Переводим в нижний регистр
-            let mut i = 0 as usize;
+            // let mut i = 0 as usize;
             // let mut src_string_it = st.borrow_mut().chars();
             // let vec = unsafe { src_string.as_mut_vec() };
-            for byte in res {
-                let lowercase_byte = byte.to_ascii_lowercase() as u8;
+            let len = res.len();
+            for i in 0..len {
+                let byte = res[i];
+                let lowercase_byte = byte.to_ascii_lowercase();
 
                 // unsafe{
                 //     *(storrage.buffer.get_unchecked_mut(i)) = lowercase_byte;
@@ -507,9 +510,9 @@ pub extern "C" fn icmp1_RUST_CODE(s2: *const c_char, s1: *const c_char) -> i32 {
                 // if let Some(val) = src_string.get_mut(i) {
                 //     *val = lowercase_byte;
                 // }
-                i += 1;
+                // i += 1;
             }
-            storrage.string_len = i;
+            storrage.string_len = res.len();
 
             // storrage.update_inside_string();
 
@@ -543,10 +546,17 @@ pub extern "C" fn icmp1_RUST_CODE(s2: *const c_char, s1: *const c_char) -> i32 {
         //let test_str: &str = &*storrage.str_raw;
 
         let length = storrage.string_len;
-        let bytes_slice: &[u8] = &storrage.buffer[0..length];
 
-        if s2_test_str.eq(bytes_slice) {
-            return 1;
+        // Такой способ приводит к копированию?
+        //let bytes_slice: &[u8] = &storrage.buffer[0..length];
+
+        // Такой способ лучше, так как он не приводит к копированию
+        if let Some(bytes_slice) = storrage.buffer.get(0..length){
+            if s2_test_str.eq(bytes_slice) {
+                return 1;
+            }else{
+                return 0;
+            }    
         }else{
             return 0;
         }
