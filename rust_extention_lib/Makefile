@@ -1,0 +1,102 @@
+all: TEST_APP_RELEASE
+
+clean: CLEAN
+
+########################################################################################
+# Установка зависимостей
+
+# Список возможных таргетов: rustup target list
+
+# https://mozilla.github.io/firefox-browser-architecture/experiments/2017-09-06-rust-on-ios.html
+INSTALL_LINUX_DEPS:
+	rustup target add x86_64-unknown-linux-gnu 
+
+INSTALL_IOS_DEPS:
+	rustup target add aarch64-apple-ios armv7-apple-ios armv7s-apple-ios x86_64-apple-ios i386-apple-ios
+	cargo install cargo-lipo
+
+INSTALL_ANDROID_DEPS:
+	rustup target add armv7-linux-androideabi aarch64-linux-android
+
+INSTALL_WASM_DEPS:
+	rustup target add wasm32-unknown-emscripten wasm32-unknown-unknown wasm32-wasi
+	cd ${EMSDK_PATH}
+	./emsdk install latest
+	./emsdk activate latest
+	source ./emsdk_env.fish; source ./emsdk_env.sh
+	cd -
+
+########################################################################################
+# | - значит, что запускать не параллельно, а последовательно
+
+# OSX
+_BUILD_OSX_RELEASE:
+	cargo build --lib --release
+
+_BUILD_OSX_DEBUG:
+	cargo build --lib
+
+# Linux
+_BUILD_LINUX_RELEASE:
+	cargo build --target x86_64-unknown-linux-gnu  --lib --release
+
+_BUILD_LINUX_DEBUG:
+	cargo build --target x86_64-unknown-linux-gnu  --lib
+
+# iOS
+_BUILD_IOS_RELEASE:
+	cargo lipo --targets aarch64-apple-ios,armv7-apple-ios,armv7s-apple-ios,x86_64-apple-ios --release
+
+_BUILD_IOS_DEBUG:
+	cargo lipo --targets aarch64-apple-ios,armv7-apple-ios,armv7s-apple-ios,x86_64-apple-ios
+
+# ANDROID
+_BUILD_ANDROID_RELEASE:
+	cargo build --target armv7-linux-androideabi --lib --release
+	cargo build --target aarch64-linux-android --lib --release
+
+_BUILD_ANDROID_DEBUG:
+	cargo build --target armv7-linux-androideabi --lib
+	cargo build --target aarch64-linux-android --lib
+
+# WASM
+_BUILD_WASM_RELEASE:
+	cargo build --target wasm32-unknown-emscripten --lib --release
+
+_BUILD_WASM_DEBUG:
+	cargo build --target wasm32-unknown-emscripten --lib
+
+########################################################################################
+
+_MAKE_FOLDERS: CLEAN
+	mkdir -p "result/include";
+	mkdir -p "result/OSX/release" "result/OSX/debug";
+	mkdir -p "result/LINUX/release" "result/LINUX/debug";
+	mkdir -p "result/ANDROID/release/armv7" "result/ANDROID/release/aarch64" "result/ANDROID/debug/armv7" "result/ANDROID/debug/aarch64";
+	mkdir -p "result/IOS/release" "result/IOS/debug";
+	mkdir -p "result/WASM/release" "result/WASM/debug";
+
+_COPY_HEADER:
+	cp "./include/rust_extention_lib.h" "result/include/"
+
+_BUILD_RELEASE: _BUILD_OSX_RELEASE _BUILD_LINUX_RELEASE _BUILD_IOS_RELEASE _BUILD_ANDROID_RELEASE _BUILD_WASM_RELEASE _BUILD_ANDROID_RELEASE
+	cp "./target/release/librust_extention_lib.a" "result/OSX/release/"
+	cp "./target/x86_64-unknown-linux-gnu/release/librust_extention_lib.a" "result/LINUX/release/"
+	cp "./target/universal/release/librust_extention_lib.a" "result/IOS/release/"
+	cp "./target/armv7-linux-androideabi/release/librust_extention_lib.a" "result/ANDROID/release/armv7"
+	cp "./target/aarch64-linux-android/release/librust_extention_lib.a" "result/ANDROID/release/aarch64"
+	cp "./target/wasm32-unknown-emscripten/release/librust_extention_lib.a" "result/WASM/release"
+
+_BUILD_DEBUG: _BUILD_OSX_DEBUG _BUILD_LINUX_DEBUG _BUILD_IOS_DEBUG _BUILD_ANDROID_DEBUG _BUILD_WASM_DEBUG _BUILD_ANDROID_DEBUG
+	cp "./target/debug/librust_extention_lib.a" "result/OSX/debug/"
+	cp "./target/x86_64-unknown-linux-gnu/debug/librust_extention_lib.a" "result/LINUX/debug/"
+	cp "./target/universal/debug/librust_extention_lib.a" "result/IOS/debug/"
+	cp "./target/armv7-linux-androideabi/debug/librust_extention_lib.a" "result/ANDROID/debug/armv7"
+	cp "./target/aarch64-linux-android/debug/librust_extention_lib.a" "result/ANDROID/debug/aarch64"
+	cp "./target/wasm32-unknown-emscripten/debug/librust_extention_lib.a" "result/WASM/release"
+
+BUILD: | _MAKE_FOLDERS _COPY_HEADER _BUILD_RELEASE _BUILD_DEBUG
+
+CLEAN:
+	rm -r -f result;
+	cargo clean;
