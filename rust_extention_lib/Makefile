@@ -92,8 +92,8 @@ _MAKE_FOLDERS:
 	mkdir -p "result/include";
 	mkdir -p "result/OSX/release" "result/OSX/debug";
 	mkdir -p "result/LINUX/release" "result/LINUX/debug";
-	mkdir -p "result/WINDOWS/release/aarch64" "result/WINDOWS/release/x32" "result/WINDOWS/release/x64" \
-			 "result/WINDOWS/debug/aarch64"   "result/WINDOWS/debug/x32"   "result/WINDOWS/debug/x64";
+	mkdir -p "result/WINDOWS/release/arm" "result/WINDOWS/release/win32" "result/WINDOWS/release/x64" \
+			 "result/WINDOWS/debug/arm"   "result/WINDOWS/debug/win32"   "result/WINDOWS/debug/x64";
 	mkdir -p "result/ANDROID/release/armv7" "result/ANDROID/release/aarch64" "result/ANDROID/release/x32" "result/ANDROID/release/x64" \
 			 "result/ANDROID/debug/armv7"   "result/ANDROID/debug/aarch64"   "result/ANDROID/debug/x32"   "result/ANDROID/debug/x64";
 	mkdir -p "result/IOS/release" "result/IOS/debug";
@@ -105,8 +105,8 @@ _COPY_HEADER:
 _BUILD_RELEASE: _BUILD_OSX_RELEASE _BUILD_LINUX_RELEASE _BUILD_WINDOWS_RELEASE _BUILD_IOS_RELEASE _BUILD_ANDROID_RELEASE _BUILD_WASM_RELEASE _BUILD_ANDROID_RELEASE
 	cp "./target/release/librust_extention_lib.a" "result/OSX/release/"
 	cp "./target/x86_64-unknown-linux-gnu/release/librust_extention_lib.a" "result/LINUX/release/"
-	cp "./target/aarch64-pc-windows-msvc/release/rust_extention_lib.lib" "result/WINDOWS/release/aarch64"
-	cp "./target/i686-pc-windows-msvc/release/rust_extention_lib.lib" "result/WINDOWS/release/x32"
+	cp "./target/aarch64-pc-windows-msvc/release/rust_extention_lib.lib" "result/WINDOWS/release/arm"
+	cp "./target/i686-pc-windows-msvc/release/rust_extention_lib.lib" "result/WINDOWS/release/win32"
 	cp "./target/x86_64-pc-windows-msvc/release/rust_extention_lib.lib" "result/WINDOWS/release/x64"
 	cp "./target/universal/release/librust_extention_lib.a" "result/IOS/release/"
 	cp "./target/armv7-linux-androideabi/release/librust_extention_lib.a" "result/ANDROID/release/armv7"
@@ -119,8 +119,8 @@ _BUILD_RELEASE: _BUILD_OSX_RELEASE _BUILD_LINUX_RELEASE _BUILD_WINDOWS_RELEASE _
 _BUILD_DEBUG: _BUILD_OSX_DEBUG #  _BUILD_LINUX_DEBUG _BUILD_IOS_DEBUG _BUILD_ANDROID_DEBUG _BUILD_WASM_DEBUG _BUILD_ANDROID_DEBUG
 	cp "./target/debug/librust_extention_lib.a" "result/OSX/debug/"
 	# cp "./target/x86_64-unknown-linux-gnu/debug/librust_extention_lib.a" "result/LINUX/debug/"
-	# cp "./target/aarch64-pc-windows-msvc/debug/rust_extention_lib.lib" "result/WINDOWS/debug/aarch64"
-	# cp "./target/i686-pc-windows-msvc/debug/rust_extention_lib.lib" "result/WINDOWS/debug/x32"
+	# cp "./target/aarch64-pc-windows-msvc/debug/rust_extention_lib.lib" "result/WINDOWS/debug/arm"
+	# cp "./target/i686-pc-windows-msvc/debug/rust_extention_lib.lib" "result/WINDOWS/debug/win32"
 	# cp "./target/x86_64-pc-windows-msvc/debug/rust_extention_lib.lib" "result/WINDOWS/debug/x64"	
 	# cp "./target/universal/debug/librust_extention_lib.a" "result/IOS/debug/"
 	# cp "./target/armv7-linux-androideabi/debug/librust_extention_lib.a" "result/ANDROID/debug/armv7"
