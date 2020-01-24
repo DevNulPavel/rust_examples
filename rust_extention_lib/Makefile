@@ -94,15 +94,16 @@ _BUILD_RELEASE: _BUILD_OSX_RELEASE _BUILD_LINUX_RELEASE _BUILD_IOS_RELEASE _BUIL
 	cp "./target/x86_64-linux-android/release/librust_extention_lib.a" "result/ANDROID/release/x64"
 	cp "./target/wasm32-unknown-emscripten/release/librust_extention_lib.a" "result/WASM/release"
 
-_BUILD_DEBUG: _BUILD_OSX_DEBUG _BUILD_LINUX_DEBUG _BUILD_IOS_DEBUG _BUILD_ANDROID_DEBUG _BUILD_WASM_DEBUG _BUILD_ANDROID_DEBUG
+# Собираем Debug только для OSX
+_BUILD_DEBUG: _BUILD_OSX_DEBUG #  _BUILD_LINUX_DEBUG _BUILD_IOS_DEBUG _BUILD_ANDROID_DEBUG _BUILD_WASM_DEBUG _BUILD_ANDROID_DEBUG
 	cp "./target/debug/librust_extention_lib.a" "result/OSX/debug/"
-	cp "./target/x86_64-unknown-linux-gnu/debug/librust_extention_lib.a" "result/LINUX/debug/"
-	cp "./target/universal/debug/librust_extention_lib.a" "result/IOS/debug/"
-	cp "./target/armv7-linux-androideabi/debug/librust_extention_lib.a" "result/ANDROID/debug/armv7"
-	cp "./target/aarch64-linux-android/debug/librust_extention_lib.a" "result/ANDROID/debug/aarch64"
-	cp "./target/i686-linux-android/debug/librust_extention_lib.a" "result/ANDROID/debug/x32"
-	cp "./target/x86_64-linux-android/debug/librust_extention_lib.a" "result/ANDROID/debug/x64"	
-	cp "./target/wasm32-unknown-emscripten/debug/librust_extention_lib.a" "result/WASM/debug"
+	# cp "./target/x86_64-unknown-linux-gnu/debug/librust_extention_lib.a" "result/LINUX/debug/"
+	# cp "./target/universal/debug/librust_extention_lib.a" "result/IOS/debug/"
+	# cp "./target/armv7-linux-androideabi/debug/librust_extention_lib.a" "result/ANDROID/debug/armv7"
+	# cp "./target/aarch64-linux-android/debug/librust_extention_lib.a" "result/ANDROID/debug/aarch64"
+	# cp "./target/i686-linux-android/debug/librust_extention_lib.a" "result/ANDROID/debug/x32"
+	# cp "./target/x86_64-linux-android/debug/librust_extention_lib.a" "result/ANDROID/debug/x64"	
+	# cp "./target/wasm32-unknown-emscripten/debug/librust_extention_lib.a" "result/WASM/debug"
 
 BUILD: | CLEAN _MAKE_FOLDERS _COPY_HEADER _BUILD_RELEASE _BUILD_DEBUG
 
