@@ -8,7 +8,7 @@
 extern "C" {
 #endif
 
-    int32_t icmp1_RUST_CODE (const char* s2, const char* s1 = 0);
+    int32_t icmp1_RUST_CODE(const char* s2, const char* s1);
 
 #ifdef __cplusplus
 }

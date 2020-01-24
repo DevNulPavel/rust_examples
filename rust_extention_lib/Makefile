@@ -16,7 +16,7 @@ INSTALL_IOS_DEPS:
 	cargo install cargo-lipo
 
 INSTALL_ANDROID_DEPS:
-	rustup target add armv7-linux-androideabi aarch64-linux-android
+	rustup target add armv7-linux-androideabi aarch64-linux-android x86_64-linux-android i686-linux-android
 
 INSTALL_WASM_DEPS:
 	rustup target add wasm32-unknown-emscripten wasm32-unknown-unknown wasm32-wasi
@@ -54,10 +54,14 @@ _BUILD_IOS_DEBUG:
 _BUILD_ANDROID_RELEASE:
 	cargo build --target armv7-linux-androideabi --lib --release
 	cargo build --target aarch64-linux-android --lib --release
-
+	cargo build --target x86_64-linux-android --lib --release
+	cargo build --target i686-linux-android --lib --release
+	 
 _BUILD_ANDROID_DEBUG:
 	cargo build --target armv7-linux-androideabi --lib
 	cargo build --target aarch64-linux-android --lib
+	cargo build --target x86_64-linux-android --lib
+	cargo build --target i686-linux-android --lib
 
 # WASM
 _BUILD_WASM_RELEASE:
@@ -68,11 +72,12 @@ _BUILD_WASM_DEBUG:
 
 ########################################################################################
 
-_MAKE_FOLDERS: CLEAN
+_MAKE_FOLDERS:
 	mkdir -p "result/include";
 	mkdir -p "result/OSX/release" "result/OSX/debug";
 	mkdir -p "result/LINUX/release" "result/LINUX/debug";
-	mkdir -p "result/ANDROID/release/armv7" "result/ANDROID/release/aarch64" "result/ANDROID/debug/armv7" "result/ANDROID/debug/aarch64";
+	mkdir -p "result/ANDROID/release/armv7" "result/ANDROID/release/aarch64" "result/ANDROID/release/x32" "result/ANDROID/release/x64" \
+			 "result/ANDROID/debug/armv7" "result/ANDROID/debug/aarch64" "result/ANDROID/debug/x32" "result/ANDROID/debug/x64";
 	mkdir -p "result/IOS/release" "result/IOS/debug";
 	mkdir -p "result/WASM/release" "result/WASM/debug";
 
@@ -85,6 +90,8 @@ _BUILD_RELEASE: _BUILD_OSX_RELEASE _BUILD_LINUX_RELEASE _BUILD_IOS_RELEASE _BUIL
 	cp "./target/universal/release/librust_extention_lib.a" "result/IOS/release/"
 	cp "./target/armv7-linux-androideabi/release/librust_extention_lib.a" "result/ANDROID/release/armv7"
 	cp "./target/aarch64-linux-android/release/librust_extention_lib.a" "result/ANDROID/release/aarch64"
+	cp "./target/i686-linux-android/release/librust_extention_lib.a" "result/ANDROID/release/x32"
+	cp "./target/x86_64-linux-android/release/librust_extention_lib.a" "result/ANDROID/release/x64"
 	cp "./target/wasm32-unknown-emscripten/release/librust_extention_lib.a" "result/WASM/release"
 
 _BUILD_DEBUG: _BUILD_OSX_DEBUG _BUILD_LINUX_DEBUG _BUILD_IOS_DEBUG _BUILD_ANDROID_DEBUG _BUILD_WASM_DEBUG _BUILD_ANDROID_DEBUG
@@ -93,9 +100,11 @@ _BUILD_DEBUG: _BUILD_OSX_DEBUG _BUILD_LINUX_DEBUG _BUILD_IOS_DEBUG _BUILD_ANDROI
 	cp "./target/universal/debug/librust_extention_lib.a" "result/IOS/debug/"
 	cp "./target/armv7-linux-androideabi/debug/librust_extention_lib.a" "result/ANDROID/debug/armv7"
 	cp "./target/aarch64-linux-android/debug/librust_extention_lib.a" "result/ANDROID/debug/aarch64"
-	cp "./target/wasm32-unknown-emscripten/debug/librust_extention_lib.a" "result/WASM/release"
+	cp "./target/i686-linux-android/debug/librust_extention_lib.a" "result/ANDROID/debug/x32"
+	cp "./target/x86_64-linux-android/debug/librust_extention_lib.a" "result/ANDROID/debug/x64"	
+	cp "./target/wasm32-unknown-emscripten/debug/librust_extention_lib.a" "result/WASM/debug"
 
-BUILD: | _MAKE_FOLDERS _COPY_HEADER _BUILD_RELEASE _BUILD_DEBUG
+BUILD: | CLEAN _MAKE_FOLDERS _COPY_HEADER _BUILD_RELEASE _BUILD_DEBUG
 
 CLEAN:
 	rm -r -f result;

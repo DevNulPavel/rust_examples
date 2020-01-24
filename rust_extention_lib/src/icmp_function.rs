@@ -13,7 +13,7 @@ pub extern "C" fn icmp1_RUST_CODE(s2: *const c_char, s1: *const c_char) -> i32 {
 
     // Создаем Rust ссылочную строку из С-шной
     // Если не смогли сконвертить в Rust строку - выходим
-    let s2_test_str = unsafe { CStr::from_ptr(s2).to_bytes() };
+    let s2_test_str = unsafe { CStr::from_ptr(s2) }.to_bytes();
 
     // Защита от кривых данных
     if s2_test_str.len() > 1024{
