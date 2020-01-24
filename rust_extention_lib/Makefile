@@ -65,9 +65,11 @@ _BUILD_ANDROID_DEBUG:
 
 # WASM
 _BUILD_WASM_RELEASE:
+	source ${EMSDK_PATH}/emsdk_env.sh && \
 	cargo build --target wasm32-unknown-emscripten --lib --release
 
 _BUILD_WASM_DEBUG:
+	source ${EMSDK_PATH}/emsdk_env.sh && \
 	cargo build --target wasm32-unknown-emscripten --lib
 
 ########################################################################################
@@ -105,8 +107,42 @@ _BUILD_DEBUG: _BUILD_OSX_DEBUG #  _BUILD_LINUX_DEBUG _BUILD_IOS_DEBUG _BUILD_AND
 	# cp "./target/x86_64-linux-android/debug/librust_extention_lib.a" "result/ANDROID/debug/x64"	
 	# cp "./target/wasm32-unknown-emscripten/debug/librust_extention_lib.a" "result/WASM/debug"
 
+_BUILD_CPP_APP_RELEASE:
+	cd cpp_app && \
+		mkdir -p build_release && \
+		cd build_release && \
+			cmake -G "Unix Makefiles" -DCMAKE_BUILD_TYPE="Release" ../ && \
+			make -j5; \
+		cd ../ && \
+	cd ../
+
+_BUILD_CPP_APP_DEBUG:
+	cd cpp_app && \
+		mkdir -p build_debug && \
+		cd build_debug && \
+			cmake -G "Unix Makefiles" -DCMAKE_BUILD_TYPE="Debug" ../ && \
+			make -j5; \
+		cd ../ && \
+	cd ../
+
+########################################################################################
+
 BUILD: | CLEAN _MAKE_FOLDERS _COPY_HEADER _BUILD_RELEASE _BUILD_DEBUG
 
 CLEAN:
+	rm -r -f cpp_app/build_release;
+	rm -r -f cpp_app/build_debug;
 	rm -r -f result;
 	cargo clean;
+
+MAKE_RUST_PROFILE_BUILD:
+	cargo build
+
+TEST_RUST:
+	cargo test
+
+TEST_CPP_APP_RELEASE: | BUILD _BUILD_CPP_APP_RELEASE
+	./cpp_app/build_release/cpp_rust_app
+
+TEST_CPP_APP_DEBUG: | BUILD _BUILD_CPP_APP_DEBUG
+	./cpp_app/build_debug/cpp_rust_app

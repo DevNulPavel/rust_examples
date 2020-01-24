@@ -2,3 +2,5 @@ target/
 target/*
 **/*.rs.bk
 result/
+build_debug/
+build_release/
