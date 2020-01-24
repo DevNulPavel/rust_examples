@@ -11,6 +11,9 @@ clean: CLEAN
 INSTALL_LINUX_DEPS:
 	rustup target add x86_64-unknown-linux-gnu 
 
+INSTALL_WINDOWS_DEPS:
+	rustup target add aarch64-pc-windows-msvc i686-pc-windows-msvc x86_64-pc-windows-msvc
+
 INSTALL_IOS_DEPS:
 	rustup target add aarch64-apple-ios armv7-apple-ios armv7s-apple-ios x86_64-apple-ios i386-apple-ios
 	cargo install cargo-lipo
@@ -38,10 +41,21 @@ _BUILD_OSX_DEBUG:
 
 # Linux
 _BUILD_LINUX_RELEASE:
-	cargo build --target x86_64-unknown-linux-gnu  --lib --release
+	cargo build --target x86_64-unknown-linux-gnu --lib --release
 
 _BUILD_LINUX_DEBUG:
-	cargo build --target x86_64-unknown-linux-gnu  --lib
+	cargo build --target x86_64-unknown-linux-gnu --lib
+
+# Windows
+_BUILD_WINDOWS_RELEASE:
+	cargo build --target aarch64-pc-windows-msvc --lib --release
+	cargo build --target i686-pc-windows-msvc --lib --release
+	cargo build --target x86_64-pc-windows-msvc --lib --release
+
+_BUILD_WINDOWS_DEBUG:
+	cargo build --target aarch64-pc-windows-msvc --lib
+	cargo build --target i686-pc-windows-msvc --lib
+	cargo build --target x86_64-pc-windows-msvc --lib
 
 # iOS
 _BUILD_IOS_RELEASE:
@@ -78,17 +92,22 @@ _MAKE_FOLDERS:
 	mkdir -p "result/include";
 	mkdir -p "result/OSX/release" "result/OSX/debug";
 	mkdir -p "result/LINUX/release" "result/LINUX/debug";
+	mkdir -p "result/WINDOWS/release/aarch64" "result/WINDOWS/release/x32" "result/WINDOWS/release/x64" \
+			 "result/WINDOWS/debug/aarch64"   "result/WINDOWS/debug/x32"   "result/WINDOWS/debug/x64";
 	mkdir -p "result/ANDROID/release/armv7" "result/ANDROID/release/aarch64" "result/ANDROID/release/x32" "result/ANDROID/release/x64" \
-			 "result/ANDROID/debug/armv7" "result/ANDROID/debug/aarch64" "result/ANDROID/debug/x32" "result/ANDROID/debug/x64";
+			 "result/ANDROID/debug/armv7"   "result/ANDROID/debug/aarch64"   "result/ANDROID/debug/x32"   "result/ANDROID/debug/x64";
 	mkdir -p "result/IOS/release" "result/IOS/debug";
 	mkdir -p "result/WASM/release" "result/WASM/debug";
 
 _COPY_HEADER:
 	cp "./include/rust_extention_lib.h" "result/include/"
 
-_BUILD_RELEASE: _BUILD_OSX_RELEASE _BUILD_LINUX_RELEASE _BUILD_IOS_RELEASE _BUILD_ANDROID_RELEASE _BUILD_WASM_RELEASE _BUILD_ANDROID_RELEASE
+_BUILD_RELEASE: _BUILD_OSX_RELEASE _BUILD_LINUX_RELEASE _BUILD_WINDOWS_RELEASE _BUILD_IOS_RELEASE _BUILD_ANDROID_RELEASE _BUILD_WASM_RELEASE _BUILD_ANDROID_RELEASE
 	cp "./target/release/librust_extention_lib.a" "result/OSX/release/"
 	cp "./target/x86_64-unknown-linux-gnu/release/librust_extention_lib.a" "result/LINUX/release/"
+	cp "./target/aarch64-pc-windows-msvc/release/rust_extention_lib.lib" "result/WINDOWS/release/aarch64"
+	cp "./target/i686-pc-windows-msvc/release/rust_extention_lib.lib" "result/WINDOWS/release/x32"
+	cp "./target/x86_64-pc-windows-msvc/release/rust_extention_lib.lib" "result/WINDOWS/release/x64"
 	cp "./target/universal/release/librust_extention_lib.a" "result/IOS/release/"
 	cp "./target/armv7-linux-androideabi/release/librust_extention_lib.a" "result/ANDROID/release/armv7"
 	cp "./target/aarch64-linux-android/release/librust_extention_lib.a" "result/ANDROID/release/aarch64"
@@ -100,6 +119,9 @@ _BUILD_RELEASE: _BUILD_OSX_RELEASE _BUILD_LINUX_RELEASE _BUILD_IOS_RELEASE _BUIL
 _BUILD_DEBUG: _BUILD_OSX_DEBUG #  _BUILD_LINUX_DEBUG _BUILD_IOS_DEBUG _BUILD_ANDROID_DEBUG _BUILD_WASM_DEBUG _BUILD_ANDROID_DEBUG
 	cp "./target/debug/librust_extention_lib.a" "result/OSX/debug/"
 	# cp "./target/x86_64-unknown-linux-gnu/debug/librust_extention_lib.a" "result/LINUX/debug/"
+	# cp "./target/aarch64-pc-windows-msvc/debug/rust_extention_lib.lib" "result/WINDOWS/debug/aarch64"
+	# cp "./target/i686-pc-windows-msvc/debug/rust_extention_lib.lib" "result/WINDOWS/debug/x32"
+	# cp "./target/x86_64-pc-windows-msvc/debug/rust_extention_lib.lib" "result/WINDOWS/debug/x64"	
 	# cp "./target/universal/debug/librust_extention_lib.a" "result/IOS/debug/"
 	# cp "./target/armv7-linux-androideabi/debug/librust_extention_lib.a" "result/ANDROID/debug/armv7"
 	# cp "./target/aarch64-linux-android/debug/librust_extention_lib.a" "result/ANDROID/debug/aarch64"
