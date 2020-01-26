@@ -1,0 +1,5 @@
+[package]
+name = "test24_pin"
+version = "0.1.0"
+authors = ["DevNul <devnulpavel@gmail.com>"]
+edition = "2018"
