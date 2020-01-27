@@ -92,7 +92,8 @@ _MAKE_FOLDERS:
 	mkdir -p "result/include";
 	mkdir -p "result/OSX/release" "result/OSX/debug";
 	mkdir -p "result/LINUX/release" "result/LINUX/debug";
-	mkdir -p "result/WINDOWS/release/win32" "result/WINDOWS/debug/win32";
+	mkdir -p "result/WINDOWS/release/arm" "result/WINDOWS/release/win32" "result/WINDOWS/release/x64" \
+			 "result/WINDOWS/debug/arm"   "result/WINDOWS/debug/win32"   "result/WINDOWS/debug/x64";
 	mkdir -p "result/ANDROID/release/armv7" "result/ANDROID/release/aarch64" "result/ANDROID/release/x32" "result/ANDROID/release/x64" \
 			 "result/ANDROID/debug/armv7"   "result/ANDROID/debug/aarch64"   "result/ANDROID/debug/x32"   "result/ANDROID/debug/x64";
 	mkdir -p "result/IOS/release" "result/IOS/debug";
