@@ -1,3 +1,5 @@
+#![allow(unused_variables)]
+#![allow(dead_code)]
 // Таким образом можно указать для всего файла (#!) отключение неиспользуемых переменных #![allow(unused_variables, unused_mut, dead_code)]
 
 
@@ -48,17 +50,23 @@ fn test_func(){
 }
 
 // Указываем время жизни, все ок (в шаблоне пишем, что все значения имеют время жизни 'a)
-struct ImportantExcerpt<'a> {
-    part: &'a str,
+// Это значит, что структура должна жить столько же, сколько живут все объекты у структуры?
+struct ImportantExcerpt<'a, 'b> {
+    part1: &'a str,
+    part2: &'b str,
 }
 
 fn test_struct(){
     let novel: String = String::from("Call me Ishmael. Some years ago...");
-    let first_sentence: &str = novel.split('.').next().expect("Could not find a '.'"); // next возвращает первый элемент итератора
+    // next возвращает первый элемент итератора
+    let mut iter = novel.split('.');
+    let first_sentence: &str = iter.next().expect("Could not find a '.'"); 
+    let second_sentence: &str = iter.next().expect("Could not find a '.'"); 
     let object = ImportantExcerpt{ 
-        part: first_sentence 
+        part1: first_sentence,
+        part2: second_sentence
     };
-    println!("{}", object.part);
+    println!("{}{}", object.part1, object.part2);
 }
 
 fn test_ref_cell(){
@@ -175,5 +183,5 @@ fn main() {
     //test_struct();
     //test_ref_cell();
     //test_ref_count();
-    test_ref();
+    //test_ref();
 }
