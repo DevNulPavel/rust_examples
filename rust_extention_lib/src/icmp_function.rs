@@ -73,12 +73,20 @@ pub extern "C" fn icmp1_RUST_CODE(s2: *const c_char, s1: *const c_char) -> i32 {
         let storrage: &Storrage = &(*st.borrow());
         let length = storrage.string_len;
 
-        // Такой способ лучше, так как он не приводит к копированию
-        if let Some(bytes_slice) = storrage.buffer.get(0..length){
+        // Вариант без проверок границы
+        unsafe{
+            let bytes_slice = storrage.buffer.get_unchecked(0..length);
+            if s2_test_str.eq(bytes_slice) {
+                return 1;
+            }
+        }
+        // Такой способ лучше, так как он не приводит к копированию в отличие просто от квадратных скобок
+        // Но это не точно
+        /*if let Some(bytes_slice) = storrage.buffer.get(0..length){
             if s2_test_str.eq(bytes_slice) {
                 return 1;
             }   
-        }
+        }*/
         return 0;
     });
 
