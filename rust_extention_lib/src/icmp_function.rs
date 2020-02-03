@@ -13,7 +13,8 @@ pub extern "C" fn icmp1_RUST_CODE(s2: *const c_char, s1: *const c_char) -> i32 {
 
     // Создаем Rust ссылочную строку из С-шной
     // Если не смогли сконвертить в Rust строку - выходим
-    let s2_test_str = unsafe { CStr::from_ptr(s2) }.to_bytes();
+    let cstr = unsafe { CStr::from_ptr(s2) };
+    let s2_test_str = cstr.to_bytes();
 
     // Защита от кривых данных
     if s2_test_str.len() > 1024{
@@ -24,7 +25,7 @@ pub extern "C" fn icmp1_RUST_CODE(s2: *const c_char, s1: *const c_char) -> i32 {
         buffer: Vec<u8>,
         string_len: usize,
     };
-    impl<'a> Storrage{
+    impl Storrage{
         fn new() -> Storrage {
             Storrage {
                 buffer: Vec::new(),
@@ -41,7 +42,8 @@ pub extern "C" fn icmp1_RUST_CODE(s2: *const c_char, s1: *const c_char) -> i32 {
     if s1.is_null() == false {
         // Создаем Rust ссылочную строку из С-шной
         // Если не смогли сконвертить в Rust строку - выходим
-        let res = unsafe { CStr::from_ptr(s1) }.to_bytes();
+        let cstr = unsafe { CStr::from_ptr(s1) };
+        let res = cstr.to_bytes();
 
         // Защита от кривых данных
         if res.len() > 1024{
@@ -63,7 +65,7 @@ pub extern "C" fn icmp1_RUST_CODE(s2: *const c_char, s1: *const c_char) -> i32 {
                 let lowercase_byte = byte.to_ascii_lowercase();
                 storrage.buffer[i] = lowercase_byte;
             }
-            storrage.string_len = res.len();
+            storrage.string_len = len;
         });
     }
 
@@ -71,16 +73,21 @@ pub extern "C" fn icmp1_RUST_CODE(s2: *const c_char, s1: *const c_char) -> i32 {
         let storrage: &Storrage = &(*st.borrow());
         let length = storrage.string_len;
 
-        // Такой способ лучше, так как он не приводит к копированию
-        if let Some(bytes_slice) = storrage.buffer.get(0..length){
+        // Вариант без проверок границы
+        unsafe{
+            let bytes_slice = storrage.buffer.get_unchecked(0..length);
             if s2_test_str.eq(bytes_slice) {
                 return 1;
-            }else{
-                return 0;
-            }    
-        }else{
-            return 0;
+            }
         }
+        // Такой способ лучше, так как он не приводит к копированию в отличие просто от квадратных скобок
+        // Но это не точно
+        /*if let Some(bytes_slice) = storrage.buffer.get(0..length){
+            if s2_test_str.eq(bytes_slice) {
+                return 1;
+            }   
+        }*/
+        return 0;
     });
 
     // Установка отлавливания паники слегка замедляет код, 
