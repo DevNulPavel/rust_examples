@@ -75,13 +75,17 @@ pub extern "C" fn icmp1_RUST_CODE(s2: *const c_char, s1: *const c_char) -> i32 {
 
         // Вариант без проверок границы
         unsafe{
-            let bytes_slice = storrage.buffer.get_unchecked(0..length);
+            let bytes_slice: &[u8] = storrage.buffer.get_unchecked(0..length);
             if s2_test_str.eq(bytes_slice) {
                 return 1;
             }
         }
-        // Такой способ лучше, так как он не приводит к копированию в отличие просто от квадратных скобок
-        // Но это не точно
+        // Вызывается метод index из трейта Index, который возвращает ссылку и паникует при выходе за границы
+        /*let ref bytes_slice = storrage.buffer[0..length];
+        if s2_test_str.eq(bytes_slice) {
+            return 1;
+        }*/  
+        // Способ ниже с проверкой выхода за границы, get выдает ссылку на слайс
         /*if let Some(bytes_slice) = storrage.buffer.get(0..length){
             if s2_test_str.eq(bytes_slice) {
                 return 1;
