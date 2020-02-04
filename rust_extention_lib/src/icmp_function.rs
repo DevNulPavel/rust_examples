@@ -50,7 +50,7 @@ pub extern "C" fn icmp1_RUST_CODE(s2: *const c_char, s1: *const c_char) -> i32 {
             return 0;
         }
 
-        THREAD_STORRAGES.with(|st| {
+        return THREAD_STORRAGES.with(|st| {
             let storrage: &mut Storrage = &mut *st.borrow_mut();
 
             // Увеличиваем размер буффера
@@ -59,13 +59,43 @@ pub extern "C" fn icmp1_RUST_CODE(s2: *const c_char, s1: *const c_char) -> i32 {
             }
 
             // Переводим в нижний регистр
-            let len = res.len();
-            for i in 0..len {
+            let length = res.len();
+            /*for i in 0..length {
                 let byte = res[i];
                 let lowercase_byte = byte.to_ascii_lowercase();
                 storrage.buffer[i] = lowercase_byte;
+            }*/
+            /*let mut i = 0;
+            for &byte in res[0..length].iter() {
+                let lowercase_byte = byte.to_ascii_lowercase();
+                storrage.buffer[i] = lowercase_byte;
+                i += 1;
+            }*/
+            for byte_pair in res[0..length].iter().zip(storrage.buffer[0..length].iter_mut()) {
+                let lowercase_byte = byte_pair.0.to_ascii_lowercase();
+                *(byte_pair.1) = lowercase_byte;
             }
-            storrage.string_len = len;
+            storrage.string_len = length;
+
+            // Вариант без проверок границы
+            unsafe{
+                let bytes_slice: &[u8] = storrage.buffer.get_unchecked(0..length);
+                if s2_test_str.eq(bytes_slice) {
+                    return 1;
+                }
+            }
+            // Вызывается метод index из трейта Index, который возвращает ссылку и паникует при выходе за границы
+            /*let ref bytes_slice = storrage.buffer[0..length];
+            if s2_test_str.eq(bytes_slice) {
+                return 1;
+            }*/  
+            // Способ ниже с проверкой выхода за границы, get выдает ссылку на слайс
+            /*if let Some(bytes_slice) = storrage.buffer.get(0..length){
+                if s2_test_str.eq(bytes_slice) {
+                    return 1;
+                }   
+            }*/
+            return 0;
         });
     }
 
