@@ -60,6 +60,7 @@ pub extern "C" fn icmp1_RUST_CODE(s2: *const c_char, s1: *const c_char) -> i32 {
 
             // Переводим в нижний регистр
             let length = res.len();
+            // Тут проверки выхода за границы происходят каждый раз внутри цикла
             /*for i in 0..length {
                 let byte = res[i];
                 let lowercase_byte = byte.to_ascii_lowercase();
@@ -71,10 +72,23 @@ pub extern "C" fn icmp1_RUST_CODE(s2: *const c_char, s1: *const c_char) -> i32 {
                 storrage.buffer[i] = lowercase_byte;
                 i += 1;
             }*/
-            for byte_pair in res[0..length].iter().zip(storrage.buffer[0..length].iter_mut()) {
+            // Проверки индексов происходят только при создании слайса, в самом цикле не происходит никаких проверок
+            // В теории - самый высокопроизводительный вариант
+            let iter = res
+                .into_iter() // Перемещает владение содержимого
+                //.iter()    // Работает со ссылками
+                .zip(storrage.buffer[0..length].iter_mut());
+            for byte_pair in iter {
                 let lowercase_byte = byte_pair.0.to_ascii_lowercase();
                 *(byte_pair.1) = lowercase_byte;
             }
+            /*res[0..length]
+                .iter()
+                .zip(storrage.buffer[0..length].iter_mut())
+                .for_each(|byte_pair|{
+                    let lowercase_byte = byte_pair.0.to_ascii_lowercase();
+                    *(byte_pair.1) = lowercase_byte;
+                });*/
             storrage.string_len = length;
 
             // Вариант без проверок границы
