@@ -208,6 +208,150 @@ fn test_iter_methods(){
         assert_eq!(iter.next(), Some(&4));
         assert_eq!(iter.next(), None);        
     }
+    
+    {
+        // Можно соединять итераторы в последовательную цепочку
+        let a1 = [1, 2, 3];
+        let a2 = [4, 5, 6];
+        let mut iter = a1.iter().chain(a2.iter());
+        assert_eq!(iter.next(), Some(&1));
+        assert_eq!(iter.next(), Some(&2));
+        assert_eq!(iter.next(), Some(&3));
+        assert_eq!(iter.next(), Some(&4));
+        assert_eq!(iter.next(), Some(&5));
+        assert_eq!(iter.next(), Some(&6));
+        assert_eq!(iter.next(), None);
+    }
+
+    {
+        // Метод zip объединяет 2 итератора в итератор с парами компонентов
+        let a1 = [1, 2, 3];
+        let a2 = [4, 5, 6];
+        let mut iter = a1.iter().zip(a2.iter());
+        assert_eq!(iter.next(), Some((&1, &4)));
+        assert_eq!(iter.next(), Some((&2, &5)));
+        assert_eq!(iter.next(), Some((&3, &6)));
+        assert_eq!(iter.next(), None);
+    }
+
+    {
+        // Можем конвертировать значения в новые, причем - даже нового типа
+        let a = [1, 2, 3];
+        let mut iter = a.iter().map(|x| {
+            2 * x
+        });
+        assert_eq!(iter.next(), Some(2));
+        assert_eq!(iter.next(), Some(4));
+        assert_eq!(iter.next(), Some(6));
+        assert_eq!(iter.next(), None);
+    }
+
+    {
+        use std::sync::mpsc::channel;
+
+        // Создаем канал
+        let (tx, rx) = channel();
+        // Итерируемся
+        (0..5)
+            .map(|x| {
+                // Вычисляем новое значение
+                x * 2 + 1
+            })
+            .for_each(move |x| {
+                // Отправляем это новое значение в канал
+                tx.send(x).unwrap()
+            });
+        let v: Vec<_> =  rx.iter().collect();
+        assert_eq!(v, vec![1, 3, 5, 7, 9]);
+
+        (0..5)
+            // flat_map нужен для создания нового итератора из параметра
+            // последующее итерирование уже будет по этим самым значениям
+            .flat_map(|x| {
+                let multiple_iterator = (x * 100)..(x * 110);
+                return multiple_iterator;
+            })
+            // Объениняем значение и номер этого значения
+            .enumerate()
+            // Фильтруем значения, где сумма индекса и числа кратна трем
+            .filter(|&(i, x)| {
+                (i + x) % 3 == 0
+            })
+            // Выводим индекс и значение
+            .for_each(|(i, x)| {
+                println!("{}:{}", i, x)
+            });
+    }
+
+    {
+        // Можно конвертировать только валидные значения с помощью фильтрации
+        let a = ["1", "lol", "3", "NaN", "5"];
+        let mut iter = a.iter().filter_map(|s| {
+            let result : Option<i32> = s.parse().ok();
+            result
+        });
+        assert_eq!(iter.next(), Some(1));
+        assert_eq!(iter.next(), Some(3));
+        assert_eq!(iter.next(), Some(5));
+        assert_eq!(iter.next(), None);
+    }
+
+    {
+        // Мы можем подсмотреть следующее значение, которое выдаст итератор
+        // Для этого итератор должен реализовать трейт
+        let xs = [1, 2, 3];
+        let mut iter = xs.iter().peekable();
+        assert_eq!(iter.peek(), Some(&&1)); // При этом возвращается ссылка на очередной элемент, а не непосредственно он сам
+        assert_eq!(iter.next(), Some(&1));
+        assert_eq!(iter.next(), Some(&2));
+        assert_eq!(iter.peek(), Some(&&3));
+        assert_eq!(iter.peek(), Some(&&3)); // Причем, мы можем делать этот вызов несколько раз без проблем
+        assert_eq!(iter.next(), Some(&3));
+        assert_eq!(iter.peek(), None);      // Если итератор завершился - значит посмотреть тоже не можем
+        assert_eq!(iter.next(), None);
+    }
+
+    {
+        // Scan занимается тем, что хранит состояние внутри, это состояние можно модифицировать и выдавать значение какое-то
+        let a = [1, 2, 3];
+        let mut iter = a.iter()
+            .scan(1, |state, &x| {
+                // Каждую итерацию мы умножаем внутреннее состояние на элемент
+                *state = *state * x;
+                // Затем выдаем на выход отрицательное значение состояния
+                Some(-*state)
+            });
+        
+        assert_eq!(iter.next(), Some(-1));
+        assert_eq!(iter.next(), Some(-2));
+        assert_eq!(iter.next(), Some(-6));
+        assert_eq!(iter.next(), None);        
+    }
+
+    {
+        // Можно создавать новые под-итераторы по которым и будет происходить итерирование
+        let words = ["alpha", "beta", "gamma"];
+        let merged: String = words.iter()
+                                  .flat_map(|s| {
+                                      s.chars()
+                                   })
+                                  .collect();
+        assert_eq!(merged, "alphabetagamma");        
+    }
+
+    {
+        // flatten аналогичным образом просто разворачивает итератор с итераторами
+        let words = ["alpha", "beta", "gamma"];
+        let merged: String = words.iter()
+                                .map(|s| s.chars())
+                                .flatten()
+                                .collect();
+        assert_eq!(merged, "alphabetagamma");
+
+        let data = vec![vec![1, 2, 3, 4], vec![5, 6]];
+        let flattened = data.into_iter().flatten().collect::<Vec<u8>>();
+        assert_eq!(flattened, &[1, 2, 3, 4, 5, 6]);
+    }
 }
 
 fn main() {
