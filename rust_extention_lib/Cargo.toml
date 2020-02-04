@@ -28,7 +28,7 @@ panic = "unwind"   # Что делать в случае паники, "abort" -
 # lto = false
 # debug-assertions = false
 # codegen-units = 16 # Помогает на Raspberry Pi установка в 1
-panic = "abort"   # Что делать в случае паники, "abort" - не дает обработать панику, но уменьшает размер бинарника
+panic = "unwind"   # Что делать в случае паники, "abort" - не дает обработать панику, но уменьшает размер бинарника
 # incremental = false
 # overflow-checks = false
 
