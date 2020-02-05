@@ -1,3 +1,17 @@
+macro_rules! map(
+    // Макрос вида {key => val, key => val}
+    { $($key:expr => $value:expr),+ } => {
+        {
+            let mut m = ::std::collections::HashMap::new();
+            // TODO: Reserve size
+            $(
+                m.insert($key, $value);
+            )+
+            m
+        }
+     };
+);
+
 
 
 // Структура, являющаяся итератором
@@ -278,8 +292,8 @@ fn test_iter_methods(){
                 (i + x) % 3 == 0
             })
             // Выводим индекс и значение
-            .for_each(|(i, x)| {
-                println!("{}:{}", i, x)
+            .for_each(|(_i, _x)| {
+                //println!("{}:{}", i, x)
             });
     }
 
@@ -351,6 +365,192 @@ fn test_iter_methods(){
         let data = vec![vec![1, 2, 3, 4], vec![5, 6]];
         let flattened = data.into_iter().flatten().collect::<Vec<u8>>();
         assert_eq!(flattened, &[1, 2, 3, 4, 5, 6]);
+    }
+    
+    {
+        // Создаем итератор, который будет случайным образом выдавать None/Some
+        struct Alternate {
+            state: i32,
+        }
+        impl Iterator for Alternate {
+            type Item = i32;
+            fn next(&mut self) -> Option<i32> {
+                // Увеличиваем внутреннее значение на 1
+                let val = self.state;
+                self.state = self.state + 1;
+                // Если четное значение, выдаем Some, если нет - None
+                if val % 2 == 0 {
+                    Some(val)
+                } else {
+                    None
+                }
+            }
+        }
+        let mut iter = Alternate { state: 0 };
+        // В обычном состоянии выдает значения
+        assert_eq!(iter.next(), Some(0));
+        assert_eq!(iter.next(), None);
+        assert_eq!(iter.next(), Some(2));
+        assert_eq!(iter.next(), None);
+        // Но можно создать итератор-предохранитель, который будет выдавать None всегда после первого None
+        let mut iter: std::iter::Fuse<_> = iter.fuse();
+        assert_eq!(iter.next(), Some(4));
+        assert_eq!(iter.next(), None);
+        assert_eq!(iter.next(), None);
+        assert_eq!(iter.next(), None);
+        assert_eq!(iter.next(), None);        
+    }
+
+    {
+        let a = [1, 4, 2, 3];
+        
+        // Создаем сложный итератор по компонентам
+        let sum = a.iter()
+            // Каждый элемент будет клонироваться
+            .cloned()
+            // Фильтруем четные
+            .filter(|x| {
+                let is_even = x % 2 == 0;
+                is_even
+            })
+            // Данный метод нужен, чтобы сложить все переданные значения в одно
+            // Первый параметр - начальное значение
+            // Второй - замыкание, которое принимает последнюю сумму + текущее значение
+            .fold(0, |sum, i| {
+                sum + i
+            });
+        
+        assert_eq!(sum, 6);
+        
+        // Мы можем отследить значения для отладки
+        let sum = a.iter()
+            .cloned()
+            .inspect(|_x| {
+                //println!("Before filter: {}", _x);
+            })
+            .filter(|x| {
+                x % 2 == 0
+            })
+            .inspect(|_x| {
+                //println!("After filter: {}", _x)
+            })
+            .fold(0, |sum, i| {
+                sum + i
+            });
+        
+        assert_eq!(sum, 6); 
+    }
+
+    {
+        let a = [1, 2, 3];
+        let iter = a.iter();
+        let sum: i32 = iter.take(2).fold(0, |acc, i| {
+            acc + i
+        });
+        assert_eq!(sum, 3);
+        // Если мы попытаемся использовать итератор снова, это не будет работать,
+        // строка ниже выдаст ошибку, что мы используем уже перемещенный итератор
+        // assert_eq!(iter.next(), None);
+        
+        // Но если мы будем использовать итератор по ссылке, то мы можем использовать этот итератор снова потом
+        let a = [1, 2, 3];        
+        let mut iter = a.iter();
+        let sum: i32 = iter.by_ref().take(2).fold(0, |acc, i| {
+            acc + i
+        });        
+        assert_eq!(sum, 3);
+        assert_eq!(iter.next(), Some(&3)); // Можем спокойно использовать итератор дальше, так как мы работали с ссылкой
+        assert_eq!(iter.next(), None);        
+    }
+
+    {
+        // Мы можем собрать наш итератор в конкретную коллекцию
+        // Но обязательно нужно указывать конкретный тип коллекции
+        // Надо обязательно, чтобы коллекция имела трейт FromIter
+        let a = [1, 2, 3];
+        let doubled: Vec<i32> = a.iter()
+                                 .map(|&x| x * 2)
+                                 .collect();
+        assert_eq!(vec![2, 4, 6], doubled);
+
+        // Можно сконвертировать в map
+        use std::collections::HashMap;
+        let a = [1, 2, 3];
+        let doubled: HashMap<usize, i32> = a.iter()
+                                 .map(|&x| x * 2)
+                                 .enumerate()
+                                 .collect();
+        let test_hash_map: HashMap<usize, i32> = map!{
+            0 => 2,
+            1 => 4,
+            2 => 6
+        };
+        assert_eq!(test_hash_map, doubled);
+
+        // Можно создавать вектор
+        use std::collections::VecDeque;
+        let a = [1, 2, 3];
+        let doubled: VecDeque<i32> = a.iter().map(|&x| x * 2).collect();
+        assert_eq!(2, doubled[0]);
+        assert_eq!(4, doubled[1]);
+        assert_eq!(6, doubled[2]);
+
+        // Можно использовать turbofish синтаксис
+        let a = [1, 2, 3];
+        let doubled = a.iter().map(|x| x * 2).collect::<Vec<i32>>();
+        assert_eq!(vec![2, 4, 6], doubled);
+
+        // Можно выполнять конвертации массива в строки
+        let chars = ['g', 'd', 'k', 'k', 'n'];
+        let hello: String = chars.iter()
+            .map(|&x| x as u8)
+            .map(|x| (x + 1) as char)
+            .collect();
+        assert_eq!("hello", hello);
+
+        // Если при вызове collect попадается ошибка, то вся сборка тоже заканчивается ошибкой
+        let results = [Ok(1), Err("nope"), Ok(3), Err("bad")];
+        let result: Result<Vec<_>, &str> = results.iter().cloned().collect();
+        assert_eq!(Err("nope"), result);
+        let results = [Ok(1), Ok(3)];
+        let result: Result<Vec<_>, &str> = results.iter().cloned().collect();
+        assert_eq!(Ok(vec![1, 3]), result); // gives us the list of answers
+    }
+
+    {
+        // Можем создавать из итератора 2 коллекции по определенному признаку
+        let a = [1, 2, 3];
+        let (even, odd): (Vec<i32>, Vec<i32>) = a
+            .iter()
+            .partition(|&n| n % 2 == 0);
+        assert_eq!(even, vec![2]);
+        assert_eq!(odd, vec![1, 3]);
+    }
+
+    {
+        // the checked sum of all of the elements of the array
+        // Суммиуем все значения и возвращаем результат только если все было ок и каждое значение
+        // оказалось валидным
+        let a = [1, 2, 3];
+        let initial_val = 0_i8;
+        let sum = a.iter().try_fold(initial_val, |acc, &x| {
+            // Если происходит переполнение, то None
+            let sum: Option<i8> = acc.checked_add(x);
+            sum
+        });
+        assert_eq!(sum, Some(6));
+
+
+        let a = [10, 20, 30, 100, 40, 50];
+        let mut it = a.iter();
+        let sum = it.try_fold(0i8, |acc, &x| {
+            // Тут происходит переполнение
+            acc.checked_add(x)
+        });
+        assert_eq!(sum, None);
+        // Что интересно, при ошибке - оставшиеся элементы до переполнения остаются доступны у итератора
+        assert_eq!(it.len(), 2);
+        assert_eq!(it.next(), Some(&40));
     }
 }
 
