@@ -4,7 +4,7 @@ mod icmp_function;
 
 fn main(){
     // Код для профилирования
-    for _ in 0..1000000 {
+    for _ in 0..1_000_000 {
         icmp_function::test_icmp();
     }
 }

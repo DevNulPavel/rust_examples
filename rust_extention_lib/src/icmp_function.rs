@@ -6,7 +6,7 @@ use std::cell::RefCell;
 // https://doc.rust-lang.org/nomicon/ffi.html
 
 #[no_mangle] 
-pub extern "C" fn icmp1_RUST_CODE(s2: *const c_char, s1: *const c_char) -> i32 {
+extern "C" fn icmp1_RUST_CODE(s2: *const c_char, s1: *const c_char) -> i32 {
     if s2.is_null() {
         return 0;
     }
@@ -39,7 +39,7 @@ pub extern "C" fn icmp1_RUST_CODE(s2: *const c_char, s1: *const c_char) -> i32 {
     }
 
     // Если есть исходная строка, тогда делаем ее в нижнем регистре
-    if s1.is_null() == false {
+    if !s1.is_null() {
         // Создаем Rust ссылочную строку из С-шной
         // Если не смогли сконвертить в Rust строку - выходим
         let cstr = unsafe { CStr::from_ptr(s1) };
@@ -75,8 +75,8 @@ pub extern "C" fn icmp1_RUST_CODE(s2: *const c_char, s1: *const c_char) -> i32 {
             // Проверки индексов происходят только при создании слайса, в самом цикле не происходит никаких проверок
             // В теории - самый высокопроизводительный вариант
             let iter = res
-                .into_iter() // Перемещает владение содержимого
-                //.iter()    // Работает со ссылками
+                //.into_iter() // Перемещает владение содержимого
+                .iter()    // Работает со ссылками
                 .zip(storrage.buffer[0..length].iter_mut());
             for byte_pair in iter {
                 let lowercase_byte = byte_pair.0.to_ascii_lowercase();
@@ -109,11 +109,11 @@ pub extern "C" fn icmp1_RUST_CODE(s2: *const c_char, s1: *const c_char) -> i32 {
                     return 1;
                 }   
             }*/
-            return 0;
+            0
         });
     }
 
-    return THREAD_STORRAGES.with(|st| {
+    THREAD_STORRAGES.with(|st| {
         let storrage: &Storrage = &(*st.borrow());
         let length = storrage.string_len;
 
@@ -135,8 +135,8 @@ pub extern "C" fn icmp1_RUST_CODE(s2: *const c_char, s1: *const c_char) -> i32 {
                 return 1;
             }   
         }*/
-        return 0;
-    });
+        0
+    })
 
     // Установка отлавливания паники слегка замедляет код, 
     // если нужна максимальная скорость - можно убрать
