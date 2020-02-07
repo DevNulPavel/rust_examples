@@ -1,3 +1,5 @@
+//#![warn(clippy::all)]
+
 macro_rules! map(
     // Макрос вида {key => val, key => val}
     { $($key:expr => $value:expr),+ } => {
@@ -551,6 +553,74 @@ fn test_iter_methods(){
         // Что интересно, при ошибке - оставшиеся элементы до переполнения остаются доступны у итератора
         assert_eq!(it.len(), 2);
         assert_eq!(it.next(), Some(&40));
+    }
+
+    {
+        use std::fs::rename;
+        use std::io::{stdout, Write};
+        use std::path::Path;
+        
+        let data = ["no_tea.txt", "stale_bread.json", "torrential_rain.png"];
+        
+        // Итерируемся, если хоть раз вылетает ошибка, то она выдается на выход, а итерация прерывается
+        let res = data.iter()
+            .try_for_each(|x| {
+                writeln!(stdout(), "{}", x)
+            });
+        assert!(res.is_ok());
+        
+        // Итератор, который клонирует значения и модифицирует их
+        let mut it = data.iter()
+            .cloned();
+        let res = it.try_for_each(|x| {
+            rename(x, Path::new(x).with_extension("old"))
+        });
+        assert!(res.is_err());
+
+        // Исходный итератор не меняется
+        assert_eq!(it.next(), Some("stale_bread.json"));
+    }
+
+    {
+        // Можно проаккумулировать значения и вернуть результат
+        let a = [1, 2, 3];
+        let sum = a.iter().fold(0, |acc, x| {
+            acc + x
+        });
+        assert_eq!(sum, 6);
+    }
+
+    {
+        // Проверяем, что все значения совпадают с предикатом
+        let a = [1, 2, 3];
+        assert!(a.iter().all(|&x| x > 0));
+        assert!(!a.iter().all(|&x| x > 2));        
+    }
+
+    {
+        // Ищем конкретный элемент, а в данном случае ссылку на элемент, так как мы итерируемся по ссылкам
+        let a = [1, 2, 3];
+        assert_eq!(a.iter().find(|&&x| {
+            x == 2
+        }), Some(&2));
+        assert_eq!(a.iter().find(|&&x| {
+            x == 5
+        }), None);        
+    }
+
+    {
+        // Ищет конкретный элемент вызывая предикат, который возвращает не None, а новый тип
+        let a = ["lol", "NaN", "2", "5"];
+        let first_number = a.iter().find_map(|s| {
+            s.parse().ok()
+        });
+        assert_eq!(first_number, Some(2));
+    }
+
+    {
+        let a = [1, 2, 3];
+        assert_eq!(a.iter().position(|&x| x == 2), Some(1));
+        assert_eq!(a.iter().position(|&x| x == 5), None);        
     }
 }
 
