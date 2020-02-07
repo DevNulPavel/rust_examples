@@ -8,8 +8,19 @@ extern crate num_cpus;
 //extern mod dirs;
 
 // Либо можно вот так (модифицируя путь)
-#[path = "dirs.rs"]
-mod dirs;
+// #[path = "dirs.rs"]
+// mod dirs;
+//mod crate::dirs; // Путь относительно корня
+//mod super::dirs; // Путь относительно родителя
+
+use crate::dirs; // Путь относительно корня
+//use super::dirs; // Путь относительно родителя
+use std::collections::HashMap;
+use std::fmt::Display;
+use std::fmt;
+use std::fmt::Formatter;
+use std::ops::Deref;
+
 
 lazy_static!{
     static ref RE1: regex::Regex = regex::Regex::new(r"/\*.+\*/").unwrap();
@@ -30,7 +41,7 @@ pub trait ToString {
 
     // Так же мы можем реализовать общий код для трейтов
     fn to_string_2(&self) -> String{
-        return self.to_string();
+        self.to_string()
     }
 
     // Так же мы можем реализовать общий код для трейтов
@@ -45,7 +56,7 @@ pub trait ToString {
 struct ShaderProcessResult{
     set_index: i32, 
     push_constants_offset: i32,
-    result_varying_locations: std::collections::HashMap<String, i32>
+    result_varying_locations: HashMap<String, i32>
 }
 
 // Реализуем перевод в строку для ShaderProcessResult
@@ -60,17 +71,19 @@ struct ShaderProcessResult{
 
 // Либо сразу реализуем для всех типов T, поддерживающих std::fmt::Display, перевод в строку
 // Поэтому даже такой код будет валиден: let s = 3.to_string();
-impl<T: std::fmt::Display> ToString for T {
+impl<T> ToString for T
+    where T: Display 
+{
     fn to_string(&self) -> String{
         return format!("{}", self);
     }
 }
 
 // Так мы реализуем стандартный интерфейс форматтера
-impl std::fmt::Display for ShaderProcessResult{
-    fn fmt(&self, f: &mut std::fmt::Formatter<'_>) -> std::fmt::Result {
+impl Display for ShaderProcessResult{
+    fn fmt(&self, f: &mut Formatter<'_>) -> fmt::Result {
         let mut varyings_text = String::new();
-        if self.result_varying_locations.len() > 0{
+        if !self.result_varying_locations.is_empty() {
             varyings_text.push_str("{");
             for (key, index) in self.result_varying_locations.iter() {
                 let text = format!("{}: {}, ", key, index);
@@ -87,32 +100,32 @@ impl std::fmt::Display for ShaderProcessResult{
 }
 
 // Реализуем возможность работать с содержимым объекта без разыменования его
-impl std::ops::Deref for ShaderProcessResult{
-    type Target = std::collections::HashMap<String, i32>; // Указываем тип
+impl Deref for ShaderProcessResult{
+    type Target = HashMap<String, i32>; // Указываем тип
 
     /*fn deref(&self) -> &std::collections::HashMap<String, i32> {
         return &self.result_varying_locations;
     }*/
     fn deref(&self) -> &Self::Target {
-        return &self.result_varying_locations;
+        &self.result_varying_locations
     }
 }
 
 impl ShaderProcessResult{
     fn get_set_index(&self) -> i32{
-        return self.set_index;
+        self.set_index
     }
     fn get_push_constants_offset(&self) -> i32{
-        return self.push_constants_offset;
+        self.push_constants_offset
     }
-    fn get_result_varying_locations(&self) -> &std::collections::HashMap<String, i32>{
+    fn get_result_varying_locations(&self) -> &HashMap<String, i32>{
         //return &self.result_varying_locations;
-        return &self; // Пользуемся trait Deref выше, чтобы работать с содержимым как есть
+        &self // Пользуемся trait Deref выше, чтобы работать с содержимым как есть
     }
 }
 
 // Указываем, что шаблон должен реализовывать trait
-fn print_shader_process_result_1<T: ToString + std::fmt::Display>(val: &T){
+fn print_shader_process_result_1<T: ToString + Display>(val: &T){
     println!("{}", val.to_string());
 }
 
@@ -181,8 +194,8 @@ fn analyze_uniforms_size(file_path: &std::path::Path) -> i32 {
     input_file_text = String::from(RE4.replace_all(input_file_text.as_str(), ""));
 
     input_file_text = input_file_text.replace("\n", " ");
-    let raw_words: Vec<&str> = input_file_text.split(" ").collect();
-    let words: Vec<&str> = raw_words.into_iter().filter(|val| val.len() > 0 ).collect();
+    let raw_words: Vec<&str> = input_file_text.split(' ').collect();
+    let words: Vec<&str> = raw_words.into_iter().filter(|val| !val.is_empty() ).collect();
 
     let mut main_func_text = String::from(RE5.captures(input_file_text.as_str()).unwrap().get(0).unwrap().as_str());
 
@@ -208,7 +221,7 @@ fn analyze_uniforms_size(file_path: &std::path::Path) -> i32 {
 
         // Если после uniform идет описание точности - пропускаем его
         i += 1;
-        if precision_words.contains(&words[i]) == true {
+        if precision_words.contains(&words[i]) {
             i += 1;
         }
         
@@ -232,42 +245,41 @@ fn analyze_uniforms_size(file_path: &std::path::Path) -> i32 {
         }
     }
 
-    return uniforms_size;
+    uniforms_size
 }
 
-fn process_shader_file( is_vertex_shader: bool, 
-                        input_path: &std::path::Path, 
-                        out_path: &std::path::Path, 
-                        src_set_index: i32,
-                        input_varying_locations: &std::collections::HashMap<String, i32>, 
-                        src_push_constants_offset: i32, 
-                        use_push_constants: bool) -> Result<ShaderProcessResult, String> {
+fn read_file(input_path: &std::path::Path)-> Result<String, String>{
     use std::io::Read;
-    use std::io::Write;
     use std::fs::File;
-    use std::collections::HashMap;
+    
+    // Читаем файл                     
+    let mut file = File::open(input_path)
+        .or_else(|err|->Result<File, String>{
+            Err(format!("Failed to read file: {:?}, err: {:?}", input_path, err))
+        })?;
 
-    // Читаем файл                            
-    let mut file = match File::open(input_path){
-        Ok(file)=>file,
-        Err(err)=> return Err(format!("Failed to read file: {:?}, err: {:?}", input_path, err)),
-    };
     let mut input_file_text = String::new();
     if let Err(err) = file.read_to_string(&mut input_file_text){
         return Err(format!("Failed to read content of file: {:?}, err: {:?}", input_path, err));
     }
     drop(file);
-    
+
+    Ok(input_file_text)
+}
+
+fn prepare_text<'a>(input_path: &std::path::Path, 
+                    input_file_text: &'a mut String, 
+                    precision_words: [&str; 7])-> Result<(&'a String, String, Vec<&'a str>), String>{
     // Табы заменяем на пробелы
-    input_file_text = input_file_text.replace("\t", "    ");
+    input_file_text.clone_from(&input_file_text.replace("\t", "    "));
 
     // Удаляем комментарии
-    input_file_text = String::from(RE1.replace_all(input_file_text.as_str(), ""));
-    input_file_text = String::from(RE2.replace_all(input_file_text.as_str(), "\n"));
-    input_file_text = String::from(RE3.replace_all(input_file_text.as_str(), "\n"));
+    input_file_text.clone_from(&String::from(RE1.replace_all(input_file_text.as_str(), "")));
+    input_file_text.clone_from(&String::from(RE2.replace_all(input_file_text.as_str(), "\n")));
+    input_file_text.clone_from(&String::from(RE3.replace_all(input_file_text.as_str(), "\n")));
 
     // Удаляем странные дефайны
-    input_file_text = input_file_text.replace("FLOAT", "float");
+    input_file_text.clone_from(&input_file_text.replace("FLOAT", "float"));
 
     let mut main_func_text = String::from(match RE5.captures(input_file_text.as_str()) {
         Some(text)=> match text.get(0) {
@@ -283,19 +295,41 @@ fn process_shader_file( is_vertex_shader: bool,
         }
     });
 
-    input_file_text = input_file_text.replace("\n", " ");
-    let raw_words: Vec<&str> = input_file_text.split(" ").collect();
-    let words: Vec<&str> = raw_words.into_iter().filter(|val| {
-        val.len() > 0 
-    }).collect();
+    input_file_text.clone_from(&input_file_text.replace("\n", " "));
+    let raw_words: Vec<&str> = input_file_text.split(' ').collect();
+    let words: Vec<&'a str> = raw_words.into_iter()
+        .filter(|val| {
+            !val.is_empty()
+        })
+        .collect();
 
     // Remove precision words
-    let precision_words = ["lowp", "mediump", "highp", "PRECISION_LOW", "PRECISION_MEDIUM", "PRECISION_HIGH", "PLATFORM_PRECISION"];
     for word_s in precision_words.iter() {
         let word = word_s as &str;
         main_func_text = main_func_text.replace(word, "PRECISION");
     }
     main_func_text = main_func_text.replace("PRECISION ", "");
+
+    Ok((input_file_text, main_func_text, words))
+}
+
+fn process_shader_file( is_vertex_shader: bool, 
+                        input_path: &std::path::Path,
+                        out_path: &std::path::Path, 
+                        src_set_index: i32,
+                        input_varying_locations: &std::collections::HashMap<String, i32>, 
+                        src_push_constants_offset: i32, 
+                        use_push_constants: bool) -> Result<ShaderProcessResult, String> {
+    use std::fs::File;                            
+    use std::io::Read;
+    use std::io::Write;
+    use std::collections::HashMap;
+
+    // Читаем файл
+    let mut input_file_text = read_file(input_path)?;
+
+    let precision_words = ["lowp", "mediump", "highp", "PRECISION_LOW", "PRECISION_MEDIUM", "PRECISION_HIGH", "PLATFORM_PRECISION"];
+    let (input_file_text, mut main_func_text, words)  = prepare_text(input_path, &mut input_file_text, precision_words)?;
 
     // Ignore defines
     let ignore_defines_list: [&str; 3] = ["float", "FLOAT", "VEC2"];
@@ -343,7 +377,7 @@ fn process_shader_file( is_vertex_shader: bool,
             }
 
             // Получаем тип аттрибута
-            let attribute_type = words[i];
+            let attribute_type = &words[i];
 
             // Получаем имя аттрибута
             i += 1;
@@ -406,7 +440,7 @@ fn process_shader_file( is_vertex_shader: bool,
             }
 
             // Получаем тип
-            let varying_type = words[i];
+            let varying_type = &words[i];
 
             // Получаем имя
             i += 1;
