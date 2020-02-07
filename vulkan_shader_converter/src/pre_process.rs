@@ -1,3 +1,5 @@
+#![warn(clippy::all)]
+
 extern crate lazy_static;
 extern crate regex;
 extern crate crossbeam;
@@ -267,9 +269,15 @@ fn read_file(input_path: &std::path::Path)-> Result<String, String>{
     Ok(input_file_text)
 }
 
+struct PrepareTextResult<'a>{
+    //input_file_text: &'a String,
+    main_func_text: String,
+    words: Vec<&'a str>
+}
+
 fn prepare_text<'a>(input_path: &std::path::Path, 
                     input_file_text: &'a mut String, 
-                    precision_words: [&str; 7])-> Result<(&'a String, String, Vec<&'a str>), String>{
+                    precision_words: [&str; 7])-> Result<PrepareTextResult<'a>, String>{
     // Табы заменяем на пробелы
     input_file_text.clone_from(&input_file_text.replace("\t", "    "));
 
@@ -310,7 +318,11 @@ fn prepare_text<'a>(input_path: &std::path::Path,
     }
     main_func_text = main_func_text.replace("PRECISION ", "");
 
-    Ok((input_file_text, main_func_text, words))
+    Ok(PrepareTextResult{
+        //input_file_text, 
+        main_func_text, 
+        words
+    })
 }
 
 fn process_shader_file( is_vertex_shader: bool, 
@@ -329,7 +341,8 @@ fn process_shader_file( is_vertex_shader: bool,
     let mut input_file_text = read_file(input_path)?;
 
     let precision_words = ["lowp", "mediump", "highp", "PRECISION_LOW", "PRECISION_MEDIUM", "PRECISION_HIGH", "PLATFORM_PRECISION"];
-    let (input_file_text, mut main_func_text, words)  = prepare_text(input_path, &mut input_file_text, precision_words)?;
+    let prepare_result: PrepareTextResult<'_> = prepare_text(input_path, &mut input_file_text, precision_words)?;
+    let PrepareTextResult{mut main_func_text, words} = prepare_result;
 
     // Ignore defines
     let ignore_defines_list: [&str; 3] = ["float", "FLOAT", "VEC2"];
