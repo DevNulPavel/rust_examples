@@ -1,3 +1,5 @@
+#![warn(clippy::all)]
+
 // Так можно отключать стандартную библиотеку
 //#[no_std]; - в main
 //#[no_implicit_prelude]; - в остальных
@@ -22,7 +24,7 @@ pub fn visit_dirs(src_dir: &path::Path) -> Vec<std::path::PathBuf> {
         dirs_queue.push_back(src_dir.to_path_buf());
     }
     
-    while dirs_queue.len() > 0 {
+    while !dirs_queue.is_empty() {
         let dir = dirs_queue.pop_front().unwrap();
 
         // Конструкция if let позволяет обрабатывать код толкьо если у нас результат Ok
@@ -46,7 +48,7 @@ pub fn visit_dirs(src_dir: &path::Path) -> Vec<std::path::PathBuf> {
             println!("Failed to read dir: {:?}", &dir);
         }
     }
-    return paths;
+    paths
 }
 
 

@@ -1,4 +1,4 @@
-#![warn(clippy::all)]
+//#![warn(clippy::all)]
 
 extern crate lazy_static;
 extern crate regex;
@@ -212,7 +212,7 @@ fn analyze_uniforms_size(file_path: &std::path::Path) -> i32 {
 
     let mut uniforms_size: i32 = 0;
     let mut uniforms_vec : Vec<String> = Vec::new();
-    let mut uniforms_map = std::collections::HashMap::new();
+    let mut uniforms_map = HashMap::new();
 
     let mut i: usize = 0;
     while i < words.len() {
@@ -332,10 +332,10 @@ fn process_shader_file( is_vertex_shader: bool,
                         input_varying_locations: &std::collections::HashMap<String, i32>, 
                         src_push_constants_offset: i32, 
                         use_push_constants: bool) -> Result<ShaderProcessResult, String> {
-    use std::fs::File;                            
-    use std::io::Read;
+    //use std::fs::File;                            
+    //use std::io::Read;
     use std::io::Write;
-    use std::collections::HashMap;
+    //use std::collections::HashMap;
 
     // Читаем файл
     let mut input_file_text = read_file(input_path)?;

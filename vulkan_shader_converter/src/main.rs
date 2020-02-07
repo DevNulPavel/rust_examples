@@ -1,3 +1,5 @@
+#![warn(clippy::all)]
+
 // Таким вот образом подключаем внешние контейнеры (библиотеки)
 extern crate lazy_static;
 extern crate clap;

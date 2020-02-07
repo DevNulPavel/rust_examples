@@ -618,6 +618,7 @@ fn test_iter_methods(){
     }
 
     {
+        // Предикат используется для того, чтобы
         let a = [1, 2, 3];
         assert_eq!(a.iter().position(|&x| x == 2), Some(1));
         assert_eq!(a.iter().position(|&x| x == 5), None);        
