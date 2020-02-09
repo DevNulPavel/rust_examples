@@ -178,6 +178,27 @@ fn test_ref(){
     }    
 }
 
+fn test_extend_lifetime(){
+    let test_string = "TestTest";
+
+    // Для того, чтобы не аллоцировать бестолку буффер каждый раз
+    // Мы можем просто создать пустую переменную, которая как раз будет
+    // хранить наши данные
+    // Таким образом, уремя жизни удовлетворяется без проблем
+    let lowercase_string: String;
+    let s: &str = if test_string.chars().all(|symb: char| symb.is_lowercase()){
+        test_string
+    }else{
+        lowercase_string = test_string.to_ascii_lowercase();
+        &lowercase_string // Вызывается as ref
+    };
+
+    assert_eq!(s, "testtest");
+
+    // Но надо помнить, что эту переменную нельзя никак использовать
+    drop(lowercase_string);
+}
+
 fn main() {
     //test_lifetime();
     //test_struct();
