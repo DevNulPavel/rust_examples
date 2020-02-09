@@ -196,7 +196,7 @@ fn test_extend_lifetime(){
     assert_eq!(s, "testtest");
 
     // Но надо помнить, что эту переменную нельзя никак использовать
-    drop(lowercase_string);
+    //drop(lowercase_string);
 }
 
 fn main() {
