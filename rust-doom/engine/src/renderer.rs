@@ -17,6 +17,7 @@ use log::{error, info};
 use math::prelude::*;
 use math::Mat4;
 
+// Зависимости рендера
 #[derive(DependenciesFrom)]
 pub struct Dependencies<'context> {
     pipe: &'context mut RenderPipeline,
@@ -31,12 +32,15 @@ pub struct Dependencies<'context> {
     tick: &'context Tick,
 }
 
+// Непосредственно сам рендер
 pub struct Renderer {
     draw_parameters: DrawParameters<'static>,
     removed: Vec<usize>,
 }
 
+// Реализация System для рендера
 impl<'context> System<'context> for Renderer {
+    // Указываем зависимости рендера
     type Dependencies = Dependencies<'context>;
     type Error = Error;
 
@@ -44,37 +48,45 @@ impl<'context> System<'context> for Renderer {
         "renderer"
     }
 
+    // Создание рендера из конфига
+    // Параметр не используется, но он состоит весь из ссылок
     fn create(_deps: Dependencies) -> Result<Self> {
+        let depth_parameters = Depth {
+            test: DepthTest::IfLess,
+            write: true,
+            ..Depth::default() // Все остальные параметры получаем из дефолтного значения
+        };
+
+        let draw_parameters = DrawParameters {
+            depth: depth_parameters,
+            backface_culling: BackfaceCullingMode::CullClockwise,
+            ..DrawParameters::default() // Все остальные параметры получаем из дефолтного значения
+        };
+
         Ok(Renderer {
-            draw_parameters: DrawParameters {
-                depth: Depth {
-                    test: DepthTest::IfLess,
-                    write: true,
-                    ..Depth::default()
-                },
-                backface_culling: BackfaceCullingMode::CullClockwise,
-                ..DrawParameters::default()
-            },
+            draw_parameters: draw_parameters,
             removed: Vec::with_capacity(32),
         })
     }
 
+    // Вызов отрисовки, зависимость состоит из ссылок
     fn update(&mut self, deps: Dependencies) -> Result<()> {
-        // If the current tick isn't a frame, skip all rendering.
+        // Если не нужно рендерить, то просто пропускаем
         if !deps.tick.need_render_frame() {
             return Ok(());
         }
 
+        // Получаем ссылку на пайплайн
         let pipe = deps.pipe;
 
-        // If no camera is given, skip rendering.
+        // Если нету камеры, не рендерим
         let camera_id = if let Some(camera_id) = pipe.camera {
             camera_id
         } else {
             return Ok(());
         };
 
-        // Compute view transform by inverting the camera entity transform.
+        // Вычисляем трансформацию отображения инвертируя камеру
         let view_transform = if let Some(transform) = deps.transforms.get_absolute(camera_id) {
             transform
                 .inverse_transform()
@@ -84,29 +96,34 @@ impl<'context> System<'context> for Renderer {
             pipe.camera = None;
             return Ok(());
         };
+
+        // С помощью into превращаем в матрицу
         let view_matrix = view_transform.into();
 
-        // Set projection.
-        *deps
-            .uniforms
-            .get_mat4_mut(pipe.projection)
-            .expect("projection uniform missing") = *deps
+        // Устанавливаем матрицу проекции
+        let proj_matrix = *deps
             .projections
             .get_matrix(camera_id)
             .expect("camera projection missing");
+        *deps
+            .uniforms
+            .get_mat4_mut(pipe.projection)
+            .expect("projection uniform missing") = proj_matrix;
 
-        // Render all the models in turn.
+        // Рендерим все модели
         let mut frame = deps.window.draw();
-        for (index, &Model { mesh, material }) in pipe.models.access().iter().enumerate() {
+        let models_iter = pipe.models.access().iter().enumerate();
+        for (index, &Model{ mesh, material }) in models_iter {
             // For each model we need to assemble three things to render it: transform, mesh and
             // material. We get the entity id and query the corresponding systems for it.
+            // Получаем id нашей модели
             let entity = pipe
                 .models
                 .index_to_id(index)
                 .expect("bad index enumerating models: mesh");
 
-            // If the mesh is missing, the entity was (probably) removed. So we add it to the
-            // removed stack and continue.
+            // Если меша нету, то сущность может быть удалена
+            // сохраняем в список удаленных
             let mesh = if let Some(mesh) = deps.meshes.get(mesh) {
                 mesh
             } else {
@@ -118,9 +135,8 @@ impl<'context> System<'context> for Renderer {
                 continue;
             };
 
-            // If the model has a transform, then multiply it with the view transform to get the
-            // modelview matrix. If there is no transform, model is assumed to be in world space, so
-            // modelview = view.
+            // Если у модели есть трансформ, тогда умножаем ее на матрицу вида для получения модель-вью матрицы.
+            // Если нету - просто используем матрицу модели
             *deps
                 .uniforms
                 .get_mat4_mut(pipe.modelview)
@@ -131,12 +147,12 @@ impl<'context> System<'context> for Renderer {
                     view_matrix
                 };
 
+            // Выбираем материал отрисовки
             let material =
                 if let Some(material) = deps.materials.get(deps.shaders, deps.uniforms, material) {
                     material
                 } else {
-                    // If there is a mesh but no material, the model is badly set up. This is an
-                    // error.
+                    // Если у мена нету материала, тогда модель кривая - надо удалить
                     error!(
                         "Material missing {:?} in model for entity {:?}, removing.",
                         material, entity
@@ -145,6 +161,7 @@ impl<'context> System<'context> for Renderer {
                     continue;
                 };
 
+            // Рисуем меш
             frame
                 .draw(
                     &mesh,
@@ -166,7 +183,7 @@ impl<'context> System<'context> for Renderer {
             .finish()
             .expect("Cannot handle context loss currently :(");
 
-        // Remove any missing models.
+        // Удаляем отсутствующие модели в обратном порядке
         for &index in self.removed.iter().rev() {
             pipe.models.remove_by_index(index);
         }

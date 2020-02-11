@@ -1,3 +1,5 @@
+// Конфигурируем версию OpenGL в зависимости от платформы
+
 #[cfg(target_os = "linux")]
 mod internal {
     pub const GL_MAJOR_VERSION: u8 = 3;

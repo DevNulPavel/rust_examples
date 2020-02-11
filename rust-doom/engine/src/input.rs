@@ -11,11 +11,12 @@ use std::vec::Vec;
 
 pub type Sensitivity = f32;
 
+// Тип жеста
 pub enum Gesture {
     NoGesture,
-    KeyHold(VirtualKeyCode),
-    KeyTrigger(VirtualKeyCode),
-    ButtonHold(MouseButton),
+    KeyHold(VirtualKeyCode),    // Дежим кнопку в нужным значением
+    KeyTrigger(VirtualKeyCode), // Нажали на кнопку
+    ButtonHold(MouseButton),    // Держим кнопку мыши
     ButtonTrigger(MouseButton),
     AnyOf(Vec<Gesture>),
     AllOf(Vec<Gesture>),
@@ -25,10 +26,12 @@ pub enum Gesture {
 pub enum Analog2d {
     NoAnalog2d,
 
+    // Мышка
     Mouse {
         sensitivity: Sensitivity,
     },
 
+    // Жест кнопкой
     Gestures {
         x_positive: Gesture,
         x_negative: Gesture,

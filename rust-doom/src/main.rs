@@ -112,15 +112,23 @@ impl App {
             }
             // Если прилетела команда Check
             Some(Command::Check) => {
-                let mut game = game::create(&GameConfig {
+                // Можно создать конфиг из уже имеющегося, но с модификацией значения
+                let config = &GameConfig {
                     initial_level_index: 0,
-                    ..self.into_config()
-                })?;
+                    ..self.into_config()         // Остальные значения можно проитерировать
+                };
+
+                // Создаем игру
+                let mut game = game::create(&config)?;
                 info!("Loading all levels...");
+
+                // Время сейчас
                 let t0 = Instant::now();
+                // Пробуем подгрузить уровни
                 for level_index in 1..game.num_levels() {
                     game.load_level(level_index)?;
                 }
+                // Выводим время обработки
                 info!(
                     "Done loading all levels in {:.4}s. Shutting down...",
                     t0.elapsed().f64_seconds()
