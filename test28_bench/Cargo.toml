@@ -1,0 +1,15 @@
+[package]
+name = "test28_bench"
+version = "0.1.0"
+authors = ["DevNul <devnulpavel@gmail.com>"]
+edition = "2018"
+
+# Зависимости только для разработки, в релиз не попадают
+[dev-dependencies]
+criterion = "0.3.1"
+
+# Можно создавать несколько бенчмарков
+[[bench]]
+path = "src/fibonacci_bench.rs"
+name = "fibonacci_bench"
+harness = false     # Отключает поддержку бенчмарков стандартных

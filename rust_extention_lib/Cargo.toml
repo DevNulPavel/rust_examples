@@ -33,3 +33,13 @@ panic = "unwind"   # Что делать в случае паники, "abort" -
 # overflow-checks = false
 
 [dependencies]
+
+# Зависимости только для разработки, в релиз не попадают
+[dev-dependencies]
+criterion = "0.3.1"
+
+# Можно создавать несколько бенчмарков
+[[bench]]
+path = "src/icmp_function_bench.rs"
+name = "icmp_function_bench"
+harness = false     # Отключает поддержку бенчмарков стандартных

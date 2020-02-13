@@ -159,6 +159,9 @@ MAKE_RUST_PROFILE_BUILD:
 TEST_RUST:
 	cargo test
 
+BENCH_RUST:
+	cargo bench
+
 TEST_CPP_APP_RELEASE: | _BUILD_OSX_RELEASE _BUILD_CPP_APP_RELEASE
 	./cpp_app/build_release/cpp_rust_app
 

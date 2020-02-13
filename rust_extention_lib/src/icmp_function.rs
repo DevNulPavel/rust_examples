@@ -192,16 +192,28 @@ pub fn test_icmp(){
     assert_eq!(test_func!("asd_"), 0);
     assert_eq!(test_func!("asd____"), 0);
     assert_eq!(test_func!("a"), 0);
-    assert_eq!(test_func!(""), 0);
+    assert_eq!(test_func!(""), 0);    
 }
 
 #[cfg(test)]
 pub mod tests {
-    use super::*;
-    //use crate::my_test_functions::*;
-
     #[test]
     fn icmp1_test() {
-        test_icmp();
+        use super::test_icmp;
+        //use crate::my_test_functions::*;
+
+        let test_func = ||{
+            for _ in 0..20_000 {
+                test_icmp();
+            }
+        };
+    
+        let t1 = std::thread::spawn(test_func);
+        let t2 = std::thread::spawn(test_func);
+        let t3 = std::thread::spawn(test_func);
+        
+        t1.join().unwrap();
+        t2.join().unwrap();
+        t3.join().unwrap();
     }
 }
