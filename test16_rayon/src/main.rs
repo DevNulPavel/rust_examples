@@ -1,7 +1,13 @@
+#![warn(clippy::all)]
+
+mod tally_words;
+
 use std::thread;
 use std::time;
 use rayon::prelude::*;
 use rayon::join;
+use tally_words::test_tally;
+
 
 fn sum_of_squares(input: &[i32]) -> i32 {
     // Мы просто заменяем вызов обычного итератора на итератор параллельный
@@ -58,4 +64,6 @@ fn main() {
         quick_sort(&mut vec);
         assert_eq!(vec, [1, 2, 3, 6, 8, 10, 23]);
     }
+
+    test_tally().unwrap();
 }
