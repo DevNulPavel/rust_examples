@@ -30,7 +30,7 @@ fn join_test(){
 fn main() {
     // Так можно сконфигурировать пул потоков
     let pool = rayon::ThreadPoolBuilder::new()
-        .num_threads(4)
+        .num_threads(2)
         .stack_size(1024*1024*4)
         .panic_handler(|data: Box<_>|{
             println!("Panicked with data {:?}", data);
@@ -45,10 +45,18 @@ fn main() {
         .build()
         .unwrap();
 
-    // Вроде как этот метод ключает данный пул для последующей работы, аналог build_global
+    // Вроде как этот метод ключает данный пул для последующей работы,
+    // но этот пулл работает внутри лямбды
     pool.install(||{
         let thread_index = pool.current_thread_index().unwrap();
         println!("Pool installed, thread index: {}", thread_index);
+        (0..100)
+            // Создаем параллельный итератор, который забирает значения (self не по ссылке)
+            .into_par_iter()
+            // Работает параллельно, порядок будет неправильный
+            .for_each(|_x| {
+                //println!("{:?}, thread index: {:?}", _x, rayon::current_thread_index());
+            });
     });
     pool.scope(|_: &rayon::Scope|{
         let thread_index = pool.current_thread_index().unwrap();
@@ -100,7 +108,7 @@ fn main() {
                     .unwrap_or_else(|| {
                         "none".to_owned()
                     });*/
-                println!("Send, thread index: {:?}", pool.current_thread_index());
+                println!("Send, thread index: {:?}", rayon::current_thread_index());
                 s.send(x).unwrap()
             });
         
