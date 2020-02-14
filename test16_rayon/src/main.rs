@@ -28,6 +28,34 @@ fn join_test(){
 }
 
 fn main() {
+    // Так можно сконфигурировать пул потоков
+    let pool = rayon::ThreadPoolBuilder::new()
+        .num_threads(4)
+        .stack_size(1024*1024*4)
+        .panic_handler(|data: Box<_>|{
+            println!("Panicked with data {:?}", data);
+        })
+        .start_handler(|index|{
+            println!("Thread {} started", index);
+        })
+        .exit_handler(|index|{
+            println!("Thread {} completed", index);
+        })
+        //.build_global() // Устанавливает пул глобально
+        .build()
+        .unwrap();
+
+    // Вроде как этот метод ключает данный пул для последующей работы, аналог build_global
+    pool.install(||{
+        let thread_index = pool.current_thread_index().unwrap();
+        println!("Pool installed, thread index: {}", thread_index);
+    });
+    pool.scope(|_: &rayon::Scope|{
+        let thread_index = pool.current_thread_index().unwrap();
+        println!("Scope, thread index: {}", thread_index);
+    });
+    //drop(pool);
+
     {
         let vec = vec![1, 2, 3, 4, 5];
         let result = sum_of_squares(&vec);
@@ -64,6 +92,15 @@ fn main() {
             // Можно вызывать для каждого итема функцию + заранее заданный параметр,
             // у которого каждый раз будет вызываться clone
             .for_each_with(sender, |s, x| {
+                /*let thread_index = pool
+                    .current_thread_index()
+                    .map(|val|{
+                        format!("{}", val)
+                    })
+                    .unwrap_or_else(|| {
+                        "none".to_owned()
+                    });*/
+                println!("Send, thread index: {:?}", pool.current_thread_index());
                 s.send(x).unwrap()
             });
         
