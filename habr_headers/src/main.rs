@@ -93,25 +93,27 @@ struct CssSelectors{
 
 //////////////////////////////////////////////////////////////////////////////////////////////////////
 
-fn text_to_multiline(text: &str, words_count: usize, intent: Option<&str>) -> String{
-    let mut line_words_count = 0;
+fn text_to_multiline(text: &str, symbols_on_line: usize, intent: Option<&str>) -> String{
+    let mut line_symb_count = 0;
     let mut multiline_text: String = text
         .split(' ')
         .map(|word|{
             if let Some(last) = word.chars().last(){
                 if last == '\n'{
-                    line_words_count = 0;
+                    line_symb_count = 0;
                 }
             }
 
-            line_words_count += 1;
-
-            if line_words_count % words_count != 0 {
+            let future_line_size = line_symb_count + word.len() + 1;
+            if (future_line_size < symbols_on_line) || (line_symb_count == 0) {
+                line_symb_count += word.len() + 1;
                 vec![word, " "]
             }else if let Some(intent) = intent{
-                vec![word, "\n", intent]
+                line_symb_count = intent.len() + word.len() + 1;
+                vec!["\n", intent, word, " "]
             }else{
-                vec![word, "\n"]
+                line_symb_count = word.len() + 1;
+                vec!["\n", word, " "]
             }
         })
         .flatten()
@@ -150,11 +152,11 @@ fn print_results(selected: &[HabrTitle], previous_results: Option<HashSet<String
     for info in selected.iter().rev() {
         // TODO: Может можно оптимальнее??
 
-        let multiline_text = text_to_multiline(&info.title, 3, None);
+        let multiline_text = text_to_multiline(&info.title, 60, None);
         // multiline_text.push_str("\n\n");
         // multiline_text.push_str(&info.tags);
 
-        let tags_text = text_to_multiline(&info.tags.join("\n"), 3, Some(" "));
+        let tags_text = text_to_multiline(&info.tags.join("\n"), 40, Some(" "));
 
         let text_color = previous_results
             .as_ref()
