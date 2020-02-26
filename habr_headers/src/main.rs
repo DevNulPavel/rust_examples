@@ -6,6 +6,7 @@ extern crate reqwest;
 extern crate scraper;
 extern crate serde;
 extern crate serde_json;
+extern crate dirs;
 
 use rayon::prelude::*;
 
@@ -23,7 +24,7 @@ use prettytable::{Table, Row, Cell, Attr};
 // use itertools::Itertools;
 
 
-const CACHE_FILE_NAME: &str = "habrahabr_headers.json";
+const CACHE_FILE_NAME: &str = ".habrahabr_headers.json";
 
 //////////////////////////////////////////////////////////////////////////////////////////////////////
 
@@ -295,7 +296,7 @@ fn receive_habr_info() -> Vec<HabrTitle>{
 }
 
 fn preload_previous_results() -> Option<HashSet<String>> {
-    let temp_folder_path = std::env::temp_dir();
+    let temp_folder_path = dirs::home_dir()?;
     let cache_file_path = std::path::PathBuf::new()
         .join(temp_folder_path)
         .join(CACHE_FILE_NAME);
@@ -312,24 +313,25 @@ fn preload_previous_results() -> Option<HashSet<String>> {
 }
 
 fn save_links_to_file(links: &[HabrTitle]){
-    let temp_folder_path = std::env::temp_dir();
-    let cache_file_path = std::path::PathBuf::new()
-        .join(temp_folder_path)
-        .join(CACHE_FILE_NAME);
+    if let Some(temp_folder_path) = dirs::home_dir(){
+        let cache_file_path = std::path::PathBuf::new()
+            .join(temp_folder_path)
+            .join(CACHE_FILE_NAME);
 
-    let links_iter: Vec<&str> = links
-        .iter()
-        .map(|info|{
-            info.link.as_str()
-        })
-        .collect();
+        let links_iter: Vec<&str> = links
+            .iter()
+            .map(|info|{
+                info.link.as_str()
+            })
+            .collect();
 
-    std::fs::File::create(cache_file_path)
-        .ok()
-        .and_then(|file|{
-            serde_json::to_writer(file, &links_iter)
-                .ok()
-        });
+        std::fs::File::create(cache_file_path)
+            .ok()
+            .and_then(|file|{
+                serde_json::to_writer(file, &links_iter)
+                    .ok()
+            });
+    }
 }
 
 fn main() -> Result<(), HabrErrors> {
