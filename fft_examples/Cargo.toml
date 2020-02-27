@@ -1,0 +1,9 @@
+[package]
+name = "fft_examples"
+version = "0.1.0"
+authors = ["DevNul <devnulpavel@gmail.com>"]
+edition = "2018"
+
+# Зависимости только для разработки, в релиз не попадают
+[dependencies]
+rustfft = "3.0.1"
