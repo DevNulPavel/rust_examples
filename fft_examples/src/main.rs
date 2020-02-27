@@ -45,14 +45,25 @@ fn plot_results(input: &[Complex32], out: &[Complex32]) -> Result<(), Box<dyn st
             (i as f32, val.re)
         });
     
-    let out_iter = out
+    let out_ampl_iter = out
         .iter()
         .take(data_size)
         .enumerate()
         .map(|(i, val)|{
-            let res = (1.0 / out.len() as f32) * (val.re * val.re + val.im * val.im).sqrt();
-            (i as f32, res)
+            // http://psi-logic.narod.ru/fft/fftg.htm
+            let amplitude = (1.0 / out.len() as f32) * (val.re * val.re + val.im * val.im).sqrt();
+            (i as f32, amplitude)
         });
+
+    // let out_phase_iter = out
+    //     .iter()
+    //     .take(data_size)
+    //     .enumerate()
+    //     .map(|(i, val)|{
+    //         // http://psi-logic.narod.ru/fft/fftg.htm
+    //         let phase = val.arg();
+    //         (i as f32, phase)
+    //     });
 
 
     let root = BitMapBackend::new("0.png", (640, 480)).into_drawing_area();
@@ -78,11 +89,19 @@ fn plot_results(input: &[Complex32], out: &[Complex32]) -> Result<(), Box<dyn st
 
     chart
         .draw_series(LineSeries::new(
-            out_iter,
+            out_ampl_iter,
             &RED,
         ))?
         .label("Freq amplitudes")
         .legend(|(x, y)| PathElement::new(vec![(x, y), (x + 20, y)], &RED));
+
+    // chart
+    //     .draw_series(LineSeries::new(
+    //         out_phase_iter,
+    //         &RED,
+    //     ))?
+    //     .label("Freq phases")
+    //     .legend(|(x, y)| PathElement::new(vec![(x, y), (x + 20, y)], &RED));
 
     chart
         .configure_series_labels()
