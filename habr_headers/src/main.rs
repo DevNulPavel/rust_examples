@@ -94,98 +94,6 @@ struct CssSelectors{
 
 //////////////////////////////////////////////////////////////////////////////////////////////////////
 
-fn text_to_multiline(text: &str, symbols_on_line: usize, intent: Option<&str>) -> String{
-    let mut line_symb_count = 0;
-    let mut multiline_text: String = text
-        .split(' ')
-        .map(|word|{
-            if let Some(last) = word.chars().last(){
-                if last == '\n'{
-                    line_symb_count = 0;
-                }
-            }
-
-            let future_line_size = line_symb_count + word.len() + 1;
-            if (future_line_size < symbols_on_line) || (line_symb_count == 0) {
-                line_symb_count += word.len() + 1;
-                vec![word, " "]
-            }else if let Some(intent) = intent{
-                line_symb_count = intent.len() + word.len() + 1;
-                vec!["\n", intent, word, " "]
-            }else{
-                line_symb_count = word.len() + 1;
-                vec!["\n", word, " "]
-            }
-        })
-        .flatten()
-        .collect();
-
-    // Убираем пробел или \n в конце
-    while let Some(last) = multiline_text.chars().last() {
-        if last.is_whitespace(){
-            multiline_text.pop();
-        }else{
-            break;
-        }
-    }
-    
-    multiline_text
-}
-
-fn print_results(selected: &[HabrTitle], previous_results: Option<HashSet<String>>){
-    // Create the table
-    let mut table = Table::new();
-
-    // let format = format::FormatBuilder::new()
-    //     .indent(0)
-    //     .column_separator(' ')
-    //     .borders(' ')
-    //     .separators(&[format::LinePosition::Intern,
-    //                 format::LinePosition::Bottom],
-    //                 format::LineSeparator::new(' ', ' ', ' ', ' '))
-    //     .padding(1, 1)
-    //     .build();
-    // table.set_format(format);
-
-    // table.set_format(*format::consts::FORMAT_NO_BORDER_LINE_SEPARATOR);
-
-    // Выводим текст, используем into_iter для потребляющего итератора
-    for info in selected.iter().rev() {
-        // TODO: Может можно оптимальнее??
-
-        let multiline_text = text_to_multiline(&info.title, 60, None);
-        // multiline_text.push_str("\n\n");
-        // multiline_text.push_str(&info.tags);
-
-        let tags_text = text_to_multiline(&info.tags.join("\n"), 40, Some(" "));
-
-        let text_color = previous_results
-            .as_ref()
-            .map(|set|{
-                if set.contains(info.link.as_str()) {
-                    color::GREEN
-                }else{
-                    color::YELLOW
-                }
-            })
-            .unwrap_or(color::YELLOW);
-
-        let row = Row::new(vec![
-                Cell::new(&multiline_text)
-                    .with_style(Attr::ForegroundColor(text_color)),
-                Cell::new(&tags_text)
-                    .with_style(Attr::ForegroundColor(color::WHITE)),
-                Cell::new(&info.time)
-                    .with_style(Attr::ForegroundColor(color::WHITE)),
-                Cell::new(&info.link)
-            ]);
-        table.add_row(row);
-    }
-
-    // Print the table to stdout
-    table.printstd();
-}
-
 fn request_links_from_page(link: &str, shared_selectors: &CssSelectors) -> Result<Vec<HabrTitle>, HabrErrors>{
     let page_text = get(link)?
         .text()?;
@@ -224,7 +132,7 @@ fn request_links_from_page(link: &str, shared_selectors: &CssSelectors) -> Resul
             let text = text.unwrap();
             let href = href.unwrap().to_owned();
 
-            // TODO: Может быть можно улучшить???
+            // Выдергиваем теги
             let tags: Vec<String> = preview_element.select(&shared_selectors.tags_selector)
                 .map(|element|{
                     let text: Option<String> = ToTextOption!(element);
@@ -237,8 +145,6 @@ fn request_links_from_page(link: &str, shared_selectors: &CssSelectors) -> Resul
                     format!("#{}", val.unwrap())
                 })
                 .collect();
-            
-            //let tags_str = tags.join("\n");
 
             HabrTitle{
                 time,
@@ -253,11 +159,11 @@ fn request_links_from_page(link: &str, shared_selectors: &CssSelectors) -> Resul
 }
 
 fn receive_habr_info() -> Vec<HabrTitle>{
-    const LINKS: [&str; 4] = [
+    const LINKS: [&str; 2] = [
         "https://habr.com/ru/all/",
         "https://habr.com/ru/all/page2/",
-        "https://habr.com/ru/all/page3/",
-        "https://habr.com/ru/all/page4/",
+        //"https://habr.com/ru/all/page3/",
+        //"https://habr.com/ru/all/page4/",
     ];
 
     // Создаем селекторы по классу заранее
@@ -334,8 +240,97 @@ fn save_links_to_file(links: &[HabrTitle]){
     }
 }
 
-fn main() -> Result<(), HabrErrors> {
+fn text_to_multiline(text: &str, symbols_on_line: usize, intent: Option<&str>) -> String{
+    let mut line_symb_count = 0;
+    let mut multiline_text: String = text
+        .split(' ')
+        .map(|word|{
+            if let Some(last) = word.chars().last(){
+                if last == '\n'{
+                    line_symb_count = 0;
+                }
+            }
 
+            let future_line_size = line_symb_count + word.len() + 1;
+            if (future_line_size < symbols_on_line) || (line_symb_count == 0) {
+                line_symb_count += word.len() + 1;
+                vec![word, " "]
+            }else if let Some(intent) = intent{
+                line_symb_count = intent.len() + word.len() + 1;
+                vec!["\n", intent, word, " "]
+            }else{
+                line_symb_count = word.len() + 1;
+                vec!["\n", word, " "]
+            }
+        })
+        .flatten()
+        .collect();
+
+    // Убираем пробел или \n в конце
+    while let Some(last) = multiline_text.chars().last() {
+        if last.is_whitespace(){
+            multiline_text.pop();
+        }else{
+            break;
+        }
+    }
+    
+    multiline_text
+}
+
+fn print_results(selected: &[HabrTitle], previous_results: Option<HashSet<String>>){
+    // Create the table
+    let mut table = Table::new();
+
+    // let format = format::FormatBuilder::new()
+    //     .indent(0)
+    //     .column_separator(' ')
+    //     .borders(' ')
+    //     .separators(&[format::LinePosition::Intern,
+    //                 format::LinePosition::Bottom],
+    //                 format::LineSeparator::new(' ', ' ', ' ', ' '))
+    //     .padding(1, 1)
+    //     .build();
+    // table.set_format(format);
+
+    // table.set_format(*format::consts::FORMAT_NO_BORDER_LINE_SEPARATOR);
+
+    // Выводим текст, используем into_iter для потребляющего итератора
+    for info in selected.iter().rev() {
+        let multiline_text = text_to_multiline(&info.title, 60, None);
+        // multiline_text.push_str("\n\n");
+        // multiline_text.push_str(&info.tags);
+
+        let tags_text = text_to_multiline(&info.tags.join("\n"), 40, Some(" "));
+
+        let text_color = previous_results
+            .as_ref()
+            .map(|set|{
+                if set.contains(info.link.as_str()) {
+                    color::YELLOW
+                }else{
+                    color::GREEN
+                }
+            })
+            .unwrap_or(color::GREEN);
+
+        let row = Row::new(vec![
+                Cell::new(&multiline_text)
+                    .with_style(Attr::ForegroundColor(text_color)),
+                Cell::new(&tags_text)
+                    .with_style(Attr::ForegroundColor(color::WHITE)),
+                Cell::new(&info.time)
+                    .with_style(Attr::ForegroundColor(color::WHITE)),
+                Cell::new(&info.link)
+            ]);
+        table.add_row(row);
+    }
+
+    // Print the table to stdout
+    table.printstd();
+}
+
+fn main() -> Result<(), HabrErrors> {
     // Одновременно грузим с сервера ссылки + читаем прошлые ссылки из файлика
     let (selected, previous) = rayon::join(||{
         receive_habr_info()
@@ -343,6 +338,7 @@ fn main() -> Result<(), HabrErrors> {
         preload_previous_results()
     });
     
+    // Запускаем одновременный вывод результата + сохранение результата
     rayon::join(||{
         print_results(&selected, previous);
     }, ||{
