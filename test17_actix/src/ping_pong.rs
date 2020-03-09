@@ -1,7 +1,7 @@
-use std::io;
+/*use std::io;
 use actix::prelude::*;
 //use actix::dev::{MessageResponse, ResponseChannel};
-use futures::Future;
+// use futures::Future;
 
 /// Define message
 struct Ping;
@@ -65,4 +65,4 @@ pub fn test_ping_pong() {
         }));
 
     sys.run();
-}
+}*/

@@ -1,4 +1,4 @@
-use actix::dev::{MessageResponse, ResponseChannel};
+/*use actix::dev::{MessageResponse, ResponseChannel};
 use actix::prelude::*;
 use futures::Future;
 
@@ -96,4 +96,4 @@ fn main() {
     );
 
     sys.run();
-}
+}*/
