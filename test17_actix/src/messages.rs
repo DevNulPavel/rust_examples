@@ -1,4 +1,6 @@
-use actix::*;
+//use futures::prelude::*;
+use actix::fut::*;
+use actix::prelude::*;
 
 /////////////////////////////////////////////
 
@@ -61,7 +63,7 @@ struct SummatorActor{
 
 // Реализация трейта актора
 impl actix::Actor for SummatorActor {
-    // Описываем контекст актора
+    // Описываем однопоточный контекст актора
     type Context = actix::Context<Self>;
 
     fn started(&mut self, ctx: &mut Self::Context) {
@@ -82,11 +84,11 @@ impl actix::Handler<ValuesMessage> for SummatorActor {
     type Result = CalcResult;   // Описываем возвращаемое значение для актора, реализовали MessageResponse
 
     // Обработчик поступившего сообщения для актора
-    fn handle(&mut self, msg: ValuesMessage, ctx: &mut actix::Context<Self>) -> Self::Result {
-        if ctx.connected(){
+    fn handle(&mut self, msg: ValuesMessage, _ctx: &mut Self::Context) -> Self::Result {
+        /*if _ctx.connected(){
             println!("Context is connected");
         }
-        println!("Actor state: {:?}", ctx.state());
+        println!("Actor state: {:?}", _ctx.state());*/
 
         // Обработка происходит из только одного потока, синхронизация не нужна
         self.messages_processed += 1;
@@ -109,8 +111,8 @@ struct SubActor{
 
 // Реализация трейта актора
 impl actix::Actor for SubActor {
-    // Описываем контекст актора
-    type Context = actix::Context<Self>;
+    // Описываем мнотопоточый контекст актора
+    type Context = actix::SyncContext<Self>;
 }
 
 // Описываем обработку сообщения SumMessage для нашего актора
@@ -119,7 +121,7 @@ impl actix::Handler<ValuesMessage> for SubActor {
     type Result = CalcResult;   // Описываем возвращаемое значение для актора, реализовали MessageResponse
 
     // Обработчик поступившего сообщения для актора
-    fn handle(&mut self, msg: ValuesMessage, _ctx: &mut actix::Context<Self>) -> Self::Result {
+    fn handle(&mut self, msg: ValuesMessage, _ctx: &mut Self::Context) -> Self::Result {
         // Обработка происходит из только одного потока, синхронизация не нужна
         self.messages_processed += 1;
 
@@ -134,7 +136,8 @@ impl actix::Handler<ValuesMessage> for SubActor {
 /////////////////////////////////////////////
 
 pub fn test_actor_messages() {
-    let sys = actix::System::new("test");
+    // TODO: Нужно ли явно создавать систему?
+    let _sys = actix::System::new("test");
 
     // Создаем нашего актора, такой спооб нужен для быстрого создания и запуска потом
     let sum_actor = SummatorActor::default();
@@ -144,7 +147,13 @@ pub fn test_actor_messages() {
 
     // Такой способ создания нужен для создания актора с возможностью доступа к контексту
     // до его создания
-    let sub_adr = SubActor::create(|_ctx|{
+    /*let sub_adr = SubActor::create(|_ctx|{
+        let sub_actor = SubActor::default();
+        sub_actor
+    });*/
+
+    // Создаем контекст исполнения для 2х акторов, работающих в пуле
+    let sub_adr = actix::SyncArbiter::start(2, ||{
         let sub_actor = SubActor::default();
         sub_actor
     });
@@ -181,7 +190,38 @@ pub fn test_actor_messages() {
         })
         .collect();
 
-    actix::Arbiter::spawn(async move {
+    let new_arbiter = actix::Arbiter::new();
+    new_arbiter.send(futures::future::lazy(move |_|{
+        println!("Test");
+        // for result in all_results.into_iter(){
+        //     println!("{:?}", result.await.unwrap());
+        // }
+    }));
+
+    // Запускаем задачу в одном единственном потоке арбитра, в EventLoop
+    // Arbiter - однопоточный EventLoop
+    // actix::Arbiter::spawn(async move {
+    // actix::spawn(async move {
+
+    // Короткий вариант, совмещающий запуск и обработку
+    actix::run(async move {
+        // Можем подождать асинхронно
+        actix::clock::delay_for(std::time::Duration::from_millis(2000)).await;
+
+        // Можно создать таймер, который будет срабатывать с определенной периодичностью
+        // Можно таким образом создать бесконечный цикл, который что-то делает
+        {
+            use std::time::Duration;
+
+            let start = tokio::time::Instant::now() + Duration::from_millis(50);
+            let mut interval = actix::clock::interval_at(start, Duration::from_millis(10));
+
+            for _ in 0..5 {
+                //futures::try_join!(interval.tick());
+                interval.tick().await;
+            }
+        }
+
         let result: CalcResult = res1.await.unwrap();
         assert_eq!(result.result, 15);
         assert_eq!(result.operations_count, 1);
@@ -204,7 +244,9 @@ pub fn test_actor_messages() {
         }
 
         actix::System::current().stop();
-    });
+    }).unwrap();
 
-    sys.run().unwrap();
+    // Запускаем систему и блокируемся тут
+    // sys.run().unwrap();
+    
 }
