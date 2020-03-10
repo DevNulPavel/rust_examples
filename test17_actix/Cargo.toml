@@ -10,3 +10,6 @@ edition = "2018"
 tokio = "0.2.13"
 futures = "0.3.4"
 actix = "0.9.0"
+
+[dependencies.actors_test]
+path = "actors_test"

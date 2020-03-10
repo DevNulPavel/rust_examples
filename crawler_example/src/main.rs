@@ -8,17 +8,23 @@ use url::{
     Url
 };
 use html5ever::tokenizer::{
-    BufferQueue, Tag, TagKind, TagToken, Token, TokenSink, TokenSinkResult, Tokenizer,
-    TokenizerOpts,
+    BufferQueue, 
+    TagKind, 
+    TagToken, 
+    Token, 
+    TokenSink, 
+    TokenSinkResult, 
+    Tokenizer,
+    TokenizerOpts, 
+    // Tag,
 };
 use futures::channel::oneshot;
-use futures::future::FutureExt;
+//use futures::future::FutureExt;
 
 
 
 
 type CrawlResult = Result<(), Box<dyn std::error::Error + Send + Sync + 'static>>;
-
 type BoxFuture = std::pin::Pin<Box<dyn std::future::Future<Output = CrawlResult> + Send>>;
 
 #[derive(Default, Debug)]
@@ -31,51 +37,55 @@ impl TokenSink for &mut LinkQueue {
 
     // <a href="link">some text</a>
     fn process_token(&mut self, token: Token, _: u64) -> TokenSinkResult<Self::Handle> {
+        // Обрабатываем токен
         if let TagToken(tag) = token {
+            // Если попадаем на старт тега a
             if tag.kind == TagKind::StartTag && tag.name.as_ref() == "a" {
+                // Обходим аттрибуты
                 for attribute in tag.attrs.iter() {
+                    // Если имя - href
                     if attribute.name.local.as_ref() == "href" {
+                        // URL
                         let url_str: &[u8] = attribute.value.borrow();
-                        self.links
-                            .push(String::from_utf8_lossy(url_str).into_owned());
+                        let url_string = String::from_utf8_lossy(url_str).into_owned();
+                        // Сохраняем в наш вектор
+                        self.links.push(url_string);
                     }
                 }
             }
         }
-        /*match token {
-            TagToken(
-                ref tag @ Tag {
-                    kind: TagKind::StartTag,
-                    ..
-                },
-            ) => {
-
-            }
-            _ => {}
-        }*/
         TokenSinkResult::Continue
     }
 }
 
 // Выдергиваем ссылки для страницы
 fn get_links(url: &Url, page: String) -> Vec<Url> {
+    // Клонируем урл
     let mut domain_url = url.clone();
+    // Устанавливаем базовый путь
     domain_url.set_path("");
     domain_url.set_query(None);
 
+    // Создаем очередь
     let mut queue = LinkQueue::default();
+    // На основании очередт - создаем обработчик токенов
     let mut tokenizer = Tokenizer::new(&mut queue, TokenizerOpts::default());
+    // Создаем буффер
     let mut buffer = BufferQueue::new();
     buffer.push_back(page.into());
     let _ = tokenizer.feed(&mut buffer);
 
+    // Обработка ссылок
     queue
         .links
         .iter()
-        .map(|link| match Url::parse(link) {
-            Err(ParseError::RelativeUrlWithoutBase) => domain_url.join(link).unwrap(),
-            Err(_) => panic!("Malformed link found: {}", link),
-            Ok(url) => url,
+        .map(|link| {
+            let parsed = Url::parse(link);
+            match parsed {
+                Err(ParseError::RelativeUrlWithoutBase) => domain_url.join(link).unwrap(),
+                Err(_) => panic!("Malformed link found: {}", link),
+                Ok(url) => url,
+            }
         })
         .collect()
 }

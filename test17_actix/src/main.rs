@@ -1,9 +1,11 @@
+#![allow(unused_imports)]
 
-mod ping_pong;
-mod messages;
+mod ping_pong_test;
+
+use actors_test;
 
 
 fn main() {
-    messages::test_actor_messages();
-    //ping_pong::test_ping_pong();
+    //actors_test::test_actor_messages();
+    ping_pong_test::test_ping_pong();
 }

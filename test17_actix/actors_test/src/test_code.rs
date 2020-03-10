@@ -1,137 +1,13 @@
-//use futures::prelude::*;
-use actix::fut::*;
+//use actix::fut::*;
+//use futures::FutureExt; // Для того, чтобы работали методы у future
 use actix::prelude::*;
+use futures::prelude::*;
 
-/////////////////////////////////////////////
+use crate::actors::SummatorActor; // Crate, self или super ???
+use crate::actors::SubActor;
+use super::value_message::ValuesMessage;
+use super::calc_result::CalcResult;
 
-// Содержимое нашего сообщения
-#[derive(Default)]
-struct ValuesMessage{
-    x: i32, 
-    y: i32
-}
-
-impl ValuesMessage{
-    fn new(x: i32, y: i32)-> ValuesMessage{
-        ValuesMessage{ x, y }
-    }
-}
-
-// Реализация трейта Message для нашего сообщения
-impl actix::Message for ValuesMessage {
-    // описываем тип возвращаемого значения на сообщение
-    //type Result = Option<CalcResult>;
-    type Result = CalcResult;
-}
-
-/////////////////////////////////////////////
-
-#[derive(Default, Debug)]
-struct CalcResult{
-    result: i32,
-    operations_count: u32
-}
-
-impl CalcResult{
-    fn new(result: i32, operations_count: u32)-> CalcResult{
-        CalcResult{ result, operations_count }
-    }
-}
-
-// Для того, чтобы не использовать Option или Result в описании типа Result у сообщения
-// и у актора - мы реализуем данный трейт для результата сообщения
-// Для Option/Result - уже реализовано в самой библиотеке
-impl<A, M> actix::dev::MessageResponse<A, M> for CalcResult
-where
-    A: actix::Actor,
-    M: actix::Message<Result = CalcResult>
-{
-    fn handle<R: actix::dev::ResponseChannel<M>>(self, _: &mut A::Context, tx: Option<R>) {
-        if let Some(tx) = tx {
-            tx.send(self);
-        }
-    }
-}
-
-/////////////////////////////////////////////
-
-// Описание нашего актора
-#[derive(Default)]
-struct SummatorActor{
-    messages_processed: u32 // Контекст актора
-}
-
-// Реализация трейта актора
-impl actix::Actor for SummatorActor {
-    // Описываем однопоточный контекст актора
-    type Context = actix::Context<Self>;
-
-    fn started(&mut self, ctx: &mut Self::Context) {
-        // Можно ограничить размер очереди
-        // https://actix.rs/book/actix/sec-4-context.html
-        ctx.set_mailbox_capacity(1);
-        println!("Sum actor started, state: {:?}", ctx.state());
-    }
-
-    fn stopped(&mut self, ctx: &mut Self::Context) {
-        println!("Sum actor stopped, state: {:?}", ctx.state());
-    }
-}
-
-// Описываем обработку сообщения SumMessage для нашего актора
-impl actix::Handler<ValuesMessage> for SummatorActor {
-    //type Result = Option<SumResult>;   // Описываем возвращаемое значение для актора
-    type Result = CalcResult;   // Описываем возвращаемое значение для актора, реализовали MessageResponse
-
-    // Обработчик поступившего сообщения для актора
-    fn handle(&mut self, msg: ValuesMessage, _ctx: &mut Self::Context) -> Self::Result {
-        /*if _ctx.connected(){
-            println!("Context is connected");
-        }
-        println!("Actor state: {:?}", _ctx.state());*/
-
-        // Обработка происходит из только одного потока, синхронизация не нужна
-        self.messages_processed += 1;
-
-        // Вычисляем
-        let sum_value: i32 = msg.x + msg.y;
-        
-        // Результат
-        Self::Result::new(sum_value, self.messages_processed)
-    }
-}
-
-/////////////////////////////////////////////
-
-// Описание нашего актора
-#[derive(Default)]
-struct SubActor{
-    messages_processed: u32 // Контекст актора
-}
-
-// Реализация трейта актора
-impl actix::Actor for SubActor {
-    // Описываем мнотопоточый контекст актора
-    type Context = actix::SyncContext<Self>;
-}
-
-// Описываем обработку сообщения SumMessage для нашего актора
-impl actix::Handler<ValuesMessage> for SubActor {
-    //type Result = Option<SumResult>;   // Описываем возвращаемое значение для актора
-    type Result = CalcResult;   // Описываем возвращаемое значение для актора, реализовали MessageResponse
-
-    // Обработчик поступившего сообщения для актора
-    fn handle(&mut self, msg: ValuesMessage, _ctx: &mut Self::Context) -> Self::Result {
-        // Обработка происходит из только одного потока, синхронизация не нужна
-        self.messages_processed += 1;
-
-        // Вычисляем
-        let sub_value: i32 = msg.x - msg.y;
-        
-        // Результат
-        Self::Result::new(sub_value, self.messages_processed)
-    }
-}
 
 /////////////////////////////////////////////
 
@@ -218,7 +94,12 @@ pub fn test_actor_messages() {
 
             for _ in 0..5 {
                 //futures::try_join!(interval.tick());
-                interval.tick().await;
+                interval
+                    .tick()
+                    .map(|val|{
+                        val
+                    })
+                    .await;
             }
         }
 
@@ -239,8 +120,27 @@ pub fn test_actor_messages() {
                 //assert_eq!(result.operations_count, 4);
                 println!("{:?}", result.await);
             });*/
+
         for result in all_results.into_iter(){
-            println!("{:?}", result.await.unwrap());
+            let value = result
+                // map преобразует значения одного типа в значения другого
+                .map(|result|{
+                    if let Ok(valid_value) = result {
+                        return valid_value.result;
+                    }
+                    0_i32
+                })
+                // Запускает по цепочке новые вычисления, должна возвращать новую future
+                .then(|result| {
+                    // Новый async блок, который возвращает future
+                    let new_future = async move {
+                        let temp_result: i32 = result;
+                        temp_result
+                    };
+                    new_future
+                })
+                .await;
+            println!("{:?}", value);
         }
 
         actix::System::current().stop();
