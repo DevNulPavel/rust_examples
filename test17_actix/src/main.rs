@@ -6,6 +6,6 @@ use actors_test;
 
 
 fn main() {
-    //actors_test::test_actor_messages();
+    actors_test::test_actor_messages();
     ping_pong_test::test_ping_pong();
 }

@@ -81,6 +81,22 @@ pub fn test_actor_messages() {
 
     // Короткий вариант, совмещающий запуск и обработку
     actix::run(async move {
+        // Создание future из лямбды
+        {
+            let a = future::lazy(|_| {
+                1
+            });
+            assert_eq!(a.await, 1);    
+        }
+
+        /*{
+            let fut = future::maybe_done(async { 5 });
+            assert_eq!(fut.as_mut().take_output(), None);
+            let () = fut.as_mut().await;
+            assert_eq!(fut.as_mut().take_output(), Some(5));
+            assert_eq!(fut.as_mut().take_output(), None);    
+        }*/
+
         // Можем подождать асинхронно
         actix::clock::delay_for(std::time::Duration::from_millis(2000)).await;
 
