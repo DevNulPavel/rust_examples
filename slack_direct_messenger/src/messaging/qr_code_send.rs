@@ -58,7 +58,7 @@ pub async fn send_qr_to_channel(client: &reqwest::Client, api_token: &str, chann
         //.part("file", Part::bytes(file_data).file_name(filename.to_owned()));
         .part("file", Part::stream(image_data).file_name(filename.to_owned()));
 
-    let _response = client.post("https://slack.com/api/files.upload")
+    client.post("https://slack.com/api/files.upload")
         .bearer_auth(api_token)
         .multipart(form)
         .send()
