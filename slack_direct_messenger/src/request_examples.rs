@@ -1,4 +1,4 @@
-use tokio::prelude::*;
+/*use tokio::prelude::*;
 use tokio::net::TcpListener;
 use hyper::Client;
 
@@ -98,4 +98,4 @@ async fn perform_get_request_with_reqwest() -> Result<(), Box<dyn std::error::Er
 // let result = test_tokio_server();
 // result.await?;
 //perform_get_request_with_hyper().await?;
-//perform_get_request_with_reqwest().await?;
+//perform_get_request_with_reqwest().await?;*/
