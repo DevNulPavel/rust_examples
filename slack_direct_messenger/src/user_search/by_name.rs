@@ -6,7 +6,7 @@ use std::path::Path;
 use std::collections::HashMap;
 use serde::Deserialize;
 use serde::Serialize;
-use crate::errors::MessageError;
+use super::super::errors::MessageError; // Можно даже так вместо crate::
 
 // Создаем структурки, в которых будут нужные значения
 #[derive(Deserialize, Serialize, Debug, Clone)]

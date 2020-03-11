@@ -1,17 +1,18 @@
 #![warn(clippy::all)]
 #![allow(dead_code)]
 
-// TODO: ???
-// Описание модулей используются только в main.rs, lib.rs, mod.rs
-// В других файлах надо использовать use self::, crate::, super::
-// Папку с корневым файлом mod.rs надо воспринимать как модуль с подмодулями в виде других файликов
-// другие файлы .rs лучше воспринимать как папку с корневым файлом mod.rs
-// https://users.rust-lang.org/t/importing-module-from-another-module/18172/9
-mod errors;
-mod user_search;
-mod messaging;
+// Можно создавать отдельно библиотеку и отдельно код бинарника в папке bin
+// В зависимости от имени файлика - создается исполняемый бинарник
 
-use clap::{Arg, App};
+use clap::{
+    Arg, 
+    App
+};
+// Так мы подключаем библиотеку для использования
+use slack_direct_messenger::{
+    messaging,
+    user_search
+};
 
 #[tokio::main]
 async fn main() -> Result<(), Box<dyn std::error::Error>> {
