@@ -10,6 +10,14 @@ pub struct UserInfo {
     pub real_name: Option<String>
 }
 
+impl PartialEq<UserInfo> for UserInfo {
+    fn eq(&self, other: &UserInfo) -> bool {
+        self.id == other.id &&
+        self.name == other.name &&
+        self.real_name == other.real_name
+    }
+}
+
 // Result<Vec<UserInfo>, Box<dyn std::error::Error>>
 pub async fn iter_by_slack_users(client: &reqwest::Client, 
                                  api_token: &str, 

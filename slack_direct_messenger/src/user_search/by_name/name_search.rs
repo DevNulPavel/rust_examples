@@ -30,7 +30,7 @@ fn read_cache(cache_file_full_path: &Path) -> HashMap<String, UserInfo> {
     users_cache
 }
 
-fn save_cache(cache_file_folder: &Path, cache_file_full_path: &Path, users_cache: HashMap<String, UserInfo> ) {
+fn save_cache(cache_file_folder: &Path, cache_file_full_path: &Path, users_cache: &HashMap<String, UserInfo> ) {
     if !cache_file_folder.exists() {
         std::fs::create_dir_all(cache_file_folder).unwrap();
     }
@@ -78,7 +78,7 @@ fn save_cache(cache_file_folder: &Path, cache_file_full_path: &Path, users_cache
     }
 }
 
-fn search_by_fullname(full_users_list: Vec<UserInfo>, user: &str) -> Option<UserInfo>{
+fn search_by_fullname(full_users_list: Vec<UserInfo>, user_lowercase: &str) -> Option<UserInfo>{
     // Структура юзера с приоритетом
     #[derive(Debug)]
     struct UserInfoWithPriority{
@@ -88,14 +88,14 @@ fn search_by_fullname(full_users_list: Vec<UserInfo>, user: &str) -> Option<User
 
     let mut found_users: Vec<UserInfoWithPriority> = Vec::new(); 
 
-    let search_parts: Vec<&str> = user.split(' ').collect();
+    let search_parts: Vec<&str> = user_lowercase.split(' ').collect();
     for user_info in full_users_list { // Объекты будут перемещать владение в user_info        
         // Проверяем полное имя
         if let Some(ref real_name_src) = user_info.real_name {
             let real_name = real_name_src.to_lowercase();
 
             // Нашли сразу же
-            if real_name == user {
+            if real_name == user_lowercase {
                 return Some(user_info);
             }else{
                 let mut possible_val = UserInfoWithPriority{
@@ -228,11 +228,119 @@ pub async fn find_user_id_by_name(client: &reqwest::Client, api_token: &str, src
         users_cache.insert(user.to_owned(), info.clone());
 
         // Сохраняем наш кэш
-        save_cache(&cache_file_folder, &cache_file_full_path, users_cache);
+        save_cache(&cache_file_folder, &cache_file_full_path, &users_cache);
 
         println!("{:?}", info);
         return Ok(info.id);
     }
 
     Err(MessageError::IsNotFound)
+}
+
+// этот модуль включается только при тестировании mod tests {
+#[cfg(test)]
+mod tests{
+    use super::*;
+
+    fn generate_test_users() -> HashMap<String, UserInfo>{
+        let mut users_cache: HashMap<String, UserInfo> = HashMap::new();
+        users_cache.insert(String::from("pershov"), UserInfo{
+            id: String::from("asdasd"),
+            name: String::from("pershov"),
+            real_name: Some(String::from("Pavel Ershov"))
+        });
+        users_cache.insert(String::from("Pavel Ershov"), UserInfo{
+            id: String::from("asdasd"),
+            name: String::from("pershov"),
+            real_name: Some(String::from("Pavel Ershov"))
+        });
+        users_cache.insert(String::from("Ershov Pavel"), UserInfo{
+            id: String::from("asdasd"),
+            name: String::from("pershov"),
+            real_name: Some(String::from("Pavel Ershov"))
+        });
+        users_cache.insert(String::from("Pavel Ivanov"), UserInfo{
+            id: String::from("ggggg"),
+            name: String::from("pivanov"),
+            real_name: Some(String::from("Pavel Ivanov"))
+        });
+        users_cache.insert(String::from("pivanov"), UserInfo{
+            id: String::from("ggggg"),
+            name: String::from("pivanov"),
+            real_name: Some(String::from("Pavel Ivanov"))
+        });
+        users_cache.insert(String::from("Ivanov Pavel"), UserInfo{
+            id: String::from("ggggg"),
+            name: String::from("pivanov"),
+            real_name: Some(String::from("Pavel Ivanov"))
+        });
+        users_cache.insert(String::from("Test Name"), UserInfo{
+            id: String::from("gfdg"),
+            name: String::from("tname"),
+            real_name: Some(String::from("Test Name"))
+        });
+        users_cache.insert(String::from("Name Test"), UserInfo{
+            id: String::from("fgdfg"),
+            name: String::from("tname"),
+            real_name: Some(String::from("Test Name"))
+        });
+        users_cache.insert(String::from("cake"), UserInfo{
+            id: String::from("gdfgdfg"),
+            name: String::from("cake"),
+            real_name: None
+        });
+        
+        users_cache
+    }
+
+    #[test]
+    fn test_cache(){
+        // Пути к папке с кешем пользователей
+        let cache_file_folder = Path::new("./test_cache/");
+        let cache_file_name = Path::new("users_cache.json");
+
+        // Полный путь к файлику
+        let cache_file_full_path = PathBuf::new()
+            .join(cache_file_folder)
+            .join(cache_file_name);
+        
+        // Создаем новый тестовый список
+        let users_cache: HashMap<String, UserInfo> = generate_test_users();
+
+        // Сохраняем в файликъ
+        save_cache(&cache_file_folder, &cache_file_full_path, &users_cache);
+
+        // Читаем из файлика
+        let saved_users = read_cache(&cache_file_full_path);
+        
+        // Удаляем файлик
+        let file_removed = std::fs::remove_dir_all(cache_file_folder).is_ok();
+        assert!(file_removed);
+
+        // Должны быть одинаковые
+        assert_eq!(users_cache, saved_users);
+    }
+
+    #[test]
+    fn test_full_name_serach(){
+        let test_names_map = generate_test_users();
+        let test_names_vec: Vec<UserInfo> = test_names_map
+            .iter()
+            .map(|(_, val)|{
+                val.clone()
+            })
+            .collect();
+
+        assert_eq!(search_by_fullname(test_names_vec.clone(), "pavel ershov").map(|val| val.id), 
+                   Some(test_names_map["pershov"].id.clone()));
+                
+        assert_eq!(search_by_fullname(test_names_vec.clone(), "ershov pavel").map(|val| val.id), 
+                   Some(test_names_map["pershov"].id.clone()));
+
+        assert_eq!(search_by_fullname(test_names_vec.clone(), "user unknown").map(|val| val.id), 
+                   None);
+
+        assert_eq!(search_by_fullname(test_names_vec.clone(), "unknown").map(|val| val.id), 
+                   None);
+    }
 }

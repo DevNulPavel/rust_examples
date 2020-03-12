@@ -7,6 +7,9 @@ BUILD_RELEASE:
 TEST: BUILD
 	./scripts/test_upload_script.sh
 
+UNIT_TEST:
+	cargo test
+
 BACKUP_KEYS:
 	mkdir -p backup/ && \
 	rm -f backup/*  && \
