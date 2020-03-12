@@ -22,7 +22,7 @@ fn read_cache(cache_file_full_path: &Path) -> HashMap<String, UserInfo> {
             Ok(result)
         })
         .map_err(|e|{
-            println!("Try to read cache: {:?}", e);
+            eprintln!("Try to read cache: {:?}", e);
             e
         })
         .unwrap_or_default();
@@ -72,7 +72,7 @@ fn save_cache(cache_file_folder: &Path, cache_file_full_path: &Path, users_cache
         .err();
 
     if let Some(err) = error{
-        println!("Try to write cache: {:?}", err);
+        eprintln!("Try to write cache: {:?}", err);
     }else{
         //println!("Write success");
     }

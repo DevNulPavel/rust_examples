@@ -90,17 +90,13 @@ pub async fn iter_by_slack_users(client: &reqwest::Client,
     };
     // Проверка парсинга
     let json: UsersResponse = match parse_res {
-        Ok(json) => {
-            // Json валидный
+        Ok(json) if json.ok => {
+            // Json валидный и флаг там ok
             json
         },
+        Ok(_) => return (None, result),
         Err(_) => return (None, result),
     };
-
-    // Сам Json распарсился нормально
-    if !json.ok {
-        return (None, result);
-    }
 
     // Обрабатываем пользователей
     match json.members {
