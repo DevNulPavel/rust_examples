@@ -230,7 +230,7 @@ pub async fn find_user_id_by_name(client: &reqwest::Client, api_token: &str, src
         // Сохраняем наш кэш
         save_cache(&cache_file_folder, &cache_file_full_path, &users_cache);
 
-        println!("{:?}", info);
+        //println!("{:?}", info);
         return Ok(info.id);
     }
 

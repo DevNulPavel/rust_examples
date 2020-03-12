@@ -45,13 +45,35 @@ pub async fn iter_by_slack_users(client: &reqwest::Client,
             .map(|val|{
                 val.as_str()
             });
+
+        /*#[derive(Deserialize, Serialize, Debug)]
+        enum Parameter<'a>{
+            Str(&'a str),
+            Numb(i32),
+            Cursor(Option<&'a str>)
+        }
+        // Создаем список параметров
+        let get_parameters: [(&str, Parameter<'_>); 3] = [
+            ("token", Parameter::Str(api_token)),
+            ("limit", Parameter::Str("150")),
+            ("cursor", Parameter::Cursor(last_cursor_ptr))
+        ];
+        println!("Test: {:?}", get_parameters);*/
+
+        /*let get_parameters = serde_json::json!([
+            ["token", api_token],
+            ["limit", "150"],
+            ["cursor", last_cursor_ptr]
+        ]);
+        println!("{:?}", serde_json::to_string(&get_parameters));*/
+
         // Создаем список параметров
         let get_parameters: [(&str, Option<&str>); 3] = [
             ("token", Some(api_token)),
             ("limit", Some("150")),
             ("cursor", last_cursor_ptr)
         ];
-        //println!("{:?}", get_parameters);            
+
         client.get("https://slack.com/api/users.list")
             .query(&get_parameters)
             .send()
