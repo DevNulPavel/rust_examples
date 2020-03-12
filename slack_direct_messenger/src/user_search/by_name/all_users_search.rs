@@ -24,7 +24,7 @@ pub async fn iter_by_slack_users(client: &reqwest::Client,
         ok: bool,
         response_metadata: Option<Metadata>,
         members: Option<Vec<UserInfo>>,
-        error: Option<String>
+        //error: Option<String> // Раскомментить для парсинга ошибки
     }
 
     let mut result: Vec<UserInfo> = Vec::new();
@@ -58,7 +58,6 @@ pub async fn iter_by_slack_users(client: &reqwest::Client,
         }
         Err(_) => return (None, result),
     };
-
     // Проверка парсинга
     let json: UsersResponse = match parse_res {
         Ok(json) => {
@@ -67,6 +66,11 @@ pub async fn iter_by_slack_users(client: &reqwest::Client,
         },
         Err(_) => return (None, result),
     };
+
+    // Сам Json распарсился нормально
+    if !json.ok {
+        return (None, result);
+    }
 
     // Обрабатываем пользователей
     match json.members {

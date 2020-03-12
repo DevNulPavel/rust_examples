@@ -21,6 +21,10 @@ fn read_cache(cache_file_full_path: &Path) -> HashMap<String, UserInfo> {
             let result = serde_json::from_str::<HashMap<String, UserInfo>>(&data)?;
             Ok(result)
         })
+        .map_err(|e|{
+            println!("Try to read cache: {:?}", e);
+            e
+        })
         .unwrap_or_default();
     
     users_cache
@@ -30,12 +34,47 @@ fn save_cache(cache_file_folder: &Path, cache_file_full_path: &Path, users_cache
     if !cache_file_folder.exists() {
         std::fs::create_dir_all(cache_file_folder).unwrap();
     }
-    if let Ok(mut file) = File::open(cache_file_full_path) {
-        if let Ok(json_text) = serde_json::to_string(&users_cache){
-            if file.write_all(json_text.as_bytes()).is_ok(){
-                println!("Write success");
-            }
-        }
+    //println!("{:?}", cache_file_full_path);
+
+    #[derive(Debug)]
+    enum SaveError{
+        CantCreateFile(std::io::Error),
+        CantConvertToJson(serde_json::Error),
+        CantWriteFile(std::io::Error),
+    }
+    
+    // Создаем файлик
+    let error = File::create(cache_file_full_path)
+        .map_err(|e|{
+            // Конвертируем формат ошибки
+            SaveError::CantCreateFile(e)
+        })
+        .and_then(|file|{
+            // Сохраняем в строку
+            serde_json::to_string(&users_cache)
+                .map_err(|e|{
+                    // Конвертируем формат ошибки
+                    SaveError::CantConvertToJson(e)
+                })
+                .map(move |json_result| {
+                    // Новый результат будет сотоять из файла и json
+                    (file, json_result)
+                })
+        })
+        .and_then(|(mut file, json_text)|{
+            // Пишем в файлик
+            file.write_all(json_text.as_bytes())
+                .map_err(|e|{
+                    // Конвертируем формат ошибки
+                    SaveError::CantWriteFile(e)
+                })
+        })
+        .err();
+
+    if let Some(err) = error{
+        println!("Try to write cache: {:?}", err);
+    }else{
+        //println!("Write success");
     }
 }
 
@@ -188,14 +227,11 @@ pub async fn find_user_id_by_name(client: &reqwest::Client, api_token: &str, src
         // Добавляем найденного пользователя в кэш
         users_cache.insert(user.to_owned(), info.clone());
 
-        //println!("{:?}", users_cache);
         // Сохраняем наш кэш
-        // TODO: !!!
         save_cache(&cache_file_folder, &cache_file_full_path, users_cache);
 
         println!("{:?}", info);
-        return Ok(String::new());
-        //return Ok(info.id);
+        return Ok(info.id);
     }
 
     Err(MessageError::IsNotFound)
