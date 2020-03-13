@@ -12,4 +12,4 @@ win_sdl_libs
 **/*.wav
 **/*.zip
 **/*.es
-**/*.esc
+# **/*.esc

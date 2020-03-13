@@ -1,3 +1,6 @@
+INSTALL_DEPS:
+	brew install sdl2
+
 TEST_CLI:
 	cargo run --release -- \
 		--nogui \
