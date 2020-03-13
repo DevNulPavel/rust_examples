@@ -179,13 +179,14 @@ pub async fn find_user_id_by_name(client: &reqwest::Client, api_token: &str, src
         let mut full_users_list: Vec<UserInfo> = Vec::new();
 
         let mut last_cursor = Option::None;
-        loop{
+        // У цикла можно указать метку, затем с помощью break можно прервать работу именно этого цикла
+        'tag: loop{
             // Получаем список юзеров итерационно
             let (new_cursor, mut users_list) = iter_by_slack_users(client, api_token, last_cursor).await;
 
             // Нет юзеров - конец
             if users_list.is_empty() {
-                break;
+                break 'tag;
             }
 
             // Проверяем короткое имя
@@ -200,7 +201,7 @@ pub async fn find_user_id_by_name(client: &reqwest::Client, api_token: &str, src
 
             // Нашли - все ок
             if found_info_local.is_some() {
-                break;
+                break 'tag;
             }
 
             // Если не нашлось - сохраняем для полного поиска
@@ -211,7 +212,7 @@ pub async fn find_user_id_by_name(client: &reqwest::Client, api_token: &str, src
 
             // Если нет нового курсора - заканчиваем итерации
             if last_cursor.is_none(){
-                break;
+                break 'tag;
             }
         }
 
