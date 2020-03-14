@@ -12,7 +12,13 @@ use std::arch::x86::*;
 #[cfg(target_arch = "x86_64")]
 use std::arch::x86_64::*;
 
-use simdeez::{avx2::*, scalar::*, sse2::*, sse41::*, *};
+use simdeez::{
+    *,
+    avx2::*, 
+    scalar::*, 
+    sse2::*, 
+    sse41::*
+};
 
 #[derive(Clone, Serialize, Deserialize, Default)]
 pub struct LoopBuffer {

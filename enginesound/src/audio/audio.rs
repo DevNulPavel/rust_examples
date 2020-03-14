@@ -7,10 +7,12 @@ use sdl2::{
 
 // Добавляем от корня с помощью crate::, а не super::
 use crate::gen::Generator;
-use crate::audio::GENERATOR_CHANNEL_SIZE;
-use crate::audio::GENERATOR_BUFFER_SIZE;
-use crate::audio::streamer::ExactStreamer;
-use crate::audio::player::StreamingPlayer;
+use crate::audio::{
+    GENERATOR_CHANNEL_SIZE,
+    GENERATOR_BUFFER_SIZE,
+    ExactStreamer,
+    StreamingPlayer
+};
 
 pub struct Audio {
     /// dropping this stops the stream

@@ -175,22 +175,21 @@ pub async fn find_user_id_by_name(client: &reqwest::Client, api_token: &str, src
 
     // Создаем новый объект результата
     let found_info: Option<UserInfo> = {
-        let mut found_info_local: Option<UserInfo> = None;
         let mut full_users_list: Vec<UserInfo> = Vec::new();
 
         let mut last_cursor = Option::None;
         // У цикла можно указать метку, затем с помощью break можно прервать работу именно этого цикла
-        'tag: loop{
+        let mut found_info_local: Option<UserInfo> = 'tag: loop{
             // Получаем список юзеров итерационно
             let (new_cursor, mut users_list) = iter_by_slack_users(client, api_token, last_cursor).await;
 
             // Нет юзеров - конец
             if users_list.is_empty() {
-                break 'tag;
+                break 'tag None;
             }
 
             // Проверяем короткое имя
-            found_info_local = users_list
+            let found_info_local = users_list
                 .iter()
                 .find(|user_info|{
                     user_info.name == user
@@ -201,7 +200,7 @@ pub async fn find_user_id_by_name(client: &reqwest::Client, api_token: &str, src
 
             // Нашли - все ок
             if found_info_local.is_some() {
-                break 'tag;
+                break 'tag found_info_local;
             }
 
             // Если не нашлось - сохраняем для полного поиска
@@ -212,9 +211,9 @@ pub async fn find_user_id_by_name(client: &reqwest::Client, api_token: &str, src
 
             // Если нет нового курсора - заканчиваем итерации
             if last_cursor.is_none(){
-                break 'tag;
+                break 'tag None;
             }
-        }
+        };
 
         // Если поиск по короткому имени не отработал, пробуем по полному имени
         if found_info_local.is_none(){
