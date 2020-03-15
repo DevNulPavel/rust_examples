@@ -27,6 +27,7 @@ impl FFTStreamer {
     pub fn run(&mut self) {
         // Создаем буффер
         let mut buf = vec![0.0f32; self.size];
+
         // Буфферы комплексных значений для FFT
         let mut complex_buf = vec![Complex32::zero(); self.size];
         let mut complex_buf2 = vec![Complex32::zero(); self.size];
@@ -54,7 +55,11 @@ impl FFTStreamer {
                     .iter()
                     .enumerate()
                     .map(|(i, sample)| {
-                        let real_val = *sample * (0.54 - 0.46 * (i as f32 * window_fac).cos());
+                        // TODO: ???
+                        // 0.54 - 0.46 * cos(i * step)
+                        let i = i as f32;
+                        let val = 0.54 - 0.46 * (i * window_fac).cos();
+                        let real_val = *sample * val;
                         Complex32::new(real_val, 0.0)
                     });
                 // TODO: Может не надо чистить из заново расширять?? Можно только заполнять значениями?
@@ -85,8 +90,14 @@ impl FFTStreamer {
                     });
             }
 
-            let fac = 0.00005f32.powf(last_time.elapsed().as_secs_f32());
+            // Коэффициент 0.00005 в степени прошедшего времени длительности расчетов
+            let elapsed_time = last_time.elapsed().as_secs_f32();
+            let fac = 0.00005_f32.powf(elapsed_time);
+            // Обновляем время с последнего отсчета
             last_time = Instant::now();
+
+            // Домнажаем старые значения на коэффициент + обновляем значения новыми
+            // Сравнивая на максимум
             last_frequencies
                 .iter_mut()
                 .zip(frequencies.iter())
@@ -101,7 +112,9 @@ impl FFTStreamer {
             let send_values = last_frequencies
                 .iter()
                 .map(|x| {
-                    (((x * 0.008).exp() - 1.0) * 0.7).powf(0.5) * 2.0
+                    // (exp(x * 0.008) - 1.0
+                    let exp_val = (x * 0.008).exp();
+                    ((exp_val - 1.0) * 0.7).powf(0.5) * 2.0
                 })
                 .collect::<Vec<f32>>();
             if self.sender.send(send_values).is_err(){
