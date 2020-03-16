@@ -7,12 +7,18 @@ use crate::gen::muffler::Muffler;
 
 #[derive(Serialize, Deserialize)]
 pub struct Engine {
+    // Частота оборотов
     pub rpm: f32,
+    // Громкость впуска
     pub intake_volume: f32,
+    // Выпуска
     pub exhaust_volume: f32,
+    // Громкость самого двигателя
     pub engine_vibrations_volume: f32,
 
+    // Массив цилиндров
     pub cylinders: Vec<Cylinder>,
+
     #[serde(skip)]
     pub intake_noise: Noise,
     pub intake_noise_factor: f32,

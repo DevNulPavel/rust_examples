@@ -20,7 +20,7 @@ impl Generator {
     pub(crate) fn new(samples_per_second: u32, engine: Engine, dc_lp: LowPassFilter) -> Generator {
         Generator {
             recorder: None,
-            volume: 0.1_f32,
+            volume: 0.4_f32,
             samples_per_second,
             engine,
             dc_lp,
@@ -30,39 +30,61 @@ impl Generator {
     }
 
     pub(crate) fn generate(&mut self, buf: &mut [f32]) {
+        // Текущая позиция коленвала
         let crankshaft_pos = self.engine.crankshaft_pos;
+
+        // TODO: почему 120?
+        // Количество семплов * 120
         let samples_per_second = self.samples_per_second as f32 * 120.0;
 
+        // Обнуляем флаги клиппинга и ???
         self.recording_currently_clipping = false;
         self.waveguides_dampened = false;
 
+        // TODO: Итератор?
+        // Заполнение выходного буфера значениями
         let mut i = 1.0;
         let mut ii = 0;
         while ii < buf.len() {
-            self.engine.crankshaft_pos =
-                (crankshaft_pos + i * self.get_rpm() / samples_per_second).fract();
-            let samples = self.gen();
-            let sample = (samples.0 * self.get_intake_volume()
-                + samples.1 * self.get_engine_vibrations_volume()
-                + samples.2 * self.get_exhaust_volume())
-                * self.get_volume();
-            self.waveguides_dampened |= samples.3;
+            // Обновляем позицию коленвала
+            // Fract возвращает дробную часть позиции коленвала
+            // То есть значение будет от 0 до 1
+            self.engine.crankshaft_pos = (crankshaft_pos + i * self.get_rpm() / samples_per_second).fract();
 
-            // reduces dc offset
+            // Генерируем новый семпл
+            let (intake, engine_vibrations, exhaust, waveguides_dampened) = self.gen();
+
+            // Получаем значение суммированием
+            let sum_values = 
+                intake * self.get_intake_volume() +
+                engine_vibrations * self.get_engine_vibrations_volume() +
+                exhaust * self.get_exhaust_volume();
+            let sample = sum_values * self.get_volume();
+            
+            // Заглушены ли значения
+            self.waveguides_dampened |= waveguides_dampened;
+
+            // Фильтруем низкочастотные шумы (DC offsed) и записываем значение в выходной буфер
             buf[ii] = sample - self.dc_lp.filter(sample);
 
+            // i++
             i += 1.0;
             ii += 1;
         }
 
+        // Если надо записывать
         if let Some(recorder) = &mut self.recorder {
+            // Тогда буфер в вектор
             let bufvec = buf.to_vec();
-            let mut recording_currently_clipping = false;
-            bufvec
+            
+            // Флаг наличия клипинга, если хотя бы у одного есть - значит true выставляем
+            self.recording_currently_clipping = bufvec
                 .iter()
-                .for_each(|sample| recording_currently_clipping |= sample.abs() > 1.0);
-            self.recording_currently_clipping = recording_currently_clipping;
+                .any(|sample| {
+                    sample.abs() > 1.0
+                });
 
+            // Записываем наш вектор
             recorder.record(bufvec);
         }
     }
@@ -222,43 +244,59 @@ impl Generator {
         self.engine.engine_vibrations_volume
     }
 
-    /// generates one sample worth of data
-    /// returns  `(intake, engine vibrations, exhaust, waveguides dampened)`
+    /// Генерирует значения для текущего состояния коленвала
+    /// возвращает `(intake, engine vibrations, exhaust, waveguides dampened)`
     fn gen(&mut self) -> (f32, f32, f32, bool) {
+        // Шум от впуска двигателя
+        let intake_noise = self.engine.intake_noise.step();
         let intake_noise = self
             .engine
             .intake_noise_lp
-            .filter(self.engine.intake_noise.step())
-            * self.engine.intake_noise_factor;
+            .filter(intake_noise) * self.engine.intake_noise_factor;
 
+        // Вибрации
         let mut engine_vibration = 0.0;
 
+        // Сколько цилиндров
         let num_cyl = self.engine.cylinders.len() as f32;
 
+        // Выпускной коллектор
         let last_exhaust_collector = self.engine.exhaust_collector / num_cyl;
+
+        // Обнуляем значения сумм звука выпуска и впуска
         self.engine.exhaust_collector = 0.0;
         self.engine.intake_collector = 0.0;
 
+        // Смещение колебаний коленвала
+        let crankshaft_fluctuation_offset = self.engine.crankshaft_noise.step();
         let crankshaft_fluctuation_offset = self
             .engine
             .crankshaft_fluctuation_lp
-            .filter(self.engine.crankshaft_noise.step());
+            .filter(crankshaft_fluctuation_offset);
 
+        // Цилиндры затушены?
         let mut cylinder_dampened = false;
 
+        // Идем по всем цилиндрам
         for cylinder in self.engine.cylinders.iter_mut() {
+            let crankshaft_pos = self.engine.crankshaft_pos + self.engine.crankshaft_fluctuation * crankshaft_fluctuation_offset;
+
+            // Получаем значения звуков от цилиндра
             let (cyl_intake, cyl_exhaust, cyl_vib, dampened) = cylinder.pop(
-                self.engine.crankshaft_pos
-                    + self.engine.crankshaft_fluctuation * crankshaft_fluctuation_offset,
+                crankshaft_pos,
                 last_exhaust_collector,
                 self.engine.intake_valve_shift,
                 self.engine.exhaust_valve_shift,
             );
 
+            // Суммируем значение
             self.engine.intake_collector += cyl_intake;
             self.engine.exhaust_collector += cyl_exhaust;
 
+            // Добавляем вибрации
             engine_vibration += cyl_vib;
+
+            // Был ли заглушен?
             cylinder_dampened |= dampened;
         }
 

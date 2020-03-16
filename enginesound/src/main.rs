@@ -45,7 +45,7 @@ const SPEED_OF_SOUND: f32 = 343.0; // m/s
 const SAMPLES_PER_CALLBACK: u32 = 1024;
 const WINDOW_WIDTH: f64 = 800.0;
 const WINDOW_HEIGHT: f64 = 800.0;
-const DC_OFFSET_LP_FREQ: f32 = 4.0; // Частота фильтра низких частот, который отнимает частоты из всего звука, чтобы убрать клиппинг (to reduce dc offset and thus clipping)
+const DC_OFFSET_LP_FREQ: f32 = 50.0; // Частота фильтра низких частот, который отнимает частоты из всего звука, чтобы убрать клиппинг (to reduce dc offset and thus clipping)
 const MAX_CYLINDERS: usize = 16;
 const MUFFLER_ELEMENT_COUNT: usize = 4;
 
@@ -159,7 +159,7 @@ fn process_gui_mode(generator: gen::Generator, sample_rate: u32){
     );
 
     // Создаем новый поток для быстрого преобразования фурье
-    let fft_thread_handle = fft::run_streamer(fft);
+    let fft_thread_handle = fft.run();
 
     // Пользовательский интерфейс
     {

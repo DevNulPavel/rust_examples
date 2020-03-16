@@ -3,7 +3,6 @@ use serde::{
     Serialize
 };
 
-
 #[allow(unused_imports)]
 #[cfg(target_arch = "x86")]
 use std::arch::x86::*;
@@ -22,20 +21,27 @@ use simdeez::{
 
 #[derive(Clone, Serialize, Deserialize, Default)]
 pub struct LoopBuffer {
-    // in seconds
+    // Длительность звучания конкретного значения в буфере
     pub delay: f32,
+
+    // Длина
     #[serde(skip)]
     pub len: usize,
+
+    // Буффер
     #[serde(skip)]
     pub data: Vec<f32>,
+
+    // Позиция
     #[serde(skip)]
     pub pos: usize,
 }
 
 impl LoopBuffer {
-    /// Creates a new loop buffer with specifies length.
-    /// The internal sample buffer size is rounded up to the currently best SIMD implementation's float vector size.
+    /// Создаем новый циклический буффер специфической длины
+    /// Внутренний буффер данных будет округлен до подходящего SIMD размера отдельного вектора
     pub fn new(len: usize, samples_per_second: u32) -> LoopBuffer {
+        // Находим нормальный размер буффера для входящей длины
         let bufsize = LoopBuffer::get_best_simd_size(len);
         LoopBuffer {
             delay: len as f32 / samples_per_second as f32,
@@ -45,8 +51,7 @@ impl LoopBuffer {
         }
     }
 
-    /// Returns `(size / SIMD_REGISTER_SIZE).ceil() * SIMD_REGISTER_SIZE`, where `SIMD` may be the best simd implementation at runtime.
-    /// Used to create vectors to make simd iteration easier
+    /// Возвращает правильный размер буффера, чтобы он был кратен линии SIMD
     pub fn get_best_simd_size(size: usize) -> usize {
         if is_x86_feature_detected!("avx2") {
             ((size - 1) / Avx2::VF32_WIDTH + 1) * Avx2::VF32_WIDTH
@@ -59,9 +64,8 @@ impl LoopBuffer {
         }
     }
 
-    /// Sets the value at the current position. Must be called with `pop`.
+    /// Пушим данные, должно быть вызвано вместе с pop
     /// ```rust
-    /// // assuming Simd is Scalar
     /// let mut lb = LoopBuffer::new(2);
     /// lb.push(1.0);
     /// lb.advance();
@@ -74,14 +78,13 @@ impl LoopBuffer {
         self.data[self.pos % len] = value;
     }
 
-    /// Gets the value `self.len` samples prior. Must be called with `push`.
-    /// See `push` for examples
+    /// Получаем значение `self.len` samples prior. Должно быть вызвано вместе с `push`.
     pub fn pop(&mut self) -> f32 {
         let len = self.len;
         self.data[(self.pos + 1) % len]
     }
 
-    /// Advances the position of this loop buffer.
+    /// Смещает позицию циклического буффера
     pub fn advance(&mut self) {
         self.pos += 1;
     }
