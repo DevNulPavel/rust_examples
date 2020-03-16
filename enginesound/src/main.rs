@@ -136,7 +136,7 @@ fn process_gui_mode(generator: gen::Generator, sample_rate: u32){
     // Создаем генератор под блокировкой для потоков
     let generator = Arc::new(RwLock::new(generator));
 
-    // Инициализируем потоковый генератор, позволяющий воспроизводить в рантайме звук
+    // Инициализируем потоковое воспроизведение аудио из генератора
     let (audio, fft_receiver) = match audio::init(generator.clone(), sample_rate) {
         Ok(audio) => {
             audio
@@ -152,16 +152,14 @@ fn process_gui_mode(generator: gen::Generator, sample_rate: u32){
     let (fft_sender, gui_fft_receiver) = crossbeam::channel::bounded(4);
 
     // Стример данных быстрого преобразования фурье
-    let mut fft = FFTStreamer::new(
+    let fft = FFTStreamer::new(
         (WATERFALL_WIDTH * 2) as usize, // Лишь половина спектра может быть использована для отрисовки
         ExactStreamer::new(GENERATOR_BUFFER_SIZE, fft_receiver),
         fft_sender, // Для передачи данных из главного потока в поток данных
     );
 
     // Создаем новый поток для быстрого преобразования фурье
-    std::thread::spawn(move || {
-        fft.run();
-    });
+    let fft_thread_handle = fft::run_streamer(fft);
 
     // Пользовательский интерфейс
     {
@@ -266,7 +264,9 @@ fn process_gui_mode(generator: gen::Generator, sample_rate: u32){
     }
 
     // audio lives until here
-    std::mem::drop(audio);    
+    std::mem::drop(audio);
+
+    fft_thread_handle.join().unwrap();
 }
 
 ////////////////////////////////////////////////////////////////////////////////////////

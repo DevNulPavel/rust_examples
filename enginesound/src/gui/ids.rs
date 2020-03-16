@@ -1,0 +1,112 @@
+use conrod_core::widget;
+
+use crate::{
+    MUFFLER_ELEMENT_COUNT,
+    MAX_CYLINDERS
+};
+
+
+// Generate a unique `WidgetId` for each widget.
+pub struct Ids {
+    pub canvas: widget::Id,
+    pub title: widget::Id,
+    pub record_button: widget::Id,
+    pub reset_button: widget::Id,
+    pub save_button: widget::Id,
+    pub drag_drop_info: widget::Id,
+    pub mix_title: widget::Id,
+    pub engine_rpm_slider: widget::Id,
+    pub engine_master_volume_slider: widget::Id,
+    pub engine_intake_volume_slider: widget::Id,
+    pub engine_intake_lp_filter_freq: widget::Id,
+    pub engine_exhaust_volume_slider: widget::Id,
+    pub engine_engine_vibrations_volume_slider: widget::Id,
+    pub engine_title: widget::Id,
+    pub engine_vibrations_lp_filter_freq: widget::Id,
+    pub engine_intake_noise_factor: widget::Id,
+    pub engine_intake_valve_shift: widget::Id,
+    pub engine_exhaust_valve_shift: widget::Id,
+    pub engine_crankshaft_fluctuation_lp_freq: widget::Id,
+    pub engine_crankshaft_fluctuation: widget::Id,
+    pub muffler_title: widget::Id,
+    pub muffler_straight_pipe_alpha: widget::Id,
+    pub muffler_straight_pipe_beta: widget::Id,
+    pub muffler_straight_pipe_length: widget::Id,
+    pub engine_muffler_open_end_refl: widget::Id,
+    pub muffler_element_length: Vec<widget::Id>,
+    pub cylinder_title: widget::Id,
+    pub cylinder_offset_growl: widget::Id,
+    pub cylinder_num: widget::Id,
+    pub cylinder_intake_open_refl: widget::Id,
+    pub cylinder_intake_closed_refl: widget::Id,
+    pub cylinder_exhaust_open_refl: widget::Id,
+    pub cylinder_exhaust_closed_refl: widget::Id,
+    pub cylinder_intake_open_end_refl: widget::Id,
+    pub cylinder_extractor_open_end_refl: widget::Id,
+    pub cylinder_piston_motion_factor: widget::Id,
+    pub cylinder_ignition_factor: widget::Id,
+    pub cylinder_ignition_time: widget::Id,
+    pub cylinder_pressure_release_factor: widget::Id,
+    pub cylinder_intake_pipe_length: Vec<widget::Id>,
+    pub cylinder_exhaust_pipe_length: Vec<widget::Id>,
+    pub cylinder_extractor_pipe_length: Vec<widget::Id>,
+    pub cylinder_crank_offset: Vec<widget::Id>,
+    pub waterfall: widget::Id,
+    pub canvas_scrollbar: widget::Id,
+}
+
+// expanded widget_ids! generator macro
+impl Ids {
+    #[allow(unused_mut, unused_variables)]
+    pub fn new(mut generator: widget::id::Generator) -> Self {
+        Ids {
+            canvas: generator.next(),
+            title: generator.next(),
+            record_button: generator.next(),
+            reset_button: generator.next(),
+            save_button: generator.next(),
+            drag_drop_info: generator.next(),
+            mix_title: generator.next(),
+            engine_rpm_slider: generator.next(),
+            engine_master_volume_slider: generator.next(),
+            engine_intake_volume_slider: generator.next(),
+            engine_intake_lp_filter_freq: generator.next(),
+            engine_exhaust_volume_slider: generator.next(),
+            engine_engine_vibrations_volume_slider: generator.next(),
+            engine_title: generator.next(),
+            engine_vibrations_lp_filter_freq: generator.next(),
+            engine_intake_noise_factor: generator.next(),
+            engine_intake_valve_shift: generator.next(),
+            engine_exhaust_valve_shift: generator.next(),
+            engine_crankshaft_fluctuation_lp_freq: generator.next(),
+            engine_crankshaft_fluctuation: generator.next(),
+            muffler_title: generator.next(),
+            muffler_straight_pipe_alpha: generator.next(),
+            muffler_straight_pipe_beta: generator.next(),
+            muffler_straight_pipe_length: generator.next(),
+            engine_muffler_open_end_refl: generator.next(),
+            muffler_element_length: (0..MUFFLER_ELEMENT_COUNT)
+                .map(|_| generator.next())
+                .collect(),
+            cylinder_title: generator.next(),
+            cylinder_offset_growl: generator.next(),
+            cylinder_num: generator.next(),
+            cylinder_intake_open_refl: generator.next(),
+            cylinder_intake_closed_refl: generator.next(),
+            cylinder_exhaust_open_refl: generator.next(),
+            cylinder_exhaust_closed_refl: generator.next(),
+            cylinder_intake_open_end_refl: generator.next(),
+            cylinder_extractor_open_end_refl: generator.next(),
+            cylinder_piston_motion_factor: generator.next(),
+            cylinder_ignition_factor: generator.next(),
+            cylinder_ignition_time: generator.next(),
+            cylinder_pressure_release_factor: generator.next(),
+            cylinder_intake_pipe_length: (0..MAX_CYLINDERS).map(|_| generator.next()).collect(),
+            cylinder_exhaust_pipe_length: (0..MAX_CYLINDERS).map(|_| generator.next()).collect(),
+            cylinder_extractor_pipe_length: (0..MAX_CYLINDERS).map(|_| generator.next()).collect(),
+            cylinder_crank_offset: (0..MAX_CYLINDERS).map(|_| generator.next()).collect(),
+            waterfall: generator.next(),
+            canvas_scrollbar: generator.next(),
+        }
+    }
+}

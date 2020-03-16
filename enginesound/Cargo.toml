@@ -45,3 +45,4 @@ clap = "2.33.0"
 
 [profile.release]
 debug = true
+#opt-level = 0      # TODO: Нужно для профилирования, в debug сборке падает Glium

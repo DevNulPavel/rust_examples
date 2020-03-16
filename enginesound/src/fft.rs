@@ -4,27 +4,51 @@ use num_traits::identities::Zero;
 use rustfft::FFT;
 use std::time::Instant;
 
-pub struct FFTStreamer {
+
+// Быстрое преобразование фурье здесь нужно для определения спектра выдываемого сигнала по частотам
+// Затем результат отображается на пользовательском интерфейсе
+
+pub fn run_streamer(mut fft: FFTStreamer) -> std::thread::JoinHandle<()>{
+    let handle = std::thread::Builder::new()
+        .name("FFT thread".into())
+        .spawn(move ||{
+            fft.run();
+        })
+        .unwrap();
+
+    handle
+}
+
+pub struct FFTStreamer
+{
     size: usize,                            // Размер потока
     stream: ExactStreamer<f32>,             // Поток входных данных
     sender: crossbeam::Sender<Vec<f32>>,    // Канал, куда мы выдаем данные
 }
 
-impl FFTStreamer {
-    pub fn new(
-        size: usize,
-        stream: ExactStreamer<f32>,
-        sender: crossbeam::Sender<Vec<f32>>,
-    ) -> Self {
+// impl<T> Drop for FFTStreamer<T>
+// where
+//     T: FnOnce()->()
+// {
+//     fn drop(&mut self) {
+//         if let Some(thread) = self.thread{
+//             thread.join();
+//         }
+//     }
+// }
+
+impl FFTStreamer
+{
+    pub fn new(size: usize, stream: ExactStreamer<f32>, sender: crossbeam::Sender<Vec<f32>>) -> Self {
         FFTStreamer {
             size,
             stream,
-            sender,
+            sender
         }
     }
 
     // Данный код будет работать в потоке
-    pub fn run(&mut self) {
+    fn run(&mut self) {
         // Создаем буффер
         let mut buf = vec![0.0f32; self.size];
 
@@ -93,6 +117,7 @@ impl FFTStreamer {
             // Коэффициент 0.00005 в степени прошедшего времени длительности расчетов
             let elapsed_time = last_time.elapsed().as_secs_f32();
             let fac = 0.00005_f32.powf(elapsed_time);
+            
             // Обновляем время с последнего отсчета
             last_time = Instant::now();
 
@@ -105,10 +130,12 @@ impl FFTStreamer {
                     //(coefficient after one second).powf(time))
                     // TODO: ???
                     *old *= fac;
-                    *old = old.max(*new);
+                    *old = ((*old) as f32).max(*new);
                 });
             
             // Формируем данные для отправки в канал
+            // Обработка данных частот нужна для того, чтобы спектр был представлен в логарифмическом виде,
+            // как во всех нормальных эквалайзерах и анализаторах спектра
             let send_values = last_frequencies
                 .iter()
                 .map(|x| {
@@ -117,6 +144,7 @@ impl FFTStreamer {
                     ((exp_val - 1.0) * 0.7).powf(0.5) * 2.0
                 })
                 .collect::<Vec<f32>>();
+        
             if self.sender.send(send_values).is_err(){
                 break;
             }

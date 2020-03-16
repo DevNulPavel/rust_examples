@@ -1,18 +1,107 @@
-use crate::{
-    distance_to_samples, gen::Generator, recorder::Recorder, samples_to_distance, MAX_CYLINDERS,
-    MUFFLER_ELEMENT_COUNT, SPEED_OF_SOUND,
+mod gui_state;
+mod ids;
+
+
+use std::{
+    fs::File, 
+    io::Write, 
+    sync::Arc
 };
-use chrono::{Datelike, Local, Timelike};
-use conrod_core::{
-    position::{Align, Direction, Padding, Relative},
-    *,
+use chrono::{
+    Datelike, 
+    Local, 
+    Timelike
 };
 use parking_lot::RwLock;
-use std::{fs::File, io::Write, sync::Arc};
+use conrod_core::{
+    position::{
+        Align, 
+        Direction, 
+        Padding, 
+        Relative
+    },
+    *,
+};
+use crate::{
+    distance_to_samples, 
+    samples_to_distance, 
+    MAX_CYLINDERS,
+    SPEED_OF_SOUND,
+
+    gen::Generator,
+    recorder::Recorder
+};
+
+pub use crate::gui::gui_state::GUIState;
+pub use crate::gui::ids::Ids;
 
 // must be 2^n
 pub const WATERFALL_WIDTH: u32 = 512;
 pub const WATERFALL_HEIGHT: u32 = 50;
+const WATERFALL_WIDGET_HEIGHT: f64 = 200.0;
+
+const WATERFALL_COLORS: [ColorMixVal; 8] = [
+    ColorMixVal{
+        color: [0.0, 0.0, 0.0],
+        value: 0.0
+    },
+    ColorMixVal{
+        color: [0.0, 0.2, 0.23],
+        value: 0.21
+    },
+    ColorMixVal{
+        color: [0.0, 0.3, 0.6],
+        value: 0.325
+    },
+    ColorMixVal{
+        color: [0.51, 0.36, 1.0],
+        value: 0.44
+    },
+    ColorMixVal{
+        color: [1.0, 0.55, 0.0],
+        value: 0.69
+    },
+    ColorMixVal{
+        color: [1.0, 0.86, 0.69],
+        value: 0.85
+    },
+    ColorMixVal{
+        color: [1.0, 1.0, 1.0],
+        value: 1.0
+    },
+    ColorMixVal{
+        color: [1.0, 1.0, 1.0],
+        value: 10.01
+    }
+];
+
+fn recording_name() -> String {
+    let time = Local::now();
+
+    format!(
+        "enginesound_{:02}{:02}{:04}-{:02}{:02}{:02}.wav",
+        time.day(),
+        time.month(),
+        time.year(),
+        time.hour(),
+        time.minute(),
+        time.second()
+    )
+}
+
+fn config_name() -> String {
+    let time = Local::now();
+
+    format!(
+        "enginesound_{:02}{:02}{:04}-{:02}{:02}{:02}.esc",
+        time.day(),
+        time.month(),
+        time.year(),
+        time.hour(),
+        time.minute(),
+        time.second()
+    )
+}
 
 /// A set of reasonable stylistic defaults that works for the `gui` below.
 pub fn theme() -> conrod_core::Theme {
@@ -36,251 +125,131 @@ pub fn theme() -> conrod_core::Theme {
     }
 }
 
-// Generate a unique `WidgetId` for each widget.
-pub struct Ids {
-    pub canvas: widget::Id,
-    pub title: widget::Id,
-    pub record_button: widget::Id,
-    pub reset_button: widget::Id,
-    pub save_button: widget::Id,
-    pub drag_drop_info: widget::Id,
-    pub mix_title: widget::Id,
-    pub engine_rpm_slider: widget::Id,
-    pub engine_master_volume_slider: widget::Id,
-    pub engine_intake_volume_slider: widget::Id,
-    pub engine_intake_lp_filter_freq: widget::Id,
-    pub engine_exhaust_volume_slider: widget::Id,
-    pub engine_engine_vibrations_volume_slider: widget::Id,
-    pub engine_title: widget::Id,
-    pub engine_vibrations_lp_filter_freq: widget::Id,
-    pub engine_intake_noise_factor: widget::Id,
-    pub engine_intake_valve_shift: widget::Id,
-    pub engine_exhaust_valve_shift: widget::Id,
-    pub engine_crankshaft_fluctuation_lp_freq: widget::Id,
-    pub engine_crankshaft_fluctuation: widget::Id,
-    pub muffler_title: widget::Id,
-    pub muffler_straight_pipe_alpha: widget::Id,
-    pub muffler_straight_pipe_beta: widget::Id,
-    pub muffler_straight_pipe_length: widget::Id,
-    pub engine_muffler_open_end_refl: widget::Id,
-    pub muffler_element_length: Vec<widget::Id>,
-    pub cylinder_title: widget::Id,
-    pub cylinder_offset_growl: widget::Id,
-    pub cylinder_num: widget::Id,
-    pub cylinder_intake_open_refl: widget::Id,
-    pub cylinder_intake_closed_refl: widget::Id,
-    pub cylinder_exhaust_open_refl: widget::Id,
-    pub cylinder_exhaust_closed_refl: widget::Id,
-    pub cylinder_intake_open_end_refl: widget::Id,
-    pub cylinder_extractor_open_end_refl: widget::Id,
-    pub cylinder_piston_motion_factor: widget::Id,
-    pub cylinder_ignition_factor: widget::Id,
-    pub cylinder_ignition_time: widget::Id,
-    pub cylinder_pressure_release_factor: widget::Id,
-    pub cylinder_intake_pipe_length: Vec<widget::Id>,
-    pub cylinder_exhaust_pipe_length: Vec<widget::Id>,
-    pub cylinder_extractor_pipe_length: Vec<widget::Id>,
-    pub cylinder_crank_offset: Vec<widget::Id>,
-    pub waterfall: widget::Id,
-    pub canvas_scrollbar: widget::Id,
+type RGB = [f32; 3];
+
+struct ColorMixVal{
+    color: RGB,
+    value: f32
 }
 
-// expanded widget_ids! generator macro
-impl Ids {
-    #[allow(unused_mut, unused_variables)]
-    pub fn new(mut generator: widget::id::Generator) -> Self {
-        Ids {
-            canvas: generator.next(),
-            title: generator.next(),
-            record_button: generator.next(),
-            reset_button: generator.next(),
-            save_button: generator.next(),
-            drag_drop_info: generator.next(),
-            mix_title: generator.next(),
-            engine_rpm_slider: generator.next(),
-            engine_master_volume_slider: generator.next(),
-            engine_intake_volume_slider: generator.next(),
-            engine_intake_lp_filter_freq: generator.next(),
-            engine_exhaust_volume_slider: generator.next(),
-            engine_engine_vibrations_volume_slider: generator.next(),
-            engine_title: generator.next(),
-            engine_vibrations_lp_filter_freq: generator.next(),
-            engine_intake_noise_factor: generator.next(),
-            engine_intake_valve_shift: generator.next(),
-            engine_exhaust_valve_shift: generator.next(),
-            engine_crankshaft_fluctuation_lp_freq: generator.next(),
-            engine_crankshaft_fluctuation: generator.next(),
-            muffler_title: generator.next(),
-            muffler_straight_pipe_alpha: generator.next(),
-            muffler_straight_pipe_beta: generator.next(),
-            muffler_straight_pipe_length: generator.next(),
-            engine_muffler_open_end_refl: generator.next(),
-            muffler_element_length: (0..MUFFLER_ELEMENT_COUNT)
-                .map(|_| generator.next())
-                .collect(),
-            cylinder_title: generator.next(),
-            cylinder_offset_growl: generator.next(),
-            cylinder_num: generator.next(),
-            cylinder_intake_open_refl: generator.next(),
-            cylinder_intake_closed_refl: generator.next(),
-            cylinder_exhaust_open_refl: generator.next(),
-            cylinder_exhaust_closed_refl: generator.next(),
-            cylinder_intake_open_end_refl: generator.next(),
-            cylinder_extractor_open_end_refl: generator.next(),
-            cylinder_piston_motion_factor: generator.next(),
-            cylinder_ignition_factor: generator.next(),
-            cylinder_ignition_time: generator.next(),
-            cylinder_pressure_release_factor: generator.next(),
-            cylinder_intake_pipe_length: (0..MAX_CYLINDERS).map(|_| generator.next()).collect(),
-            cylinder_exhaust_pipe_length: (0..MAX_CYLINDERS).map(|_| generator.next()).collect(),
-            cylinder_extractor_pipe_length: (0..MAX_CYLINDERS).map(|_| generator.next()).collect(),
-            cylinder_crank_offset: (0..MAX_CYLINDERS).map(|_| generator.next()).collect(),
-            waterfall: generator.next(),
-            canvas_scrollbar: generator.next(),
-        }
-    }
+fn mix(x: f32, colors: &[ColorMixVal]) -> RGB {
+    // Ищем подходящий диапазон создавая последовательные пары элементов и сравнивая предыдущий и следующий
+    // Если нашлась пара - возвращаем
+    let colors = colors
+        .windows(2)
+        .find(|colors| {
+            let start = colors[0].value;
+            let end = colors[1].value;
+            start <= x && x < end
+        })
+        .expect("invalid color mix range");
+
+    let ColorMixVal{color: low_color, value: low} = colors[0];
+    let ColorMixVal{color: high_color, value: high} = colors[1];
+
+    let ratio = (x - low) / (high - low);
+
+    [
+        low_color[0] + (high_color[0] - low_color[0]) * ratio,
+        low_color[1] + (high_color[1] - low_color[1]) * ratio,
+        low_color[2] + (high_color[2] - low_color[2]) * ratio,
+    ]
 }
 
-/// Contains the waterfall bitmap
-pub struct GUIState {
-    waterfall: [f32; (WATERFALL_WIDTH * WATERFALL_HEIGHT) as usize],
-    input: crossbeam::Receiver<Vec<f32>>,
-}
+// Виджет со спектром звука
+fn build_waterfall_image(gui_state: &mut GUIState, 
+                         ids: &Ids, 
+                         ui: &mut conrod_core::UiCell, 
+                         display: &glium::Display,
+                         width: conrod_core::Scalar,
+                         top_margin: conrod_core::Scalar)-> conrod_core::image::Map<glium::texture::texture2d::Texture2d>{ 
+    // Получаем данные из канала FFT
+    gui_state.update();
 
-impl GUIState {
-    pub fn new(input: crossbeam::Receiver<Vec<f32>>) -> Self {
-        GUIState {
-            waterfall: [0.07f32; (WATERFALL_WIDTH * WATERFALL_HEIGHT) as usize],
-            input,
-        }
-    }
+    // Создаем сырую картинку из данных FFT
+    let raw_image = {
+        // Итерируемся по нашим данным
+        let color_data = gui_state
+            .waterfall
+            .iter()
+            .flat_map(|x| {
+                // Ограничиваем значение
+                let value = x.max(0.0).min(10.0);
 
-    fn update(&mut self) {
-        while let Ok(new_line) = self.input.try_recv() {
-            let log_scale = (0..WATERFALL_WIDTH as usize)
-                .map(|i| {
-                    let new = (1.0 - (i + 1) as f32 / WATERFALL_WIDTH as f32).log2()
-                        / (WATERFALL_WIDTH as f32).recip().log2()
-                        * (WATERFALL_WIDTH - 1) as f32;
-                    new_line[(new.floor() as usize).saturating_sub(1)] * (1.0 - new.fract())
-                        + new_line[new.floor() as usize] * new.fract()
-                })
-                .collect::<Vec<f32>>();
-            self.add_line(&log_scale);
-        }
-    }
+                let color = mix(
+                    value,
+                    &WATERFALL_COLORS,
+                );
 
-    /// Shift the waterfall down by one and add the new line
-    fn add_line(&mut self, line: &[f32]) {
-        assert_eq!(
-            line.len(),
-            WATERFALL_WIDTH as usize,
-            "wrong waterfall line width"
-        );
+                color
+                    .to_vec() // TODO: Убрать создание вектора как-то
+                    .into_iter()
+                    .map(|x| (x.max(0.0).min(1.0) * 255.0) as u8)
+            })
+            .collect::<Vec<_>>();
 
-        self.waterfall.copy_within(
-            0..((WATERFALL_WIDTH * (WATERFALL_HEIGHT - 1)) as usize),
-            WATERFALL_WIDTH as usize,
-        );
-        self.waterfall[..WATERFALL_WIDTH as usize].copy_from_slice(line);
-    }
+        // Создание картинки из данных
+        glium::texture::RawImage2d::from_raw_rgb_reversed(&color_data,(WATERFALL_WIDTH, WATERFALL_HEIGHT))
+    };
+
+    // Создаем пустую картинку
+    let mut image_map = conrod_core::image::Map::<glium::texture::Texture2d>::new();
+
+    // Создаем GL текстуру
+    let texture = glium::texture::Texture2d::new(display, raw_image).unwrap();
+
+    // Сохраняем текстуру и получаем ID
+    let waterfall_image_id = image_map.insert(texture);
+
+    // Создаем заново виджет
+    widget::Image::new(waterfall_image_id)
+        .mid_top_with_margin(top_margin)
+        .mid_left_of(ids.canvas)
+        .w(width)
+        .h(WATERFALL_WIDGET_HEIGHT)
+        .set(ids.waterfall, ui);
+
+    image_map
 }
 
 /// Draws everything, handles updating parts of the generator and returns the imagemap with a newly updated waterfall
 // huge state machine.. ew
 #[allow(clippy::cognitive_complexity)]
-pub fn gui(
-    ui: &mut conrod_core::UiCell,
-    ids: &Ids,
-    generator: Arc<RwLock<Generator>>,
-    gui_state: &mut GUIState,
-    display: &glium::Display,
-) -> conrod_core::image::Map<glium::texture::Texture2d> {
+pub fn gui( ui: &mut conrod_core::UiCell,
+            ids: &Ids,
+            generator: Arc<RwLock<Generator>>,
+            gui_state: &mut GUIState,
+            display: &glium::Display) -> conrod_core::image::Map<glium::texture::Texture2d> {
+
+    // Константы отрисовки
     const TOP_MARGIN: conrod_core::Scalar = 10.0;
     const MARGIN: conrod_core::Scalar = 15.0;
     const BUTTON_WIDTH: conrod_core::Scalar = 700.0;
-    const BUTTON_LINE_SIZE: conrod_core::Scalar = 16.0;
+    const BUTTON_LINE_SIZE: conrod_core::Scalar = 20.0;
     const DOWN_SPACE: conrod_core::Scalar = 6.0;
-    const LABEL_FONT_SIZE: u32 = 10;
+    const LABEL_FONT_SIZE: u32 = 11;
 
+    // Создаем базовый канвас
     widget::Canvas::new()
         .pad(MARGIN)
         .pad_right(MARGIN + 25.0)
         .pad_top(0.0)
         .scroll_kids_vertically()
         .set(ids.canvas, ui);
+    
+    // Создаем скролл по Y
     widget::Scrollbar::y_axis(ids.canvas)
         .auto_hide(true)
         .w(20.0)
         .set(ids.canvas_scrollbar, ui);
 
-    fn mix(x: f32, colors: &[([f32; 3], f32)]) -> [f32; 3] {
-        let colors = colors
-            .windows(2)
-            .find(|colors| {
-                let (_, start) = colors[0];
-                let (_, end) = colors[1];
-                start <= x && x < end
-            })
-            .expect("invalid color mix range");
-
-        let (low_color, low) = colors[0];
-        let (high_color, high) = colors[1];
-
-        let ratio = (x - low) / (high - low);
-        [
-            low_color[0] + (high_color[0] - low_color[0]) * ratio,
-            low_color[1] + (high_color[1] - low_color[1]) * ratio,
-            low_color[2] + (high_color[2] - low_color[2]) * ratio,
-        ]
-    }
-
-    let image_map = {
-        // receives (maybe) new FFT data
-        gui_state.update();
-
-        let raw_image = glium::texture::RawImage2d::from_raw_rgb_reversed(
-            gui_state
-                .waterfall
-                .iter()
-                .flat_map(|x| {
-                    let color = mix(
-                        x.max(0.0).min(10.0),
-                        &[
-                            ([0.0, 0.0, 0.0], 0.0),
-                            ([0.0, 0.2, 0.23], 0.21),
-                            ([0.0, 0.3, 0.6], 0.325),
-                            ([0.51, 0.36, 1.0], 0.44),
-                            ([1.0, 0.55, 0.0], 0.69),
-                            ([1.0, 0.86, 0.69], 0.85),
-                            ([1.0, 1.0, 1.0], 1.0),
-                            ([1.0, 1.0, 1.0], 10.01),
-                        ],
-                    );
-
-                    color
-                        .to_vec()
-                        .into_iter()
-                        .map(|x| (x.max(0.0).min(1.0) * 255.0) as u8)
-                })
-                .collect::<Vec<_>>()
-                .as_slice(),
-            (WATERFALL_WIDTH, WATERFALL_HEIGHT),
-        );
-
-        let mut image_map = conrod_core::image::Map::<glium::texture::Texture2d>::new();
-        let waterfall_image_id =
-            image_map.insert(glium::texture::Texture2d::new(display, raw_image).unwrap());
-
-        widget::Image::new(waterfall_image_id)
-            .mid_top_with_margin(TOP_MARGIN)
-            .mid_left_of(ids.canvas)
-            .w(BUTTON_WIDTH)
-            .h(140.0)
-            .set(ids.waterfall, ui);
-
-        image_map
-    };
+    // Создаем виджет спектра звука
+    let image_map = build_waterfall_image(gui_state, 
+                                              ids, 
+                                              ui, 
+                                              display,
+                                              BUTTON_WIDTH,
+                                              TOP_MARGIN);
 
     {
         let mut generator = generator.write();
@@ -1194,32 +1163,4 @@ pub fn gui(
     }
 
     image_map
-}
-
-fn recording_name() -> String {
-    let time = Local::now();
-
-    format!(
-        "enginesound_{:02}{:02}{:04}-{:02}{:02}{:02}.wav",
-        time.day(),
-        time.month(),
-        time.year(),
-        time.hour(),
-        time.minute(),
-        time.second()
-    )
-}
-
-fn config_name() -> String {
-    let time = Local::now();
-
-    format!(
-        "enginesound_{:02}{:02}{:04}-{:02}{:02}{:02}.esc",
-        time.day(),
-        time.month(),
-        time.year(),
-        time.hour(),
-        time.minute(),
-        time.second()
-    )
 }
