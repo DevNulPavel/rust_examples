@@ -9,6 +9,7 @@ edition = "2018"
 [dependencies]
 vst = "0.2.0"
 rand = "0.7.3"
+rustfft = "3.0.1"
 
 [lib]
 name = "test32_vst_plugin"
