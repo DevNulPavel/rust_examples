@@ -43,8 +43,8 @@ impl FFTStreamer
             let mut buf = vec![0.0f32; self.size];
 
             // Буфферы комплексных значений для FFT
-            let mut complex_buf = vec![Complex32::zero(); self.size];
-            let mut complex_buf2 = vec![Complex32::zero(); self.size];
+            let mut complex_buf_input = vec![Complex32::zero(); self.size];
+            let mut complex_buf_out = vec![Complex32::zero(); self.size];
 
             // Частоты
             let mut frequencies = vec![0.0; self.size];
@@ -64,32 +64,36 @@ impl FFTStreamer
 
                 // Заполняем данные начальными значениями на основании входного
                 {
+                    // Коэффициент окна Ханна для использования прошлых значений
                     let window_fac = std::f32::consts::PI * 2.0 / self.size as f32;
                     let new_values_iter = buf
                         .iter()
                         .enumerate()
                         .map(|(i, sample)| {
-                            // TODO: ???
+                            // Окно нужно для того, чтобы делать плавный вход и выход для значений
+                            // Чтобы преобразование Фурье могло опираться на старые значения тоже с перекрытием?
+                            // Тогда график будет выглядеть как колокол
                             // 0.54 - 0.46 * cos(i * step)
                             let i = i as f32;
-                            let val = 0.54 - 0.46 * (i * window_fac).cos();
-                            let real_val = *sample * val;
+                            let window_coeff = 0.54 - 0.46 * (i * window_fac).cos();
+                            let real_val = *sample * window_coeff;
+
                             Complex32::new(real_val, 0.0)
                         });
                     // TODO: Может не надо чистить из заново расширять?? Можно только заполнять значениями?
                     // хотя clear вроде как не деаллоцирует значения, может быть можно заменить так же как внизу с помощью zip
                     // Но скорее всего нужно для обновления нового размера
-                    complex_buf.clear();
-                    complex_buf.extend(new_values_iter);
+                    complex_buf_input.clear();
+                    complex_buf_input.extend(new_values_iter);
                 }
 
-                // Обрабатываем быстрое преобразование фурье
-                fft.process(&mut complex_buf, &mut complex_buf2);
+                // Обрабатываем быстрое преобразование фурье c нашей оконной функцией
+                fft.process(&mut complex_buf_input, &mut complex_buf_out);
 
                 {
                     // Итератор по модулям значений
                     // Модуль - это амплитуда конкретной частоты
-                    let new_val_iter = complex_buf2
+                    let new_val_iter = complex_buf_out
                         .iter()
                         .map(|complex| {
                             complex.norm()
@@ -113,6 +117,7 @@ impl FFTStreamer
                 last_time = Instant::now();
 
                 // Домнажаем старые значения на коэффициент + обновляем значения новыми
+                // Это делается из-за оконного преобразования Фурье выше
                 // Сравнивая на максимум
                 last_frequencies
                     .iter_mut()

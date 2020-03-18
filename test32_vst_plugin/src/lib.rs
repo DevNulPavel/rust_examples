@@ -1,3 +1,8 @@
+#![allow(unused_imports)]
+#![allow(dead_code)]
+
+mod parameters;
+
 use std::sync::Arc;
 use rand::random;
 use vst::plugin_main;
@@ -17,161 +22,11 @@ use rustfft::num_complex::{
     Complex32
 };
 
-
-////////////////////////////////////////////////////////////
-
-struct SimplePluginParameters{
-    volume: std::sync::Mutex<f32>,
-    threshold: std::sync::Mutex<f32>
-}
-
-impl Default for SimplePluginParameters {
-    fn default() -> SimplePluginParameters {
-        SimplePluginParameters {
-            volume: std::sync::Mutex::from(1.0_f32),
-            threshold: std::sync::Mutex::from(1.0_f32),
-        }
-    }
-}
-
-impl PluginParameters for SimplePluginParameters {
-    /// Изменение пресета, может быть вызван из потока обработки для автоматизации
-    fn change_preset(&self, _preset: i32) {
-    }
-
-    /// Получаем номер текущего пресета
-    fn get_preset_num(&self) -> i32 {
-        0
-    }
-
-    /// Установка имени пресета
-    fn set_preset_name(&self, _name: String) {}
-
-    /// Получаем имя пресета по индексу
-    fn get_preset_name(&self, _preset: i32) -> String {
-        "".to_string()
-    }
-
-    /// Получаем имя параметра по индексу
-    fn get_parameter_label(&self, index: i32) -> String {
-        match index {
-            0 => "%".to_string(),
-            1 => "%".to_string(),
-            _ => "".to_string(),
-        }
-    }
-
-    /// Получаем текстовое представление параметра по индексу
-    fn get_parameter_text(&self, index: i32) -> String {
-        match index {
-            // Convert to a percentage
-            0 => {
-                let val = if let Ok(val) = self.threshold.lock(){
-                    *val
-                }else{
-                    0.0_f32
-                };
-                format!("{}", val * 100.0)
-            },
-            1 => {
-                let val = if let Ok(val) = self.volume.lock(){
-                    *val
-                }else{
-                    0.0_f32
-                };
-                format!("{}", val * 100.0)
-            },
-            _ => "".to_string(),
-        }
-    }
-
-    /// Получаем имя параметра по индексу
-    fn get_parameter_name(&self, index: i32) -> String {
-        match index {
-            0 => "Threshold".to_string(),
-            1 => "Volume".to_string(),
-            _ => "".to_string(),
-        }
-    }
-
-    /// Получаем значения параметра по индексу, значение от 0 до 1
-    fn get_parameter(&self, index: i32) -> f32 {
-        match index {
-            0 => {
-                let val = if let Ok(val) = self.threshold.lock(){
-                    *val
-                }else{
-                    0.0_f32
-                };
-                val
-            },
-            1 => {
-                let val = if let Ok(val) = self.volume.lock(){
-                    *val
-                }else{
-                    0.0_f32
-                };
-                val
-            },            
-            _ => 0.0,
-        }
-    }
-
-    /// Установка значения параметра от 0 до 1, метод может быть вызван в потоке обработки данных для автоматизации
-    fn set_parameter(&self, index: i32, value: f32) {
-        match index {
-            // We don't want to divide by zero, so we'll clamp the value
-            0 => {
-                if let Ok(mut val) = self.threshold.lock(){
-                    *val = value;
-                }
-            },
-            1 => {
-                if let Ok(mut val) = self.volume.lock(){
-                    *val = value;
-                }
-            },
-            _ => (),
-        }
-    }
-
-    /// Может ли быть параметр автоматизирован??
-    fn can_be_automated(&self, _index: i32) -> bool {
-        true
-    }
-
-    /// Use String as input for parameter value. Used by host to provide an editable field to
-    /// adjust a parameter value. E.g. "100" may be interpreted as 100hz for parameter. Returns if
-    /// the input string was used.
-    fn string_to_parameter(&self, _index: i32, _text: String) -> bool {
-        false
-    }
-
-    /// If `preset_chunks` is set to true in plugin info, this should return the raw chunk data for
-    /// the current preset.
-    fn get_preset_data(&self) -> Vec<u8> {
-        Vec::new()
-    }
-
-    /// If `preset_chunks` is set to true in plugin info, this should return the raw chunk data for
-    /// the current plugin bank.
-    fn get_bank_data(&self) -> Vec<u8> {
-        Vec::new()
-    }
-
-    /// If `preset_chunks` is set to true in plugin info, this should load a preset from the given
-    /// chunk data.
-    fn load_preset_data(&self, _data: &[u8]) {}
-
-    /// If `preset_chunks` is set to true in plugin info, this should load a preset bank from the
-    /// given chunk data.
-    fn load_bank_data(&self, _data: &[u8]) {}
-}
-
-////////////////////////////////////////////////////////////
+use parameters::SimplePluginParameters;
 
 struct BasicPlugin{
     total_notes: i32,
+    last_input_buffer: Vec<Vec<f32>>,
     params: Arc<SimplePluginParameters>
 }
 
@@ -179,6 +34,7 @@ impl Default for BasicPlugin {
     fn default() -> BasicPlugin {
         BasicPlugin {
             total_notes: 0,
+            last_input_buffer: vec![vec![], vec![]],
             params: Arc::new(SimplePluginParameters::default())
         }
     }
@@ -202,6 +58,11 @@ impl Plugin for BasicPlugin {
 
             ..Default::default()
         }
+    }
+
+    // Выдаем ссылку на шареный объект параметров
+    fn get_parameter_object(&mut self) -> Arc<dyn PluginParameters> {
+        self.params.clone()
     }
 
     // Функция, которая вызывается на события, такие как MIDI и тд
@@ -237,86 +98,51 @@ impl Plugin for BasicPlugin {
     }*/
 
     fn process(&mut self, buffer: &mut AudioBuffer<f32>){
-        let threshold = if let Ok(val) = self.params.threshold.lock(){
-            *val
-        }else{
-            0.0_f32
-        };
-        let volume = if let Ok(val) = self.params.volume.lock(){
-            *val
-        }else{
-            0.0_f32
-        };
+        let threshold = self.params.get_threshold();
+        let volume = self.params.get_volume();
+
+        const BUFFER_MUL: usize = 1;
 
         // Создаем итератор по парам элементов, входа и выхода
+        let mut i = 0;
         for (input, output) in buffer.zip() {
-            // let const_val: f32 = input
-            //     .iter()
-            //     .fold(1.0_f32, |prev, new|{
-            //         if new.abs() < prev.abs(){
-            //             *new
-            //         }else{
-            //             prev
-            //         }
-            //     });
-                // .map(|val| val.abs())
-                // .min_by(|val1, val2|{
-                //     if val1 < val2 {
-                //         std::cmp::Ordering::Less
-                //     }else if val1 > val2{
-                //         std::cmp::Ordering::Greater
-                //     }else{
-                //         std::cmp::Ordering::Equal
-                //     }
-                // })
-                // .unwrap_or(0.0_f32);
+            if self.last_input_buffer[i].len() < input.len() {
+                self.last_input_buffer[i].resize(input.len(), 0.0_f32);
+            }
 
-            let mut input_fft: Vec<Complex32> = input
+            let last_in_buf: &mut Vec<f32> = &mut self.last_input_buffer[i];
+            let window_size = input.len() * (BUFFER_MUL as f32 * 1.5) as usize;
+
+            let window = apodize::hanning_iter(window_size).collect::<Vec<f64>>();
+
+            // Первая секция
+            let mut input_fft_1: Vec<Complex32> = last_in_buf
                 .iter()
+                .chain(input
+                    .iter()
+                    .take(input.len() / 2))
                 .flat_map(|val|{
-                    std::iter::repeat(val)
-                        .take(40)
+                    std::iter::repeat(val).take(BUFFER_MUL)
                 })
-                .map(|val|{
-                    Complex32::new(*val, 0.0)
-                    // Complex32::new(*val - const_val, 0.0)
-                    // if *val < 0.0_f32{
-                    //     Complex32::new(*val - const_val.abs(), 0.0)
-                    //     // Complex32::new(*val, 0.0)
-                    // }else{
-                    //     Complex32::new(*val - const_val.abs(), 0.0)
-                    //     // Complex32::new(*val, 0.0)
-                    // }
+                .zip(window.iter().map(|val| *val as f32))
+                .map(|(val, wind)|{
+                    Complex32::new(*val * wind, 0.0)
                 })
                 .collect();
 
-            /*let from = output.len()*40 - output.len()/2;
-            let to = output.len()*40 + output.len()/2;
-            let mut input_fft: Vec<Complex32> = vec![Complex::zero(); output.len()*40];
-            input_fft
-                .iter_mut()
-                .enumerate()
-                .for_each(|(i, val)|{
-                    if i > from && i <= to  {
-                        *val = Complex32::new(input[i-from], 0.0);
-                    }else{
-                        *val = Complex32::new(0.0, 0.0)
-                    }
-                });*/
-
-            let mut output_fft: Vec<Complex32> = vec![Complex::zero(); output.len()*40];
+            let mut output_fft_1: Vec<Complex32> = vec![Complex::zero(); window_size];
 
             // FFTplanner позволяет выбирать оптимальный алгоритм работы для входного размера данных
             // Создаем объект, который содержит в себе оптимальный алгоритм преобразования фурье
-            let fft_to = FFTplanner::new(false).plan_fft(output_fft.len());
-
             // Обрабатываем данные
             // Входные данные мутабельные, так как они используются в качестве буффера
             // Как результат - там будет мусор после вычисления
-            fft_to.process(&mut input_fft, &mut output_fft);
+            FFTplanner::new(false)
+                .plan_fft(output_fft_1.len())
+                .process(&mut input_fft_1, &mut output_fft_1);
             
-            let inv_len = 1.0 / (output_fft.len() as f32);
-            let sqrt_len = 1.0 / inv_len.sqrt();
+            //let inv_len = 1.0 / (output_fft_1.len() as f32);
+            //let sqrt_len = 1.0 / inv_len.sqrt();
             // output_fft
             //     .iter_mut()
             //     .for_each(|val|{
@@ -325,11 +151,44 @@ impl Plugin for BasicPlugin {
 
             // FFTplanner позволяет выбирать оптимальный алгоритм работы для входного размера данных
             // Создаем объект, который содержит в себе оптимальный алгоритм преобразования фурье
-            let fft_inv = FFTplanner::new(true).plan_fft(output_fft.len());
+            FFTplanner::new(true)
+                .plan_fft(output_fft_1.len())
+                .process(&mut output_fft_1, &mut input_fft_1);
 
-            fft_inv.process(&mut output_fft, &mut input_fft);
+            // Вторая секция
+            let mut input_fft_2: Vec<Complex32> = last_in_buf
+                .iter()
+                .skip(last_in_buf.len() / 2)
+                .chain(input
+                    .iter())
+                .flat_map(|val|{
+                    std::iter::repeat(val).take(BUFFER_MUL)
+                })
+                .zip(window.iter().map(|val| *val as f32))
+                .map(|(val, wind)|{
+                    Complex32::new(*val * wind, 0.0)
+                })
+                .collect();
 
-            input_fft
+            let mut output_fft_2: Vec<Complex32> = vec![Complex::zero(); window_size];
+            
+            // FFTplanner позволяет выбирать оптимальный алгоритм работы для входного размера данных
+            // Создаем объект, который содержит в себе оптимальный алгоритм преобразования фурье
+            FFTplanner::new(true)
+                .plan_fft(output_fft_2.len())
+                .process(&mut output_fft_2, &mut input_fft_2);
+
+            // Сохраняем текущие данные из нового буффера в старый
+            last_in_buf.copy_from_slice(input);
+
+            let inv_len = 1.0 / (input_fft_2.len() as f32);
+            input_fft_1
+                .iter_mut()
+                .for_each(|val|{
+                    //val.norm();
+                    *val *= inv_len;
+                });
+            input_fft_2
                 .iter_mut()
                 .for_each(|val|{
                     //val.norm();
@@ -337,17 +196,39 @@ impl Plugin for BasicPlugin {
                 });
 
             // Для каждого входного и выходного семпла в буфферах
-            for (in_sample, out_sample) in input_fft.into_iter().step_by(40).zip(output.into_iter()) {
+            let len_1 = input_fft_1.len();
+            let len_2= input_fft_2.len();
+
+            let iter = input_fft_1
+                .into_iter()
+                .skip(output.len()/2)
+                .zip(input_fft_2
+                    .into_iter()
+                    .take(output.len()))
+                .step_by(BUFFER_MUL)
+                .map(|(val1, val2)|{
+                    val1.norm() + val2.norm()
+                })
+                .zip(output.into_iter());
+
+            for (in_sample, out_sample) in iter {
                 // let val = if in_sample.re < 0.0_f32{
                 //     in_sample.re + min_abs
                 // }else{
                 //     in_sample.re + min_abs
                 // };
                 //let val = in_sample.re;
-                let val: Complex32 = in_sample;
-                let val = val.norm();
+                //let val: Complex32 = in_sample;
+                //let val = val.norm();
                 // let val = val.re;
                 // let val = val.norm() + const_val;
+
+                /*let index = ii+last_out_buf.len()/2;
+                if index < last_out_buf.len(){
+                    *out_sample += last_out_buf[ii+last_out_buf.len()/2];
+                }*/
+
+                let val = in_sample;
 
                 *out_sample = val;
                 //let val = *in_sample;
@@ -362,46 +243,13 @@ impl Plugin for BasicPlugin {
                 };
 
                 *out_sample *= volume;
+
+                //last_out_buf[ii] = *out_sample;
             }
+
+            i += 1;
         }
     } 
-    
-    // fn process(&mut self, buffer: &mut AudioBuffer<f32>) {
-    //     let volume = if let Ok(val) = self.params.volume.lock(){
-    //         *val
-    //     }else{
-    //         0.0_f32
-    //     };
-    //     let threshold = if let Ok(val) = self.params.threshold.lock(){
-    //         *val
-    //     }else{
-    //         0.0_f32
-    //     };
-
-    //     // let (_, mut output) = buffer.split();
-    //     // for channel in 0..output.len() {
-    //     //     let channel_data = output.get_mut(channel);
-    //     //     for out_sample in channel_data{
-    //     //         *out_sample = rand::random::<f32>() * volume;
-    //     //     }
-    //     // }
-        
-    //     // For each input and output
-    //     for (input, output) in buffer.zip() {
-    //         // For each input sample and output sample in buffer
-    //         for (in_frame, out_frame) in input.iter().zip(output.iter_mut()) {
-    //             //*out_frame = *in_frame * volume;
-    //             //let random_power = (rand::random::<f32>() - 0.5) * 2.0 * threshold;
-    //             let random_power = rand::random::<f32>() * threshold;
-    //             *out_frame = (in_frame * volume * random_power).min(1.0).max(-1.0);
-    //         }
-    //     }
-    // }
-
-    // Выдаем ссылку на шареный объект параметров
-    fn get_parameter_object(&mut self) -> Arc<dyn PluginParameters> {
-        self.params.clone()
-    }
 }
 
 plugin_main!(BasicPlugin); // Important!
