@@ -87,7 +87,8 @@ impl FFTStreamer
                 fft.process(&mut complex_buf, &mut complex_buf2);
 
                 {
-                    // Итератор по нормализованным комплексным значением
+                    // Итератор по модулям значений
+                    // Модуль - это амплитуда конкретной частоты
                     let new_val_iter = complex_buf2
                         .iter()
                         .map(|complex| {

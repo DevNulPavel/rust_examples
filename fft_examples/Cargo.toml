@@ -8,3 +8,4 @@ edition = "2018"
 [dependencies]
 rustfft = "3.0.1"
 plotters = "0.2.12"
+rand = "0.7.3"
