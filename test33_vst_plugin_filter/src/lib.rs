@@ -141,7 +141,11 @@ impl Plugin for LadderFilter {
                 self.tick_pivotal(*input_sample);
 
                 // Получаем нужные значения в зависимости от количества стадий фильтрации
-                *output_sample = self.vout[self.params.poles.load(Ordering::Relaxed)];
+                // Фильтр верхних частот
+                //*output_sample = self.vout[self.params.poles.load(Ordering::Relaxed)];
+
+                // Фильтр нижних частот
+                *output_sample = input_sample - self.vout[self.params.poles.load(Ordering::Relaxed)];
             }
         }
     }
