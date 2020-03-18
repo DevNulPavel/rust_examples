@@ -22,14 +22,14 @@ use rustfft::num_complex::{
 
 struct SimplePluginParameters{
     volume: std::sync::Mutex<f32>,
-    threshold: std::sync::atomic::AtomicU32
+    threshold: std::sync::Mutex<f32>
 }
 
 impl Default for SimplePluginParameters {
     fn default() -> SimplePluginParameters {
         SimplePluginParameters {
             volume: std::sync::Mutex::from(1.0_f32),
-            threshold: std::sync::atomic::AtomicU32::from(1_000_000)
+            threshold: std::sync::Mutex::from(1.0_f32),
         }
     }
 }
@@ -56,6 +56,7 @@ impl PluginParameters for SimplePluginParameters {
     fn get_parameter_label(&self, index: i32) -> String {
         match index {
             0 => "%".to_string(),
+            1 => "%".to_string(),
             _ => "".to_string(),
         }
     }
@@ -65,11 +66,21 @@ impl PluginParameters for SimplePluginParameters {
         match index {
             // Convert to a percentage
             0 => {
-                // let val = self.threshold.load(std::sync::atomic::Ordering::Acquire);
-                // let val = val as f32 / 1_000_000.0_f32;
-                let val = 1.0_f32;
+                let val = if let Ok(val) = self.threshold.lock(){
+                    *val
+                }else{
+                    0.0_f32
+                };
                 format!("{}", val * 100.0)
-            }
+            },
+            1 => {
+                let val = if let Ok(val) = self.volume.lock(){
+                    *val
+                }else{
+                    0.0_f32
+                };
+                format!("{}", val * 100.0)
+            },
             _ => "".to_string(),
         }
     }
@@ -78,6 +89,7 @@ impl PluginParameters for SimplePluginParameters {
     fn get_parameter_name(&self, index: i32) -> String {
         match index {
             0 => "Threshold".to_string(),
+            1 => "Volume".to_string(),
             _ => "".to_string(),
         }
     }
@@ -86,11 +98,21 @@ impl PluginParameters for SimplePluginParameters {
     fn get_parameter(&self, index: i32) -> f32 {
         match index {
             0 => {
-                //let val = self.threshold.load(std::sync::atomic::Ordering::Acquire);
-                //let val = val as f32 / 1_000_000.0_f32;
-                //val
-                1.0_f32
+                let val = if let Ok(val) = self.threshold.lock(){
+                    *val
+                }else{
+                    0.0_f32
+                };
+                val
             },
+            1 => {
+                let val = if let Ok(val) = self.volume.lock(){
+                    *val
+                }else{
+                    0.0_f32
+                };
+                val
+            },            
             _ => 0.0,
         }
     }
@@ -100,8 +122,14 @@ impl PluginParameters for SimplePluginParameters {
         match index {
             // We don't want to divide by zero, so we'll clamp the value
             0 => {
-                //let val = (value * 1_000_000.0_f32) as u32;
-                //self.threshold.store(val, std::sync::atomic::Ordering::Acquire);
+                if let Ok(mut val) = self.threshold.lock(){
+                    *val = value;
+                }
+            },
+            1 => {
+                if let Ok(mut val) = self.volume.lock(){
+                    *val = value;
+                }
             },
             _ => (),
         }
@@ -162,11 +190,11 @@ impl Plugin for BasicPlugin {
             name: "DevNul's Plugin".to_string(),
             unique_id: 1357,            // Уникальный номер, чтобы отличать плагины
             presets: 0,                 // Количество пресетов
-            inputs: 1,                  // Сколько каналов звука на входе
-            outputs: 1,                 // Каналы звука на выходе
+            inputs: 2,                  // Сколько каналов звука на входе
+            outputs: 2,                 // Каналы звука на выходе
             version: 0001,              // Версия плагина 
             category: Category::Synth,  // Тип плагина
-            parameters: 1,
+            parameters: 2,
             //initial_delay, 
             //preset_chunks, 
             //f64_precision, 
@@ -209,9 +237,16 @@ impl Plugin for BasicPlugin {
     }
 
     fn process(&mut self, buffer: &mut AudioBuffer<f32>){
-        //let val = self.params.threshold.load(std::sync::atomic::Ordering::Acquire);
-        //let threshold = val as f32 / 1_000_000.0_f32;
-        let threshold = 0.9_f32;
+        let threshold = if let Ok(val) = self.params.threshold.lock(){
+            *val
+        }else{
+            0.0_f32
+        };
+        let volume = if let Ok(val) = self.params.volume.lock(){
+            *val
+        }else{
+            0.0_f32
+        };
 
         // Создаем итератор по парам элементов, входа и выхода
         for (input, output) in buffer.zip() {
@@ -290,6 +325,8 @@ impl Plugin for BasicPlugin {
                 let val = in_sample.re;
                 // let val = in_sample.re + const_val;
 
+                //*out_sample = val;
+
                 // Эмулируем клиппинг значений
                 *out_sample = if val > threshold {
                     threshold
@@ -298,6 +335,8 @@ impl Plugin for BasicPlugin {
                 } else {
                     val
                 };
+
+                *out_sample *= volume;
             }
         }
     }
