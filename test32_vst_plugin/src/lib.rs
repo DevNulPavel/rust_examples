@@ -104,6 +104,8 @@ impl Plugin for BasicPlugin {
     
         const BUFFER_MUL: usize = 1;
     
+        // https://habr.com/ru/post/430536/
+
         // Создаем итератор по парам элементов, входа и выхода
         let mut i = 0;
         for (input, output) in buffer.zip() {
@@ -112,7 +114,7 @@ impl Plugin for BasicPlugin {
             }
     
             let last_in_buf: &mut Vec<f32> = &mut self.last_input_buffer[i];
-            let window_size = (input.len() as f32 * BUFFER_MUL as f32 * 1.5) as usize;
+            let window_size = (input.len() as f32 * BUFFER_MUL as f32 * 1.75) as usize;
     
             let window = apodize::hanning_iter(window_size).collect::<Vec<f64>>();
     
@@ -121,14 +123,14 @@ impl Plugin for BasicPlugin {
                 .iter()
                 .chain(input
                     .iter()
-                    .take(input.len() / 2))
+                    .take(input.len() * 3 / 4))
                 .flat_map(|val|{
                     std::iter::repeat(val).take(BUFFER_MUL)
                 })
                 // .map(|val|{
                 //     Complex32::new(*val, 0.0)
                 // })                
-                .zip(window.iter().map(|val| (*val as f32).powf(2.0) ))
+                .zip(window.iter().map(|val| *val as f32 ))
                 .map(|(val, wind)|{
                     Complex32::new(*val * wind, 0.0)
                 })
@@ -158,13 +160,21 @@ impl Plugin for BasicPlugin {
                     *val *= inv_len;
                 });
 
+            let mut window_res = apodize::hanning_iter(input_fft_1.len()).collect::<Vec<f64>>();
+            input_fft_1
+                .iter_mut()
+                .zip(window_res.iter_mut())
+                .for_each(|(val, wind)|{
+                    *val *= *wind as f32;
+                });
+
             // let window = apodize::hanning_iter(window_size).collect::<Vec<f64>>();                
     
             // Вторая секция
             let mut input_fft_2: Vec<Complex32> = last_in_buf
                 .iter()
-                .skip(last_in_buf.len() / 2)
-                .take(last_in_buf.len() / 2)
+                .skip(last_in_buf.len() / 4)
+                .take(last_in_buf.len() * 4 / 4)
                 .chain(input
                     .iter())
                 .flat_map(|val|{
@@ -173,7 +183,7 @@ impl Plugin for BasicPlugin {
                 // .map(|val|{
                 //     Complex32::new(*val, 0.0)
                 // })                
-                .zip(window.iter().map(|val| (*val as f32).powf(2.0) ))
+                .zip(window.iter().map(|val| *val as f32 ))
                 .map(|(val, wind)|{
                     Complex32::new(*val * wind, 0.0)
                 })
@@ -194,17 +204,23 @@ impl Plugin for BasicPlugin {
                 .process(&mut output_fft_2, &mut input_fft_2);
     
             let inv_len = 1.0 / (input_fft_2.len() as f32);
-                input_fft_2
-                    .iter_mut()
-                    .for_each(|val|{
-                        *val *= inv_len;
-                    });
+            input_fft_2
+                .iter_mut()
+                .for_each(|val|{
+                    *val *= inv_len;
+                });
+
+            let mut window_res = apodize::hanning_iter(input_fft_2.len()).collect::<Vec<f64>>();
+            input_fft_2
+                .iter_mut()
+                .zip(window_res.iter_mut())
+                .for_each(|(val, wind)|{
+                    *val *= *wind as f32;
+                });
 
             // Сохраняем текущие данные из нового буффера в старый
             last_in_buf.copy_from_slice(input);
         
-            // let window_res = apodize::hanning_iter(output.len()).collect::<Vec<f64>>();
-
             let iter = input_fft_1
                 .into_iter()
                 .skip(output.len()/2)
@@ -218,7 +234,7 @@ impl Plugin for BasicPlugin {
                 //     (val1.re + val2.re) * (1.0 - wind)
                 // })
                 .map(|(val1, val2)|{
-                    (val1.re + val2.re) / 2.0
+                    (val1.re + val2.re) //* 2.0 / 3.0
                     //val2.re
                     // val1.re
                 })           
