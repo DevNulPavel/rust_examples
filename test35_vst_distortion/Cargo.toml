@@ -1,0 +1,15 @@
+[package]
+name = "test35_vst_distortion"
+version = "0.1.0"
+authors = ["DevNul <devnulpavel@gmail.com>"]
+edition = "2018"
+
+# See more keys and their definitions at https://doc.rust-lang.org/cargo/reference/manifest.html
+
+[dependencies]
+vst = "0.2.0"
+
+
+[lib]
+name = "test35_vst_distortion"
+crate-type = ["cdylib"]
