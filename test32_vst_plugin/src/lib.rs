@@ -102,8 +102,6 @@ impl Plugin for BasicPlugin {
         let threshold = self.params.get_threshold();
         let volume = self.params.get_volume();
     
-        const BUFFER_MUL: usize = 1;
-    
         // https://habr.com/ru/post/430536/
 
         // Создаем итератор по парам элементов, входа и выхода
@@ -114,153 +112,200 @@ impl Plugin for BasicPlugin {
             }
     
             let last_in_buf: &mut Vec<f32> = &mut self.last_input_buffer[i];
-            let window_size = (input.len() as f32 * BUFFER_MUL as f32 * 1.75) as usize;
-    
-            let window = apodize::hanning_iter(window_size).collect::<Vec<f64>>();
-    
-            // Первая секция
-            let mut input_fft_1: Vec<Complex32> = last_in_buf
-                .iter()
-                .chain(input
-                    .iter()
-                    .take(input.len() * 3 / 4))
-                .flat_map(|val|{
-                    std::iter::repeat(val).take(BUFFER_MUL)
-                })
-                // .map(|val|{
-                //     Complex32::new(*val, 0.0)
-                // })                
-                .zip(window.iter().map(|val| *val as f32 ))
-                .map(|(val, wind)|{
-                    Complex32::new(*val * wind, 0.0)
-                })
-                .collect();
-    
-            let mut output_fft_1: Vec<Complex32> = vec![Complex::zero(); window_size];
-    
-            // FFTplanner позволяет выбирать оптимальный алгоритм работы для входного размера данных
-            // Создаем объект, который содержит в себе оптимальный алгоритм преобразования фурье
-            // Обрабатываем данные
-            // Входные данные мутабельные, так как они используются в качестве буффера
-            // Как результат - там будет мусор после вычисления
-            FFTplanner::new(false)
-                .plan_fft(output_fft_1.len())
-                .process(&mut input_fft_1, &mut output_fft_1);
-    
-            // FFTplanner позволяет выбирать оптимальный алгоритм работы для входного размера данных
-            // Создаем объект, который содержит в себе оптимальный алгоритм преобразования фурье
-            FFTplanner::new(true)
-                .plan_fft(output_fft_1.len())
-                .process(&mut output_fft_1, &mut input_fft_1);
-    
-            let inv_len = 1.0 / (input_fft_1.len() as f32);
-            input_fft_1
-                .iter_mut()
-                .for_each(|val|{
-                    *val *= inv_len;
-                });
-
-            // let mut window_res = apodize::hanning_iter(input_fft_1.len()).collect::<Vec<f64>>();
-            // input_fft_1
-            //     .iter_mut()
-            //     .zip(window_res.iter_mut())
-            //     .for_each(|(val, wind)|{
-            //         *val *= *wind as f32;
-            //     });
-
-            let window = apodize::hanning_iter(window_size).collect::<Vec<f64>>();                
-    
-            // Вторая секция
-            let mut input_fft_2: Vec<Complex32> = last_in_buf
-                .iter()
-                .skip(last_in_buf.len() / 4)
-                .take(last_in_buf.len() * 3 / 4)
-                .chain(input
-                    .iter())
-                .flat_map(|val|{
-                    std::iter::repeat(val).take(BUFFER_MUL)
-                })
-                // .map(|val|{
-                //     Complex32::new(*val, 0.0)
-                // })                
-                .zip(window.iter().map(|val| *val as f32 ))
-                .map(|(val, wind)|{
-                    Complex32::new(*val * wind, 0.0)
-                })
-                .collect();
-    
-            let mut output_fft_2: Vec<Complex32> = vec![Complex::zero(); window_size];
             
-            // FFTplanner позволяет выбирать оптимальный алгоритм работы для входного размера данных
-            // Создаем объект, который содержит в себе оптимальный алгоритм преобразования фурье
-            FFTplanner::new(false)
-                .plan_fft(input_fft_2.len())
-                .process(&mut input_fft_2, &mut output_fft_2);
-
-            // FFTplanner позволяет выбирать оптимальный алгоритм работы для входного размера данных
-            // Создаем объект, который содержит в себе оптимальный алгоритм преобразования фурье
-            FFTplanner::new(true)
-                .plan_fft(output_fft_2.len())
-                .process(&mut output_fft_2, &mut input_fft_2);
-    
-            let inv_len = 1.0 / (input_fft_2.len() as f32);
-            input_fft_2
-                .iter_mut()
-                .for_each(|val|{
-                    *val *= inv_len;
-                });
-
-            // let mut window_res = apodize::hanning_iter(input_fft_2.len()).collect::<Vec<f64>>();
-            // input_fft_2
-            //     .iter_mut()
-            //     .zip(window_res.iter_mut())
-            //     .for_each(|(val, wind)|{
-            //         *val *= *wind as f32;
-            //     });
-
-            // Сохраняем текущие данные из нового буффера в старый
-            last_in_buf.copy_from_slice(input);
-        
-            let iter = input_fft_1
-                .into_iter()
-                .skip(output.len() / 2)
-                .take(output.len())
-                .zip(input_fft_2
-                    .into_iter()
-                    .skip(output.len() / 4)
-                    .take(output.len()))
-                .step_by(BUFFER_MUL)
-                // .zip(window_res.iter().map(|val| *val as f32))
-                // .map(|((val1, val2), wind)|{
-                //     (val1.re + val2.re) * (1.0 - wind)
-                // })
-                .map(|(val1, val2)|{
-                    (val1.re + val2.re) * 2.0 / 3.0
-                    //val2.re
-                    // val1.re
-                })           
-                .zip(output.into_iter());
-    
-            for (in_sample, out_sample) in iter {    
-                let val = in_sample;
-    
-                *out_sample = val;
-    
-                // Эмулируем клиппинг значений
-                *out_sample = if val > threshold {
-                    threshold
-                } else if val < -threshold {
-                    -threshold
-                } else {
-                    val
-                };
-    
-                *out_sample *= volume;
-            }
+            handle_data(input, output, last_in_buf, threshold, volume);
     
             i += 1;
         }
     } 
 }
 
+pub fn handle_data( input: &[f32], 
+                output: &mut [f32], 
+                last_in_buf: &mut Vec<f32>, 
+                threshold: f32,
+                volume: f32){
+
+    const BUFFER_MUL: usize = 1;
+
+    let window_size = (input.len() as f32 * BUFFER_MUL as f32 * 1.75) as usize;
+
+    let window = apodize::hanning_iter(window_size).collect::<Vec<f64>>();
+
+    // Первая секция
+    let mut input_fft_1: Vec<Complex32> = last_in_buf
+        .iter()
+        .chain(input
+            .iter()
+            .take(input.len() * 3 / 4))
+        .flat_map(|val|{
+            std::iter::repeat(val).take(BUFFER_MUL)
+        })
+        // .map(|val|{
+        //     Complex32::new(*val, 0.0)
+        // })                
+        .zip(window.iter().map(|val| *val as f32 ))
+        .map(|(val, wind)|{
+            Complex32::new(*val * wind, 0.0)
+        })
+        .collect();
+
+    let mut output_fft_1: Vec<Complex32> = vec![Complex::zero(); window_size];
+
+    // FFTplanner позволяет выбирать оптимальный алгоритм работы для входного размера данных
+    // Создаем объект, который содержит в себе оптимальный алгоритм преобразования фурье
+    // Обрабатываем данные
+    // Входные данные мутабельные, так как они используются в качестве буффера
+    // Как результат - там будет мусор после вычисления
+    FFTplanner::new(false)
+        .plan_fft(output_fft_1.len())
+        .process(&mut input_fft_1, &mut output_fft_1);
+
+    // FFTplanner позволяет выбирать оптимальный алгоритм работы для входного размера данных
+    // Создаем объект, который содержит в себе оптимальный алгоритм преобразования фурье
+    FFTplanner::new(true)
+        .plan_fft(output_fft_1.len())
+        .process(&mut output_fft_1, &mut input_fft_1);
+
+    let inv_len = 1.0 / (input_fft_1.len() as f32);
+    input_fft_1
+        .iter_mut()
+        .for_each(|val|{
+            *val *= inv_len;
+        });
+
+    // let mut window_res = apodize::hanning_iter(input_fft_1.len()).collect::<Vec<f64>>();
+    // input_fft_1
+    //     .iter_mut()
+    //     .zip(window_res.iter_mut())
+    //     .for_each(|(val, wind)|{
+    //         *val *= *wind as f32;
+    //     });
+
+    let window = apodize::hanning_iter(window_size).collect::<Vec<f64>>();                
+
+    // Вторая секция
+    let mut input_fft_2: Vec<Complex32> = last_in_buf
+        .iter()
+        .skip(last_in_buf.len() / 4)
+        .take(last_in_buf.len() * 3 / 4)
+        .chain(input
+            .iter())
+        .flat_map(|val|{
+            std::iter::repeat(val).take(BUFFER_MUL)
+        })
+        // .map(|val|{
+        //     Complex32::new(*val, 0.0)
+        // })                
+        .zip(window.iter().map(|val| *val as f32 ))
+        .map(|(val, wind)|{
+            Complex32::new(*val * wind, 0.0)
+        })
+        .collect();
+
+    let mut output_fft_2: Vec<Complex32> = vec![Complex::zero(); window_size];
+    
+    // FFTplanner позволяет выбирать оптимальный алгоритм работы для входного размера данных
+    // Создаем объект, который содержит в себе оптимальный алгоритм преобразования фурье
+    FFTplanner::new(false)
+        .plan_fft(input_fft_2.len())
+        .process(&mut input_fft_2, &mut output_fft_2);
+
+    // FFTplanner позволяет выбирать оптимальный алгоритм работы для входного размера данных
+    // Создаем объект, который содержит в себе оптимальный алгоритм преобразования фурье
+    FFTplanner::new(true)
+        .plan_fft(output_fft_2.len())
+        .process(&mut output_fft_2, &mut input_fft_2);
+
+    let inv_len = 1.0 / (input_fft_2.len() as f32);
+    input_fft_2
+        .iter_mut()
+        .for_each(|val|{
+            *val *= inv_len;
+        });
+
+    // let mut window_res = apodize::hanning_iter(input_fft_2.len()).collect::<Vec<f64>>();
+    // input_fft_2
+    //     .iter_mut()
+    //     .zip(window_res.iter_mut())
+    //     .for_each(|(val, wind)|{
+    //         *val *= *wind as f32;
+    //     });
+
+    // Сохраняем текущие данные из нового буффера в старый
+    last_in_buf.copy_from_slice(input);
+
+    let iter = input_fft_1
+        .into_iter()
+        .skip(output.len() / 2)
+        .take(output.len())
+        .zip(input_fft_2
+            .into_iter()
+            .skip(output.len() / 4)
+            .take(output.len()))
+        .step_by(BUFFER_MUL)
+        // .zip(window_res.iter().map(|val| *val as f32))
+        // .map(|((val1, val2), wind)|{
+        //     (val1.re + val2.re) * (1.0 - wind)
+        // })
+        .map(|(val1, val2)|{
+            let val = (val1.re + val2.re) * 2.0 / 3.0;
+            println!("{}", val);
+            val
+            //val2.re
+            // val1.re
+        })           
+        .zip(output.into_iter());
+
+    for (in_sample, out_sample) in iter {    
+        let val = in_sample;
+
+        *out_sample = val;
+
+        // Эмулируем клиппинг значений
+        *out_sample = if val > threshold {
+            threshold
+        } else if val < -threshold {
+            -threshold
+        } else {
+            val
+        };
+
+        *out_sample *= volume;
+    }
+}
+
 plugin_main!(BasicPlugin); // Important!
+
+#[cfg(test)]
+mod tests{
+    use super::*;
+
+    #[test]
+    fn test_process(){
+        let mut prev_input: Vec<f32> = vec![
+            -1.0,
+            -2.0,
+            -3.0,
+            -4.0,
+            -5.0,
+            -6.0,
+            -7.0,
+            -9.0
+        ];
+        let input: [f32; 8] = [
+            1.0,
+            2.0,
+            3.0,
+            4.0,
+            5.0,
+            6.0,
+            7.0,
+            9.0
+        ];
+        let mut output: [f32; 8] = [0.0; 8];
+        handle_data(&input, &mut output, &mut prev_input, 1.0, 1.0);
+
+        println!("{:?}", output);
+    }
+}
