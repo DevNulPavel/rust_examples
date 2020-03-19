@@ -74,6 +74,8 @@ impl FFTStreamer
                             // Чтобы преобразование Фурье могло опираться на старые значения тоже с перекрытием?
                             // Тогда график будет выглядеть как колокол
                             // 0.54 - 0.46 * cos(i * step)
+                            // https://ru.wikipedia.org/wiki/Хэмминг,_Ричард_Уэсли
+                            // https://ru.wikipedia.org/wiki/Оконное_преобразование_Фурье
                             let i = i as f32;
                             let window_coeff = 0.54 - 0.46 * (i * window_fac).cos();
                             let real_val = *sample * window_coeff;
