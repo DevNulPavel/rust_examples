@@ -160,21 +160,21 @@ impl Plugin for BasicPlugin {
                     *val *= inv_len;
                 });
 
-            let mut window_res = apodize::hanning_iter(input_fft_1.len()).collect::<Vec<f64>>();
-            input_fft_1
-                .iter_mut()
-                .zip(window_res.iter_mut())
-                .for_each(|(val, wind)|{
-                    *val *= *wind as f32;
-                });
+            // let mut window_res = apodize::hanning_iter(input_fft_1.len()).collect::<Vec<f64>>();
+            // input_fft_1
+            //     .iter_mut()
+            //     .zip(window_res.iter_mut())
+            //     .for_each(|(val, wind)|{
+            //         *val *= *wind as f32;
+            //     });
 
-            // let window = apodize::hanning_iter(window_size).collect::<Vec<f64>>();                
+            let window = apodize::hanning_iter(window_size).collect::<Vec<f64>>();                
     
             // Вторая секция
             let mut input_fft_2: Vec<Complex32> = last_in_buf
                 .iter()
                 .skip(last_in_buf.len() / 4)
-                .take(last_in_buf.len() * 4 / 4)
+                .take(last_in_buf.len() * 3 / 4)
                 .chain(input
                     .iter())
                 .flat_map(|val|{
@@ -210,23 +210,24 @@ impl Plugin for BasicPlugin {
                     *val *= inv_len;
                 });
 
-            let mut window_res = apodize::hanning_iter(input_fft_2.len()).collect::<Vec<f64>>();
-            input_fft_2
-                .iter_mut()
-                .zip(window_res.iter_mut())
-                .for_each(|(val, wind)|{
-                    *val *= *wind as f32;
-                });
+            // let mut window_res = apodize::hanning_iter(input_fft_2.len()).collect::<Vec<f64>>();
+            // input_fft_2
+            //     .iter_mut()
+            //     .zip(window_res.iter_mut())
+            //     .for_each(|(val, wind)|{
+            //         *val *= *wind as f32;
+            //     });
 
             // Сохраняем текущие данные из нового буффера в старый
             last_in_buf.copy_from_slice(input);
         
             let iter = input_fft_1
                 .into_iter()
-                .skip(output.len()/2)
+                .skip(output.len() / 2)
                 .take(output.len())
                 .zip(input_fft_2
                     .into_iter()
+                    .skip(output.len() / 4)
                     .take(output.len()))
                 .step_by(BUFFER_MUL)
                 // .zip(window_res.iter().map(|val| *val as f32))
@@ -234,7 +235,7 @@ impl Plugin for BasicPlugin {
                 //     (val1.re + val2.re) * (1.0 - wind)
                 // })
                 .map(|(val1, val2)|{
-                    (val1.re + val2.re) //* 2.0 / 3.0
+                    (val1.re + val2.re) * 2.0 / 3.0
                     //val2.re
                     // val1.re
                 })           
