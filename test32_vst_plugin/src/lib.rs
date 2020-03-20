@@ -128,27 +128,35 @@ pub fn handle_data( input: &[f32],
 
     const BUFFER_MUL: usize = 1;
 
-    let window_size = (input.len() as f32 * BUFFER_MUL as f32 * 1.75) as usize;
+    //const INTERSECTION = 0.75;
 
-    let window = apodize::hanning_iter(window_size).collect::<Vec<f64>>();
+    let window_size = (input.len() as f32 * BUFFER_MUL as f32 * 1.5) as usize;
+
+    // let window = apodize::hanning_iter(window_size).collect::<Vec<f64>>();
 
     // Первая секция
     let mut input_fft_1: Vec<Complex32> = last_in_buf
         .iter()
         .chain(input
             .iter()
-            .take(input.len() * 3 / 4))
+            .take(input.len() * 2 / 4)) // 3/4
         .flat_map(|val|{
             std::iter::repeat(val).take(BUFFER_MUL)
         })
         // .map(|val|{
         //     Complex32::new(*val, 0.0)
         // })                
-        .zip(window.iter().map(|val| *val as f32 ))
-        .map(|(val, wind)|{
+        // .zip(window.iter().map(|val| *val as f32 ))
+        .enumerate()
+        .map(|(i, val)|{
+            let wind = 0.5 * (1.0 - ((2.0_f32 * std::f32::consts::PI * i as f32) / (window_size as f32 - 1.0_f32)).cos());
+            println!("2 {} * {} = {:?}", wind, *val, *val * wind);
             Complex32::new(*val * wind, 0.0)
+            // Complex32::new(*val, 0.0)
         })
         .collect();
+
+    println!("");        
 
     let mut output_fft_1: Vec<Complex32> = vec![Complex::zero(); window_size];
 
@@ -172,7 +180,10 @@ pub fn handle_data( input: &[f32],
         .iter_mut()
         .for_each(|val|{
             *val *= inv_len;
+            // println!("1 {:?}", *val);
         });
+
+    println!("");
 
     // let mut window_res = apodize::hanning_iter(input_fft_1.len()).collect::<Vec<f64>>();
     // input_fft_1
@@ -182,13 +193,14 @@ pub fn handle_data( input: &[f32],
     //         *val *= *wind as f32;
     //     });
 
-    let window = apodize::hanning_iter(window_size).collect::<Vec<f64>>();                
+    //let window = apodize::hanning_iter(window_size).collect::<Vec<f64>>();                
+    //let window = sample::window::hanning::<f32>(window_size);
 
     // Вторая секция
     let mut input_fft_2: Vec<Complex32> = last_in_buf
         .iter()
-        .skip(last_in_buf.len() / 4)
-        .take(last_in_buf.len() * 3 / 4)
+        .skip(last_in_buf.len() / 2) // /4
+        .take(last_in_buf.len() / 2) // * 3 / 4
         .chain(input
             .iter())
         .flat_map(|val|{
@@ -197,8 +209,12 @@ pub fn handle_data( input: &[f32],
         // .map(|val|{
         //     Complex32::new(*val, 0.0)
         // })                
-        .zip(window.iter().map(|val| *val as f32 ))
-        .map(|(val, wind)|{
+        // .zip(window.iter().map(|val| *val as f32 ))
+        .enumerate()
+        .map(|(i, val)|{
+            let wind = 0.5 * (1.0 - ((2.0_f32 * std::f32::consts::PI * i as f32) / (window_size as f32 - 1.0_f32)).cos());
+            println!("2 {} * {} = {:?}", wind, *val, *val * wind);
+            // Complex32::new(*val, 0.0)
             Complex32::new(*val * wind, 0.0)
         })
         .collect();
@@ -222,6 +238,7 @@ pub fn handle_data( input: &[f32],
         .iter_mut()
         .for_each(|val|{
             *val *= inv_len;
+            //println!("2 {:?}", *val);
         });
 
     // let mut window_res = apodize::hanning_iter(input_fft_2.len()).collect::<Vec<f64>>();
@@ -232,6 +249,8 @@ pub fn handle_data( input: &[f32],
     //         *val *= *wind as f32;
     //     });
 
+    println!("");
+
     // Сохраняем текущие данные из нового буффера в старый
     last_in_buf.copy_from_slice(input);
 
@@ -241,7 +260,7 @@ pub fn handle_data( input: &[f32],
         .take(output.len())
         .zip(input_fft_2
             .into_iter()
-            .skip(output.len() / 4)
+            //.skip(output.len() / 4) // /4
             .take(output.len()))
         .step_by(BUFFER_MUL)
         // .zip(window_res.iter().map(|val| *val as f32))
@@ -249,8 +268,10 @@ pub fn handle_data( input: &[f32],
         //     (val1.re + val2.re) * (1.0 - wind)
         // })
         .map(|(val1, val2)|{
-            let val = (val1.re + val2.re) * 2.0 / 3.0;
-            println!("{}", val);
+            // let val = (val1.re + val2.re) * 2.0 / 3.0;
+            // let val = (val1.re + val2.re) / 2.0;
+            let val = val1.re + val2.re;
+            println!("{} + {} = {}", val1, val2, val);
             val
             //val2.re
             // val1.re
@@ -283,29 +304,6 @@ mod tests{
 
     #[test]
     fn test_process(){
-        let mut prev_input: Vec<f32> = vec![
-            -1.0,
-            -2.0,
-            -3.0,
-            -4.0,
-            -5.0,
-            -6.0,
-            -7.0,
-            -9.0
-        ];
-        let input: [f32; 8] = [
-            1.0,
-            2.0,
-            3.0,
-            4.0,
-            5.0,
-            6.0,
-            7.0,
-            9.0
-        ];
-        let mut output: [f32; 8] = [0.0; 8];
-        handle_data(&input, &mut output, &mut prev_input, 1.0, 1.0);
-
-        println!("{:?}", output);
+        
     }
 }
