@@ -24,15 +24,19 @@ use rustfft::num_complex::{
 
 use parameters::SimplePluginParameters;
 
+
 pub struct BasicPlugin{
     total_notes: i32,
-    last_input_buffer: Vec<Vec<f32>>,
+
+    previous_input: Vec<Vec<f32>>,
+    previous_result: Vec<Vec<Complex32>>,
+
+    buffer_fft: Vec<Complex32>,
+
     fft_1: Vec<Complex32>,
-    buffer_fft_1: Vec<Complex32>,
     fft_2: Vec<Complex32>,
-    buffer_fft_2: Vec<Complex32>,
     fft_3: Vec<Complex32>,
-    buffer_fft_3: Vec<Complex32>,
+    
     params: Arc<SimplePluginParameters>
 }
 
@@ -40,13 +44,12 @@ impl Default for BasicPlugin {
     fn default() -> BasicPlugin {
         BasicPlugin {
             total_notes: 0,
-            last_input_buffer: vec![vec![], vec![]],
+            previous_result: vec![vec![], vec![]],
+            previous_input: vec![vec![], vec![]],
+            buffer_fft: vec![],
             fft_1: vec![],
-            buffer_fft_1: vec![],
             fft_2: vec![],
-            buffer_fft_2: vec![],
             fft_3: vec![],
-            buffer_fft_3: vec![],
             params: Arc::new(SimplePluginParameters::default())
         }
     }
@@ -119,12 +122,7 @@ impl Plugin for BasicPlugin {
         // Создаем итератор по парам элементов, входа и выхода
         let mut i = 0;
         for (input, output) in buffer.zip() {
-            if self.last_input_buffer[i].len() < input.len() {
-                self.last_input_buffer[i].resize(input.len(), 0.0_f32);
-            }
-            
             self.handle_data(i, input, output, threshold, volume);
-    
             i += 1;
         }
     } 
@@ -143,95 +141,53 @@ impl BasicPlugin{
 
         const BUFFER_MUL: usize = 1;
 
-        let window_size = input.len() * BUFFER_MUL;
+        // Результат прошлых вычислений
+        let previous_result: &mut Vec<Complex32> = &mut self.previous_result[channel];
+        check_buffer_size(previous_result, input.len() * BUFFER_MUL);
 
-        // let wind = 0.5 * (1.0 - ((2.0_f32 * std::f32::consts::PI * i as f32) / (window_size as f32 - 1.0_f32)).cos());
-        let window = apodize::hanning_iter(window_size).collect::<Vec<f64>>();
+        // Прошлый вход
+        let previous_input: &mut Vec<f32> = &mut self.previous_input[channel];
+        check_buffer_size(previous_input, input.len() * BUFFER_MUL);
 
-        let last_in_buf: &mut Vec<f32> = &mut self.last_input_buffer[channel];
-        check_buffer_size(last_in_buf, input.len());
+        check_buffer_size(&mut self.buffer_fft, input.len() * BUFFER_MUL);
 
-        // Первая секция
-        let result_fft_1 = {
-            // Увеличиваем размер буфферов если надо
-            check_buffer_size(&mut self.fft_1, input.len() * BUFFER_MUL);
-            check_buffer_size(&mut self.buffer_fft_1, input.len() * BUFFER_MUL);
+        // Первая секция - используем прошлый результат с окном
+        let result_fft_1 = &*previous_result;
 
-            let input_fft = last_in_buf
-                .iter()
-                .flat_map(|val|{
-                    std::iter::repeat(val).take(BUFFER_MUL)
-                })         
-                .zip(window.iter().map(|val| *val as f32 ))
-                .map(|(val, wind)|{
-                    Complex32::new(*val * wind, 0.0)
-                    // Complex32::new(*val, 0.0)
-                });
-
-            update_with_iter(&mut self.fft_1, input_fft);
-
-            fft_process(&mut self.fft_1, &mut self.buffer_fft_1);
-
-            &self.fft_1
-        };
-
-
-        // Вторая секция
+        // Вторая секция - перекрывающийся прошлый вход и новый
         let result_fft_2 = {
             // Увеличиваем размер буфферов если надо
             check_buffer_size(&mut self.fft_2, input.len() * BUFFER_MUL);
-            check_buffer_size(&mut self.buffer_fft_2, input.len() * BUFFER_MUL);
 
-            let input_fft = last_in_buf
-                .iter()
-                .skip(last_in_buf.len() / 2) // /4
-                .take(last_in_buf.len() / 2) // * 3 / 4
-                .chain(input
-                    .iter()
-                    .take(input.len() / 2))
-                .flat_map(|val|{
-                    std::iter::repeat(val).take(BUFFER_MUL)
-                })              
-                .zip(window.iter().map(|val| *val as f32 ))
-                .map(|(val, wind)|{
-                    Complex32::new(*val * wind, 0.0)
-                });
+            // Итератор по нужным данным
+            let input_fft = get_section_iterator_2(previous_input, input);
 
+            // Обновляем первый FFT буффер новыми значениями из итератора
             update_with_iter(&mut self.fft_2, input_fft);
 
-            fft_process(&mut self.fft_2, &mut self.buffer_fft_1);
+            fft_process(&mut self.fft_2, &mut self.buffer_fft);
 
             &self.fft_2
         };
 
-        // Третья секция
+        // Третья секция - текущий вход
         let result_fft_3 = {
             // Увеличиваем размер буфферов если надо
             check_buffer_size(&mut self.fft_3, input.len() * BUFFER_MUL);
-            check_buffer_size(&mut self.buffer_fft_3, input.len() * BUFFER_MUL);
 
-            let input_fft= input
-                .iter()
-                .flat_map(|val|{
-                    std::iter::repeat(val).take(BUFFER_MUL)
-                })           
-                .zip(window.iter().map(|val| *val as f32 ))
-                .map(|(val, wind)|{
-                    Complex32::new(*val * wind, 0.0)
-                });
+            // Итератор по нужным данным
+            let input_fft = get_section_iterator_3(input);
 
+            // Обновляем первый FFT буффер новыми значениями из итератора
             update_with_iter(&mut self.fft_3, input_fft);
 
-            fft_process(&mut self.fft_3, &mut self.buffer_fft_1);
+            fft_process(&mut self.fft_3, &mut self.buffer_fft);
 
             &self.fft_3        
         };
         
-        // Сохраняем текущие данные из нового буффера в старый
-        last_in_buf.copy_from_slice(input);
-
         // Итератор по результатам
-        let iter = crossfade_results(result_fft_1, &result_fft_2, result_fft_3, output);
+        let iter = crossfade_results(result_fft_1, result_fft_2, result_fft_3, output);
 
         for (in_sample, out_sample) in iter {    
             let val = in_sample;
@@ -249,6 +205,11 @@ impl BasicPlugin{
 
             *out_sample *= volume;
         }
+
+        // Сохраняем текущие данные из нового буффера в старый
+        previous_result.copy_from_slice(result_fft_3);
+        // Сохраняем прошлый вход
+        previous_input.copy_from_slice(input);
     }
 }
 
@@ -277,10 +238,60 @@ fn fft_process(input_fft_1: &mut [Complex32], buffer_fft: &mut [Complex32]){
         });
 }
 
+/*fn get_section_iterator_1<'a>(prev_input: &'a [Complex32], 
+                              _: &'a [f32],
+                              buffer_mul: usize)-> impl std::iter::Iterator<Item=Complex32> + 'a {
+
+    // let wind = 0.5 * (1.0 - ((2.0_f32 * std::f32::consts::PI * i as f32) / (window_size as f32 - 1.0_f32)).cos());
+    let window = apodize::hanning_iter(prev_input.len());
+
+    // Берем полностью весь прошлый буффер и создаем комплексные числа
+    prev_input
+        .iter()
+        .flat_map(move |val|{
+            std::iter::repeat(val).take(buffer_mul)
+        })         
+        .zip(window.map(|val| val as f32 ))
+        .map(|(val, wind)|{
+            Complex32::new(*val * wind, 0.0)
+        })
+}*/
+
+fn get_section_iterator_2<'a>(prev_input: &'a [f32], 
+                              input: &'a [f32])-> impl std::iter::Iterator<Item=Complex32> + 'a {
+    // let wind = 0.5 * (1.0 - ((2.0_f32 * std::f32::consts::PI * i as f32) / (window_size as f32 - 1.0_f32)).cos());
+    let window = apodize::hanning_iter(prev_input.len());
+
+    prev_input
+        .iter()
+        .skip(prev_input.len() / 2)
+        .take(prev_input.len() / 2)
+        .chain(input
+            .iter()
+            .take(input.len() / 2))
+        .zip(window.map(|val| val as f32 ))
+        .map(|(val, wind)|{
+            Complex32::new(*val * wind, 0.0)
+        })            
+}
+
+fn get_section_iterator_3<'a>(input: &'a [f32])-> impl std::iter::Iterator<Item=Complex32> + 'a {
+
+    // let wind = 0.5 * (1.0 - ((2.0_f32 * std::f32::consts::PI * i as f32) / (window_size as f32 - 1.0_f32)).cos());
+    let window = apodize::hanning_iter(input.len());
+
+    input
+        .iter()    
+        .zip(window.map(|val| val as f32 ))
+        .map(|(val, wind)|{
+            Complex32::new(*val * wind, 0.0)
+        })
+}
+
 fn crossfade_results<'a>(result_fft_1: &'a Vec<Complex32>, 
-                     result_fft_2: &'a Vec<Complex32>, 
-                     result_fft_3: &'a Vec<Complex32>, 
-                     output: &'a mut [f32])-> impl Iterator<Item=(f32, &'a mut f32)>{
+                         result_fft_2: &'a Vec<Complex32>, 
+                         result_fft_3: &'a Vec<Complex32>, 
+                         output: &'a mut [f32])-> impl Iterator<Item=(f32, &'a mut f32)>{
 
     let (out_2_left, out_2_right) = result_fft_2.split_at(output.len() / 2);
 
