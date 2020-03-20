@@ -2,10 +2,12 @@ use std::sync::Mutex;
 use vst::plugin::{
     PluginParameters
 };
+use vst::util::AtomicFloat;
 
 pub(super) struct SimplePluginParameters{
     volume: Mutex<f32>,
-    threshold: Mutex<f32>
+    threshold: Mutex<f32>,
+    pub freq: AtomicFloat,
 }
 
 impl Default for SimplePluginParameters {
@@ -13,6 +15,7 @@ impl Default for SimplePluginParameters {
         SimplePluginParameters {
             volume: Mutex::from(1.0_f32),
             threshold: Mutex::from(1.0_f32),
+            freq: AtomicFloat::new(800.0),
         }
     }
 }
@@ -40,6 +43,7 @@ impl PluginParameters for SimplePluginParameters {
         match index {
             0 => "%".to_string(),
             1 => "%".to_string(),
+            2 => "Hz".to_string(),
             _ => "".to_string(),
         }
     }
@@ -64,6 +68,7 @@ impl PluginParameters for SimplePluginParameters {
                 };
                 format!("{}", val * 100.0)
             },
+            2 => format!("{}", self.freq.get()),
             _ => "".to_string(),
         }
     }
@@ -73,6 +78,7 @@ impl PluginParameters for SimplePluginParameters {
         match index {
             0 => "Threshold".to_string(),
             1 => "Volume".to_string(),
+            2 => "Freq".to_string(),
             _ => "".to_string(),
         }
     }
@@ -95,7 +101,8 @@ impl PluginParameters for SimplePluginParameters {
                     0.0_f32
                 };
                 val
-            },            
+            },
+            2 => self.get_freq(),
             _ => 0.0,
         }
     }
@@ -114,6 +121,7 @@ impl PluginParameters for SimplePluginParameters {
                     *val = value;
                 }
             },
+            2 => self.set_freq(value),
             _ => (),
         }
     }
@@ -166,5 +174,16 @@ impl SimplePluginParameters{
         }else{
             0.0_f32
         }
+    }
+
+    pub fn set_freq(&self, value: f32) {
+        // Частота среза выставляется от 0 до 20кГц
+        // Формула среза устанавливает значение точно на низких частотах, и менее точно на высоких
+        self.freq.set(20000. * (1.8f32.powf(10. * value - 10.)));
+    }
+    
+    // Возвращает значение среза частоты для отображения (то есть значение от 0 до 1)
+    pub fn get_freq(&self) -> f32 {
+        1. + 0.17012975 * (0.00005 * self.freq.get()).ln()
     }
 }

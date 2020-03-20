@@ -24,8 +24,8 @@ fn main() {
         9.0
     ];
     let mut output: [f32; 8] = [0.0; 8];
-    plugin.handle_data(0, &prev_input, &mut output, 100.0, 1.0);
-    plugin.handle_data(0, &input, &mut output, 100.0, 1.0);
+    plugin.handle_data(0, &prev_input, &mut output, 2000.0, 100.0, 1.0);
+    plugin.handle_data(0, &input, &mut output, 2000.0, 100.0, 1.0);
 
     println!("{:?}", output);
 }

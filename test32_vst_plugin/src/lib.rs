@@ -28,6 +28,8 @@ use parameters::SimplePluginParameters;
 pub struct BasicPlugin{
     total_notes: i32,
 
+    sample_rate: f32,
+
     previous_input: Vec<Vec<f32>>,
     previous_result: Vec<Vec<Complex32>>,
 
@@ -44,6 +46,7 @@ impl Default for BasicPlugin {
     fn default() -> BasicPlugin {
         BasicPlugin {
             total_notes: 0,
+            sample_rate: 44100.0,
             previous_result: vec![vec![], vec![]],
             previous_input: vec![vec![], vec![]],
             buffer_fft: vec![],
@@ -66,7 +69,7 @@ impl Plugin for BasicPlugin {
             outputs: 2,                 // Каналы звука на выходе
             version: 0001,              // Версия плагина 
             category: Category::Effect, // Тип плагина
-            parameters: 2,
+            parameters: 3,
             //initial_delay, 
             //preset_chunks, 
             //f64_precision, 
@@ -74,6 +77,10 @@ impl Plugin for BasicPlugin {
 
             ..Default::default()
         }
+    }
+
+    fn set_sample_rate(&mut self, rate: f32) {
+        self.sample_rate = rate;
     }
 
     // Выдаем ссылку на шареный объект параметров
@@ -116,13 +123,14 @@ impl Plugin for BasicPlugin {
     fn process(&mut self, buffer: &mut AudioBuffer<f32>){
         let threshold = self.params.get_threshold();
         let volume = self.params.get_volume();
+        let freq = self.params.freq.get();
     
         // https://habr.com/ru/post/430536/
 
         // Создаем итератор по парам элементов, входа и выхода
         let mut i = 0;
         for (input, output) in buffer.zip() {
-            self.handle_data(i, input, output, threshold, volume);
+            self.handle_data(i, input, output, freq, threshold, volume);
             i += 1;
         }
     } 
@@ -133,6 +141,7 @@ impl BasicPlugin{
                     channel: usize,
                     input: &[f32], 
                     output: &mut [f32], 
+                    freq: f32,
                     threshold: f32,
                     volume: f32){
 
@@ -165,7 +174,7 @@ impl BasicPlugin{
             // Обновляем первый FFT буффер новыми значениями из итератора
             update_with_iter(&mut self.fft_2, input_fft);
 
-            fft_process(&mut self.fft_2, &mut self.buffer_fft);
+            fft_process(self.sample_rate, freq, &mut self.fft_2, &mut self.buffer_fft);
 
             &self.fft_2
         };
@@ -181,7 +190,7 @@ impl BasicPlugin{
             // Обновляем первый FFT буффер новыми значениями из итератора
             update_with_iter(&mut self.fft_3, input_fft);
 
-            fft_process(&mut self.fft_3, &mut self.buffer_fft);
+            fft_process(self.sample_rate, freq, &mut self.fft_3, &mut self.buffer_fft);
 
             &self.fft_3        
         };
@@ -213,7 +222,13 @@ impl BasicPlugin{
     }
 }
 
-fn fft_process(input_fft_1: &mut [Complex32], buffer_fft: &mut [Complex32]){
+fn fft_process(sample_rate: f32, filter_freq: f32, input_fft_1: &mut [Complex32], buffer_fft: &mut [Complex32]){
+    //const SAMPLE_RATE: f32 = 48_000.0;
+    //const SAMPLE_DURATION: f32 = 1.0 / SAMPLE_RATE * 1000.0; // Длительность семпла в mSec
+
+    let input_len = input_fft_1.len() as f32; 
+    let fft_sample_hz: f32 = sample_rate / input_len;
+
     // FFTplanner позволяет выбирать оптимальный алгоритм работы для входного размера данных
     // Создаем объект, который содержит в себе оптимальный алгоритм преобразования фурье
     // Обрабатываем данные
@@ -222,6 +237,20 @@ fn fft_process(input_fft_1: &mut [Complex32], buffer_fft: &mut [Complex32]){
     FFTplanner::new(false)
         .plan_fft(buffer_fft.len())
         .process(input_fft_1, buffer_fft);
+
+    /*buffer_fft
+        .iter_mut()
+        .enumerate()
+        .for_each(|(i, val)|{
+            let i = i as f32;            
+            let freq = i * fft_sample_hz;
+
+            let val: &mut Complex32 = val;
+
+            if val.norm() < 0.2 {
+                val.set_zero()
+            }
+        });*/
 
     // FFTplanner позволяет выбирать оптимальный алгоритм работы для входного размера данных
     // Создаем объект, который содержит в себе оптимальный алгоритм преобразования фурье
@@ -237,25 +266,6 @@ fn fft_process(input_fft_1: &mut [Complex32], buffer_fft: &mut [Complex32]){
             *val *= inv_len;
         });
 }
-
-/*fn get_section_iterator_1<'a>(prev_input: &'a [Complex32], 
-                              _: &'a [f32],
-                              buffer_mul: usize)-> impl std::iter::Iterator<Item=Complex32> + 'a {
-
-    // let wind = 0.5 * (1.0 - ((2.0_f32 * std::f32::consts::PI * i as f32) / (window_size as f32 - 1.0_f32)).cos());
-    let window = apodize::hanning_iter(prev_input.len());
-
-    // Берем полностью весь прошлый буффер и создаем комплексные числа
-    prev_input
-        .iter()
-        .flat_map(move |val|{
-            std::iter::repeat(val).take(buffer_mul)
-        })         
-        .zip(window.map(|val| val as f32 ))
-        .map(|(val, wind)|{
-            Complex32::new(*val * wind, 0.0)
-        })
-}*/
 
 fn get_section_iterator_2<'a>(prev_input: &'a [f32], 
                               input: &'a [f32])-> impl std::iter::Iterator<Item=Complex32> + 'a {
