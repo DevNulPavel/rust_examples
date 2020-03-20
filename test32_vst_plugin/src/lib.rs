@@ -130,33 +130,26 @@ pub fn handle_data( input: &[f32],
 
     //const INTERSECTION = 0.75;
 
-    let window_size = (input.len() as f32 * BUFFER_MUL as f32 * 1.5) as usize;
+    let window_size = input.len() * BUFFER_MUL;
 
-    // let window = apodize::hanning_iter(window_size).collect::<Vec<f64>>();
+    // let wind = 0.5 * (1.0 - ((2.0_f32 * std::f32::consts::PI * i as f32) / (window_size as f32 - 1.0_f32)).cos());
+    let window = apodize::hanning_iter(window_size).collect::<Vec<f64>>();
 
     // Первая секция
     let mut input_fft_1: Vec<Complex32> = last_in_buf
         .iter()
-        .chain(input
-            .iter()
-            .take(input.len() * 2 / 4)) // 3/4
         .flat_map(|val|{
             std::iter::repeat(val).take(BUFFER_MUL)
-        })
-        // .map(|val|{
-        //     Complex32::new(*val, 0.0)
-        // })                
-        // .zip(window.iter().map(|val| *val as f32 ))
-        .enumerate()
-        .map(|(i, val)|{
-            let wind = 0.5 * (1.0 - ((2.0_f32 * std::f32::consts::PI * i as f32) / (window_size as f32 - 1.0_f32)).cos());
-            println!("2 {} * {} = {:?}", wind, *val, *val * wind);
+        })         
+        .zip(window.iter().map(|val| *val as f32 ))
+        .map(|(val, wind)|{
+            //println!("2 {} * {} = {:?}", wind, *val, *val * wind);
             Complex32::new(*val * wind, 0.0)
             // Complex32::new(*val, 0.0)
         })
         .collect();
 
-    println!("");        
+    //println!("");        
 
     let mut output_fft_1: Vec<Complex32> = vec![Complex::zero(); window_size];
 
@@ -183,7 +176,7 @@ pub fn handle_data( input: &[f32],
             // println!("1 {:?}", *val);
         });
 
-    println!("");
+    //println!("");
 
     // let mut window_res = apodize::hanning_iter(input_fft_1.len()).collect::<Vec<f64>>();
     // input_fft_1
@@ -202,7 +195,8 @@ pub fn handle_data( input: &[f32],
         .skip(last_in_buf.len() / 2) // /4
         .take(last_in_buf.len() / 2) // * 3 / 4
         .chain(input
-            .iter())
+            .iter()
+            .take(input.len() / 2))
         .flat_map(|val|{
             std::iter::repeat(val).take(BUFFER_MUL)
         })
@@ -213,7 +207,7 @@ pub fn handle_data( input: &[f32],
         .enumerate()
         .map(|(i, val)|{
             let wind = 0.5 * (1.0 - ((2.0_f32 * std::f32::consts::PI * i as f32) / (window_size as f32 - 1.0_f32)).cos());
-            println!("2 {} * {} = {:?}", wind, *val, *val * wind);
+            //println!("2 {} * {} = {:?}", wind, *val, *val * wind);
             // Complex32::new(*val, 0.0)
             Complex32::new(*val * wind, 0.0)
         })
@@ -249,7 +243,49 @@ pub fn handle_data( input: &[f32],
     //         *val *= *wind as f32;
     //     });
 
-    println!("");
+    //println!("");
+
+    // Третья секция
+    let mut input_fft_3: Vec<Complex32> = input
+        .iter()
+        .flat_map(|val|{
+            std::iter::repeat(val).take(BUFFER_MUL)
+        })
+        // .map(|val|{
+        //     Complex32::new(*val, 0.0)
+        // })                
+        // .zip(window.iter().map(|val| *val as f32 ))
+        .enumerate()
+        .map(|(i, val)|{
+            let wind = 0.5 * (1.0 - ((2.0_f32 * std::f32::consts::PI * i as f32) / (window_size as f32 - 1.0_f32)).cos());
+            //println!("3 {} * {} = {:?}", wind, *val, *val * wind);
+            // Complex32::new(*val, 0.0)
+            Complex32::new(*val * wind, 0.0)
+        })
+        .collect();
+
+    let mut output_fft_3: Vec<Complex32> = vec![Complex::zero(); window_size];
+
+    // FFTplanner позволяет выбирать оптимальный алгоритм работы для входного размера данных
+    // Создаем объект, который содержит в себе оптимальный алгоритм преобразования фурье
+    FFTplanner::new(false)
+        .plan_fft(input_fft_3.len())
+        .process(&mut input_fft_3, &mut output_fft_3);
+
+    // FFTplanner позволяет выбирать оптимальный алгоритм работы для входного размера данных
+    // Создаем объект, который содержит в себе оптимальный алгоритм преобразования фурье
+    FFTplanner::new(true)
+    .plan_fft(output_fft_3.len())
+    .process(&mut output_fft_3, &mut input_fft_3);
+
+    let inv_len = 1.0 / (input_fft_3.len() as f32);
+        input_fft_3
+        .iter_mut()
+        .for_each(|val|{
+            *val *= inv_len;
+            //println!("2 {:?}", *val);
+        });
+
 
     // Сохраняем текущие данные из нового буффера в старый
     last_in_buf.copy_from_slice(input);
@@ -257,11 +293,12 @@ pub fn handle_data( input: &[f32],
     let iter = input_fft_1
         .into_iter()
         .skip(output.len() / 2)
-        .take(output.len())
+        .take(output.len() / 2)
         .zip(input_fft_2
-            .into_iter()
-            //.skip(output.len() / 4) // /4
-            .take(output.len()))
+            .split_at(output.len() / 2)
+            .0
+            .iter()
+            .take(output.len() / 2))
         .step_by(BUFFER_MUL)
         // .zip(window_res.iter().map(|val| *val as f32))
         // .map(|((val1, val2), wind)|{
@@ -271,11 +308,23 @@ pub fn handle_data( input: &[f32],
             // let val = (val1.re + val2.re) * 2.0 / 3.0;
             // let val = (val1.re + val2.re) / 2.0;
             let val = val1.re + val2.re;
-            println!("{} + {} = {}", val1, val2, val);
+            //println!("{} + {} = {}", val1, val2, val);
             val
             //val2.re
             // val1.re
-        })           
+        }) 
+        .chain(input_fft_2
+            .split_at(output.len() / 2)
+            .1
+            .into_iter()
+            .zip(input_fft_3
+                .into_iter()
+                .take(output.len() / 2))
+            .map(|(val1, val2)|{
+                let val = val1.re + val2.re;
+                //println!("{} + {} = {}", val1, val2, val);
+                val
+            }))
         .zip(output.into_iter());
 
     for (in_sample, out_sample) in iter {    
