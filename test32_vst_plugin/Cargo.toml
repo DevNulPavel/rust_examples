@@ -16,3 +16,6 @@ apodize = "1.0.0"
 [lib]
 name = "test32_vst_plugin"
 crate-type = ["cdylib", "rlib"]
+
+[taget.release]
+debug = true

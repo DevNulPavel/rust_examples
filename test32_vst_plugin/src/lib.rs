@@ -120,6 +120,12 @@ impl Plugin for BasicPlugin {
         }
     }*/
 
+    fn start_process(&mut self) {
+    }
+
+    fn stop_process(&mut self) {
+    }
+
     fn process(&mut self, buffer: &mut AudioBuffer<f32>){
         let threshold = self.params.get_threshold();
         let volume = self.params.get_volume();
@@ -130,6 +136,10 @@ impl Plugin for BasicPlugin {
         // Создаем итератор по парам элементов, входа и выхода
         let mut i = 0;
         for (input, output) in buffer.zip() {
+            if input.len() == 0 || output.len() == 0{
+                break;
+            }
+
             self.handle_data(i, input, output, freq, threshold, volume);
             i += 1;
         }
@@ -238,19 +248,49 @@ fn fft_process(sample_rate: f32, filter_freq: f32, input_fft_1: &mut [Complex32]
         .plan_fft(buffer_fft.len())
         .process(input_fft_1, buffer_fft);
 
-    /*buffer_fft
+    // Надо помнить, что спектр симметричен относительно центра
+    let process_fn =|(i, (val1, val2))| {
+        let i = i as f32;            
+        let freq = i * fft_sample_hz;
+
+        let val1: &mut Complex32 = val1;
+        let val2: &mut Complex32 = val2;
+
+        // println!("{}hz = {}, {}", freq, val1, val2);
+
+        // if val.norm() < 0.2 {
+        //     val.set_zero()
+        // }
+        if freq > filter_freq {
+            *val1 *= 0.0001;
+        }
+        *val2 = *val1;
+    };
+
+    // buffer_fft.iter().enumerate().for_each(|(i, val)| println!("{}: {:?}", i, val));
+
+    let process_len = buffer_fft.len() / 2;
+    let (left, right) = buffer_fft.split_at_mut(process_len+1);
+
+    // Обработка от цетра к краю
+    let mut temp1 = [Complex32::default()];
+    let mut temp2 = [Complex32::default()];
+    let right_iter = temp1
         .iter_mut()
+        .chain(right
+            .iter_mut()
+            .rev())
+        .chain(temp2
+            .iter_mut());
+
+    // Обработка от цетра к краю
+    left
+        .iter_mut()
+        .zip(right_iter)
         .enumerate()
-        .for_each(|(i, val)|{
-            let i = i as f32;            
-            let freq = i * fft_sample_hz;
+        .for_each(process_fn);
 
-            let val: &mut Complex32 = val;
-
-            if val.norm() < 0.2 {
-                val.set_zero()
-            }
-        });*/
+    // println!("");
 
     // FFTplanner позволяет выбирать оптимальный алгоритм работы для входного размера данных
     // Создаем объект, который содержит в себе оптимальный алгоритм преобразования фурье
@@ -335,7 +375,7 @@ where
     T: Default,
     T: Clone
 {
-    if buffer.len() < size{
+    if buffer.len() != size{
         buffer.resize(size, Default::default());
     }
 }
