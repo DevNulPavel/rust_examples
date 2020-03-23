@@ -179,8 +179,8 @@ fn test_forward_transform_with_planner(){
             (i, val + result, step + 1.0f32)
         })
         .map(|(i, val, step)|{
-            let result: Complex32 = Complex32::new((rand::random::<f32>() - 0.5) * 2.0, 0.0);
-            // let result: Complex32 = Complex32::new(0.0, 0.0);
+            // let result: Complex32 = Complex32::new((rand::random::<f32>() - 0.5) * 2.0, 0.0);
+            let result: Complex32 = Complex32::new(0.0, 0.0);
             (i, val + result, step + 1.0f32)
         })
         .map(|(_, val, step)|{

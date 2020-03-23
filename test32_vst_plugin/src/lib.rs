@@ -251,23 +251,37 @@ fn fft_process(sample_rate: f32, filter_freq: f32, input_fft_1: &mut [Complex32]
     // Надо помнить, что спектр симметричен относительно центра
     let process_fn =|(i, (val1, val2))| {
         let i = i as f32;            
-        let freq = i * fft_sample_hz;
+        let freq = (i - 1.0) * fft_sample_hz;
 
         let val1: &mut Complex32 = val1;
         let val2: &mut Complex32 = val2;
 
-        // println!("{}hz = {}, {}", freq, val1, val2);
+        if cfg!(debug_assertions){
+            println!("{}hz = {} (Amp = {}, Phase = {}), {}", freq, val1, val1.norm(), val1.arg(), val2);
+        }
 
         // if val.norm() < 0.2 {
         //     val.set_zero()
         // }
+        if freq < 0.0 {
+            return;
+        }
+
         if freq > filter_freq {
             *val1 *= 0.0001;
+            *val2 = *val1;
         }
-        *val2 = *val1;
     };
 
-    // buffer_fft.iter().enumerate().for_each(|(i, val)| println!("{}: {:?}", i, val));
+    if cfg!(debug_assertions){
+        buffer_fft
+        .iter()
+        .enumerate()
+        .for_each(|(i, val)| {
+            let val: &Complex32 = val;
+            println!("{}: Ampl = {:?}, Phase = {:?}", i, val.norm(), val.arg());
+        });
+    }
 
     let process_len = buffer_fft.len() / 2;
     let (left, right) = buffer_fft.split_at_mut(process_len+1);
@@ -290,7 +304,9 @@ fn fft_process(sample_rate: f32, filter_freq: f32, input_fft_1: &mut [Complex32]
         .enumerate()
         .for_each(process_fn);
 
-    // println!("");
+    if cfg!(debug_assertions){
+        println!("");
+    }
 
     // FFTplanner позволяет выбирать оптимальный алгоритм работы для входного размера данных
     // Создаем объект, который содержит в себе оптимальный алгоритм преобразования фурье
