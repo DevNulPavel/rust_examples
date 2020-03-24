@@ -10,8 +10,9 @@ edition = "2018"
 vst = "0.2.0"
 rand = "0.7.3"
 rustfft = "3.0.1"
-# sample = "0.10.0"
 apodize = "1.0.0"
+rayon = "1.3.0"
+# sample = "0.10.0"
 
 [lib]
 name = "test32_vst_plugin"

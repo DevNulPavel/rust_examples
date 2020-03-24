@@ -33,7 +33,8 @@ pub struct BasicPlugin{
     previous_input: Vec<Vec<f32>>,
     previous_result: Vec<Vec<Complex32>>,
 
-    buffer_fft: Vec<Complex32>,
+    buffer_fft_2: Vec<Complex32>,
+    buffer_fft_3: Vec<Complex32>,
 
     fft_1: Vec<Complex32>,
     fft_2: Vec<Complex32>,
@@ -49,7 +50,8 @@ impl Default for BasicPlugin {
             sample_rate: 44100.0,
             previous_result: vec![vec![], vec![]],
             previous_input: vec![vec![], vec![]],
-            buffer_fft: vec![],
+            buffer_fft_2: vec![],
+            buffer_fft_3: vec![],
             fft_1: vec![],
             fft_2: vec![],
             fft_3: vec![],
@@ -168,43 +170,55 @@ impl BasicPlugin{
         let previous_input: &mut Vec<f32> = &mut self.previous_input[channel];
         check_buffer_size(previous_input, input.len() * BUFFER_MUL);
 
-        check_buffer_size(&mut self.buffer_fft, input.len() * BUFFER_MUL);
-
         // Первая секция - используем прошлый результат с окном
         let result_fft_1 = &*previous_result;
 
-        // Вторая секция - перекрывающийся прошлый вход и новый
-        let result_fft_2 = {
-            // Увеличиваем размер буфферов если надо
-            check_buffer_size(&mut self.fft_2, input.len() * BUFFER_MUL);
+        let (result_fft_2,  result_fft_3)= {
+            // Переменные для блоков
+            let sample_rate = self.sample_rate;
+            let fft_2 = &mut self.fft_2;
+            let buffer_2 = &mut self.buffer_fft_2;
+            let fft_3 = &mut self.fft_3;
+            let buffer_3 = &mut self.buffer_fft_3;
 
-            // Итератор по нужным данным
-            let input_fft = get_section_iterator_2(previous_input, input);
+            rayon::join(||{
+                // Вторая секция - перекрывающийся прошлый вход и новый
 
-            // Обновляем первый FFT буффер новыми значениями из итератора
-            update_with_iter(&mut self.fft_2, input_fft);
+                check_buffer_size(buffer_2, input.len() * BUFFER_MUL);
 
-            fft_process(self.sample_rate, freq, &mut self.fft_2, &mut self.buffer_fft);
+                // Увеличиваем размер буфферов если надо
+                check_buffer_size(fft_2, input.len() * BUFFER_MUL);
 
-            &self.fft_2
+                // Итератор по нужным данным
+                let input_fft = get_section_iterator_2(previous_input, input);
+
+                // Обновляем первый FFT буффер новыми значениями из итератора
+                update_with_iter(fft_2, input_fft);
+
+                fft_process(sample_rate, freq, fft_2, buffer_2);
+
+                fft_2
+            },
+            ||{
+                // Третья секция - текущий вход
+
+                check_buffer_size(buffer_3, input.len() * BUFFER_MUL);
+                
+                // Увеличиваем размер буфферов если надо
+                check_buffer_size(fft_3, input.len() * BUFFER_MUL);
+
+                // Итератор по нужным данным
+                let input_fft = get_section_iterator_3(input);
+
+                // Обновляем первый FFT буффер новыми значениями из итератора
+                update_with_iter(fft_3, input_fft);
+
+                fft_process(sample_rate, freq, fft_3, buffer_3);
+
+                fft_3     
+            })
         };
 
-        // Третья секция - текущий вход
-        let result_fft_3 = {
-            // Увеличиваем размер буфферов если надо
-            check_buffer_size(&mut self.fft_3, input.len() * BUFFER_MUL);
-
-            // Итератор по нужным данным
-            let input_fft = get_section_iterator_3(input);
-
-            // Обновляем первый FFT буффер новыми значениями из итератора
-            update_with_iter(&mut self.fft_3, input_fft);
-
-            fft_process(self.sample_rate, freq, &mut self.fft_3, &mut self.buffer_fft);
-
-            &self.fft_3        
-        };
-        
         // Итератор по результатам
         let iter = crossfade_results(result_fft_1, result_fft_2, result_fft_3, output);
 
