@@ -1,0 +1,23 @@
+[package]
+name = "test37_blockchain"
+version = "0.1.0"
+authors = ["lloydmeta <lloydmeta@gmail.com>"]
+edition = "2018"
+
+[workspace]
+
+[dependencies]
+chrono = "0.4"
+url = "1.7"
+url_serde = "0.2.0"
+rand = "0.6"
+rust-crypto = "0.2.36"
+serde = "1.0"
+serde_json = "1.0"
+serde_derive = "1.0"
+actix = "0.7"
+actix-web = "0.7"
+uuid = { version = "0.7", features = ["v4", "serde"] }
+futures = "0.1.25"
+log = "0.4"
+pretty_env_logger = "0.3.0"
