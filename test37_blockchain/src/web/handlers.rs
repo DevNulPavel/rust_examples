@@ -17,12 +17,13 @@ use crate::core::{Block, Chain, Node, Transaction};
 // Обработчик с актором внутри
 pub struct GetIdHandler(pub Addr<BlockchainServerActor>);
 
+// Реализация обработки конвертации в json для запросов
 json_responder_impl!(Id);
 
 impl<S> Handler<S> for GetIdHandler {
     type Result = Box<dyn Future<Item = Id, Error = Error>>;
 
-    /// Handle request
+    /// Обрабатываем
     fn handle(&self, _: &HttpRequest<S>) -> Box<dyn Future<Item = Id, Error = Error>> {
         // Отправляем актору сообщение получения его id
         // Возвращаем Future
@@ -39,6 +40,7 @@ impl<S> Handler<S> for GetIdHandler {
 
 pub struct NewTransactionHandler(pub Addr<BlockchainServerActor>);
 
+// Реализация обработки конвертации в json для запросов
 json_responder_impl!(NewTransactionResult);
 
 impl<S: 'static> Handler<S> for NewTransactionHandler {
@@ -99,6 +101,7 @@ impl<S: 'static> Handler<S> for GetChainHandler {
 ////////////////////////////////////////////////////////////////////////////////////////////////////
 
 pub struct AddNodeHandler(pub Addr<BlockchainServerActor>);
+
 json_responder_impl!(CurrentNodes);
 
 impl<S: 'static> Handler<S> for AddNodeHandler {

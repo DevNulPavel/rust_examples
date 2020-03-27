@@ -9,7 +9,7 @@ fn main() -> Result<(), Box<dyn Error>> {
 
     // Получаем порт сервера
     let port = env::var("PORT")
-        .unwrap_or(String::from("8088"))
+        .unwrap_or(String::from("8880"))
         .parse()?;
 
     // Новый сервер
