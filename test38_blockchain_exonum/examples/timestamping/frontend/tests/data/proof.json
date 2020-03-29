@@ -1,0 +1,145 @@
+{
+  "block_info": {
+    "block": {
+      "height": 19315,
+      "tx_count": 4,
+      "prev_hash": "40fa1b117d1b5fc1d629900759d3639da57739fb0e34adfe9f1f3691c61c049e",
+      "tx_hash": "208a84c440b1193a747e719e735b8c36585c130faf45d90c8f3bf4bdfabab82c",
+      "state_hash": "03e48ff5b33afb580bb7f4f2e4f58d55b46511746a6898ae2b7efe934270471a",
+      "error_hash": "7324b5c72b51bb5d4c180f1109cfd347b60473882145841c39f3e584576296f9",
+      "additional_headers": {
+        "headers": {
+          "proposer_id": [
+            0,
+            0
+          ]
+        }
+      }
+    },
+    "precommits": [
+      "0a60125e080110f39601180122220a20659ad610d7569f780e30c4c7a1fc77b66e0ee6d4716c6b5518a512edd06f43d82a220a204ceb96cd2808c8d40aec8a5a4a14dee416688a247a67b54272c2a179c4bf1f67320c08888ef6f1051098bb9dd50312220a20713f0a440f053cce9038d5eb22b68c6bee4aa7a175457972569722e6b45b7bd41a420a404a7b3fac7d582025e0a17a76731a40ae32e81a80596de5162951c2efb9baef7970cdd1274a130302f70ed5da66fb3439fa8772205d9b14ae1e45c0367c787806",
+      "0a60125e080310f39601180122220a20659ad610d7569f780e30c4c7a1fc77b66e0ee6d4716c6b5518a512edd06f43d82a220a204ceb96cd2808c8d40aec8a5a4a14dee416688a247a67b54272c2a179c4bf1f67320c08888ef6f10510a0df9ed50312220a20f19f471455f2faec2c1bcb81597796354358e3362e61220274e50bd977313bb11a420a403eb32cdb3156ef07994834fd6f2c43b9cc93e82bab8c3485ee3d5618f97f326175fcf2a03c252dcb7fea8e95f9456f717c1d3de0e15a55d4c687ff3c18d78207",
+      "0a60125e080210f39601180122220a20659ad610d7569f780e30c4c7a1fc77b66e0ee6d4716c6b5518a512edd06f43d82a220a204ceb96cd2808c8d40aec8a5a4a14dee416688a247a67b54272c2a179c4bf1f67320c08888ef6f1051088dcf2d60312220a2083b8cea7ec326fff60d6c63b01f425f6b3575b611167bd958ced29b048c4066e1a420a40e0e4023392ace33a227c68327c11b71dd64d4c6879337392cee6a2115c755ba579b67c4a8c3dc7065d388c35690f7e7b82e932581777f75392036023c3fac50b"
+    ]
+  },
+  "state_proof": {
+    "entries": [
+      {
+        "key": "timestamping.timestamps",
+        "value": "696a1c3612ef5c54d539af5bbb3699fc8cfa320baee1e0f0c175549061cf9385"
+      }
+    ],
+    "proof": [
+      {
+        "path": "0",
+        "hash": "e4edcd2b25f07250ba376ad040c0c7803bfb4eeee88e741d124535e7a545dc7d"
+      },
+      {
+        "path": "1001",
+        "hash": "09c4896a42fc2e133331aee2400574c92067c53e90661bcd18573849401fc92d"
+      },
+      {
+        "path": "1011",
+        "hash": "00b8d4649807cfa5d57be954f146431871008943da4fc17dcb5465f7a708095f"
+      },
+      {
+        "path": "11",
+        "hash": "53f7f2aa92e64b33b5e1bc159ef61227c6f9b1f1d23091b935ea4c7afecf7c74"
+      }
+    ]
+  },
+  "timestamp_proof": {
+    "entries": [
+      {
+        "key": "4ee9e65a836e525042b22f8270f68b4e1fbd18ac969cd12dea24093380031eae",
+        "value": {
+          "timestamp": {
+            "content_hash": {
+              "data": [
+                78,
+                233,
+                230,
+                90,
+                131,
+                110,
+                82,
+                80,
+                66,
+                178,
+                47,
+                130,
+                112,
+                246,
+                139,
+                78,
+                31,
+                189,
+                24,
+                172,
+                150,
+                156,
+                209,
+                45,
+                234,
+                36,
+                9,
+                51,
+                128,
+                3,
+                30,
+                174
+              ]
+            },
+            "metadata": "hello world"
+          },
+          "tx_hash": {
+            "data": [
+              229,
+              100,
+              63,
+              122,
+              99,
+              5,
+              115,
+              120,
+              111,
+              236,
+              197,
+              54,
+              162,
+              137,
+              177,
+              201,
+              104,
+              156,
+              159,
+              232,
+              94,
+              146,
+              79,
+              28,
+              173,
+              179,
+              17,
+              93,
+              83,
+              119,
+              211,
+              80
+            ]
+          },
+          "time": {
+            "seconds": 1581090568,
+            "nanos": 112863000
+          }
+        }
+      }
+    ],
+    "proof": [
+      {
+        "path": "1",
+        "hash": "b26e09e4973a958b92fa9f0322602c526170466a26822433e378db9e36741ecc"
+      }
+    ]
+  }
+}

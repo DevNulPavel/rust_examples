@@ -1,0 +1,58 @@
+{
+  "name": "cryptocurrency-demo",
+  "version": "1.0.0",
+  "description": "Cryptocurrency demo",
+  "author": "The Exonum Team <contact@exonum.com>",
+  "license": "Apache-2.0",
+  "scripts": {
+    "proto": "pbjs --keep-case -t static-module --root cryptocurrency --path node_modules/exonum-client/proto ../backend/src/proto/service.proto -o ./proto/stubs.js",
+    "lint": "eslint --ext .js,.vue src test",
+    "compile": "webpack",
+    "test": "jest",
+    "build": "npm run proto && npm run lint && npm run compile && npm run test",
+    "start": "node server.js"
+  },
+  "jest": {
+    "verbose": true,
+    "testEnvironment": "node",
+    "moduleDirectories": [
+      "node_modules"
+    ]
+  },
+  "dependencies": {
+    "axios": "^0.19.2",
+    "big-integer": "^1.6.48",
+    "bootstrap": "^4.4.1",
+    "exonum-client": "^0.18.3",
+    "express": "^4.17.1",
+    "http-proxy-middleware": "^0.19.1",
+    "jquery": "^3.4.1",
+    "noty": "^3.2.0-beta",
+    "numeral": "^2.0.6",
+    "popper.js": "^1.16.1",
+    "protobufjs": "^6.8.8",
+    "vue": "^2.6.11",
+    "vue-router": "^3.1.5",
+    "vuex": "^3.1.2",
+    "yargs-parser": "^13.1.1"
+  },
+  "devDependencies": {
+    "@babel/preset-env": "^7.8.4",
+    "axios-mock-adapter": "^1.17.0",
+    "babel-core": "^7.0.0-bridge.0",
+    "babel-eslint": "^8.2.6",
+    "babel-jest": "^25.1.0",
+    "babel-loader": "^7.1.5",
+    "babel-polyfill": "^6.26.0",
+    "babel-preset-env": "^1.7.0",
+    "css-loader": "^2.1.1",
+    "eslint": "^4.19.1",
+    "eslint-plugin-vue": "^4.4.0",
+    "jest": "^25.1.0",
+    "regenerator-runtime": "^0.13.3",
+    "vue-loader": "^15.8.3",
+    "vue-template-compiler": "^2.6.11",
+    "webpack": "^4.41.5",
+    "webpack-cli": "^3.3.10"
+  }
+}

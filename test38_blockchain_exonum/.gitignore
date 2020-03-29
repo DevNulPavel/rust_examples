@@ -1,0 +1,40 @@
+# git merge artifacts
+*.orig
+
+# Python virtual environment
+.venv
+
+# Python packages
+*.egg-info
+
+# Byte-compiled / optimized / DLL files
+__pycache__/
+*.py[cod]
+*$py.class
+
+# vim files
+*.swp
+# macos files
+*.DS_Store
+
+# cargo
+target
+rls
+Cargo.lock
+
+# Exonum artifact folder
+.exonum
+
+# fuzz testing
+exonum/fuzz/corpus
+exonum/fuzz/artifacts
+
+# node
+node_modules
+npm-debug.log
+
+# IDE files
+.mypy_cache
+.idea
+.vscode
+*.iml
