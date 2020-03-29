@@ -8,15 +8,18 @@ use serde_derive::Serialize;
 pub struct BlockchainServerActor {
     // ID текущего актора
     id: Id,
-
-    bloxi: Blockchain,
+    // Непосредственно сам блокчейн
+    blockchain: Blockchain,
 }
 
 impl BlockchainServerActor {
     pub fn new() -> BlockchainServerActor {
         let id = Id::new();
         let bloxi = Blockchain::new();
-        BlockchainServerActor { id, bloxi }
+        BlockchainServerActor { 
+            id, 
+            blockchain: bloxi 
+        }
     }
 }
 
@@ -27,16 +30,16 @@ impl Actor for BlockchainServerActor {
 ////////////////////////////////////////////////////////////////////////////////////////////////
 
 // Сообщение получения ID
-pub struct GetId;
+pub struct GetIdMessage;
 
 // Описываем методы по получению ID
-simple_req_resp_impl!(GetId, Id);
+simple_req_resp_impl!(GetIdMessage, Id);
 
 // Описываем обработчик сообщения актором
-impl Handler<GetId> for BlockchainServerActor {
+impl Handler<GetIdMessage> for BlockchainServerActor {
     type Result = Id;
 
-    fn handle(&mut self, _: GetId, _: &mut Self::Context) -> Self::Result {
+    fn handle(&mut self, _: GetIdMessage, _: &mut Self::Context) -> Self::Result {
         self.id.clone()
     }
 }
@@ -44,17 +47,17 @@ impl Handler<GetId> for BlockchainServerActor {
 ////////////////////////////////////////////////////////////////////////////////////////////////
 
 // Сообщение типа NewTransaction
-pub struct NewTransaction(pub Transaction);
+pub struct NewTransactionMessage(pub Transaction);
 
 // Описываем методы актора
-simple_req_resp_impl!(NewTransaction, BlockIndex);
+simple_req_resp_impl!(NewTransactionMessage, BlockIndex);
 
 // Описываем обработчик сообщения актором
-impl Handler<NewTransaction> for BlockchainServerActor {
+impl Handler<NewTransactionMessage> for BlockchainServerActor {
     type Result = BlockIndex;
 
-    fn handle(&mut self, NewTransaction(transaction): NewTransaction, _: &mut Self::Context) -> Self::Result {
-        let block_idx = self.bloxi.add_transaction(transaction);
+    fn handle(&mut self, NewTransactionMessage(transaction): NewTransactionMessage, _: &mut Self::Context) -> Self::Result {
+        let block_idx = self.blockchain.add_transaction(transaction);
         block_idx
     }
 }
@@ -62,40 +65,42 @@ impl Handler<NewTransaction> for BlockchainServerActor {
 ////////////////////////////////////////////////////////////////////////////////////////////////
 
 // Сообщение майнинга
-pub struct Mine;
+pub struct MineMessage;
 
 // Описываем методы актора
-simple_req_resp_impl!(Mine, Block);
+simple_req_resp_impl!(MineMessage, Block);
 
-impl Handler<Mine> for BlockchainServerActor {
+impl Handler<MineMessage> for BlockchainServerActor {
     type Result = Block;
 
-    fn handle(&mut self, _: Mine, _: &mut Self::Context) -> Self::Result {
-        self.bloxi.mine();
-        self.bloxi.last_block().clone()
+    fn handle(&mut self, _: MineMessage, _: &mut Self::Context) -> Self::Result {
+        // Майним и возвращаем получившийся блок
+        self.blockchain.mine();
+        self.blockchain.last_block().clone()
     }
 }
 
 ////////////////////////////////////////////////////////////////////////////////////////////////
 
 // Сообщение получение цепочки
-pub struct GetChain;
+pub struct GetChainMessage;
 
 // Описываем методы актора
-simple_req_resp_impl!(GetChain, Chain);
+simple_req_resp_impl!(GetChainMessage, Chain);
 
-impl Handler<GetChain> for BlockchainServerActor {
+impl Handler<GetChainMessage> for BlockchainServerActor {
     type Result = Chain;
 
-    fn handle(&mut self, _: GetChain, _: &mut Self::Context) -> Self::Result {
-        self.bloxi.chain()
+    fn handle(&mut self, _: GetChainMessage, _: &mut Self::Context) -> Self::Result {
+        // Возвращает текущую цепочку у блока
+        self.blockchain.chain()
     }
 }
 
 ////////////////////////////////////////////////////////////////////////////////////////////////
 
 // Сообщение добавления нода
-pub struct AddNode(pub Node);
+pub struct AddNodeMessage(pub Node);
 
 // Реузльтат - набор нодов
 #[derive(Serialize)]
@@ -104,51 +109,62 @@ pub struct CurrentNodes {
 }
 
 // Описываем методы актора
-simple_req_resp_impl!(AddNode, CurrentNodes);
+simple_req_resp_impl!(AddNodeMessage, CurrentNodes);
 
-impl Handler<AddNode> for BlockchainServerActor {
+impl Handler<AddNodeMessage> for BlockchainServerActor {
     type Result = CurrentNodes;
 
-    fn handle(&mut self, AddNode(node): AddNode, _: &mut Self::Context) -> Self::Result {
-        let nodes = self.bloxi.register_node(node).clone();
-        CurrentNodes { nodes }
+    fn handle(&mut self, AddNodeMessage(node): AddNodeMessage, _: &mut Self::Context) -> Self::Result {
+        // Добавляем новый нод в систему и возвращаем новый список
+        let nodes = self.blockchain.register_node(node).clone();
+        CurrentNodes { 
+            nodes 
+        }
     }
 }
 
 ////////////////////////////////////////////////////////////////////////////////////////////////
 
-pub struct Reconcile;
+pub struct ReconcileMessage;
 
-impl Message for Reconcile {
+impl Message for ReconcileMessage {
     type Result = Result<Chain, ()>;
 }
 
-impl Handler<Reconcile> for BlockchainServerActor {
+impl Handler<ReconcileMessage> for BlockchainServerActor {
     type Result = Box<dyn Future<Item = Chain, Error = ()>>;
 
-    fn handle(&mut self, _: Reconcile, context: &mut Self::Context) -> Self::Result {
+    fn handle(&mut self, _: ReconcileMessage, context: &mut Self::Context) -> Self::Result {
         let self_addr = context.address().clone();
         let f = self
-            .bloxi
+            .blockchain
+            // Определяем, какая из всех цепочек у нодов правдивая (самая длинная)
             .reconcile()
-            .and_then(move |reconciled| self_addr.send(UpdateBloxi(reconciled)).map_err(|_| ()));
+            .and_then(move |reconciled| {
+                // После получения настоящего блокчейна из всех нодов
+                // Отправляем самому себе сообщение обновления блокчейна на новый
+                self_addr
+                    .send(UpdateBlockchainMessage(reconciled))
+                    .map_err(|_| ())
+            });
         Box::new(f)
     }
 }
 
 ////////////////////////////////////////////////////////////////////////////////////////////////
 
-pub struct UpdateBloxi(Blockchain);
+pub struct UpdateBlockchainMessage(Blockchain);
 
-impl Message for UpdateBloxi {
+impl Message for UpdateBlockchainMessage {
     type Result = Chain;
 }
 
-impl Handler<UpdateBloxi> for BlockchainServerActor {
+impl Handler<UpdateBlockchainMessage> for BlockchainServerActor {
     type Result = Chain;
 
-    fn handle(&mut self, UpdateBloxi(update): UpdateBloxi, _: &mut Self::Context) -> Self::Result {
-        self.bloxi = update;
-        self.bloxi.chain()
+    fn handle(&mut self, UpdateBlockchainMessage(update): UpdateBlockchainMessage, _: &mut Self::Context) -> Self::Result {
+        // Обновляем текущую цепочку на новую
+        self.blockchain = update;
+        self.blockchain.chain()
     }
 }

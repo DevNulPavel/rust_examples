@@ -87,6 +87,7 @@ impl Blockchain {
         // Доказательство работы
         let proof = self.proof_of_work();
 
+        // const SYSTEM_USER_ID: UserId = UserId(0);
         // Создаем транзакцию на 100 денег от текущего юзера к новому
         // let _ = self.add_transaction(Transaction {
         //     from: SYSTEM_USER_ID,

@@ -1,5 +1,4 @@
-#[macro_use]
-mod macros;
+#[macro_use] mod macros;
 mod actors;
 mod handlers;
 mod payloads;

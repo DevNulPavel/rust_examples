@@ -5,7 +5,7 @@ use actix_web::error::{ErrorBadRequest, ErrorInternalServerError};
 use actix_web::{dev::Handler, Error, FromRequest, HttpRequest, Json};
 use futures::Future;
 use log::error;
-//use serde_derive::{Deserialize, Serialize};
+// use serde_derive::{Deserialize, Serialize};
 
 use super::actors::*;
 use super::payloads::*;
@@ -28,7 +28,7 @@ impl<S> Handler<S> for GetIdHandler {
         // Отправляем актору сообщение получения его id
         // Возвращаем Future
         let f = self.0
-            .send(GetId)
+            .send(GetIdMessage)
             .map_err(|e| { 
                 ErrorInternalServerError(e)
             });
@@ -55,7 +55,7 @@ impl<S: 'static> Handler<S> for NewTransactionHandler {
         let owned_actor = self.0.clone(); // so we can send it into the flatMapped future.
         let f = f_transaction.and_then(move |transaction| {
             owned_actor
-                .send(NewTransaction(transaction.0.clone()))
+                .send(NewTransactionMessage(transaction.0.clone()))
                 .map_err(|e| ErrorInternalServerError(e))
                 .map(|block_index| NewTransactionResult { block_index })
         });
@@ -74,7 +74,7 @@ impl<S: 'static> Handler<S> for MineHandler {
 
     /// Handle request
     fn handle(&self, _: &HttpRequest<S>) -> Box<dyn Future<Item = Block, Error = Error>> {
-        let f = self.0.send(Mine).map_err(|e| ErrorInternalServerError(e));
+        let f = self.0.send(MineMessage).map_err(|e| ErrorInternalServerError(e));
         Box::new(f)
     }
 }
@@ -92,7 +92,7 @@ impl<S: 'static> Handler<S> for GetChainHandler {
     fn handle(&self, _: &HttpRequest<S>) -> Box<dyn Future<Item = Chain, Error = Error>> {
         let f = self
             .0
-            .send(GetChain)
+            .send(GetChainMessage)
             .map_err(|e| ErrorInternalServerError(e));
         Box::new(f)
     }
@@ -113,7 +113,7 @@ impl<S: 'static> Handler<S> for AddNodeHandler {
         let owned_actor = self.0.clone(); // so we can send it into the flatMapped future.
         let f = f_node.and_then(move |node| {
             owned_actor
-                .send(AddNode(node.0.clone()))
+                .send(AddNodeMessage(node.0.clone()))
                 .map_err(|e| ErrorInternalServerError(e))
         });
         Box::new(f)
@@ -132,13 +132,13 @@ impl<S: 'static> Handler<S> for ReconcileHandler {
         let cloned_addr = self.0.clone();
         let f = self
             .0
-            .send(Reconcile)
+            .send(ReconcileMessage)
             .and_then(move |r| {
                 let b: Box<dyn Future<Item = Chain, Error = MailboxError>> = match r {
                     Ok(c) => Box::new(futures::future::ok(c)),
                     Err(_) => {
                         error!("Failed to reconcile, just returning current chain");
-                        Box::new(cloned_addr.send(GetChain))
+                        Box::new(cloned_addr.send(GetChainMessage))
                     }
                 };
                 b
