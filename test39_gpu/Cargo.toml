@@ -1,0 +1,12 @@
+[package]
+name = "test39_gpu"
+version = "0.1.0"
+authors = [""]
+edition = "2018"
+
+[workspace]
+
+[dependencies]
+collenchyma = "0.0.8"
+# collenchyma-nn = "0.3.4"
+# collenchyma-blas = "0.2.0"
