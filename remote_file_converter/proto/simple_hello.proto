@@ -1,0 +1,19 @@
+syntax = "proto3";
+
+package simple_hello;
+
+// Описание нашего сервиса
+service UpperConverter {
+    // Наш вызов принимает вызов
+    rpc HelloCommand(HelloRequest) returns (HelloReply);
+}
+
+message HelloRequest {
+    // Сообщение запроса содержит только имя
+    string name = 1;
+}
+
+message HelloReply {
+    // Ответ содержит все сообщение целиком
+    string message = 1;
+}

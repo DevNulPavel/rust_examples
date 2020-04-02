@@ -1,0 +1,57 @@
+{
+    // Use IntelliSense to learn about possible attributes.
+    // Hover to view descriptions of existing attributes.
+    // For more information, visit: https://go.microsoft.com/fwlink/?linkid=830387
+    "version": "0.2.0",
+    "configurations": [
+        {
+            "name": "Debug executable",
+            "type": "lldb",
+            "request": "launch",
+            "cargo": {
+                "args": [
+                    "build",
+                    "--bin=slack_direct_messenger",
+                    "--package=slack_direct_messenger"
+                ],
+                "filter": {
+                    "name": "slack_direct_messenger",
+                    "kind": "bin"
+                }
+            },
+            "args": [
+                "--slack_user_email",
+                "pershov@game-insight.com",
+                "--slack_user",
+                "Pavel Ershov",
+                "--slack_user_text",
+                "Птичка",
+                "--slack_user_qr_commentary",
+                "Птичка",
+                "--slack_user_qr_text",
+                "https://v1rt.ru/upload/iblock/965/965b0132433f8d8e8933238aebbddd0b.jpg"
+            ],
+            "cwd": "${workspaceFolder}"
+        },
+        {
+            "name": "Debug unit tests",
+            "type": "lldb",
+            "request": "launch",
+            "cargo": {
+                "args": [
+                    "test",
+                    "--no-run",
+                    "--bin=slack_direct_messenger",
+                    "--package=slack_direct_messenger"
+                ],
+                "filter": {
+                    "name": "slack_direct_messenger",
+                    "kind": "bin"
+                }
+            },
+            "args": [
+            ],
+            "cwd": "${workspaceFolder}"
+        }
+    ]
+}
