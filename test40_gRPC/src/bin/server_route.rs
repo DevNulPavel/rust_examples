@@ -1,7 +1,6 @@
-mod data;
-
+// Импортируем результат работы Proto - имя пакета
 pub mod routeguide {
-    tonic::include_proto!("routeguide");
+    tonic::include_proto!("route_guide");
 }
 
 use std::collections::HashMap;
@@ -13,142 +12,47 @@ use futures::{Stream, StreamExt};
 use tokio::sync::mpsc;
 use tonic::transport::Server;
 use tonic::{Request, Response, Status};
-use routeguide::route_guide_server::{RouteGuide, RouteGuideServer};
+use routeguide::route_guide_server::{RouteGuide, RouteGuideServer}; // route_guide_server::RouteGuideServer генерируется protobuf
 use routeguide::{Feature, Point, Rectangle, RouteNote, RouteSummary};
 
-#[derive(Debug)]
-pub struct RouteGuideService {
-    features: Arc<Vec<Feature>>,
-}
+mod load_data{
+    use serde::Deserialize;
+    use std::fs::File;
 
-#[tonic::async_trait]
-impl RouteGuide for RouteGuideService {
-    async fn get_feature(&self, request: Request<Point>) -> Result<Response<Feature>, Status> {
-        println!("GetFeature = {:?}", request);
-
-        for feature in &self.features[..] {
-            if feature.location.as_ref() == Some(request.get_ref()) {
-                return Ok(Response::new(feature.clone()));
-            }
-        }
-
-        Ok(Response::new(Feature::default()))
+    #[derive(Debug, Deserialize)]
+    struct Feature {
+        location: Location,
+        name: String,
     }
-
-    type ListFeaturesStream = mpsc::Receiver<Result<Feature, Status>>;
-
-    async fn list_features(
-        &self,
-        request: Request<Rectangle>,
-    ) -> Result<Response<Self::ListFeaturesStream>, Status> {
-        println!("ListFeatures = {:?}", request);
-
-        let (mut tx, rx) = mpsc::channel(4);
-        let features = self.features.clone();
-
-        tokio::spawn(async move {
-            for feature in &features[..] {
-                if in_range(feature.location.as_ref().unwrap(), request.get_ref()) {
-                    println!("  => send {:?}", feature);
-                    tx.send(Ok(feature.clone())).await.unwrap();
-                }
-            }
-
-            println!(" /// done sending");
-        });
-
-        Ok(Response::new(rx))
+    
+    #[derive(Debug, Deserialize)]
+    struct Location {
+        latitude: i32,
+        longitude: i32,
     }
-
-    async fn record_route(
-        &self,
-        request: Request<tonic::Streaming<Point>>,
-    ) -> Result<Response<RouteSummary>, Status> {
-        println!("RecordRoute");
-
-        let mut stream = request.into_inner();
-
-        let mut summary = RouteSummary::default();
-        let mut last_point = None;
-        let now = Instant::now();
-
-        while let Some(point) = stream.next().await {
-            let point = point?;
-
-            println!("  ==> Point = {:?}", point);
-
-            // Increment the point count
-            summary.point_count += 1;
-
-            // Find features
-            for feature in &self.features[..] {
-                if feature.location.as_ref() == Some(&point) {
-                    summary.feature_count += 1;
-                }
-            }
-
-            // Calculate the distance
-            if let Some(ref last_point) = last_point {
-                summary.distance += calc_distance(last_point, &point);
-            }
-
-            last_point = Some(point);
-        }
-
-        summary.elapsed_time = now.elapsed().as_secs() as i32;
-
-        Ok(Response::new(summary))
-    }
-
-    type RouteChatStream =
-        Pin<Box<dyn Stream<Item = Result<RouteNote, Status>> + Send + Sync + 'static>>;
-
-    async fn route_chat(
-        &self,
-        request: Request<tonic::Streaming<RouteNote>>,
-    ) -> Result<Response<Self::RouteChatStream>, Status> {
-        println!("RouteChat");
-
-        let mut notes = HashMap::new();
-        let mut stream = request.into_inner();
-
-        let output = async_stream::try_stream! {
-            while let Some(note) = stream.next().await {
-                let note = note?;
-
-                let location = note.location.clone().unwrap();
-
-                let location_notes = notes.entry(location).or_insert(vec![]);
-                location_notes.push(note);
-
-                for note in location_notes {
-                    yield note.clone();
-                }
-            }
-        };
-
-        Ok(Response::new(Box::pin(output) as Self::RouteChatStream))
+    
+    #[allow(dead_code)]
+    pub fn load() -> Vec<super::Feature> {
+        let file = File::open("data/route_data.json").expect("failed to open data file");
+    
+        let decoded: Vec<Feature> =
+            serde_json::from_reader(&file).expect("failed to deserialize features");
+    
+        decoded
+            .into_iter()
+            .map(|feature| super::Feature {
+                name: feature.name,
+                location: Some(super::Point {
+                    longitude: feature.location.longitude,
+                    latitude: feature.location.latitude,
+                }),
+            })
+            .collect()
     }
 }
 
-#[tokio::main]
-async fn main() -> Result<(), Box<dyn std::error::Error>> {
-    let addr = "[::1]:10000".parse().unwrap();
 
-    println!("RouteGuideServer listening on: {}", addr);
-
-    let route_guide = RouteGuideService {
-        features: Arc::new(data::load()),
-    };
-
-    let svc = RouteGuideServer::new(route_guide);
-
-    Server::builder().add_service(svc).serve(addr).await?;
-
-    Ok(())
-}
-
-// Implement hash for Point
+// Реализация хэширования для точки
 impl Hash for Point {
     fn hash<H>(&self, state: &mut H)
     where
@@ -159,7 +63,8 @@ impl Hash for Point {
     }
 }
 
-impl Eq for Point {}
+impl Eq for Point {
+}
 
 fn in_range(point: &Point, rect: &Rectangle) -> bool {
     use std::cmp;
@@ -201,4 +106,164 @@ fn calc_distance(p1: &Point, p2: &Point) -> i32 {
     let c = 2f64 * a.sqrt().atan2((1f64 - a).sqrt());
 
     (R * c) as i32
+}
+
+// Описываем класс сервера
+#[derive(Debug)]
+pub struct RouteGuideService {
+    features: Arc<Vec<Feature>>, // TODO: Нужна ли синхронизация с помощью MUTEX
+}
+
+// Реализация трейта-обработчика
+#[tonic::async_trait]
+impl RouteGuide for RouteGuideService {
+    // Поток особенностей, выдаваемых клиенту - это Receiver из Tokio канала
+    type ListFeaturesStream = mpsc::Receiver<Result<Feature, Status>>;
+    // Канал из входных данных в выходные - Box для потока из futures, который припинен к конкретному месту в памяти
+    type RouteChatStream = Pin<Box<dyn Stream<Item = Result<RouteNote, Status>> + Send + Sync + 'static>>;
+
+    // Вызов получения особенности, конверируется из GetFeature
+    async fn get_feature(&self, request: Request<Point>) -> Result<Response<Feature>, Status> {
+        println!("GetFeature = {:?}", request);
+
+        // Обходим все варианты
+        for feature in self.features.iter() { // Можно создать слайс вот так &self.features[..]
+            // Если расположение совпадает - возвращаем результат
+            if feature.location.as_ref() == Some(request.get_ref()) {
+                return Ok(Response::new(feature.clone()));
+            }
+        }
+
+        // Если нет - пустой вариаант
+        Ok(Response::new(Feature::default()))
+    }
+
+    // Обработка получения списка особенностей в области
+    async fn list_features(&self, request: Request<Rectangle>) -> Result<Response<Self::ListFeaturesStream>, Status> {
+        println!("ListFeatures = {:?}", request);
+
+        // Создаем канал Tokio
+        let (mut sender, receiver) = mpsc::channel(4);
+        
+        // Потокобезопасный указатель на список фич
+        let features = self.features.clone();
+
+        // Создаем новую задачу в Tokio, которая будет постепенно спамить данные в канал
+        tokio::spawn(async move {
+            // Обходим все фичи
+            for feature in features.iter() { // Можно создать слайс вот так &self.features[..]
+                // Проверяем принадлежность ректанглу
+                if in_range(feature.location.as_ref().unwrap(), request.get_ref()) {
+                    println!("  => send {:?}", feature);
+                    // Отправляем в канал данные с ожиданием получения
+                    sender.send(Ok(feature.clone()))
+                        .await
+                        .unwrap();
+                }
+            }
+
+            println!(" /// done sending");
+            // Здесь уничтожается передатчик канала
+        });
+
+        // Возвращаем Tokio канал
+        Ok(Response::new(receiver))
+    }
+
+    // Запись данных в наш сервис
+    async fn record_route(&self, request: Request<tonic::Streaming<Point>>) -> Result<Response<RouteSummary>, Status> {
+        println!("RecordRoute");
+
+        // Параметр - это поток данных
+        let mut stream = request.into_inner();
+
+        // Результат - путь
+        let mut summary = RouteSummary::default();
+        let mut last_point = None;
+        
+        // Текущее время
+        let now = Instant::now();
+
+        // Получаем данные из потока
+        while let Some(point) = stream.next().await {
+            // Валидная ли точка?
+            let point = point?;
+
+            println!("  ==> Point = {:?}", point);
+
+            // Увеличиваем количество точек
+            summary.point_count += 1;
+
+            // Ищем особенности для данной точки 
+            for feature in &self.features[..] {
+                if feature.location.as_ref() == Some(&point) {
+                    summary.feature_count += 1;
+                }
+            }
+
+            // Вычисляем дистанцию
+            if let Some(ref last_point) = last_point {
+                summary.distance += calc_distance(last_point, &point);
+            }
+
+            last_point = Some(point);
+        }
+
+        summary.elapsed_time = now.elapsed().as_secs() as i32;
+
+        Ok(Response::new(summary))
+    }
+
+    async fn route_chat(&self, request: Request<tonic::Streaming<RouteNote>>) -> Result<Response<Self::RouteChatStream>, Status> {
+        println!("RouteChat");
+
+        let mut notes = HashMap::new();
+
+        // Входной поток данных
+        let mut stream = request.into_inner();
+
+        // Выходной поток данных
+        let output = async_stream::try_stream! {
+            // Получаем данные из входного потока
+            while let Some(note) = stream.next().await {
+                let note = note?;
+
+                let location = note.location.clone().unwrap();
+
+                let location_notes = notes.entry(location).or_insert(vec![]);
+                location_notes.push(note);
+
+                // Для каждого расположения - выбрасываем новые данные
+                for note in location_notes {
+                    yield note.clone();
+                }
+            }
+        };
+
+        Ok(Response::new(Box::pin(output) as Self::RouteChatStream))
+    }
+}
+
+#[tokio::main]
+async fn main() -> Result<(), Box<dyn std::error::Error>> {
+    let addr = "127.0.0.1:10000".parse().unwrap(); // V6 - [::1]:10000
+
+    println!("RouteGuideServer listening on: {}", addr);
+
+    let data = load_data::load();
+
+    // Создаем наш сервис
+    let route_guide = RouteGuideService {
+        features: Arc::new(data),
+    };
+
+    // Создаем непосредственно сервер
+    let svc = RouteGuideServer::new(route_guide);
+
+    Server::builder()
+        .add_service(svc)
+        .serve(addr)
+        .await?;
+
+    Ok(())
 }

@@ -1,7 +1,7 @@
 # See more keys and their definitions at https://doc.rust-lang.org/cargo/reference/manifest.html
 
 [package]
-name = "test40_gRPC"
+name = "test40_grpc"
 version = "0.1.0"
 authors = ["Pavel Ershov <pershov@game-insight.com>"]
 edition = "2018"
@@ -27,8 +27,9 @@ path = "src/bin/client_route.rs"
 tonic = "0.2.0"
 prost = "0.6.1"
 tokio = { version="0.2.14", features = ["full"] } # features = ["full", "macros", "rt-threaded", "sync", "stream", "time"]
-futures-core = "0.3"
-futures-util = "0.3"
+futures = "0.3.4"
+futures-core = "0.3.4"
+futures-util = "0.3.4"
 async-stream = "0.2"
 serde = { version = "1.0", features = ["derive"] }
 serde_json = "1.0"

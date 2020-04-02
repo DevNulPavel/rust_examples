@@ -1,16 +1,11 @@
-BUILD:
-	cargo build
+HELLO_SERVER:
+	cargo run --bin server_hello
 
-BUILD_RELEASE:
-	cargo build --release
+HELLO_CLIENT:
+	cargo run --bin client_hello
 
-TEST: BUILD
-	./scripts/test_upload_script.sh
+ROUTE_SERVER:
+	cargo run --bin server_route
 
-UNIT_TEST:
-	cargo test
-
-BACKUP_KEYS:
-	mkdir -p backup/ && \
-	rm -f backup/*  && \
-	zip -er backup/scripts.zip ./scripts/
+ROUTE_CLIENT:
+	cargo run --bin client_route

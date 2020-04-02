@@ -1,6 +1,6 @@
 // Proto файлы оборачиваем в подмодуль
 pub mod hello_world {
-    tonic::include_proto!("simple_hello"); // Тут надо указать имя нашего файлика
+    tonic::include_proto!("simple_hello"); // Тут надо указать имя нашего пакета
 }
 
 use tonic::{transport::Server, Request, Response, Status};

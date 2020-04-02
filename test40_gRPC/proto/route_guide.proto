@@ -4,7 +4,7 @@ option java_multiple_files = true;
 option java_package = "io.grpc.examples.routeguide";
 option java_outer_classname = "RouteGuideProto";
 
-package routeguide;
+package route_guide;
 
 // Интерфейс нашего сервера, список доступных функций
 service RouteGuide {
