@@ -1,0 +1,38 @@
+# See more keys and their definitions at https://doc.rust-lang.org/cargo/reference/manifest.html
+
+[package]
+name = "test40_gRPC"
+version = "0.1.0"
+authors = ["Pavel Ershov <pershov@game-insight.com>"]
+edition = "2018"
+
+[[bin]]
+name = "server_hello"
+path = "src/bin/server_hello.rs"
+
+[[bin]]
+name = "client_hello"
+path = "src/bin/client_hello.rs"
+
+[[bin]]
+name = "server_route"
+path = "src/bin/server_route.rs"
+
+[[bin]]
+name = "client_route"
+path = "src/bin/client_route.rs"
+
+
+[dependencies]
+tonic = "0.2.0"
+prost = "0.6.1"
+tokio = { version="0.2.14", features = ["full"] } # features = ["full", "macros", "rt-threaded", "sync", "stream", "time"]
+futures-core = "0.3"
+futures-util = "0.3"
+async-stream = "0.2"
+serde = { version = "1.0", features = ["derive"] }
+serde_json = "1.0"
+rand = "0.7"
+
+[build-dependencies]
+tonic-build = "0.2.0"

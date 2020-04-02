@@ -1,0 +1,76 @@
+syntax = "proto3";
+
+option java_multiple_files = true;
+option java_package = "io.grpc.examples.routeguide";
+option java_outer_classname = "RouteGuideProto";
+
+package routeguide;
+
+// Интерфейс нашего сервера, список доступных функций
+service RouteGuide {
+    // Получаем фичу на конкретной позиции, пустая фича будет возвращена если нету на такой позиции
+    rpc GetFeature(Point) returns (Feature) {}
+    
+    // Поток данных от сервера к клиенту RPC
+    // Получает фичи, доступные в данном Rectangle. 
+    // Возвращаются в виде потока данных
+    rpc ListFeatures(Rectangle) returns (stream Feature) {}
+    
+    // Поток от клиента к серверу. Принимает поток точек, которые надо обойти.
+    // Возвращая RouteSummary после обработки
+    rpc RecordRoute(stream Point) returns (RouteSummary) {}
+    
+    // Двунаправленный вариант потока. Принимает поток RouteNote отдает RouteNote
+    rpc RouteChat(stream RouteNote) returns (stream RouteNote) {}
+}
+
+// Точки представляют из себя долготу и широту в E7 представлении
+// Угол, умноженный на 10^7 и округленный ближайшим значением
+// Latitudes, широты должны выть в диапазоне +- 90 градусов
+// longitude, долгота, высота - в диапазоне +/- 180 градусов (включительно)
+message Point {
+    int32 latitude = 1;
+    int32 longitude = 2;
+}
+
+// Прямоугольник, представленный двумя точками
+message Rectangle {
+    Point lo = 1;
+    Point hi = 2;
+}
+
+// Свойства в конкретных позициях представлены именем и позицией
+// Если особенность не может быть названа - имя пустое
+message Feature {
+    // Имя
+    string name = 1;
+    // Где находится она
+    Point location = 2;
+}
+
+// RouteNote - это сообщение, отправленное в данной точке
+message RouteNote {
+    // Расположение, откуда отправлено
+    Point location = 1;
+    // Сообщение, которое должно быть отправленным
+    string message = 2;
+}
+
+// A RouteSummary is received in response to a RecordRoute rpc.
+//
+// It contains the number of individual points received, the number of
+// detected features, and the total distance covered as the cumulative sum of
+// the distance between each point.
+message RouteSummary {
+    // The number of points received.
+    int32 point_count = 1;
+    
+    // The number of known features passed while traversing the route.
+    int32 feature_count = 2;
+    
+    // The distance covered in metres.
+    int32 distance = 3;
+    
+    // The duration of the traversal in seconds.
+    int32 elapsed_time = 4;
+}
