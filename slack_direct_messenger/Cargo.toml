@@ -9,11 +9,11 @@ edition = "2018"
 [dependencies]
 dirs = "2.0"
 clap = "2.33.0"
-tokio = "0.2.0-alpha.6" # tokio = { version = "0.2.0-alpha.6", features = ["full"] }
-hyper = "0.13.0-alpha.4"
-reqwest = { version = "0.10.0-alpha.2", features = ["json"] } # Условная компиляция фич "blocking", "gzip"
-serde = { version = "1.0.104", features = ["derive"] }
-serde_json = "1.0.44"
+tokio = { version = "0.2.15", features = ["full"] }
+hyper = "0.13.4"
+reqwest = { version = "0.10.4", features = ["json"] } # Условная компиляция фич "blocking", "gzip"
+serde = { version = "1.0.105", features = ["derive"] }
+serde_json = "1.0.50"
 qrcode = "0.11.1"
 image = "0.22.3"
 uuid = { version = "0.8.1", features = ["v4"] }

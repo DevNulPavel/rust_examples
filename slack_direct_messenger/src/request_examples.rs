@@ -2,7 +2,6 @@
 use tokio::net::TcpListener;
 use hyper::Client;
 
-
 async fn test_tokio_server() -> Result<(), Box<dyn std::error::Error>>{
     // Создаем серверный сокет
     let mut listener = TcpListener::bind("127.0.0.1:8080").await?;

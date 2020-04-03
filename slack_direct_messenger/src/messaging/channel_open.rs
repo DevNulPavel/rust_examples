@@ -10,10 +10,10 @@ pub async fn open_direct_message_channel(client: &reqwest::Client, api_token: &s
         ];
 
         client.post("https://slack.com/api/im.open")
-        .bearer_auth(api_token)
-        .form(&post_params)
-        .send()
-        .await?
+            .bearer_auth(api_token)
+            .form(&post_params)
+            .send()
+            .await?
     };
     //println!("{:?}", response);
     
