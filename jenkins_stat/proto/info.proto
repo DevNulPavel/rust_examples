@@ -1,0 +1,20 @@
+syntax = "proto3";
+
+package info;
+
+// Интерфейс нашего сервера, список доступных функций
+service ComputerInfo {
+    // Получаем фичу на конкретной позиции, пустая фича будет возвращена если нету на такой позиции
+    rpc GetStats(InfoRequest) returns (Stats) {}
+}
+
+message InfoRequest{
+}
+
+// Свойства в конкретных позициях представлены именем и позицией
+// Если особенность не может быть названа - имя пустое
+message Stats {
+    // Имя
+    uint64 total_space = 1;
+    uint64 free_space = 2;
+}
