@@ -16,23 +16,19 @@ use futures::stream::StreamExt;
 use bytes::{Bytes, BytesMut, Buf, BufMut};
 use byteorder::{ReadBytesExt, WriteBytesExt, BigEndian, LittleEndian};
 use serde::Deserialize;
-use test41_tokio::{EmptyResult, StringResult, save_file_from_socket};
+use test41_tokio::{EmptyResult, StringResult, FileMeta, save_file_from_socket};
 
+type ConverRequest = (PathBuf, ResultSender);
+type ParseResult = (PathBuf, String);
 type PathSender = UnboundedSender<(PathBuf, ResultSender)>;
 type PathReceiver = UnboundedReceiver<(PathBuf, ResultSender)>;
-type ResultSender = UnboundedSender<(PathBuf, String)>;
-type ResultReceiver = UnboundedReceiver<(PathBuf, String)>;
+type ResultSender = UnboundedSender<ParseResult>;
+type ResultReceiver = UnboundedReceiver<ParseResult>;
 
 struct ServerStatus{
     active_converts: u16,
     max_active_converts: u16,
     receive_wait: futures::channel::mpsc::Receiver<bool>
-}
-
-#[derive(Deserialize)]
-struct ReceivedMeta{
-    file_size: usize,
-    file_name: String,
 }
 
 async fn get_md5(path: &Path) -> StringResult {
@@ -66,6 +62,8 @@ async fn process_files(mut receiver: PathReceiver)-> EmptyResult{
     // TODO: Ограничение на количество одновременных обработок
     //let (input_sender, input_receiver) = channel::<PathBuf>(8);
     //let (output_sender, output_receiver) = channel::<(PathBuf, String)>(8);
+
+    let semaphore = tokio::sync::Semaphore::new(8);
     loop {
         let (received_path, response_ch) = match receiver.recv().await{
             Some(data) => {
@@ -76,7 +74,9 @@ async fn process_files(mut receiver: PathReceiver)-> EmptyResult{
             }
         };
 
+        let permit = semaphore.acquire().await;
         if let Ok(md5_res) = get_md5(&received_path).await {
+            drop(permit);
             response_ch.send((received_path, md5_res))?;
         }
     }
@@ -84,9 +84,21 @@ async fn process_files(mut receiver: PathReceiver)-> EmptyResult{
     Ok(())
 }
 
-async fn process_sending_data<'a>(mut writer: WriteHalf<'a>, mut receiver: ResultReceiver) {
-}
+async fn process_sending_data<'a>(mut writer: WriteHalf<'a>, mut receiver: ResultReceiver) -> EmptyResult {
+    loop {
+        let received: ParseResult = match receiver.recv().await {
+            Some(data) => {
+                data
+            },
+            None => {
+                return Err("Channel closed".into());
+            }
+        };
 
+        let data: String = received.1;
+        writer.write_all(data.as_bytes()).await?;
+    }
+}
 
 async fn process_incoming_data<'a>(mut reader: ReadHalf<'a>, process_sender: PathSender, sock_channel: ResultSender) -> EmptyResult {
     loop {
@@ -95,7 +107,7 @@ async fn process_incoming_data<'a>(mut reader: ReadHalf<'a>, process_sender: Pat
         let mut buffer: BytesMut = BytesMut::with_capacity(json_size);
         reader.read_exact(&mut buffer).await?;
 
-        let json: ReceivedMeta = serde_json::from_slice(&buffer).unwrap();
+        let json: FileMeta = serde_json::from_slice(&buffer).unwrap();
 
         let file_path = PathBuf::new()
             .join(json.file_name);

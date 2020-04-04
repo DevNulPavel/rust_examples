@@ -18,18 +18,49 @@
 
 
 use std::io::Cursor;
+use std::string::String;
 use std::path::Path;
 use tokio::prelude::*;
+use tokio::io::{AsyncReadExt, AsyncWriteExt};
 use tokio::runtime::Handle;
 use tokio::net::{ TcpListener, TcpStream};
 use tokio::net::tcp::{ Incoming, ReadHalf, WriteHalf };
 use futures::stream::StreamExt;
 use bytes::{Bytes, BytesMut, Buf, BufMut};
 use byteorder::{ReadBytesExt, WriteBytesExt, BigEndian, LittleEndian};
-use serde::Deserialize;
+use serde::{Deserialize, Serialize};
 
 pub type EmptyResult = Result<(), Box<dyn std::error::Error>>;
 pub type StringResult = Result<String, Box<dyn std::error::Error>>;
+
+#[derive(Deserialize, Serialize)]
+pub struct FileMeta{
+    pub file_size: usize,
+    pub file_name: String,
+}
+
+pub async fn write_file_to_socket<'a>(writer: &mut WriteHalf<'a>, path: &Path) -> EmptyResult {
+    // Открываем асинхронный файлик
+    let mut file: tokio::fs::File = tokio::fs::File::open(path)
+        .await?;
+    
+    let file_meta = file.metadata()
+        .await?;
+    let file_size = file_meta.len() as usize;
+
+    let meta = FileMeta{
+        file_size,
+        file_name: path.to_str().unwrap().to_owned()
+    };
+    let meta = serde_json::to_vec(&meta).unwrap();
+
+    writer.write_u16(meta.len() as u16).await?;
+    writer.write_all(&meta).await?;
+
+    tokio::io::copy(&mut file, writer).await?;
+
+    Ok(())
+}
 
 pub async fn save_file_from_socket<'a>(reader: &mut ReadHalf<'a>, file_size: usize, path: &Path) -> EmptyResult {
     if file_size == 0{
