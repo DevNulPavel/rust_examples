@@ -16,14 +16,7 @@ use futures::stream::StreamExt;
 use bytes::{Bytes, BytesMut, Buf, BufMut};
 use byteorder::{ReadBytesExt, WriteBytesExt, BigEndian, LittleEndian};
 use serde::Deserialize;
-use test41_tokio::{EmptyResult, StringResult, FileMeta, save_file_from_socket};
-
-type ConverRequest = (PathBuf, ResultSender);
-type ParseResult = (PathBuf, String);
-type PathSender = UnboundedSender<(PathBuf, ResultSender)>;
-type PathReceiver = UnboundedReceiver<(PathBuf, ResultSender)>;
-type ResultSender = UnboundedSender<ParseResult>;
-type ResultReceiver = UnboundedReceiver<ParseResult>;
+use test41_tokio::*;
 
 struct ServerStatus{
     active_converts: u16,
@@ -51,14 +44,16 @@ async fn get_md5(path: &Path) -> StringResult {
 
     if out.status.success() {
         let text = String::from_utf8(out.stdout)?;
+        println!("Text return: {}", text);
         Ok(text)
     }else{
         let text = String::from_utf8(out.stderr)?;
+        println!("Error return: {}", text);
         Err(text.into())
     }
 }
 
-async fn process_files(mut receiver: PathReceiver)-> EmptyResult{
+async fn process_files(mut receiver: PathReceiver)-> EmptyResult {
     // TODO: Ограничение на количество одновременных обработок
     //let (input_sender, input_receiver) = channel::<PathBuf>(8);
     //let (output_sender, output_receiver) = channel::<(PathBuf, String)>(8);
@@ -76,8 +71,10 @@ async fn process_files(mut receiver: PathReceiver)-> EmptyResult{
 
         let permit = semaphore.acquire().await;
         if let Ok(md5_res) = get_md5(&received_path).await {
+            println!("Send to channel: {}", md5_res);
             drop(permit);
             response_ch.send((received_path, md5_res))?;
+            println!("Send to channel succes");
         }
     }
 
@@ -95,6 +92,8 @@ async fn process_sending_data<'a>(mut writer: WriteHalf<'a>, mut receiver: Resul
             }
         };
 
+        println!("Data for send: {:?}", received);
+
         let data: String = received.1;
         writer.write_all(data.as_bytes()).await?;
     }
@@ -104,10 +103,17 @@ async fn process_incoming_data<'a>(mut reader: ReadHalf<'a>, process_sender: Pat
     loop {
         let json_size: usize = reader.read_u16().await? as usize;
 
+        println!("Received json size: {}", json_size);
+
         let mut buffer: BytesMut = BytesMut::with_capacity(json_size);
+        buffer.resize(json_size, 0);
         reader.read_exact(&mut buffer).await?;
 
+        println!("Received data: {:?}", buffer);
+
         let json: FileMeta = serde_json::from_slice(&buffer).unwrap();
+
+        println!("Received json: {:?}", json);
 
         let file_path = PathBuf::new()
             .join(json.file_name);
@@ -119,6 +125,8 @@ async fn process_incoming_data<'a>(mut reader: ReadHalf<'a>, process_sender: Pat
 }
 
 async fn process_connection(mut sock: TcpStream, process_sender: PathSender){
+    println!("Process connection: {:?}", sock);
+
     //let sock = std::sync::Arc::from(sock);
     // Получаем отдельные каналы сокета на чтение и на запись
     let (reader, writer) = sock.split();
@@ -126,12 +134,13 @@ async fn process_connection(mut sock: TcpStream, process_sender: PathSender){
     let writer: WriteHalf = writer;
 
     let (sender, receiver) = unbounded_channel::<(PathBuf, String)>();
-    
+
     let reader_join = process_incoming_data(reader, process_sender, sender);
     let writer_join = process_sending_data(writer, receiver);
 
-    let _ = reader_join.await;
-    let _ = writer_join.await;
+    tokio::join!(reader_join, writer_join);
+    //let _ = reader_join.await;
+    //let _ = writer_join.await;
     // tokio::join!(reader_join, writer_join);
 
     /*let copy_result = tokio::io::copy(&mut reader, &mut writer).await;
@@ -156,8 +165,9 @@ fn create_processing() -> (impl futures::Future<Output = EmptyResult>, PathSende
 #[tokio::main]
 async fn main() {
     let (process_file_future, processing_sender) = create_processing();
+    let process_file_future = tokio::spawn(process_file_future);
 
-    let addr = "127.0.0.1:6142";
+    let addr = "127.0.0.1:10000";
 
     // Дожидаемся успешного создания серверного сокета
     let mut listener: TcpListener = TcpListener::bind(addr)
@@ -165,7 +175,7 @@ async fn main() {
         .unwrap();
     
     // TODO: !!! убрать, либо чистить с проверкой результата
-    let mut active_futures = vec![];
+    // let mut active_futures = vec![];
 
     // Создаем обработчик
     let server = async move {
@@ -176,12 +186,17 @@ async fn main() {
         while let Some(conn) = incoming.next().await {
             match conn {
                 Ok(sock) => {
+                    println!("New connection received");
+
                     // Закидываем задачу по работе с нашим сокетом в отдельную функцию
                     // tokio::spawn - неблокирующая функция, закидывающая задачу в обработку
                     let sender = processing_sender.clone();
-                    let fut = process_connection(sock, sender);
-                    active_futures.push(fut);
+                    println!("Sender cloned");
 
+                    let fut = process_connection(sock, sender);
+                    println!("Future created");
+
+                    tokio::spawn(fut);
                     // Не работает, так как фьючи могут пережить каналы и обработку данных
                     //tokio::spawn(fut);
                 }
@@ -192,7 +207,7 @@ async fn main() {
         }
     };
     
-    println!("Server running on localhost:6142");
+    println!("Server running on localhost:10000");
     
     // Блокируемся на выполнении сервера
     server.await;

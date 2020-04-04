@@ -19,21 +19,73 @@
 
 use std::io::Cursor;
 use std::string::String;
-use std::path::Path;
+use std::path::{Path, PathBuf};
 use tokio::prelude::*;
 use tokio::io::{AsyncReadExt, AsyncWriteExt};
 use tokio::runtime::Handle;
 use tokio::net::{ TcpListener, TcpStream};
 use tokio::net::tcp::{ Incoming, ReadHalf, WriteHalf };
+use tokio::sync::mpsc::{channel, unbounded_channel, Receiver, Sender, UnboundedReceiver, UnboundedSender};
 use futures::stream::StreamExt;
 use bytes::{Bytes, BytesMut, Buf, BufMut};
 use byteorder::{ReadBytesExt, WriteBytesExt, BigEndian, LittleEndian};
 use serde::{Deserialize, Serialize};
 
-pub type EmptyResult = Result<(), Box<dyn std::error::Error>>;
-pub type StringResult = Result<String, Box<dyn std::error::Error>>;
+#[derive(Debug)]
+pub enum ProcessError{
+    IO(std::io::Error),
+    Text(std::string::String),
+    UTF8(std::string::FromUtf8Error),
+    ResultChannelSend(tokio::sync::mpsc::error::SendError<(std::path::PathBuf, std::string::String)>),
+    TaskChannelSend(tokio::sync::mpsc::error::SendError<(PathBuf, ResultSender)>),
+    ChannelReceive(std::sync::mpsc::RecvError),
+}
+impl From<std::io::Error> for ProcessError{
+    fn from(e: std::io::Error) -> Self {
+        Self::IO(e)
+    }
+}
+impl From<std::string::String> for ProcessError{
+    fn from(e: std::string::String) -> Self {
+        Self::Text(e)
+    }
+}
+impl From<&str> for ProcessError{
+    fn from(e: &str) -> Self {
+        Self::Text(e.to_string())
+    }
+}
+impl From<std::string::FromUtf8Error> for ProcessError{
+    fn from(e: std::string::FromUtf8Error) -> Self {
+        Self::UTF8(e)
+    }
+}
+impl From<std::sync::mpsc::RecvError> for ProcessError{
+    fn from(e: std::sync::mpsc::RecvError) -> Self {
+        Self::ChannelReceive(e)
+    }
+}
+impl From<tokio::sync::mpsc::error::SendError<(PathBuf, String)>> for ProcessError{
+    fn from(e: tokio::sync::mpsc::error::SendError<(PathBuf, String)>) -> Self {
+        Self::ResultChannelSend(e)
+    }
+}
+impl From<tokio::sync::mpsc::error::SendError<(PathBuf, ResultSender)>> for ProcessError{
+    fn from(e: tokio::sync::mpsc::error::SendError<(PathBuf, ResultSender)>) -> Self {
+        Self::TaskChannelSend(e)
+    }
+}
 
-#[derive(Deserialize, Serialize)]
+pub type EmptyResult = Result<(), ProcessError>;
+pub type StringResult = Result<String, ProcessError>;
+pub type ConverRequest = (PathBuf, ResultSender);
+pub type ParseResult = (PathBuf, String);
+pub type PathSender = UnboundedSender<(PathBuf, ResultSender)>;
+pub type PathReceiver = UnboundedReceiver<(PathBuf, ResultSender)>;
+pub type ResultSender = UnboundedSender<ParseResult>;
+pub type ResultReceiver = UnboundedReceiver<ParseResult>;
+
+#[derive(Deserialize, Serialize, Debug)]
 pub struct FileMeta{
     pub file_size: usize,
     pub file_name: String,
@@ -113,6 +165,7 @@ pub async fn save_file_from_socket<'a>(reader: &mut ReadHalf<'a>, file_size: usi
     if size_left == 0 {
         Ok(())
     }else{
-        return Err(format!("Read from socet failed: {:?}", path).into());
+        //format!("Read from socet failed: {:?}", path).into()
+        return Err(std::io::Error::new(std::io::ErrorKind::InvalidData, "").into());
     }
 }
