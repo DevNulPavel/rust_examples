@@ -1,7 +1,7 @@
-use std::path::{Path, PathBuf};
+use std::path::PathBuf;
 use tokio::prelude::*;
 use tokio::net::TcpStream;
-use test41_tokio::{write_file_to_socket, EmptyResult};
+use test41_tokio::write_file_to_socket;
 
 #[tokio::main]
 async fn main() {
@@ -17,6 +17,7 @@ async fn main() {
 
         let file_path = PathBuf::new()
             .join("Cargo.toml");
+            
         write_file_to_socket(&mut writer, &file_path)
             .await
             .unwrap();
