@@ -14,6 +14,8 @@ use tokio::net::{ TcpListener, TcpStream};
 use tokio::net::tcp::{ Incoming, ReadHalf, WriteHalf };
 use futures::stream::StreamExt;
 use bytes::BytesMut;
+use rand::{Rng};
+// use std::rand::{task_rng, Rng};
 use test41_tokio::*;
 
 async fn get_md5(path: &Path) -> StringResult {
@@ -46,11 +48,11 @@ async fn get_md5(path: &Path) -> StringResult {
 }
 
 async fn process_files(mut receiver: PathReceiver)-> EmptyResult {
-    // TODO: Ограничение на количество одновременных обработок
-    //let (input_sender, input_receiver) = channel::<PathBuf>(8);
-    //let (output_sender, output_receiver) = channel::<(PathBuf, String)>(8);
+    const MAX_COUNT: usize = 8;
 
-    let semaphore = tokio::sync::Semaphore::new(8);
+    // Ограничение на 8 активных задач
+    let semaphore = Arc::from(tokio::sync::Semaphore::new(MAX_COUNT));
+
     loop {
         let (received_path, response_ch) = match receiver.recv().await{
             Some(comand) => {
@@ -68,17 +70,38 @@ async fn process_files(mut receiver: PathReceiver)-> EmptyResult {
             }
         };
 
-        let permit = semaphore.acquire().await;
+        // Клон семафора
+        let semaphore_clone = semaphore.clone();
+        tokio::spawn(async move {
+            // Берем блокировку
+            let acquire = semaphore_clone.acquire().await;
+            // Получаем MD5 асинхронно
+            if let Ok(md5_res) = get_md5(&received_path).await {
+                println!("Send to channel: {}", md5_res);
+                let _ = tokio::fs::remove_file(&received_path).await;
+                                
+                let nanos = std::time::SystemTime::now()
+                    .duration_since(std::time::UNIX_EPOCH)
+                    .unwrap()
+                    .subsec_nanos();
+                let time: u64 = (1000 + nanos % 4000) as u64;
 
-        tokio::time::delay_for(std::time::Duration::from_millis(4000)).await;
-
-        if let Ok(md5_res) = get_md5(&received_path).await {
-            println!("Send to channel: {}", md5_res);
-            drop(permit);
-            response_ch.send((received_path, md5_res))?;
-            println!("Send to channel success");
-        }
+                tokio::time::delay_for(std::time::Duration::from_millis(time)).await;
+                
+                let _ = response_ch.send((received_path, md5_res)); // TODO: ???
+                println!("Send to channel success");
+            }
+            drop(acquire);
+        });
     }
+
+    // Перехватываем блокировку уже в текущем потоке
+    let waits: Vec<_> = (0..MAX_COUNT)
+        .map(|_|{
+            semaphore.acquire()
+        })
+        .collect();
+    futures::future::join_all(waits).await;
 
     println!("Processing exit");
     Ok(())
@@ -137,12 +160,19 @@ async fn process_incoming_data<'a>(mut reader: ReadHalf<'a>, process_sender: Pat
 
         println!("Received json: {:?}", json);
 
+        let id: String = format!("{}", uuid::Uuid::new_v4());
         let file_path = PathBuf::new()
-            .join(json.file_name);
+            .join("tmp")
+            .join(id + &json.file_name + ".tmp");
+
+        println!("File path: {:?}", file_path);            
         let save_result = save_file_from_socket(&mut reader, json.file_size, &file_path).await;
         if save_result.is_ok() {
+            println!("File received: {:?}", save_result);
             let command = ProcessCommand::Process((file_path, sock_channel.clone()));
             process_sender.send(command)?;
+        }else{
+            eprintln!("File receive error: {:?}", save_result);
         }
     }
 }
