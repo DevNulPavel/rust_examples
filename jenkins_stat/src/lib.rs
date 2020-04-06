@@ -16,3 +16,6 @@
 // другие файлы .rs лучше воспринимать как папку с корневым файлом mod.rs
 // https://users.rust-lang.org/t/importing-module-from-another-module/18172/9
 
+mod messaging;
+
+pub use messaging::send_message_to_channel;

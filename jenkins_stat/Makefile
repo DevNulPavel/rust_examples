@@ -1,7 +1,10 @@
-SERVER:
-	cargo run --bin stats_server
+DAEMON:
+	cargo run --bin stats_daemon
 
 CLIENT:
-	cargo run --bin stats_reсeiver -- \
-		--slack_channel "asdasd" \
-		--stat_servers "http://127.0.0.1:10000"
+	./scripts/test_upload_script.sh
+
+BACKUP_KEYS:
+	mkdir -p backup/ && \
+	rm -f backup/*  && \
+	zip -er backup/scripts.zip ./scripts/

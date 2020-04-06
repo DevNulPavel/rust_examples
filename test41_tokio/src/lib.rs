@@ -121,6 +121,14 @@ pub async fn save_file_from_socket<'a>(reader: &mut ReadHalf<'a>, file_size: usi
         panic!("File size can't be zero: {:?}", path);
     }
 
+    // Создаем папку
+    if !path.exists(){
+        if let Some(folder) = path.parent(){
+            if !folder.exists(){
+                tokio::fs::create_dir_all(folder).await?;   
+            }
+        }
+    }
     // Создаем асинхронно файлик
     let mut file: tokio::fs::File = tokio::fs::File::create(path)
         .await?;

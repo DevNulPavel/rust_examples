@@ -8,6 +8,7 @@ use clap::{Arg, App, ArgMatches};
 use tonic::{Request, Response};
 use info::computer_info_client::ComputerInfoClient; // route_guide_server::RouteGuideServer генерируется protobuf
 use info::{Stats, InfoRequest};
+use jenkins_stat;
 //use futures::join;
 
 #[derive(Debug)]
@@ -98,13 +99,14 @@ async fn main() -> Result<(), Box<dyn std::error::Error>> {
 
     println!("{:?}", stat_info);        
 
-    // for stat in all_stats{}
+    // Создаем клиента для переиспользования
+    let client = reqwest::Client::new();
 
-    // let total_size = bytesize::ByteSize(stats.total_space);
-    // let free_space = bytesize::ByteSize(stats.free_space);
-    // println!("Stats = {:?}", stats);
-    // println!("Stats = {}", total_size);
-    // println!("Stats = {}", free_space);
+    // Api token
+    let api_token = std::env::var("SLACK_API_TOKEN")
+        .expect("SLACK_API_TOKEN environment variable is missing");
+
+    jenkins_stat::send_message_to_channel(&client, &api_token, &slack_channel, &stat_info).await?;
 
     Ok(())
 }

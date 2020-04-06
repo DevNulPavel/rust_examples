@@ -20,6 +20,7 @@ rand = "0.7"
 fs2 = "0.4.3"
 bytesize = "1.0.0"
 clap = "2.33.0"
+reqwest = { version = "0.10.4", features = ["json"] } # Условная компиляция фич "blocking", "gzip"
 
 [build-dependencies]
 tonic-build = "0.2.0"

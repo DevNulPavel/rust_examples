@@ -42,8 +42,7 @@ impl ComputerInfo for ComputerInfoService {
 
         let result = Stats{
             total_space: total_space as u64,
-            free_space: free_space as u64,
-            server_name: String::new()
+            free_space: free_space as u64
         };
 
         // Если нет - пустой вариаант
