@@ -4,7 +4,10 @@ use std::io::Cursor;
 use std::process::Output;
 use std::path::{Path, PathBuf};
 use std::sync::Arc;
-// use tokio::prelude::*;
+use futures::prelude::*;
+use tokio::prelude::*;
+use futures::stream::StreamExt;
+use futures::future::FutureExt;
 use tokio::process::{ Command };
 use tokio::sync::mpsc::unbounded_channel;
 use tokio::sync::broadcast;
@@ -12,7 +15,6 @@ use tokio::sync::broadcast;
 use tokio::io::{AsyncReadExt, AsyncWriteExt};
 use tokio::net::{ TcpListener, TcpStream};
 use tokio::net::tcp::{ Incoming, ReadHalf, WriteHalf };
-use futures::stream::StreamExt;
 use bytes::BytesMut;
 //use rand::{Rng};
 // use std::rand::{task_rng, Rng};
@@ -233,7 +235,7 @@ async fn main() {
     let stop_read_sender_server = stop_read_sender.clone();
     let stop_write_sender_server = stop_write_sender.clone();
     let server = async move {
-        let mut active_futures: Vec<tokio::task::JoinHandle<_>> = vec![];
+        let mut active_futures: Vec<tokio::sync::mpsc::Receiver<()>> = vec![];
 
         // Получаем поток новых соединений
         let mut incoming: Incoming = listener.incoming();
@@ -270,12 +272,14 @@ async fn main() {
 
             // Очищаем список активных задач от уже завершившихся
             let mut new_active_futures = vec![];
-            for join in active_futures.into_iter() {
-                // let ready = futures::poll!(join);
-                //let res = futures::ready!(ready);
-                // if ready.is_pending() {
-                    new_active_futures.push(join);
-                // }
+            for mut receiver in active_futures.into_iter() {
+                match receiver.try_recv() {
+                    Ok(_) => {
+                    },
+                    Err(_) => {
+                        new_active_futures.push(receiver);
+                    }
+                }
             }
             active_futures = new_active_futures;
 
@@ -290,16 +294,19 @@ async fn main() {
                                                   sender, 
                                               stop_read_sender_server.subscribe(), 
                                              stop_write_sender_server.subscribe());
-            let join_handle = tokio::spawn(fut);
+            let (mut sender, receiver) = tokio::sync::mpsc::channel(1);                                        
+            tokio::spawn(async move {
+                fut.await;
+                sender.send(()).await.unwrap();
+            });
+            active_futures.push(receiver); // TODO: Удаление из списка
             println!("Future created");
-
-            active_futures.push(join_handle); // TODO: Удаление из списка
-            // Не работает, так как фьючи могут пережить каналы и обработку данных
-            //tokio::spawn(fut);
         }
 
         // Ждем завершения всех обработок соединений
-        futures::future::join_all(active_futures.into_iter()).await;
+        for mut receiver in active_futures.into_iter() {
+            receiver.recv().await;
+        }
     };
     
     println!("Server running on localhost:10000");
