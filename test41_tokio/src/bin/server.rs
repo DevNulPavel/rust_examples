@@ -8,13 +8,13 @@ use std::sync::Arc;
 use tokio::process::{ Command };
 use tokio::sync::mpsc::unbounded_channel;
 use tokio::sync::broadcast;
-use tokio::sync::Mutex;
+//use tokio::sync::Mutex;
 use tokio::io::{AsyncReadExt, AsyncWriteExt};
 use tokio::net::{ TcpListener, TcpStream};
 use tokio::net::tcp::{ Incoming, ReadHalf, WriteHalf };
 use futures::stream::StreamExt;
 use bytes::BytesMut;
-use rand::{Rng};
+//use rand::{Rng};
 // use std::rand::{task_rng, Rng};
 use test41_tokio::*;
 
@@ -214,66 +214,91 @@ fn create_processing() -> (impl futures::Future<Output = EmptyResult>, PathSende
 
 #[tokio::main]
 async fn main() {
+    // Каналы остановки работы
     let (stop_listen_sender, mut stop_listen_receiver) = tokio::sync::broadcast::channel::<()>(1);
     let (stop_read_sender, _) = tokio::sync::broadcast::channel::<()>(1);
     let (stop_write_sender, _) = tokio::sync::broadcast::channel::<()>(1);
     
+    // Канал и Join обработки данных
     let (process_file_future, processing_sender) = create_processing();
     let process_file_future = tokio::spawn(process_file_future);
 
-    let addr = "127.0.0.1:10000";
-
     // Дожидаемся успешного создания серверного сокета
-    let mut listener: TcpListener = TcpListener::bind(addr)
+    let mut listener: TcpListener = TcpListener::bind("127.0.0.1:10000")
         .await
         .unwrap();
     
-    // TODO: !!! убрать, либо чистить с проверкой результата
-    let mut active_futures = vec![];
-
     // Создаем обработчик
     let processing_sender_server = processing_sender.clone();
     let stop_read_sender_server = stop_read_sender.clone();
     let stop_write_sender_server = stop_write_sender.clone();
     let server = async move {
+        let mut active_futures: Vec<tokio::task::JoinHandle<_>> = vec![];
+
         // Получаем поток новых соединений
         let mut incoming: Incoming = listener.incoming();
 
         // Получаем кавые соединения каждый раз
         'select_loop: loop{
-            tokio::select! {
+            let sock: TcpStream = tokio::select! {
+                // Новое подключение
+                conn = incoming.next() => {
+                    // Новое подключение может быть пустым
+                    match conn {
+                        Some(conn) => {
+                            // непустое подключение может быть ошибкой
+                            match conn {
+                                Ok(sock) => {
+                                    sock
+                                },
+                                Err(e) => {
+                                    eprintln!("accept failed = {:?}", e);
+                                    break 'select_loop; // TODO: ????
+                                }
+                            }
+                        },
+                        None => {
+                            continue 'select_loop;
+                        }
+                    }
+                },
+                // Либо сигнал об остановке приема новых подключений
                 _ = stop_listen_receiver.recv() => {
                     break 'select_loop;
                 }
-                conn = incoming.next() => {
-                    if let Some(conn) = conn {
-                        match conn {
-                            Ok(sock) => {
-                                println!("New connection received");
-            
-                                // Закидываем задачу по работе с нашим сокетом в отдельную функцию
-                                // tokio::spawn - неблокирующая функция, закидывающая задачу в обработку
-                                let sender = processing_sender_server.clone();
-                                println!("Sender cloned");
-            
-                                let fut = process_connection(sock, sender, 
-                                    stop_read_sender_server.subscribe(), stop_write_sender_server.subscribe());
-                                println!("Future created");
-            
-                                active_futures.push(tokio::spawn(fut));
-                                // Не работает, так как фьючи могут пережить каналы и обработку данных
-                                //tokio::spawn(fut);
-                            }
-                            Err(e) => {
-                                eprintln!("accept failed = {:?}", e);
-                                break 'select_loop; // TODO: ????
-                            }
-                        }
-                    }
-                }
+            };
+
+            // Очищаем список активных задач от уже завершившихся
+            let mut new_active_futures = vec![];
+            for join in active_futures.into_iter() {
+                // let ready = futures::poll!(join);
+                //let res = futures::ready!(ready);
+                // if ready.is_pending() {
+                    new_active_futures.push(join);
+                // }
             }
+            active_futures = new_active_futures;
+
+            println!("New connection received");
+
+            // Создаем свою копию канала отправителя задач
+            let sender = processing_sender_server.clone();
+            println!("Sender cloned");
+
+            // Создаем задачу обработки соединения
+            let fut = process_connection(sock, 
+                                                  sender, 
+                                              stop_read_sender_server.subscribe(), 
+                                             stop_write_sender_server.subscribe());
+            let join_handle = tokio::spawn(fut);
+            println!("Future created");
+
+            active_futures.push(join_handle); // TODO: Удаление из списка
+            // Не работает, так как фьючи могут пережить каналы и обработку данных
+            //tokio::spawn(fut);
         }
 
+        // Ждем завершения всех обработок соединений
         futures::future::join_all(active_futures.into_iter()).await;
     };
     
@@ -284,7 +309,7 @@ async fn main() {
         if let Ok(_) = tokio::signal::ctrl_c().await{
             println!("Stop requested");
             stop_listen_sender.send(()).unwrap();
-            stop_read_sender.send(());
+            let _ = stop_read_sender.send(());
             processing_sender_stop.send(ProcessCommand::Stop).unwrap();
             stop_write_sender.send(()).unwrap();
             println!("Stop request: success");
