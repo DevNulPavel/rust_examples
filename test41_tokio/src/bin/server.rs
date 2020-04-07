@@ -4,10 +4,10 @@ use std::io::Cursor;
 use std::process::Output;
 use std::path::{Path, PathBuf};
 use std::sync::Arc;
-use futures::prelude::*;
-use tokio::prelude::*;
+// use futures::prelude::*;
+// use tokio::prelude::*;
 use futures::stream::StreamExt;
-use futures::future::FutureExt;
+// use futures::future::FutureExt;
 use tokio::process::{ Command };
 use tokio::sync::mpsc::unbounded_channel;
 use tokio::sync::broadcast;
@@ -120,12 +120,14 @@ async fn process_sending_data<'a>(mut writer: WriteHalf<'a>,
                         data
                     },
                     None => {
+                        println!("Process sending exit");
                         return Err("Channel closed".into());
                     }
                 };
                 data
             }
             _ = stop_receiver.recv() => {
+                println!("Process sending exit");
                 return Ok(());
             }
         };
@@ -146,6 +148,7 @@ async fn process_incoming_data<'a>(mut reader: ReadHalf<'a>, process_sender: Pat
                 json_size? as usize
             }
             _ = stop_receiver.recv() =>{
+                println!("Process incoming exit");
                 return Ok(());
             }
         };
@@ -204,6 +207,8 @@ async fn process_connection(mut sock: TcpStream, process_sender: PathSender,
     if let Err(writer_res) = writer_res {
         eprintln!("{:?}", writer_res);
     }
+
+    println!("Process connection exit");
 }
 
 fn create_processing() -> (impl futures::Future<Output = EmptyResult>, PathSender) {
@@ -217,7 +222,7 @@ fn create_processing() -> (impl futures::Future<Output = EmptyResult>, PathSende
 #[tokio::main]
 async fn main() {
     // Каналы остановки работы
-    let (stop_listen_sender, mut stop_listen_receiver) = tokio::sync::broadcast::channel::<()>(1);
+    let (mut stop_listen_sender, mut stop_listen_receiver) = tokio::sync::mpsc::channel::<()>(1);
     let (stop_read_sender, _) = tokio::sync::broadcast::channel::<()>(1);
     let (stop_write_sender, _) = tokio::sync::broadcast::channel::<()>(1);
     
@@ -235,7 +240,7 @@ async fn main() {
     let stop_read_sender_server = stop_read_sender.clone();
     let stop_write_sender_server = stop_write_sender.clone();
     let server = async move {
-        let mut active_futures: Vec<tokio::sync::mpsc::Receiver<()>> = vec![];
+        let mut active_processings: Vec<tokio::sync::oneshot::Receiver<()>> = vec![];
 
         // Получаем поток новых соединений
         let mut incoming: Incoming = listener.incoming();
@@ -272,7 +277,7 @@ async fn main() {
 
             // Очищаем список активных задач от уже завершившихся
             let mut new_active_futures = vec![];
-            for mut receiver in active_futures.into_iter() {
+            for mut receiver in active_processings.into_iter() {
                 match receiver.try_recv() {
                     Ok(_) => {
                     },
@@ -281,7 +286,7 @@ async fn main() {
                     }
                 }
             }
-            active_futures = new_active_futures;
+            active_processings = new_active_futures;
 
             println!("New connection received");
 
@@ -294,18 +299,18 @@ async fn main() {
                                                   sender, 
                                               stop_read_sender_server.subscribe(), 
                                              stop_write_sender_server.subscribe());
-            let (mut sender, receiver) = tokio::sync::mpsc::channel(1);                                        
+            let (sender, receiver) = tokio::sync::oneshot::channel::<()>();
             tokio::spawn(async move {
                 fut.await;
-                sender.send(()).await.unwrap();
+                sender.send(()).unwrap();
             });
-            active_futures.push(receiver); // TODO: Удаление из списка
+            active_processings.push(receiver); // TODO: Удаление из списка
             println!("Future created");
         }
 
         // Ждем завершения всех обработок соединений
-        for mut receiver in active_futures.into_iter() {
-            receiver.recv().await;
+        for receiver in active_processings.into_iter() {
+            receiver.await.unwrap();
         }
     };
     
@@ -315,9 +320,19 @@ async fn main() {
     tokio::spawn(async move {
         if let Ok(_) = tokio::signal::ctrl_c().await{
             println!("Stop requested");
-            stop_listen_sender.send(()).unwrap();
+            // Отключаем прием новых соединений
+            stop_listen_sender.send(()).await.unwrap();
+
+            // Отключаем чтение новых данных из сокетов
             let _ = stop_read_sender.send(());
+
+            // Завершаем обработку и ждем завершения
             processing_sender_stop.send(ProcessCommand::Stop).unwrap();
+            if let Err(e) = process_file_future.await{
+                eprintln!("Process file error: {:?}", e);
+            }
+
+            // Завершаем все записи клиентам
             stop_write_sender.send(()).unwrap();
             println!("Stop request: success");
         }
@@ -325,10 +340,6 @@ async fn main() {
 
     // Блокируемся на выполнении сервера
     server.await;
-
-    if let Err(e) = process_file_future.await{
-        eprintln!("Process file error: {:?}", e);
-    }
 
     println!("Application exit");
 
