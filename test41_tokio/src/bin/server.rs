@@ -125,7 +125,7 @@ async fn process_sending_data<'a>(mut writer: WriteHalf<'a>,
                     }
                 };
                 data
-            }
+            },
             _ = stop_receiver.recv() => {
                 println!("Process sending exit");
                 return Ok(());
@@ -139,7 +139,8 @@ async fn process_sending_data<'a>(mut writer: WriteHalf<'a>,
     }
 }
 
-async fn process_incoming_data<'a>(mut reader: ReadHalf<'a>, process_sender: PathSender, 
+async fn process_incoming_data<'a>(mut reader: ReadHalf<'a>, 
+                                   process_sender: PathSender, 
                                    sock_channel: ResultSender, 
                                    mut stop_receiver: broadcast::Receiver<()>) -> EmptyResult {
     loop {
@@ -182,7 +183,8 @@ async fn process_incoming_data<'a>(mut reader: ReadHalf<'a>, process_sender: Pat
     }
 }
 
-async fn process_connection(mut sock: TcpStream, process_sender: PathSender, 
+async fn process_connection(mut sock: TcpStream, 
+                            process_sender: PathSender, 
                             stop_read_receiver: broadcast::Receiver<()>, 
                             stop_write_receiver: broadcast::Receiver<()>){
     println!("Process connection: {:?}", sock);
@@ -195,15 +197,18 @@ async fn process_connection(mut sock: TcpStream, process_sender: PathSender,
 
     let (sender, receiver) = unbounded_channel::<(PathBuf, String)>();
 
-    let reader_join = process_incoming_data(reader, process_sender, 
-                                                       sender, stop_read_receiver);
-    let writer_join = process_sending_data(writer, receiver, stop_write_receiver);
+    let reader_join = process_incoming_data(reader, 
+                                                                     process_sender, 
+                                                       sender, 
+                                                      stop_read_receiver);
+    let writer_join = process_sending_data(writer, 
+                                                                    receiver, 
+                                                     stop_write_receiver);
 
     let (reader_res, writer_res) = tokio::join!(reader_join, writer_join);
     if let Err(reader_res) = reader_res {
         eprintln!("{:?}", reader_res);
     }
-
     if let Err(writer_res) = writer_res {
         eprintln!("{:?}", writer_res);
     }
@@ -211,10 +216,10 @@ async fn process_connection(mut sock: TcpStream, process_sender: PathSender,
     println!("Process connection exit");
 }
 
-fn create_processing() -> (impl futures::Future<Output = EmptyResult>, PathSender) {
+fn create_processing() -> (tokio::task::JoinHandle<EmptyResult>, PathSender) {
     let (processing_sender, input_receiver) = unbounded_channel::<ProcessCommand>();
     
-    let process_file_future = process_files(input_receiver);
+    let process_file_future = tokio::spawn(process_files(input_receiver));
 
     (process_file_future, processing_sender)
 }
@@ -228,7 +233,6 @@ async fn main() {
     
     // Канал и Join обработки данных
     let (process_file_future, processing_sender) = create_processing();
-    let process_file_future = tokio::spawn(process_file_future);
 
     // Дожидаемся успешного создания серверного сокета
     let mut listener: TcpListener = TcpListener::bind("127.0.0.1:10000")
@@ -299,12 +303,12 @@ async fn main() {
                                                   sender, 
                                               stop_read_sender_server.subscribe(), 
                                              stop_write_sender_server.subscribe());
-            let (sender, receiver) = tokio::sync::oneshot::channel::<()>();
+            let (complete_sender, complete_receiver) = tokio::sync::oneshot::channel::<()>();
             tokio::spawn(async move {
                 fut.await;
-                sender.send(()).unwrap();
+                complete_sender.send(()).unwrap();
             });
-            active_processings.push(receiver); // TODO: Удаление из списка
+            active_processings.push(complete_receiver); // TODO: Удаление из списка
             println!("Future created");
         }
 

@@ -95,11 +95,9 @@ pub struct FileMeta{
 
 pub async fn write_file_to_socket<'a>(writer: &mut WriteHalf<'a>, path: &Path) -> EmptyResult {
     // Открываем асинхронный файлик
-    let mut file: tokio::fs::File = tokio::fs::File::open(path)
-        .await?;
+    let mut file: tokio::fs::File = tokio::fs::File::open(path).await?;
     
-    let file_meta = file.metadata()
-        .await?;
+    let file_meta = file.metadata().await?;
     let file_size = file_meta.len() as usize;
 
     let meta = FileMeta{
