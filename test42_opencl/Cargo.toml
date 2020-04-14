@@ -1,0 +1,10 @@
+[package]
+name = "test42_opencl"
+version = "0.1.0"
+authors = [""]
+edition = "2018"
+
+[workspace]
+
+[dependencies]
+ocl = "0.19.3"
