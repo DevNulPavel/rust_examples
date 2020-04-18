@@ -5,7 +5,7 @@ use tokio::net::TcpStream;
 use tokio::net::tcp::{ ReadHalf, WriteHalf };
 use tokio::sync::{Semaphore, SemaphorePermit};
 use tokio::sync::mpsc::{unbounded_channel, UnboundedSender, UnboundedReceiver};
-use test41_tokio::write_file_to_socket;
+use test41_tokio::socket_helpers::write_file_to_socket;
 
 async fn process_sending<'a, 'b>(mut writer: WriteHalf<'a>, semaphoe: &'b Semaphore, sender: UnboundedSender<SemaphorePermit<'b>>){
     loop{

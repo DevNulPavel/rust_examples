@@ -1,14 +1,13 @@
 #[allow(unused_imports)]
 
 use std::io::Cursor;
-use std::process::Output;
-use std::path::{Path, PathBuf};
-use std::sync::Arc;
+// use std::process::Output;
+use std::path::PathBuf;
+// use std::sync::Arc;
 // use futures::prelude::*;
 // use tokio::prelude::*;
 use futures::stream::StreamExt;
 // use futures::future::FutureExt;
-use tokio::process::{ Command };
 use tokio::sync::mpsc::unbounded_channel;
 use tokio::sync::broadcast;
 //use tokio::sync::Mutex;
@@ -18,99 +17,14 @@ use tokio::net::tcp::{ Incoming, ReadHalf, WriteHalf };
 use bytes::BytesMut;
 //use rand::{Rng};
 // use std::rand::{task_rng, Rng};
-use test41_tokio::*;
+// use test41_tokio::*;
+// use test41_tokio::errors::*;
+use test41_tokio::types::*;
+use test41_tokio::file_processing::Processing;
+use test41_tokio::socket_helpers::*;
 
-async fn get_md5(path: &Path) -> StringResult {
-    let path_str = match path.to_str(){
-        Some(path_str) => {
-            path_str
-        },
-        None => {
-            return Err("Empty path".into());
-        }
-    };
-
-    let child = Command::new("md5")
-        .arg(path_str)
-        .output();
-
-    let out: Output = child.await?;    
-
-    println!("the command exited with: {:?}", out);
-
-    if out.status.success() {
-        let text = String::from_utf8(out.stdout)?;
-        println!("Text return: {}", text);
-        Ok(text)
-    }else{
-        let text = String::from_utf8(out.stderr)?;
-        println!("Error return: {}", text);
-        Err(text.into())
-    }
-}
-
-async fn process_files(mut receiver: PathReceiver)-> EmptyResult {
-    const MAX_COUNT: usize = 8;
-
-    // Ограничение на 8 активных задач
-    let semaphore = Arc::from(tokio::sync::Semaphore::new(MAX_COUNT));
-
-    loop {
-        let (received_path, response_ch) = match receiver.recv().await{
-            Some(comand) => {
-                match comand {
-                    ProcessCommand::Process(data) => { 
-                        data
-                    },
-                    ProcessCommand::Stop => {
-                        break;
-                    }
-                }
-            },
-            None => {
-                break;
-            }
-        };
-
-        // Клон семафора
-        let semaphore_clone = semaphore.clone();
-        tokio::spawn(async move {
-            // Берем блокировку
-            let acquire = semaphore_clone.acquire().await;
-            // Получаем MD5 асинхронно
-            if let Ok(md5_res) = get_md5(&received_path).await {
-                println!("Send to channel: {}", md5_res);
-                let _ = tokio::fs::remove_file(&received_path).await;
-                                
-                let nanos = std::time::SystemTime::now()
-                    .duration_since(std::time::UNIX_EPOCH)
-                    .unwrap()
-                    .subsec_nanos();
-                let time: u64 = (1000 + nanos % 4000) as u64;
-
-                tokio::time::delay_for(std::time::Duration::from_millis(time)).await;
-                
-                let _ = response_ch.send((received_path, md5_res)); // TODO: ???
-                println!("Send to channel success");
-            }
-            drop(acquire);
-        });
-    }
-
-    // Перехватываем блокировку уже в текущем потоке
-    let waits: Vec<_> = (0..MAX_COUNT)
-        .map(|_|{
-            semaphore.acquire()
-        })
-        .collect();
-    futures::future::join_all(waits).await;
-
-    println!("Processing exit");
-    Ok(())
-}
-
-async fn process_sending_data<'a>(mut writer: WriteHalf<'a>, 
-                                  mut receiver: ResultReceiver, 
+async fn process_sending_data<'a>(mut writer: WriteHalf<'a>,
+                                  mut receiver: ResultReceiver,
                                   mut stop_receiver: broadcast::Receiver<()>) -> EmptyResult {
     loop {
         let received: ParseResult = tokio::select! {
@@ -139,9 +53,9 @@ async fn process_sending_data<'a>(mut writer: WriteHalf<'a>,
     }
 }
 
-async fn process_incoming_data<'a>(mut reader: ReadHalf<'a>, 
-                                   process_sender: PathSender, 
-                                   sock_channel: ResultSender, 
+async fn process_incoming_data<'a>(mut reader: ReadHalf<'a>,
+                                   process_sender: PathSender,
+                                   sock_channel: ResultSender,
                                    mut stop_receiver: broadcast::Receiver<()>) -> EmptyResult {
     loop {
         let json_size: usize = tokio::select! {
@@ -216,13 +130,6 @@ async fn process_connection(mut sock: TcpStream,
     println!("Process connection exit");
 }
 
-fn create_processing() -> (tokio::task::JoinHandle<EmptyResult>, PathSender) {
-    let (processing_sender, input_receiver) = unbounded_channel::<ProcessCommand>();
-    
-    let process_file_future = tokio::spawn(process_files(input_receiver));
-
-    (process_file_future, processing_sender)
-}
 
 #[tokio::main]
 async fn main() {
@@ -232,7 +139,7 @@ async fn main() {
     let (stop_write_sender, _) = tokio::sync::broadcast::channel::<()>(1);
     
     // Канал и Join обработки данных
-    let (process_file_future, processing_sender) = create_processing();
+    let processing = Processing::new();
 
     // Дожидаемся успешного создания серверного сокета
     let mut listener: TcpListener = TcpListener::bind("127.0.0.1:10000")
@@ -240,7 +147,7 @@ async fn main() {
         .unwrap();
     
     // Создаем обработчик
-    let processing_sender_server = processing_sender.clone();
+    let processing_sender_server = processing.get_sender_clone();
     let stop_read_sender_server = stop_read_sender.clone();
     let stop_write_sender_server = stop_write_sender.clone();
     let server = async move {
@@ -320,7 +227,7 @@ async fn main() {
     
     println!("Server running on localhost:10000");
     
-    let processing_sender_stop = processing_sender.clone();
+    // Обработка сигнала прерывания работы по Ctrl+C
     tokio::spawn(async move {
         if let Ok(_) = tokio::signal::ctrl_c().await{
             println!("Stop requested");
@@ -331,10 +238,7 @@ async fn main() {
             let _ = stop_read_sender.send(());
 
             // Завершаем обработку и ждем завершения
-            processing_sender_stop.send(ProcessCommand::Stop).unwrap();
-            if let Err(e) = process_file_future.await{
-                eprintln!("Process file error: {:?}", e);
-            }
+            processing.gracefull_finish_and_wait().await;
 
             // Завершаем все записи клиентам
             stop_write_sender.send(()).unwrap();
@@ -346,6 +250,4 @@ async fn main() {
     server.await;
 
     println!("Application exit");
-
-    // TODO: завершение по Ctrl + C
 }
