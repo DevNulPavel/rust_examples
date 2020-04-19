@@ -1,27 +1,38 @@
-use crate::Ball;
 use amethyst::{
-    core::{timing::Time, transform::Transform},
     derive::SystemDesc,
-    ecs::prelude::{Join, Read, ReadStorage, System, SystemData, WriteStorage},
+    core::{
+        timing::Time, 
+        transform::Transform
+    },
+    ecs::prelude::{
+        Join, 
+        Read, 
+        ReadStorage, 
+        System, 
+        SystemData, 
+        WriteStorage
+    },
 };
+use crate::game_types::BallComponent;
 
-/// This system is responsible for moving all balls according to their speed
-/// and the time passed.
+/// Данная системма ответственна за перемещение всех шаров в соответствии с их скоростью
 #[derive(SystemDesc)]
 pub struct MoveBallsSystem;
 
 impl<'s> System<'s> for MoveBallsSystem {
     type SystemData = (
-        ReadStorage<'s, Ball>,
+        ReadStorage<'s, BallComponent>,
         WriteStorage<'s, Transform>,
         Read<'s, Time>,
     );
 
     fn run(&mut self, (balls, mut locals, time): Self::SystemData) {
-        // Move every ball according to its speed, and the time passed.
+        // Перемещаем каждый шар в соответствии с его скоростью и временем
+        let delta = time.delta_seconds();
+        // Связываем шар и его трансформ
         for (ball, local) in (&balls, &mut locals).join() {
-            local.prepend_translation_x(ball.velocity[0] * time.delta_seconds());
-            local.prepend_translation_y(ball.velocity[1] * time.delta_seconds());
+            local.prepend_translation_x(ball.velocity[0] * delta);
+            local.prepend_translation_y(ball.velocity[1] * delta);
         }
     }
 }

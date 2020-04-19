@@ -1,9 +1,15 @@
-pub struct Ball {
+use amethyst::ecs::{
+    Component, 
+    DenseVecStorage
+};
+
+
+pub struct BallComponent {
     pub velocity: [f32; 2],
     pub radius: f32,
 }
 
-impl Component for Ball {
+impl Component for BallComponent {
     type Storage = DenseVecStorage<Self>;
 }
 ////////////////////////////////////////////////////////////////////////////////////////////////
@@ -14,14 +20,14 @@ pub enum Side {
     Right,
 }
 
-pub struct Paddle {
+pub struct PaddleComponent {
     pub velocity: f32,
     pub side: Side,
     pub width: f32,
     pub height: f32,
 }
 
-impl Paddle {
+/*impl Paddle {
     pub fn new(side: Side) -> Paddle {
         Paddle {
             velocity: 1.0,
@@ -30,24 +36,24 @@ impl Paddle {
             height: 1.0,
         }
     }
-}
+}*/
 
-impl Component for Paddle {
+impl Component for PaddleComponent {
     type Storage = DenseVecStorage<Self>;
 }
 ////////////////////////////////////////////////////////////////////////////////////////////////
 
 #[derive(Default)]
 pub struct ScoreBoard {
-    score_left: i32,
-    score_right: i32,
+    pub score_left: i32,
+    pub score_right: i32,
 }
 
-impl ScoreBoard {
+/*impl ScoreBoard {
     pub fn new() -> ScoreBoard {
         ScoreBoard {
             score_left: 0,
             score_right: 0,
         }
     }
-}
+}*/

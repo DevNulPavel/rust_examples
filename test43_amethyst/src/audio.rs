@@ -4,14 +4,14 @@ use std::{
 };
 use amethyst::{
     assets::{
-        AssetStorage, 
+        // AssetStorage, 
         Loader
     },
     audio::{
-        output::Output, 
-        AudioSink, 
+        // output::Output,
+        // AudioSink, 
         OggFormat, 
-        Source, 
+        // Source, 
         SourceHandle
     },
     ecs::{
@@ -34,9 +34,9 @@ fn load_audio_track(loader: &Loader, world: &World, file: &str) -> SourceHandle 
     loader.load(file, OggFormat, (), &world.read_resource())
 }
 
-/// Initialise audio in the world. This includes the background track and the
-/// sound effects.
-pub fn initialise_audio(world: &mut World) {
+// Initialise audio in the world. This includes the background track and the
+// sound effects.
+/*pub fn initialise_audio(world: &mut World) {
     use crate::{AUDIO_BOUNCE, AUDIO_MUSIC, AUDIO_SCORE};
 
     let (sound_effects, music) = {
@@ -65,13 +65,13 @@ pub fn initialise_audio(world: &mut World) {
     // world won't let us insert new resources as long as `Loader` is borrowed.
     world.insert(sound_effects);
     world.insert(music);
-}
+}*/
 
-/// Plays the bounce sound when a ball hits a side or a paddle.
-pub fn play_bounce(sounds: &Sounds, storage: &AssetStorage<Source>, output: Option<&Output>) {
+// Plays the bounce sound when a ball hits a side or a paddle.
+/*pub fn play_bounce(sounds: &Sounds, storage: &AssetStorage<Source>, output: Option<&Output>) {
     if let Some(ref output) = output.as_ref() {
         if let Some(sound) = storage.get(&sounds.bounce_sfx) {
             output.play_once(sound, 1.0);
         }
     }
-}
+}*/

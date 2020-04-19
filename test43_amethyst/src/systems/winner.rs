@@ -1,11 +1,27 @@
-use crate::{audio::Sounds, Ball, ScoreBoard};
+use crate::{
+    //audio::Sounds, 
+    BallComponent, 
+    ScoreBoard
+};
 use amethyst::{
-    assets::AssetStorage,
-    audio::{output::Output, Source},
+    //assets::AssetStorage,
     core::Transform,
     derive::SystemDesc,
-    ecs::prelude::{Entity, Join, Read, ReadExpect, System, SystemData, Write, WriteStorage},
     ui::UiText,
+    ecs::prelude::{
+        Entity, 
+        Join, 
+        //Read, 
+        ReadExpect, 
+        System, 
+        SystemData, 
+        Write, 
+        WriteStorage
+    },
+    /*audio::{
+        Source,
+        output::Output
+    },*/
 };
 
 /// This system is responsible for checking if a ball has moved into a left or
@@ -16,14 +32,14 @@ pub struct WinnerSystem;
 
 impl<'s> System<'s> for WinnerSystem {
     type SystemData = (
-        WriteStorage<'s, Ball>,
+        WriteStorage<'s, BallComponent>,
         WriteStorage<'s, Transform>,
         WriteStorage<'s, UiText>,
         Write<'s, ScoreBoard>,
-        Read<'s, AssetStorage<Source>>,
-        ReadExpect<'s, Sounds>,
+        //Read<'s, AssetStorage<Source>>,
+        // ReadExpect<'s, Sounds>,
         ReadExpect<'s, ScoreText>,
-        Option<Read<'s, Output>>,
+        //Option<Read<'s, Output>>,
     );
 
     fn run(
@@ -33,10 +49,10 @@ impl<'s> System<'s> for WinnerSystem {
             mut transforms,
             mut text,
             mut score_board,
-            storage,
-            sounds,
+            //storage,
+            // sounds,
             score_text,
-            audio_output,
+            //audio_output,
         ): Self::SystemData,
     ) {
         for (ball, transform) in (&mut balls, &mut transforms).join() {
@@ -76,11 +92,11 @@ impl<'s> System<'s> for WinnerSystem {
                 );
 
                 // Play audio.
-                if let Some(ref output) = audio_output {
+                /*if let Some(ref output) = audio_output {
                     if let Some(sound) = storage.get(&sounds.score_sfx) {
                         output.play_once(sound, 1.0);
                     }
-                }
+                }*/
             }
         }
     }

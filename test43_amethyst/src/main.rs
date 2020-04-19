@@ -1,8 +1,8 @@
 //! Pong
 
-mod audio;
+// mod audio;
 mod bundle;
-mod pong;
+mod pong_state;
 mod systems;
 mod game_types;
 mod constants;
@@ -11,17 +11,13 @@ use std::time::Duration;
 use amethyst::{
     prelude::*,
     utils::application_root_dir,
-    audio::{
+    /*audio::{
         AudioBundle, 
         DjSystemDesc
-    },
+    },*/
     core::{
         frame_limiter::FrameRateLimitStrategy, 
         transform::TransformBundle
-    },
-    ecs::{
-        Component, 
-        DenseVecStorage
     },
     input::{
         InputBundle, 
@@ -41,20 +37,18 @@ use amethyst::{
     }
 };
 use crate::{
-    audio::Music, 
+    //audio::Music, 
     bundle::PongBundle,
     constants::*,
     game_types::{
-        Ball,
+        BallComponent,
         Side,
         ScoreBoard
     }
 };
 
 fn main() -> amethyst::Result<()> {
-    use crate::pong::Pong;
-
-    // Запускаем систему логирования
+    // Запускаем систему логирования со стандартным конфигом (вызывая default метод трейта)
     amethyst::start_logger(Default::default());
 
     // Получаем коренную папку приложения
@@ -84,15 +78,15 @@ fn main() -> amethyst::Result<()> {
         // Бандл непосредственно игры
         .with_bundle(PongBundle)?
         // Бандл работы со звуком
-        .with_bundle(AudioBundle::default())?
+        /*.with_bundle(AudioBundle::default())?*/
         // Добавляем уже систему работы с музыкой
-        .with_system_desc(
+        /*.with_system_desc(
             DjSystemDesc::new(|music: &mut Music| { 
                 music.music.next()
             }),
             "dj_system", // Имя системы
             &[],         // Зависимости
-        )
+        )*/
         // Бандл с системами интерфейса
         .with_bundle(UiBundle::<StringBindings>::new())?
         // Система рендеринга
@@ -109,14 +103,14 @@ fn main() -> amethyst::Result<()> {
         )?;
 
     // Создаем непосредственно игру
-    let mut game = Application::build(assets_dir, Pong::default())?
-        .with_frame_limit(
-            FrameRateLimitStrategy::SleepAndYield(Duration::from_millis(2)),
-            144,
-        )
+    let initial_state = pong_state::PongState::default();
+    let frame_limit_stategy = FrameRateLimitStrategy::SleepAndYield(Duration::from_millis(1));
+    let mut game = Application::build(assets_dir, initial_state)?
+        .with_frame_limit(frame_limit_stategy,30)
         .build(game_data)?;
 
     game.run();
+
     Ok(())
 }
 

@@ -1,29 +1,29 @@
 use amethyst::{
-    assets::AssetStorage,
+    //assets::AssetStorage,
     core::transform::Transform,
     derive::SystemDesc,    
     ecs::prelude::{
         Join, 
-        Read, 
-        ReadExpect, 
+        //Read, 
+        //ReadExpect, 
         ReadStorage, 
         System, 
         SystemData, 
         WriteStorage
     },
-    audio::{
+    /*audio::{
         output::Output, 
         Source
-    }
+    }*/
 };
 use crate::{
-    Ball, 
-    Paddle, 
+    BallComponent, 
     Side,
-    audio::{
+    game_types::PaddleComponent,
+    /*audio::{
         play_bounce, 
         Sounds
-    }
+    }*/
 };
 
 
@@ -34,12 +34,12 @@ pub struct BounceSystem;
 
 impl<'s> System<'s> for BounceSystem {
     type SystemData = (
-        WriteStorage<'s, Ball>,
-        ReadStorage<'s, Paddle>,
+        WriteStorage<'s, BallComponent>,
+        ReadStorage<'s, PaddleComponent>,
         ReadStorage<'s, Transform>,
-        Read<'s, AssetStorage<Source>>,
-        ReadExpect<'s, Sounds>,
-        Option<Read<'s, Output>>,
+        //Read<'s, AssetStorage<Source>>,
+        //ReadExpect<'s, Sounds>,
+        //Option<Read<'s, Output>>,
     );
 
     fn run(&mut self, data: Self::SystemData) {
@@ -47,9 +47,9 @@ impl<'s> System<'s> for BounceSystem {
         let (mut balls, 
              paddles, 
              transforms, 
-             storage, 
+             /*storage, 
              sounds, 
-             audio_output) = data;
+             audio_output*/) = data;
 
         // Check whether a ball collided, and bounce off accordingly.
         //
@@ -66,7 +66,7 @@ impl<'s> System<'s> for BounceSystem {
                 || (ball_y >= ARENA_HEIGHT - ball.radius && ball.velocity[1] > 0.0)
             {
                 ball.velocity[1] = -ball.velocity[1];
-                play_bounce(&*sounds, &storage, audio_output.as_deref());
+                //play_bounce(&*sounds, &storage, audio_output.as_deref());
             }
 
             // Bounce at the paddles.
@@ -90,7 +90,7 @@ impl<'s> System<'s> for BounceSystem {
                     || (paddle.side == Side::Right && ball.velocity[0] > 0.0))
                 {
                     ball.velocity[0] = -ball.velocity[0];
-                    play_bounce(&*sounds, &storage, audio_output.as_deref());
+                    //play_bounce(&*sounds, &storage, audio_output.as_deref());
                 }
             }
         }

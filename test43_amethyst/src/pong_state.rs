@@ -26,10 +26,10 @@ use amethyst::{
     }
 };
 use crate::{
-    Ball, 
-    Paddle, 
+    BallComponent, 
     Side,
     systems::ScoreText, 
+    game_types::PaddleComponent, 
     constants::{
         ARENA_HEIGHT, 
         ARENA_WIDTH
@@ -91,44 +91,57 @@ fn initialise_paddles(world: &mut World, sprite_sheet_handle: Handle<SpriteSheet
         PADDLE_WIDTH
     };
 
-    let mut left_transform = Transform::default();
-    let mut right_transform = Transform::default();
-
-    // Correctly position the paddles.
+    // Позиционируем ракетки
     let y = ARENA_HEIGHT / 2.0;
-    left_transform.set_translation_xyz(PADDLE_WIDTH * 0.5, y, 0.0);
-    right_transform.set_translation_xyz(ARENA_WIDTH - PADDLE_WIDTH * 0.5, y, 0.0);
 
-    // Assign the sprites for the paddles
-    let sprite_render = SpriteRender {
+    // Создаем компонент левой ракетки
+    let left_paddle_component = PaddleComponent {
+        velocity: PADDLE_VELOCITY,
+        side: Side::Left,
+        width: PADDLE_WIDTH,
+        height: PADDLE_HEIGHT,
+    };
+
+    // Компонент правой ракетки
+    let right_paddle_component = PaddleComponent {
+        velocity: PADDLE_VELOCITY,
+        side: Side::Right,
+        width: PADDLE_WIDTH,
+        height: PADDLE_HEIGHT,
+    };
+
+    // Создаем трансформ
+    let left_transform_component = {
+        let mut t = Transform::default();
+        t.set_translation_xyz(PADDLE_WIDTH * 0.5, y, 0.0);
+        t
+    };
+    let right_transform_component = {
+        let mut t = Transform::default();
+        t.set_translation_xyz(ARENA_WIDTH - PADDLE_WIDTH * 0.5, y, 0.0);
+        t
+    };
+
+    // Создаем рендер спрайта
+    let sprite_render_component = SpriteRender {
         sprite_sheet: sprite_sheet_handle,
         sprite_number: 0, // paddle is the first sprite in the sprite_sheet
     };
 
-    // Create a left plank entity.
+    // Создаем сущность левой ракетки
     world
         .create_entity()
-        .with(sprite_render.clone())
-        .with(Paddle {
-            velocity: PADDLE_VELOCITY,
-            side: Side::Left,
-            width: PADDLE_WIDTH,
-            height: PADDLE_HEIGHT,
-        })
-        .with(left_transform)
+        .with(sprite_render_component.clone())
+        .with(left_paddle_component)
+        .with(left_transform_component)
         .build();
 
-    // Create right plank entity.
+    // Создаем сущность правой ракетки
     world
         .create_entity()
-        .with(sprite_render)
-        .with(Paddle {
-            velocity: PADDLE_VELOCITY,
-            side: Side::Right,
-            width: PADDLE_WIDTH,
-            height: PADDLE_HEIGHT,
-        })
-        .with(right_transform)
+        .with(sprite_render_component)
+        .with(right_paddle_component)
+        .with(right_transform_component)
         .build();
 }
 
@@ -153,7 +166,7 @@ fn initialise_ball(world: &mut World, sprite_sheet_handle: Handle<SpriteSheet>) 
     world
         .create_entity()
         .with(sprite_render)
-        .with(Ball {
+        .with(BallComponent {
             radius: BALL_RADIUS,
             velocity: [BALL_VELOCITY_X, BALL_VELOCITY_Y],
         })
@@ -216,16 +229,16 @@ fn initialise_score(world: &mut World) {
 ///////////////////////////////////////////////////////////////////////////////////////////////////
 
 #[derive(Default)]
-pub struct Pong {
+pub struct PongState {
     ball_spawn_timer: Option<f32>,
     sprite_sheet_handle: Option<Handle<SpriteSheet>>,
 }
 
 // Реализуем простое игровое состояние
-impl SimpleState for Pong {
+impl SimpleState for PongState {
     // Старт игрового состояния
     fn on_start(&mut self, data: StateData<'_, GameData<'_, '_>>) {
-        use crate::audio::initialise_audio;
+        //use crate::audio::initialise_audio;
 
         // Разворачиваем структуру для получения мира
         let StateData{ world, .. } = data;
@@ -243,9 +256,21 @@ impl SimpleState for Pong {
         // Камера
         initialise_camera(world);
         // Аудио
-        initialise_audio(world);
+        //initialise_audio(world);
         // Счет
         initialise_score(world);
+    }
+
+    /// Executed when the game state exits.
+    fn on_stop(&mut self, _data: StateData<'_, GameData<'_, '_>>) {
+    }
+
+    /// Executed when a different game state is pushed onto the stack.
+    fn on_pause(&mut self, _data: StateData<'_, GameData<'_, '_>>) {
+    }
+
+    /// Executed when the application returns to this game state once again.
+    fn on_resume(&mut self, _data: StateData<'_, GameData<'_, '_>>) {
     }
 
     fn update(&mut self, data: &mut StateData<'_, GameData<'_, '_>>) -> SimpleTrans {
