@@ -1,0 +1,10 @@
+[package]
+name = "test43_amethyst"
+version = "0.1.0"
+authors = [""]
+edition = "2018"
+
+[workspace]
+
+[dependencies]
+amethyst = { version="0.15.0", features = ["metal"] }
