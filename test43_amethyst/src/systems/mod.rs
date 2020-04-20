@@ -8,7 +8,7 @@ pub use self::{
     move_balls::MoveBallsSystem,
     paddle::PaddleSystem,
     winner::{
-        ScoreText,
+        ScoreTextResource,
         WinnerSystem
     },
 };

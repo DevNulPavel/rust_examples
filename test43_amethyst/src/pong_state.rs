@@ -26,7 +26,7 @@ use amethyst::{
     }
 };
 use crate::{
-    systems::ScoreText, 
+    systems::ScoreTextResource, 
     game_types::{
         Side,
         PaddleComponent,
@@ -183,12 +183,15 @@ fn initialise_ball(world: &mut World, sprite_sheet_handle: Handle<SpriteSheet>) 
 ///////////////////////////////////////////////////////////////////////////////////////////////////
 
 fn initialise_score(world: &mut World) {
+    // С помощью загрузчика мы грузим шрифт
     let font = world.read_resource::<Loader>().load(
         "font/square.ttf",
         TtfFormat,
         (),
         &world.read_resource(),
     );
+
+    // Трансформация левого лейбла
     let p1_transform = UiTransform::new(
         "P1".to_string(),
         Anchor::TopMiddle,
@@ -200,6 +203,7 @@ fn initialise_score(world: &mut World) {
         50.,
     );
 
+    // Трансформация правого лейбла
     let p2_transform = UiTransform::new(
         "P2".to_string(),
         Anchor::TopMiddle,
@@ -218,9 +222,10 @@ fn initialise_score(world: &mut World) {
             font.clone(),
             "0".to_string(),
             [1.0, 1.0, 1.0, 1.0],
-            50.,
+            50.0,
         ))
         .build();
+
     let p2_score = world
         .create_entity()
         .with(p2_transform)
@@ -228,10 +233,15 @@ fn initialise_score(world: &mut World) {
             font,
             "0".to_string(),
             [1.0, 1.0, 1.0, 1.0],
-            50.,
+            50.0,
         ))
         .build();
-    world.insert(ScoreText { p1_score, p2_score });
+
+    // Добавляем ресурс, который будет хранить структуру с сущностями
+    world.insert(ScoreTextResource{ 
+        p1_score, 
+        p2_score 
+    });
 }
 
 ///////////////////////////////////////////////////////////////////////////////////////////////////
