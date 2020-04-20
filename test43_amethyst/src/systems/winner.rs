@@ -1,8 +1,3 @@
-use crate::{
-    //audio::Sounds, 
-    BallComponent, 
-    ScoreBoard
-};
 use amethyst::{
     //assets::AssetStorage,
     core::Transform,
@@ -22,6 +17,13 @@ use amethyst::{
         Source,
         output::Output
     },*/
+};
+use crate::{
+    //audio::Sounds, 
+    game_types::{
+        ScoreBoard,
+        BallComponent
+    }
 };
 
 /// This system is responsible for checking if a ball has moved into a left or

@@ -18,6 +18,7 @@ use crate::systems::{
 /// Бандл подготавливает мир для игры
 pub struct PongBundle;
 
+// Реализуем бандл
 impl<'a, 'b> SystemBundle<'a, 'b> for PongBundle {
     fn build(self, _world: &mut World, builder: &mut DispatcherBuilder<'a, 'b>) -> Result<(), Error> {
         // Добавляем системы, описывая их зависимости для работы в многопоточной среде

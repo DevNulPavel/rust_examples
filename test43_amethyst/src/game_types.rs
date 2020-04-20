@@ -2,7 +2,7 @@ use amethyst::ecs::{
     Component, 
     DenseVecStorage
 };
-
+use crate::constants::*;
 
 pub struct BallComponent {
     pub velocity: [f32; 2],
@@ -27,16 +27,16 @@ pub struct PaddleComponent {
     pub height: f32,
 }
 
-/*impl Paddle {
-    pub fn new(side: Side) -> Paddle {
-        Paddle {
-            velocity: 1.0,
+impl PaddleComponent {
+    pub fn new(side: Side) -> PaddleComponent {
+        PaddleComponent {
+            velocity: PADDLE_VELOCITY,
             side,
-            width: 1.0,
-            height: 1.0,
+            width: PADDLE_WIDTH,
+            height: PADDLE_HEIGHT,
         }
     }
-}*/
+}
 
 impl Component for PaddleComponent {
     type Storage = DenseVecStorage<Self>;
@@ -49,11 +49,13 @@ pub struct ScoreBoard {
     pub score_right: i32,
 }
 
-/*impl ScoreBoard {
-    pub fn new() -> ScoreBoard {
-        ScoreBoard {
-            score_left: 0,
-            score_right: 0,
-        }
-    }
-}*/
+////////////////////////////////////////////////////////////////////////////////////////////////
+
+#[derive(Default)]
+pub struct BounceCountComponent{
+    pub count: u32
+}
+
+impl Component for BounceCountComponent{
+    type Storage = DenseVecStorage<Self>;
+}

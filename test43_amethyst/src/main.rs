@@ -1,7 +1,5 @@
-//! Pong
-
-// mod audio;
-mod bundle;
+mod audio;
+mod pong_bundle;
 mod pong_state;
 mod systems;
 mod game_types;
@@ -11,10 +9,10 @@ use std::time::Duration;
 use amethyst::{
     prelude::*,
     utils::application_root_dir,
-    /*audio::{
+    audio::{
         AudioBundle, 
         DjSystemDesc
-    },*/
+    },
     core::{
         frame_limiter::FrameRateLimitStrategy, 
         transform::TransformBundle
@@ -37,14 +35,9 @@ use amethyst::{
     }
 };
 use crate::{
-    //audio::Music, 
-    bundle::PongBundle,
+    audio::MusicResource, 
+    pong_bundle::PongBundle,
     constants::*,
-    game_types::{
-        BallComponent,
-        Side,
-        ScoreBoard
-    }
 };
 
 fn main() -> amethyst::Result<()> {
@@ -69,24 +62,27 @@ fn main() -> amethyst::Result<()> {
     // Директория ассетов
     let assets_dir = app_root.join("assets/");
 
+    // Бандл систем обработки ввода
+    let input_systems_bundle = InputBundle::<StringBindings>::new()
+        .with_bindings_from_file(key_bindings_path)?;
+
     let game_data = GameDataBuilder::default()
         // Добавляем бандл трансформов, который обрабатывает позиции сущностей
         .with_bundle(TransformBundle::new())?
         // Бандл обработки ввода пользователя
-        .with_bundle(InputBundle::<StringBindings>::new()
-            .with_bindings_from_file(key_bindings_path)?)?
-        // Бандл непосредственно игры
-        .with_bundle(PongBundle)?
+        .with_bundle(input_systems_bundle)?
         // Бандл работы со звуком
-        /*.with_bundle(AudioBundle::default())?*/
+        .with_bundle(AudioBundle::default())?
         // Добавляем уже систему работы с музыкой
-        /*.with_system_desc(
-            DjSystemDesc::new(|music: &mut Music| { 
+        .with_system_desc(
+            DjSystemDesc::new(|music: &mut MusicResource| { 
                 music.music.next()
             }),
             "dj_system", // Имя системы
             &[],         // Зависимости
-        )*/
+        )
+        // Бандл непосредственно игры
+        .with_bundle(PongBundle{})?
         // Бандл с системами интерфейса
         .with_bundle(UiBundle::<StringBindings>::new())?
         // Система рендеринга

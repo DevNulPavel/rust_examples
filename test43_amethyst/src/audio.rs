@@ -4,14 +4,13 @@ use std::{
 };
 use amethyst::{
     assets::{
-        // AssetStorage, 
+        AssetStorage, 
         Loader
     },
     audio::{
-        // output::Output,
-        // AudioSink, 
+        self, // Так можно добавить себя, чтобы был доступ по audio::
+        AudioSink, 
         OggFormat, 
-        // Source, 
         SourceHandle
     },
     ecs::{
@@ -20,40 +19,63 @@ use amethyst::{
     }
 };
 
-pub struct Sounds {
+//////////////////////////////////////////////////////////////////////////////////////////////////////////////////////////////////
+
+/// Структура, содержащая загруженные звуки
+pub struct SoundsResource {
     pub score_sfx: SourceHandle,
     pub bounce_sfx: SourceHandle,
 }
 
-pub struct Music {
+// Структура, содержащая загруженную музыку
+pub struct MusicResource {
+    // Цикличный итератор по звуковым файликам
     pub music: Cycle<IntoIter<SourceHandle>>,
 }
 
-/// Loads an ogg audio track.
+//////////////////////////////////////////////////////////////////////////////////////////////////////////////////////////////////
+
+/// Загружаем OGG аудио музыку
 fn load_audio_track(loader: &Loader, world: &World, file: &str) -> SourceHandle {
     loader.load(file, OggFormat, (), &world.read_resource())
 }
 
-// Initialise audio in the world. This includes the background track and the
-// sound effects.
-/*pub fn initialise_audio(world: &mut World) {
-    use crate::{AUDIO_BOUNCE, AUDIO_MUSIC, AUDIO_SCORE};
+/// Инициализируем аудио в мире, сохраняя его в ресурсе
+pub fn initialise_audio(world: &mut World) {
+    use crate::{
+        AUDIO_BOUNCE, 
+        AUDIO_MUSIC, 
+        AUDIO_SCORE
+    };
 
     let (sound_effects, music) = {
+        // Получаем ресурс загрузчика файликов в режиме толкьо на чтение
         let loader = world.read_resource::<Loader>();
 
+        // Получаем ресурс аудио в режиме для чтения
         let mut sink = world.write_resource::<AudioSink>();
-        sink.set_volume(0.25); // Music is a bit loud, reduce the volume.
+        // Снижаем громкость воспроизведения
+        sink.set_volume(0.25);
 
+        // Идем по списку файликов и загружаем треки
         let music = AUDIO_MUSIC
             .iter()
-            .map(|file| load_audio_track(&loader, &world, file))
+            .map(|file| {
+                // Грузим стрек
+                load_audio_track(&loader, &world, file)
+            })
+            // Собираем в вектор
             .collect::<Vec<_>>()
+            // Вектор преобразуем во владеющий итератор
             .into_iter()
+            // Делаем итератор цикличным, чтобы музыка играла одна за другой
             .cycle();
-        let music = Music { music };
+        
+        // Муыкальный объект
+        let music = MusicResource { music };
 
-        let sound = Sounds {
+        // Звуки
+        let sound = SoundsResource {
             bounce_sfx: load_audio_track(&loader, &world, AUDIO_BOUNCE),
             score_sfx: load_audio_track(&loader, &world, AUDIO_SCORE),
         };
@@ -61,17 +83,20 @@ fn load_audio_track(loader: &Loader, world: &World, file: &str) -> SourceHandle 
         (sound, music)
     };
 
-    // Add sound effects to the world. We have to do this in another scope because
-    // world won't let us insert new resources as long as `Loader` is borrowed.
+    // Добавляем звуки в мир в виде ресурсов, добавление происходит тут, так как
+    // мир не позволяет добавлять новые ресурсы пока загрузчик заимствован
     world.insert(sound_effects);
     world.insert(music);
-}*/
+}
 
-// Plays the bounce sound when a ball hits a side or a paddle.
-/*pub fn play_bounce(sounds: &Sounds, storage: &AssetStorage<Source>, output: Option<&Output>) {
+// Воспроизведение звука удара о границу
+pub fn play_bounce(sounds: &SoundsResource, storage: &AssetStorage<audio::Source>, output: Option<&audio::output::Output>) {
+    // Получаем ссылку на вывод звука
     if let Some(ref output) = output.as_ref() {
+        // Получаем из хранилища исходник звука
         if let Some(sound) = storage.get(&sounds.bounce_sfx) {
-            output.play_once(sound, 1.0);
+            // Воспроизводим
+            output.play_once(sound, 0.7);
         }
     }
-}*/
+}

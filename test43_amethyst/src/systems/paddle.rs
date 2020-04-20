@@ -33,7 +33,7 @@ impl<'s> System<'s> for PaddleSystem {
     );
 
     fn run(&mut self, (paddles, mut transforms, time, input): Self::SystemData) {
-        use crate::Side;
+        use crate::game_types::Side;
 
         // Итерируемся по всем ракеткам и двигаем их в соответствии с вводом пользователя
         // Связываем каждую ракетку с трансформом ракетки

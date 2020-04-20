@@ -26,16 +26,20 @@ use amethyst::{
     }
 };
 use crate::{
-    BallComponent, 
-    Side,
     systems::ScoreText, 
-    game_types::PaddleComponent, 
+    game_types::{
+        Side,
+        PaddleComponent,
+        BallComponent,
+        BounceCountComponent
+    }, 
     constants::{
         ARENA_HEIGHT, 
         ARENA_WIDTH
     }
 };
 
+///////////////////////////////////////////////////////////////////////////////////////////////////
 
 /// Функция загрузки атласа
 fn load_sprite_sheet(world: &mut World) -> Handle<SpriteSheet> {
@@ -70,6 +74,8 @@ fn load_sprite_sheet(world: &mut World) -> Handle<SpriteSheet> {
     )
 }
 
+///////////////////////////////////////////////////////////////////////////////////////////////////
+
 /// Инициализация камеры
 fn initialise_camera(world: &mut World) {
     // Настраиваем камеру так, чтобы наш экран покрывал все иговое поле и (0,0) был нижним левым углом
@@ -83,11 +89,11 @@ fn initialise_camera(world: &mut World) {
         .build();
 }
 
+///////////////////////////////////////////////////////////////////////////////////////////////////
+
 /// Инициализируем ракетки слева и справа
 fn initialise_paddles(world: &mut World, sprite_sheet_handle: Handle<SpriteSheet>) {
     use crate::constants::{
-        PADDLE_HEIGHT, 
-        PADDLE_VELOCITY, 
         PADDLE_WIDTH
     };
 
@@ -95,20 +101,10 @@ fn initialise_paddles(world: &mut World, sprite_sheet_handle: Handle<SpriteSheet
     let y = ARENA_HEIGHT / 2.0;
 
     // Создаем компонент левой ракетки
-    let left_paddle_component = PaddleComponent {
-        velocity: PADDLE_VELOCITY,
-        side: Side::Left,
-        width: PADDLE_WIDTH,
-        height: PADDLE_HEIGHT,
-    };
+    let left_paddle_component = PaddleComponent::new(Side::Left);
 
     // Компонент правой ракетки
-    let right_paddle_component = PaddleComponent {
-        velocity: PADDLE_VELOCITY,
-        side: Side::Right,
-        width: PADDLE_WIDTH,
-        height: PADDLE_HEIGHT,
-    };
+    let right_paddle_component = PaddleComponent::new(Side::Right);
 
     // Создаем трансформ
     let left_transform_component = {
@@ -122,6 +118,10 @@ fn initialise_paddles(world: &mut World, sprite_sheet_handle: Handle<SpriteSheet
         t
     };
 
+    // Компоненты количества касаний слева и справа
+    let bounce_count_component_left = BounceCountComponent::default();
+    let bounce_count_component_right = BounceCountComponent::default();
+
     // Создаем рендер спрайта
     let sprite_render_component = SpriteRender {
         sprite_sheet: sprite_sheet_handle,
@@ -131,19 +131,25 @@ fn initialise_paddles(world: &mut World, sprite_sheet_handle: Handle<SpriteSheet
     // Создаем сущность левой ракетки
     world
         .create_entity()
+        .named("Left paddle")
         .with(sprite_render_component.clone())
         .with(left_paddle_component)
         .with(left_transform_component)
+        .with(bounce_count_component_left)
         .build();
 
     // Создаем сущность правой ракетки
     world
         .create_entity()
+        .named("Right paddle")
         .with(sprite_render_component)
         .with(right_paddle_component)
         .with(right_transform_component)
+        .with(bounce_count_component_right)
         .build();
 }
+
+///////////////////////////////////////////////////////////////////////////////////////////////////
 
 /// Initialises one ball in the middle-ish of the arena.
 fn initialise_ball(world: &mut World, sprite_sheet_handle: Handle<SpriteSheet>) {
@@ -173,6 +179,8 @@ fn initialise_ball(world: &mut World, sprite_sheet_handle: Handle<SpriteSheet>) 
         .with(local_transform)
         .build();
 }
+
+///////////////////////////////////////////////////////////////////////////////////////////////////
 
 fn initialise_score(world: &mut World) {
     let font = world.read_resource::<Loader>().load(
@@ -238,7 +246,7 @@ pub struct PongState {
 impl SimpleState for PongState {
     // Старт игрового состояния
     fn on_start(&mut self, data: StateData<'_, GameData<'_, '_>>) {
-        //use crate::audio::initialise_audio;
+        use crate::audio::initialise_audio;
 
         // Разворачиваем структуру для получения мира
         let StateData{ world, .. } = data;
@@ -256,7 +264,7 @@ impl SimpleState for PongState {
         // Камера
         initialise_camera(world);
         // Аудио
-        //initialise_audio(world);
+        initialise_audio(world);
         // Счет
         initialise_score(world);
     }
