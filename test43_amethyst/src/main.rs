@@ -4,6 +4,8 @@ mod pong_state;
 mod systems;
 mod game_types;
 mod constants;
+mod loading_state;
+mod before_start_state;
 
 use std::time::Duration;
 use amethyst::{
@@ -99,7 +101,7 @@ fn main() -> amethyst::Result<()> {
         )?;
 
     // Создаем непосредственно игру
-    let initial_state = pong_state::PongState::default();
+    let initial_state = loading_state::LoadingState::default();
     let frame_limit_stategy = FrameRateLimitStrategy::SleepAndYield(Duration::from_millis(1));
     let mut game = Application::build(assets_dir, initial_state)?
         .with_frame_limit(frame_limit_stategy,30)
