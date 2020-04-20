@@ -1,4 +1,5 @@
 use amethyst::ecs::{
+    //Entity,
     Component, 
     DenseVecStorage
 };
@@ -59,3 +60,19 @@ pub struct BounceCountComponent{
 impl Component for BounceCountComponent{
     type Storage = DenseVecStorage<Self>;
 }
+
+////////////////////////////////////////////////////////////////////////////////////////////////
+
+#[derive(Default)]
+pub struct PointerComponent{
+}
+
+impl Component for PointerComponent{
+    type Storage = DenseVecStorage<Self>;
+}
+
+////////////////////////////////////////////////////////////////////////////////////////////////
+
+/*pub struct CameraEntity{
+    pub cam: Entity
+}*/

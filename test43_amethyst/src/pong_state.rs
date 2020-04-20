@@ -31,7 +31,8 @@ use crate::{
         Side,
         PaddleComponent,
         BallComponent,
-        BounceCountComponent
+        BounceCountComponent,
+        PointerComponent
     }, 
     constants::{
         ARENA_HEIGHT, 
@@ -82,11 +83,13 @@ fn initialise_camera(world: &mut World) {
     let mut transform = Transform::default();
     transform.set_translation_xyz(ARENA_WIDTH * 0.5, ARENA_HEIGHT * 0.5, 1.0);
 
-    world
+    let camera_entity = world
         .create_entity()
         .with(Camera::standard_2d(ARENA_WIDTH, ARENA_HEIGHT))
         .with(transform)
         .build();
+
+    world.insert(camera_entity);
 }
 
 ///////////////////////////////////////////////////////////////////////////////////////////////////
@@ -246,6 +249,31 @@ fn initialise_score(world: &mut World) {
 
 ///////////////////////////////////////////////////////////////////////////////////////////////////
 
+fn initialize_mouse_pointer(world: &mut World, sprite_sheet_handle: Handle<SpriteSheet>){
+    // Создаем трансформ для указателя мыши
+    let mut local_transform = Transform::default();
+    local_transform.set_translation_xyz(0.0, 0.0, 0.0);
+
+    // Assign the sprite for the ball
+    let sprite_render = SpriteRender {
+        sprite_sheet: sprite_sheet_handle,
+        sprite_number: 1, // Будем использовать второй спрайт из атласа
+    };
+
+    // Создаем сущность указателя
+    world
+        .create_entity()
+        // Добавляем компонент рендера
+        .with(sprite_render)
+        // Компонент трансформа
+        .with(local_transform)
+        // Дабавляем компонент указателя
+        .with(PointerComponent::default())
+        .build();
+}
+
+///////////////////////////////////////////////////////////////////////////////////////////////////
+
 #[derive(Default)]
 pub struct PongState {
     ball_spawn_timer: Option<f32>,
@@ -256,7 +284,7 @@ pub struct PongState {
 impl SimpleState for PongState {
     // Старт игрового состояния
     fn on_start(&mut self, data: StateData<'_, GameData<'_, '_>>) {
-        use crate::audio::initialise_audio;
+        //use crate::audio::initialise_audio;
 
         // Разворачиваем структуру для получения мира
         let StateData{ world, .. } = data;
@@ -274,9 +302,11 @@ impl SimpleState for PongState {
         // Камера
         initialise_camera(world);
         // Аудио
-        initialise_audio(world);
+        //initialise_audio(world);
         // Счет
         initialise_score(world);
+        // Указатели на мышку
+        initialize_mouse_pointer(world, self.sprite_sheet_handle.clone().unwrap());
     }
 
     /// Executed when the game state exits.

@@ -1854,6 +1854,18 @@ dependencies = [
 ]
 
 [[package]]
+name = "nalgebra-glm"
+version = "0.5.0"
+source = "registry+https://github.com/rust-lang/crates.io-index"
+checksum = "d68ae659ead26738d2c2318ecf2d519c525c4e99fe275b54dbccb051dec00aa0"
+dependencies = [
+ "alga",
+ "approx 0.3.2",
+ "nalgebra",
+ "num-traits 0.2.11",
+]
+
+[[package]]
 name = "nix"
 version = "0.14.1"
 source = "registry+https://github.com/rust-lang/crates.io-index"
@@ -3373,6 +3385,8 @@ name = "test43_amethyst"
 version = "0.1.0"
 dependencies = [
  "amethyst",
+ "nalgebra",
+ "nalgebra-glm",
 ]
 
 [[package]]

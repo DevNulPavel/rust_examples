@@ -1,13 +1,13 @@
 use amethyst::{
-    assets::AssetStorage,
+    /*assets::AssetStorage,*/
     core::Transform,
     derive::SystemDesc,
     ui::UiText,
-    audio,
+    /*audio,*/
     ecs::prelude::{
         Entity, 
         Join, 
-        Read, 
+        /*Read, */
         ReadExpect, 
         System, 
         SystemData, 
@@ -16,7 +16,7 @@ use amethyst::{
     },
 };
 use crate::{
-    audio::SoundsResource, 
+    /*audio::SoundsResource, */
     game_types::{
         ScoreBoard,
         BallComponent
@@ -45,24 +45,24 @@ impl<'s> System<'s> for WinnerSystem {
         WriteStorage<'s, UiText>,
         // Ресурс счета игроков
         Write<'s, ScoreBoard>,
-        // Ресурс хранилища звуков
+        // Ресурс очков
+        ReadExpect<'s, ScoreTextResource>,
+        /*// Ресурс хранилища звуков
         Read<'s, AssetStorage<audio::Source>>,
         // Ресурс звуков
         ReadExpect<'s, SoundsResource>,
-        // Ресурс очков
-        ReadExpect<'s, ScoreTextResource>,
         // Вывод звука
-        Option<Read<'s, audio::output::Output>>,
+        Option<Read<'s, audio::output::Output>>,*/
     );
 
     fn run(&mut self, (mut balls,
                        mut transforms,
                        mut text,
                        mut score_board,
-                       storage,
-                       sounds,
                        score_text,
-                       audio_output): Self::SystemData) {
+                       /*storage,
+                       sounds,
+                       audio_output*/): Self::SystemData) {
 
         // Для каждого шара с его трансформомо                        
         for (ball, transform) in (&mut balls, &mut transforms).join() {
@@ -102,11 +102,11 @@ impl<'s> System<'s> for WinnerSystem {
                 println!("Score: | {:^3} | {:^3} |", score_board.score_left, score_board.score_right);
 
                 // Play audio.
-                if let Some(ref output) = audio_output {
+                /*if let Some(ref output) = audio_output {
                     if let Some(sound) = storage.get(&sounds.score_sfx) {
                         output.play_once(sound, 1.0);
                     }
-                }
+                }*/
             }
         }
     }

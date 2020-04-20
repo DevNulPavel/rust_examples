@@ -1,12 +1,12 @@
 use amethyst::{
-    audio,
-    assets::AssetStorage,
+    /*audio,
+    assets::AssetStorage,*/
     core::transform::Transform,
     derive::SystemDesc,    
     ecs::prelude::{
         Join, 
-        Read, 
-        ReadExpect, 
+        /*Read, 
+        ReadExpect, */
         ReadStorage, 
         System, 
         SystemData, 
@@ -22,10 +22,10 @@ use crate::{
         BallComponent,
         BounceCountComponent
     },
-    audio::{
+    /*audio::{
         play_bounce, 
         SoundsResource
-    }
+    }*/
 };
 
 // A point is in a box when its coordinates are smaller or equal than the top
@@ -50,12 +50,12 @@ impl<'s> System<'s> for BounceSystem {
         WriteStorage<'s, BounceCountComponent>,
         // Хранилище трансформов сущностей
         ReadStorage<'s, Transform>,
-        // Ресурс, который реализует хранилище загруженных данных, обхекты должны поддерживать default
+        /*// Ресурс, который реализует хранилище загруженных данных, обхекты должны поддерживать default
         Read<'s, AssetStorage<audio::Source>>,
         // Ресурс, где объекты не обязательно должны поддерживать default
         ReadExpect<'s, SoundsResource>,
         // Вывод звука
-        Option<Read<'s, audio::output::Output>>,
+        Option<Read<'s, audio::output::Output>>,*/
     );
 
     fn run(&mut self, data: Self::SystemData) {
@@ -66,9 +66,9 @@ impl<'s> System<'s> for BounceSystem {
              paddles,
              mut bounce_count,
              transforms, 
-             storage, 
+             /*storage, 
              sounds, 
-             audio_output) = data;
+             audio_output*/) = data;
 
         // Проверяем, что шарик соприкоснулся и отскочил правильно
         // Мы так же проверяем ускорение для шара каждый раз, чтобы избежать множественных коллизий 
@@ -86,7 +86,7 @@ impl<'s> System<'s> for BounceSystem {
                 // Меняем направление движения
                 ball.velocity[1] = -ball.velocity[1];
                 // Играем звук
-                play_bounce(&*sounds, &storage, audio_output.as_deref());
+                /*play_bounce(&*sounds, &storage, audio_output.as_deref());*/
             }
 
             // Отскакиваем от ракеток
@@ -115,7 +115,7 @@ impl<'s> System<'s> for BounceSystem {
                     // Увеличиваем количество касаний
                     bounce_comp.count += 1;
                     // Воспроизводим звук
-                    play_bounce(&*sounds, &storage, audio_output.as_deref());
+                    /*play_bounce(&*sounds, &storage, audio_output.as_deref());*/
                 }
             }
         }

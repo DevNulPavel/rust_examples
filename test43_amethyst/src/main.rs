@@ -9,10 +9,10 @@ use std::time::Duration;
 use amethyst::{
     prelude::*,
     utils::application_root_dir,
-    audio::{
+    /*audio::{
         AudioBundle, 
         DjSystemDesc
-    },
+    },*/
     core::{
         frame_limiter::FrameRateLimitStrategy, 
         transform::TransformBundle
@@ -35,7 +35,7 @@ use amethyst::{
     }
 };
 use crate::{
-    audio::MusicResource, 
+    /*audio::MusicResource, */
     pong_bundle::PongBundle,
     constants::*,
 };
@@ -74,15 +74,15 @@ fn main() -> amethyst::Result<()> {
         // Бандл непосредственно игры
         .with_bundle(PongBundle{})?
         // Бандл работы со звуком
-        .with_bundle(AudioBundle::default())?
+        /*.with_bundle(AudioBundle::default())?*/
         // Добавляем уже систему работы с музыкой
-        .with_system_desc(
+        /*.with_system_desc(
             DjSystemDesc::new(|music: &mut MusicResource| { 
                 music.music.next()
             }),
             "dj_system", // Имя системы
             &[],         // Зависимости
-        )
+        )*/
         // Бандл с системами интерфейса
         .with_bundle(UiBundle::<StringBindings>::new())?
         // Система рендеринга
