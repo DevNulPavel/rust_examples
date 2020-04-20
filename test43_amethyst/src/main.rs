@@ -71,6 +71,8 @@ fn main() -> amethyst::Result<()> {
         .with_bundle(TransformBundle::new())?
         // Бандл обработки ввода пользователя
         .with_bundle(input_systems_bundle)?
+        // Бандл непосредственно игры
+        .with_bundle(PongBundle{})?
         // Бандл работы со звуком
         .with_bundle(AudioBundle::default())?
         // Добавляем уже систему работы с музыкой
@@ -81,8 +83,6 @@ fn main() -> amethyst::Result<()> {
             "dj_system", // Имя системы
             &[],         // Зависимости
         )
-        // Бандл непосредственно игры
-        .with_bundle(PongBundle{})?
         // Бандл с системами интерфейса
         .with_bundle(UiBundle::<StringBindings>::new())?
         // Система рендеринга
