@@ -46,11 +46,15 @@ fn main() {
 
     // Создаем новый диспетчер, который содержит в себе логику систем
     let mut dispatcher = DispatcherBuilder::new()
-        .with(StoneCreatorSystem::default(), "stone_creator", &[])
+        .with(EventProcessSystem::default(), "event_process", &[])
+        .with(StoneCreatorSystem::default(), "stone_creator", &["event_process"])
         .with(HelloWorldSystem, "hello_world", &["stone_creator"])
         .with(UpdatePosSystem, "update_pos", &["hello_world"])
         .with(HelloWorldSystem, "hello_updated", &["update_pos"])
         .build();
+
+    // Вызывает setup у всех систем в порядке как создано дерево
+    dispatcher.setup(&mut world);
     
     for _ in 0..5 {
         std::thread::sleep(std::time::Duration::from_millis(1000));
