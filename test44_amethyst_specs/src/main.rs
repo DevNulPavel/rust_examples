@@ -60,11 +60,11 @@ fn main() {
         std::thread::sleep(std::time::Duration::from_millis(1000));
 
         // Выполняем наши системы в мире
-        dispatcher.dispatch(&mut world);
+        dispatcher.dispatch(&world);
 
         // Поддерживаем сущности в активном состоянии, а так же удаляем те, которые помечены на удаление
         world.maintain();
 
-        println!("");
+        println!();
     }
 }

@@ -33,23 +33,37 @@ impl<'a> System<'a> for HelloWorldSystem {
 
 /////////////////////////////////////////////////////////////////////////////////////////////////////////////////////
 
+// Можно определить собственный класс системных данных
+#[derive(SystemData)]
+pub struct UpdatePosSystemData<'a> {
+    time      : Read<'a, DeltaTime>,
+    entities  : Entities<'a>,
+    velocity  : ReadStorage<'a, VelocityComponent>,
+    position  : WriteStorage<'a, PositionComponent>,
+    stones    : ReadStorage<'a, StoneComponent>,
+    events    : Write<'a, EventChannel<AppEvent>>
+}
+
 pub struct UpdatePosSystem;
 
 impl<'a> System<'a> for UpdatePosSystem {
-    type SystemData = (Read<'a, DeltaTime>,
-                       ReadStorage<'a, VelocityComponent>,
-                       WriteStorage<'a, PositionComponent>,
-                       Write<'a, EventChannel<AppEvent>>);
+    type SystemData = UpdatePosSystemData<'a>;
     
-    fn run(&mut self, (time, vel, mut pos, mut events): Self::SystemData) {
+    fn run(&mut self, mut data: Self::SystemData) {
         // Находим все сущности, которые содержат и ускорение, и позицию
-        for (vel, pos) in (&vel, &mut pos).join() {
-            pos.x += vel.x * time.time;
-            pos.y += vel.y * time.time;
-        }
+        // Мы можем обернуть 
+        // Если надо исключить какие-то компоненты, тогда можно добавить ! перед & - "!&data.velocity"
+        for (e, vel, pos, stone) in (&data.entities, &data.velocity, &mut data.position, (&data.stones).maybe()).join() {
+            pos.x += vel.x * data.time.time;
+            pos.y += vel.y * data.time.time;
 
-        // Отправка сообщения в канал
-        events.single_write(AppEvent::Moved);
+            // Так мы можем проверить, содержит ли данная сущность компонент камня
+            if stone.is_some() {
+                println!("This is stone");
+                // Отправка сообщения в канал
+                data.events.single_write(AppEvent::StoneMoved(e));
+            }
+        }
     }
 }
 
@@ -100,15 +114,15 @@ impl<'a> System<'a> for StoneCreatorSystem {
         data.updater.insert(stone, PositionComponent::new(0.0, 0.0));
 
         // Есть ресурс канала, мы можем по каналу отправлять сообщения другим системам
-        data.events_channel.single_write(AppEvent::Created);
+        data.events_channel.single_write(AppEvent::StoneCreated(stone));
     }
 }
 
 /////////////////////////////////////////////////////////////////////////////////////////////////////////////////////
 
 pub enum AppEvent{
-    Created,
-    Moved,
+    StoneCreated(Entity),
+    StoneMoved(Entity),
 }
 
 #[derive(Default)]
@@ -117,7 +131,8 @@ pub struct EventProcessSystem {
 }
 
 impl<'a> System<'a> for EventProcessSystem {
-    type SystemData = Read<'a, EventChannel<AppEvent>>;
+    type SystemData = (Read<'a, EventChannel<AppEvent>>,
+                       ReadStorage<'a, StoneComponent>);
 
     // Систему можно инициализировать до начала работы с помощью вызова setup
     fn setup(&mut self, world: &mut World) {
@@ -131,16 +146,22 @@ impl<'a> System<'a> for EventProcessSystem {
         self.reader = Some(channel.register_reader());
     }
 
-    fn run(&mut self, events: Self::SystemData) {
+    fn run(&mut self, (events, stones): Self::SystemData) {
         // К моменту начала работы у нас должен быть уже канал чтения событий
         let reader = self.reader.as_mut().unwrap();
         for event in events.read(reader) {
             match event {
-                AppEvent::Created => {
-                    println!("Message received: Created")
+                AppEvent::StoneCreated(_) => {
+                    println!("Message received: Created");
                 },
-                AppEvent::Moved => {
-                    println!("Message received: Moved")
+                AppEvent::StoneMoved(entity) => {
+                    println!("Message received: Moved");
+
+                    // Получили сущность, получаем для нее компонент
+                    let stone_component: Option<&StoneComponent> = stones.get(*entity);
+                    if stone_component.is_some() {
+                        println!("Message received: Stone component received")
+                    }
                 }
             }
         }
