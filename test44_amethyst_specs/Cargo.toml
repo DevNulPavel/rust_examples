@@ -1,0 +1,11 @@
+[package]
+name = "test44_amethyst_specs"
+version = "0.1.0"
+authors = [""]
+edition = "2018"
+
+[workspace]
+
+[dependencies]
+# "shred-derive" нужен для автоматического наследования SystemData
+specs = { version="0.16.1", features = ["shred-derive"] }
