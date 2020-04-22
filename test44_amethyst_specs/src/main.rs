@@ -49,6 +49,8 @@ fn main() {
     // Создаем новый диспетчер, который содержит в себе логику систем
     let mut dispatcher = DispatcherBuilder::new()
         .with(StoneCreatorSystem::default(), "stone_creator", &[])
+        .with(DataModifiedProcSystem::default(), "data_modified", &[])
+        .with_barrier()
         .with(HelloWorldSystem, "hello_world", &["stone_creator"])
         .with(UpdatePosSystem, "update_pos", &["hello_world"])
         .with(HelloWorldSystem, "hello_updated", &["update_pos"])

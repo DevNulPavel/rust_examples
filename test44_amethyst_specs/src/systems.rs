@@ -87,10 +87,10 @@ impl<'a> System<'a> for UpdatePosSystem {
 // Можно определить собственный класс системных данных
 #[derive(SystemData)]
 pub struct StoneCreatorSystemData<'a> {
-    entities: Entities<'a>,
-    stones: WriteStorage<'a, StoneComponent>,
-    updater: Read<'a, LazyUpdate>,
-    events_channel: Write<'a, EventChannel<AppEvent>>
+    entities       : Entities<'a>,
+    stones         : WriteStorage<'a, StoneComponent>,
+    updater        : Read<'a, LazyUpdate>,
+    events_channel : Write<'a, EventChannel<AppEvent>>
 
     // positions: ReadStorage<'a, Position>,
     // velocities: ReadStorage<'a, Velocity>,
@@ -127,6 +127,7 @@ impl<'a> System<'a> for StoneCreatorSystem {
         data.updater.insert(stone, StoneComponent);
         data.updater.insert(stone, VelocityComponent::new(0.1, 0.1));
         data.updater.insert(stone, PositionComponent::new(0.0, 0.0));
+        data.updater.insert(stone, DataComponent{});
 
         // Есть ресурс канала, мы можем по каналу отправлять сообщения другим системам
         data.events_channel.single_write(AppEvent::StoneCreated(stone));
@@ -234,23 +235,23 @@ impl<'a> System<'a> for DataModifiedProcSystem {
             data.channel().read(reader)
         };
 
-        // Note that we could use separate bitsets here, we only use one to
-        // simplify the example
+        // Обрабатываем события изменений  хранилище
         for event in events {
             match event {
+                // Если компонент был изменен или модифицирован
                 ComponentEvent::Modified(id) | ComponentEvent::Inserted(id) => {
+                    // Тогда добавляем его id в битовую маску
                     self.dirty.add(*id);
                 }
-                 // We don't need to take this event into account since
-                 // removed components will be filtered out by the join;
-                 // if you want to, you can use `self.dirty.remove(*id);`
-                 // so the bit set only contains IDs that still exist
-                 ComponentEvent::Removed(_) => (),
+                // Нам не нужно принимать данный ивент во внимание для удаленных компонентов,
+                // но тем не менее мы можем вызывать `self.dirty.remove(*id);`
+                ComponentEvent::Removed(_) => (),
             }
         }
 
-        for (_d, _other, _) in (&data, &mut some_other_data, &self.dirty).join() {
-            // Mutate `other` based on the update data in `d`
+        // Итерируемся по компонентам, фильтруя с помощью битовой маски только измененный или добавленные компоненты
+        for (_data, _pos, _) in (&data, &mut some_other_data, &self.dirty).join() {
+            println!("Data component modified");
         }
     }
 }
