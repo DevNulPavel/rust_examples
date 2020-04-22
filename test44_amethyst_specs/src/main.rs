@@ -23,6 +23,8 @@ fn main() {
     world.register::<PositionComponent>();
     world.register::<VelocityComponent>();
     world.register::<StoneComponent>();
+    world.register::<TargetComponent>();
+    world.register::<DataComponent>();
     
     // Первая сущность имеет только компонент позиции
     world
@@ -46,11 +48,15 @@ fn main() {
 
     // Создаем новый диспетчер, который содержит в себе логику систем
     let mut dispatcher = DispatcherBuilder::new()
-        .with(EventProcessSystem::default(), "event_process", &[])
-        .with(StoneCreatorSystem::default(), "stone_creator", &["event_process"])
+        .with(StoneCreatorSystem::default(), "stone_creator", &[])
         .with(HelloWorldSystem, "hello_world", &["stone_creator"])
         .with(UpdatePosSystem, "update_pos", &["hello_world"])
         .with(HelloWorldSystem, "hello_updated", &["update_pos"])
+        .with(EventProcessSystem::default(), "event_process", &["stone_creator", "update_pos"])
+        .with(FollowTargetSystem, "follow_target", &["update_pos"])
+        // Данная система будет выполняться всегда самой последней + в главном одном потоке?
+        // Она не может иметь каких-то зависимостей
+        .with_thread_local(RenderingSystem)
         .build();
 
     // Вызывает setup у всех систем в порядке как создано дерево

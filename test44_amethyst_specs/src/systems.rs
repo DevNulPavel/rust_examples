@@ -1,6 +1,10 @@
+use std::sync::{
+    Mutex
+};
 use specs::{
     prelude::*,
     Join,
+    ParJoin,
     Read,
     ReadStorage,
     System, 
@@ -53,17 +57,28 @@ impl<'a> System<'a> for UpdatePosSystem {
         // Находим все сущности, которые содержат и ускорение, и позицию
         // Мы можем обернуть 
         // Если надо исключить какие-то компоненты, тогда можно добавить ! перед & - "!&data.velocity"
-        for (e, vel, pos, stone) in (&data.entities, &data.velocity, &mut data.position, (&data.stones).maybe()).join() {
-            pos.x += vel.x * data.time.time;
-            pos.y += vel.y * data.time.time;
+        let tuple = (&data.entities, &data.velocity, &mut data.position, (&data.stones).maybe());
 
-            // Так мы можем проверить, содержит ли данная сущность компонент камня
-            if stone.is_some() {
-                println!("This is stone");
-                // Отправка сообщения в канал
-                data.events.single_write(AppEvent::StoneMoved(e));
-            }
-        }
+        let time = data.time.time;
+        let events_mutex = Mutex::new(data.events);
+
+        // Мы можем использовать параллельный итератор по компонентам, однако -
+        //  это имеет смысл толкьо если у нас много компонентов
+        tuple
+            .par_join()
+            .for_each(|(e, vel, pos, stone)| {
+                pos.x += vel.x * time;
+                pos.y += vel.y * time;
+
+                // Так мы можем проверить, содержит ли данная сущность компонент камня
+                if stone.is_some() {
+                    println!("This is stone");
+                    // Отправка сообщения в канал
+                    if let Ok(mut events) = events_mutex.lock(){
+                        events.single_write(AppEvent::StoneMoved(e));
+                    }
+                }
+            })
     }
 }
 
@@ -167,3 +182,92 @@ impl<'a> System<'a> for EventProcessSystem {
         }
     }
 }
+
+/////////////////////////////////////////////////////////////////////////////////////////////////////////////////////
+
+#[derive(Default)]
+pub struct FollowTargetSystem;
+
+impl<'a> System<'a> for FollowTargetSystem {
+    type SystemData = ();
+
+    // Систему можно инициализировать до начала работы с помощью вызова setup
+    fn setup(&mut self, _world: &mut World) {
+    }
+
+    fn run(&mut self, _data: Self::SystemData) {
+    }
+}
+
+/////////////////////////////////////////////////////////////////////////////////////////////////////////////////////
+
+#[derive(Default)]
+pub struct DataModifiedProcSystem {
+    // Флаг наличия изменений
+    pub dirty: BitSet,
+    // Обработчик входящих событий
+    pub reader_id: Option<ReaderId<ComponentEvent>>,
+}
+
+impl<'a> System<'a> for DataModifiedProcSystem {
+    type SystemData = (ReadStorage<'a, DataComponent>,
+                       WriteStorage<'a, PositionComponent>);
+    
+    fn setup(&mut self, world: &mut World) {
+        // Инициализируем наши данные изначально
+        Self::SystemData::setup(world);
+
+        // Получаем хранилище компонентов
+        let mut storrage = WriteStorage::<DataComponent>::fetch(&world);
+        // Получаем из этого хранилища канал чтения изменений
+        self.reader_id = Some(storrage.register_reader());
+    }
+
+    fn run(&mut self, (data, mut some_other_data): Self::SystemData) {
+        // Сбрасываем флаги
+        self.dirty.clear();
+
+        // Получаем из хранилища компонентов данных канал и читаем из него события
+        let events = {
+            // Сылка на ридер
+            let reader = self.reader_id.as_mut().unwrap();
+            data.channel().read(reader)
+        };
+
+        // Note that we could use separate bitsets here, we only use one to
+        // simplify the example
+        for event in events {
+            match event {
+                ComponentEvent::Modified(id) | ComponentEvent::Inserted(id) => {
+                    self.dirty.add(*id);
+                }
+                 // We don't need to take this event into account since
+                 // removed components will be filtered out by the join;
+                 // if you want to, you can use `self.dirty.remove(*id);`
+                 // so the bit set only contains IDs that still exist
+                 ComponentEvent::Removed(_) => (),
+            }
+        }
+
+        for (_d, _other, _) in (&data, &mut some_other_data, &self.dirty).join() {
+            // Mutate `other` based on the update data in `d`
+        }
+    }
+}
+
+/////////////////////////////////////////////////////////////////////////////////////////////////////////////////////
+
+#[derive(Default)]
+pub struct RenderingSystem;
+
+impl<'a> System<'a> for RenderingSystem {
+    type SystemData = ();
+
+    // Систему можно инициализировать до начала работы с помощью вызова setup
+    fn setup(&mut self, _world: &mut World) {
+    }
+
+    fn run(&mut self, _data: Self::SystemData) {
+    }
+}
+
