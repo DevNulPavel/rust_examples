@@ -1,0 +1,190 @@
+[package]
+name = "test45_amethyst_examples"
+version = "0.1.0"
+authors = [""]
+edition = "2018"
+
+[workspace]
+
+[dependencies]
+amethyst = { version="0.15.0", features = ["metal", "animation"] }
+nalgebra = "0.19.0"
+nalgebra-glm = "0.5.0"
+log = { version = "0.4.6", features = ["serde"] }
+serde = { version = "1.0", features = ["derive"] }
+derivative = "1.0"
+derive-new = "0.5"
+ron = "0.5"
+
+#############################################
+
+[[example]]
+name = "hello_world"
+path = "examples/hello_world/main.rs"
+
+[[example]]
+name = "window"
+path = "examples/window/main.rs"
+
+[[example]]
+name = "sphere"
+path = "examples/sphere/main.rs"
+
+[[example]]
+name = "renderable"
+path = "examples/renderable/main.rs"
+
+[[example]]
+name = "pong"
+path = "examples/pong/main.rs"
+required-features = ["audio"]
+
+[[example]]
+name = "asset_custom"
+path = "examples/asset_custom/main.rs"
+
+[[example]]
+name = "asset_loading"
+path = "examples/asset_loading/main.rs"
+
+[[example]]
+name = "material"
+path = "examples/material/main.rs"
+
+[[example]]
+name = "gltf"
+path = "examples/gltf/main.rs"
+required-features = ["animation", "gltf"]
+
+[[example]]
+name = "ui"
+path = "examples/ui/main.rs"
+required-features = ["audio"]
+
+[[example]]
+name = "custom_ui"
+path = "examples/custom_ui/main.rs"
+required-features = ["audio"]
+
+[[example]]
+name = "animation"
+path = "examples/animation/main.rs"
+required-features = ["animation"]
+
+[[example]]
+name = "fly_camera"
+path = "examples/fly_camera/main.rs"
+
+[[example]]
+name = "sprite_animation"
+path = "examples/sprite_animation/main.rs"
+
+[[example]]
+name = "sprites_ordered"
+path = "examples/sprites_ordered/main.rs"
+
+[[example]]
+name = "pong_tutorial_01"
+path = "examples/pong_tutorial_01/main.rs"
+required-features = ["audio"]
+
+[[example]]
+name = "pong_tutorial_02"
+path = "examples/pong_tutorial_02/main.rs"
+required-features = ["audio"]
+
+[[example]]
+name = "pong_tutorial_03"
+path = "examples/pong_tutorial_03/main.rs"
+required-features = ["audio"]
+
+[[example]]
+name = "pong_tutorial_04"
+path = "examples/pong_tutorial_04/main.rs"
+required-features = ["audio"]
+
+[[example]]
+name = "pong_tutorial_05"
+path = "examples/pong_tutorial_05/main.rs"
+required-features = ["audio"]
+
+[[example]]
+name = "net_client"
+path = "examples/net_client/main.rs"
+required-features = ["network"]
+
+[[example]]
+name = "net_server"
+path = "examples/net_server/main.rs"
+required-features = ["network"]
+
+[[example]]
+name = "locale"
+path = "examples/locale/main.rs"
+required-features = ["locale"]
+
+[[example]]
+name = "custom_game_data"
+path = "examples/custom_game_data/main.rs"
+
+[[example]]
+name = "arc_ball_camera"
+path = "examples/arc_ball_camera/main.rs"
+
+[[example]]
+name = "prefab"
+path = "examples/prefab/main.rs"
+
+[[example]]
+name = "prefab_adapter"
+path = "examples/prefab_adapter/main.rs"
+
+[[example]]
+name = "prefab_basic"
+path = "examples/prefab_basic/main.rs"
+
+[[example]]
+name = "prefab_multi"
+path = "examples/prefab_multi/main.rs"
+
+[[example]]
+name = "prefab_custom"
+path = "examples/prefab_custom/main.rs"
+
+[[example]]
+name = "debug_lines"
+path = "examples/debug_lines/main.rs"
+
+[[example]]
+name = "debug_lines_ortho"
+path = "examples/debug_lines_ortho/main.rs"
+
+[[example]]
+name = "state_dispatcher"
+path = "examples/state_dispatcher/main.rs"
+
+[[example]]
+name = "spotlights"
+path = "examples/spotlights/main.rs"
+
+[[example]]
+name = "sprite_camera_follow"
+path = "examples/sprite_camera_follow/main.rs"
+
+[[example]]
+name = "auto_fov"
+path = "examples/auto_fov/main.rs"
+
+[[example]]
+name = "events"
+path = "examples/events/main.rs"
+
+[[example]]
+name = "rendy"
+path = "examples/rendy/main.rs"
+required-features = ["animation", "gltf"]
+
+[[example]]
+name = "tiles"
+path = "examples/tiles/main.rs"
+required-features = [ "tiles" ]
