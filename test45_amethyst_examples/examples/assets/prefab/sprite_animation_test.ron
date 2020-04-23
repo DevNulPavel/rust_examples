@@ -21,6 +21,7 @@ Prefab(
                                     min_filter: Nearest,
                                     mag_filter: Nearest,
                                     mip_filter: Nearest,
+                                    normalized: true,
                                     wrap_mode: (Tile, Tile, Tile),
                                     lod_bias: (0),
                                     lod_range: (

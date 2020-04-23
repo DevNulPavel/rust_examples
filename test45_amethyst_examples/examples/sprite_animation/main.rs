@@ -65,6 +65,26 @@ use serde::{
     Serialize
 };
 
+/// Инициализируем камеру
+fn initialise_camera_entity(world: &mut World) {
+    // Получаем размер окошка
+    let (width, height) = {
+        let dim = world.read_resource::<ScreenDimensions>();
+        (dim.width(), dim.height())
+    };
+
+    // Устанавливаем трансформ с Z
+    let mut camera_transform = Transform::default();
+    camera_transform.set_translation_z(1.0);
+
+    // Создаем новую сущность с камерой и трансформом
+    world
+        .create_entity()
+        .with(camera_transform)
+        .with(Camera::standard_2d(width, height))
+        .build();
+}
+
 /// Id анимации используется в AnimationSet
 #[derive(Eq, PartialOrd, PartialEq, Hash, Debug, Copy, Clone, Deserialize, Serialize)]
 enum AnimationId {
@@ -79,6 +99,8 @@ struct MyPrefabData {
     /// Все анимации, которые могут быть запущены на сущности
     animation_set: AnimationSetPrefab<AnimationId, SpriteRender>,
 }
+
+////////////////////////////////////////////////////////////////////////////////////////////////////////////
 
 /// Главное состояние
 #[derive(Default)]
@@ -96,7 +118,7 @@ impl SimpleState for MainGameState {
         self.progress_counter = Some(Default::default());
 
         // Запускаем загрузку ассетов
-        // exec - выполняет переданную функцию прямо сейчас c загрузчиком
+        // exec - выполняет переданную функцию прямо сейчас c загрузчиком, но с доступом к систем-дате
         let bat_prefab = world.exec(|loader: PrefabLoader<'_, MyPrefabData>| {
             let handle = loader.load("prefab/sprite_animation.ron", RonFormat, self.progress_counter.as_mut().unwrap());
             handle
@@ -117,39 +139,43 @@ impl SimpleState for MainGameState {
             .build();
         
         // Создаем новую камеру
-        initialise_camera(world);
+        initialise_camera_entity(world);
     }
 
     fn update(&mut self, data: &mut StateData<'_, GameData<'_, '_>>) -> SimpleTrans {
-        // Checks if we are still loading data
-
+        // Проверяем, что мы еще грузимся
         if let Some(ref progress_counter) = self.progress_counter {
-            // Checks progress
+            // Если мы загрузились
             if progress_counter.is_complete() {
                 let StateData { world, .. } = data;
-                // Execute a pass similar to a system
-                world.exec(
-                    |(entities, animation_sets, mut control_sets): (
-                        Entities,
-                        ReadStorage<AnimationSet<AnimationId, SpriteRender>>,
-                        WriteStorage<AnimationControlSet<AnimationId, SpriteRender>>,
-                    )| {
-                        // For each entity that has AnimationSet
+
+                // Можно определить собственный класс системных данных
+                /*#[derive(SystemData)]
+                pub struct CurSystemData<'a> {
+                    e: Entities, 
+                    anim_id: ReadStorage<AnimationSet<AnimationId, SpriteRender>>,
+                    anim_control: WriteStorage<AnimationControlSet<AnimationId, SpriteRender>>
+                }*/
+
+                // Выполняем что-то в мире, но с доступом к систем-дате
+                world.exec( |(entities, animation_sets, mut control_sets): (Entities, 
+                                                                            ReadStorage<AnimationSet<AnimationId, SpriteRender>>,
+                                                                            WriteStorage<AnimationControlSet<AnimationId, SpriteRender>>)| {
+                        // Обходим все сущности, которые имеют AnimationSet
                         for (entity, animation_set) in (&entities, &animation_sets).join() {
-                            // Creates a new AnimationControlSet for the entity
+                            // Создаем новый компонент AnimationControlSet для сущности
                             let control_set = get_animation_set(&mut control_sets, entity).unwrap();
-                            // Adds the `Fly` animation to AnimationControlSet and loops infinitely
-                            control_set.add_animation(
-                                AnimationId::Fly,
-                                &animation_set.get(&AnimationId::Fly).unwrap(),
-                                EndControl::Loop(None),
-                                1.0,
-                                AnimationCommand::Start,
-                            );
+                            // Добавляем анимацию `Fly` в AnimationControlSet и запускаем бесконечно
+                            control_set.add_animation(AnimationId::Fly,
+                                                      &animation_set.get(&AnimationId::Fly).unwrap(),
+                                                      EndControl::Loop(None),
+                                                      1.0,
+                                                      AnimationCommand::Start);
                         }
                     },
                 );
-                // All data loaded
+
+                // Данные загрузили - больше не надо хранить счетчик
                 self.progress_counter = None;
             }
         }
@@ -157,23 +183,7 @@ impl SimpleState for MainGameState {
     }
 }
 
-/// Инициализируем камеру
-fn initialise_camera(world: &mut World) {
-    // Получаем размер окошка
-    let (width, height) = {
-        let dim = world.read_resource::<ScreenDimensions>();
-        (dim.width(), dim.height())
-    };
-
-    let mut camera_transform = Transform::default();
-    camera_transform.set_translation_z(1.0);
-
-    world
-        .create_entity()
-        .with(camera_transform)
-        .with(Camera::standard_2d(width, height))
-        .build();
-}
+////////////////////////////////////////////////////////////////////////////////////////////////////////////
 
 fn main() -> amethyst::Result<()> {
     // Запускаем логирование
@@ -189,7 +199,7 @@ fn main() -> amethyst::Result<()> {
     let prefab_loader_system_desc = PrefabLoaderSystemDesc::<MyPrefabData>::default();
 
     // Бандл систем для анимации
-    let animation_bundle = AnimationBundle::<AnimationId, SpriteRender>::new("sprite_animation_control","sprite_sampler_interpolation");
+    let animation_bundle = AnimationBundle::<AnimationId, SpriteRender>::new("sprite_animation_control", "sprite_sampler_interpolation");
 
     // Бандл систем трансформа, который зависит от системы анимации спрайтов и интерполяции
     let transform_bundle =  TransformBundle::new()
