@@ -2,56 +2,136 @@
 
 use amethyst::{
     animation::{
-        get_animation_set, AnimationBundle, AnimationCommand, AnimationControlSet, AnimationSet,
-        EndControl, VertexSkinningBundle,
+        get_animation_set, 
+        AnimationBundle, 
+        AnimationCommand, 
+        AnimationControlSet, 
+        AnimationSet,
+        EndControl, 
+        VertexSkinningBundle,
     },
     assets::{
-        AssetLoaderSystemData, AssetStorage, Completion, Handle, Loader, PrefabLoader,
-        PrefabLoaderSystemDesc, ProgressCounter, RonFormat,
+        AssetLoaderSystemData, 
+        AssetStorage, 
+        Completion, 
+        Handle, 
+        Loader, 
+        PrefabLoader,
+        PrefabLoaderSystemDesc, 
+        ProgressCounter, 
+        RonFormat,
     },
-    controls::{FlyControlBundle, FlyControlTag},
+    controls::{
+        FlyControlBundle, 
+        FlyControlTag
+    },
     core::{
         ecs::{
-            Component, DenseVecStorage, DispatcherBuilder, Entities, Entity, Join, Read,
-            ReadStorage, System, SystemData, World, Write, WriteStorage,
+            Component, 
+            DenseVecStorage, 
+            DispatcherBuilder, 
+            Entities, 
+            Entity, 
+            Join, 
+            Read,
+            ReadStorage, 
+            System, 
+            SystemData, 
+            World, 
+            Write, 
+            WriteStorage,
         },
-        math::{Unit, UnitQuaternion, Vector3},
-        Time, Transform, TransformBundle,
+        math::{
+            Unit, 
+            UnitQuaternion, 
+            Vector3
+        },
+        Time, 
+        Transform, 
+        TransformBundle,
     },
     error::Error,
     gltf::GltfSceneLoaderSystemDesc,
     input::{
-        is_close_requested, is_key_down, is_key_up, Axis, Bindings, Button, InputBundle,
+        is_close_requested, 
+        is_key_down, 
+        is_key_up, 
+        Axis, 
+        Bindings, 
+        Button, 
+        InputBundle,
         StringBindings,
     },
     prelude::*,
     renderer::{
-        bundle::{RenderPlan, RenderPlugin},
+        bundle::{
+            RenderPlan, 
+            RenderPlugin
+        },
         debug_drawing::DebugLines,
-        light::{Light, PointLight},
-        palette::{LinSrgba, Srgb, Srgba},
+        light::{
+            Light, 
+            PointLight
+        },
+        palette::{
+            LinSrgba, 
+            Srgb, 
+            Srgba
+        },
         rendy::{
-            mesh::{Normal, Position, Tangent, TexCoord},
+            mesh::{
+                Normal, 
+                Position, 
+                Tangent, 
+                TexCoord
+            },
             texture::palette::load_from_linear_rgba,
         },
         resources::Tint,
         shape::Shape,
-        types::{DefaultBackend, Mesh, Texture},
+        types::{
+            DefaultBackend, 
+            Mesh, 
+            Texture
+        },
         visibility::BoundingSphere,
-        ActiveCamera, Camera, Factory, ImageFormat, Material, MaterialDefaults, RenderDebugLines,
-        RenderFlat2D, RenderFlat3D, RenderPbr3D, RenderShaded3D, RenderSkybox, RenderToWindow,
-        RenderingBundle, SpriteRender, SpriteSheet, SpriteSheetFormat, Transparent,
+        ActiveCamera, 
+        Camera, 
+        Factory, 
+        ImageFormat, 
+        Material, 
+        MaterialDefaults, 
+        RenderDebugLines,
+        RenderFlat2D, 
+        RenderFlat3D, 
+        RenderPbr3D, 
+        RenderShaded3D, 
+        RenderSkybox, 
+        RenderToWindow,
+        RenderingBundle, 
+        SpriteRender, 
+        SpriteSheet, 
+        SpriteSheetFormat, 
+        Transparent,
     },
     utils::{
         application_root_dir,
-        auto_fov::{AutoFov, AutoFovSystem},
+        auto_fov::{
+            AutoFov, 
+            AutoFovSystem
+        },
         fps_counter::FpsCounterBundle,
         tag::TagFinder,
     },
+    winit
 };
 use std::path::Path;
-
-use prefab_data::{AnimationMarker, Scene, ScenePrefabData, SpriteAnimationId};
+use prefab_data::{
+    AnimationMarker, 
+    Scene, 
+    ScenePrefabData, 
+    SpriteAnimationId
+};
 
 #[cfg(feature = "profiler")]
 use thread_profiler::profile_scope;
@@ -544,12 +624,16 @@ fn toggle_or_cycle_animation(
     }
 }
 
-// This is required because rustc does not recognize .ctor segments when considering which symbols
-// to include when linking static libraries, so we need to reference a symbol in each module that
-// registers an importer since it uses inventory::submit and the .ctor linkage hack.
+// Это обязательно, так как rustc не распознает .ctor сегменты, когда принимает во внимание какие символы
+// включать когда линкуем статические библиотеки.
+// Поэтому нам нужно ссылаться на символы в каждом модуле, который регистируется
+// как импортер используя inventory::submit и .ctor linkage hack
 fn init_modules() {
     {
-        use amethyst::assets::{Format, Prefab};
+        use amethyst::assets::{
+            Format, 
+            Prefab
+        };
         let _w = amethyst::audio::output::outputs();
         let _p = Prefab::<()>::new();
         let _name = ImageFormat::default().name();
@@ -557,12 +641,13 @@ fn init_modules() {
 }
 
 fn main() -> amethyst::Result<()> {
+    // Инициализируем логирование
     amethyst::Logger::from_config(amethyst::LoggerConfig {
-        stdout: amethyst::StdoutLog::Off,
-        log_file: Some("rendy_example.log".into()),
-        level_filter: log::LevelFilter::Error,
+        stdout: amethyst::StdoutLog::Colored,
+        log_file: None, // Some("rendy_example.log".into())
+        level_filter: log::LevelFilter::Off, // Выводим всю информацию
         ..Default::default()
-    })
+    }).start();
     // .level_for("amethyst_utils::fps_counter", log::LevelFilter::Debug)
     // .level_for("rendy_memory", log::LevelFilter::Trace)
     // .level_for("rendy_factory", log::LevelFilter::Trace)
@@ -571,19 +656,24 @@ fn main() -> amethyst::Result<()> {
     // .level_for("rendy_node", log::LevelFilter::Trace)
     // .level_for("amethyst_rendy", log::LevelFilter::Trace)
     // .level_for("gfx_backend_metal", log::LevelFilter::Trace)
-    .start();
 
+    // Инициализация подмодулей
     init_modules();
 
+    // Коренная директория
     let app_root = application_root_dir()?;
 
+    // Путь к конфигу отображения
     let display_config_path = app_root
         .join("examples")
         .join("rendy")
         .join("config")
         .join("display.ron");
+    
+    // Путь к конфигу ассетов
     let assets_dir = app_root.join("examples").join("assets");
 
+    // Задаем биндинги клавиш
     let mut bindings = Bindings::new();
     bindings.insert_axis(
         "vertical",
@@ -607,31 +697,26 @@ fn main() -> amethyst::Result<()> {
         },
     )?;
 
+    // Создаем данные игры и системы
     let game_data = GameDataBuilder::default()
+        // Система движения по орбите
         .with(OrbitSystem, "orbit", &[])
         .with(AutoFovSystem::default(), "auto_fov", &[])
+        // Бандл систем подсчета FPS
         .with_bundle(FpsCounterBundle::default())?
-        .with_system_desc(
-            PrefabLoaderSystemDesc::<ScenePrefabData>::default(),
-            "scene_loader",
-            &[],
-        )
-        .with_system_desc(
-            GltfSceneLoaderSystemDesc::default(),
-            "gltf_loader",
-            &["scene_loader"], // This is important so that entity instantiation is performed in a single frame.
-        )
-        .with_bundle(
-            AnimationBundle::<usize, Transform>::new("animation_control", "sampler_interpolation")
-                .with_dep(&["gltf_loader"]),
-        )?
-        .with_bundle(
-            AnimationBundle::<SpriteAnimationId, SpriteRender>::new(
-                "sprite_animation_control",
-                "sprite_sampler_interpolation",
-            )
-            .with_dep(&["gltf_loader"]),
-        )?
+        // Система загрузки префабов
+        .with_system_desc(PrefabLoaderSystemDesc::<ScenePrefabData>::default(),
+                          "scene_loader",
+                          &[])
+        // Система загрузки 3D сцен
+        .with_system_desc(GltfSceneLoaderSystemDesc::default(),
+                          "gltf_loader",
+                          &["scene_loader"]) //Нужно для нормкальной инициализации в одном кадре
+        .with_bundle(AnimationBundle::<usize, Transform>::new("animation_control", "sampler_interpolation")
+                        .with_dep(&["gltf_loader"]))?
+        .with_bundle(AnimationBundle::<SpriteAnimationId, SpriteRender>::new("sprite_animation_control", 
+                                                                             "sprite_sampler_interpolation")
+                        .with_dep(&["gltf_loader"]))?
         .with_bundle(InputBundle::<StringBindings>::new().with_bindings(bindings))?
         .with_bundle(
             FlyControlBundle::<StringBindings>::new(
@@ -657,7 +742,7 @@ fn main() -> amethyst::Result<()> {
         ]))?
         .with_bundle(
             RenderingBundle::<DefaultBackend>::new()
-                .with_plugin(RenderToWindow::from_config_path(display_config_path))
+                .with_plugin(RenderToWindow::from_config_path(display_config_path)?)
                 .with_plugin(RenderSwitchable3D::default())
                 .with_plugin(RenderFlat2D::default())
                 .with_plugin(RenderDebugLines::default())
