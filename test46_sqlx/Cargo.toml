@@ -1,0 +1,15 @@
+[package]
+name = "test46_sqlx"
+version = "0.1.0"
+authors = [""]
+edition = "2018"
+
+[workspace]
+
+[dependencies]
+# sqlx = "0.3.4" 
+# https://github.com/launchbadge/sqlx
+#async-std = "1.5.0"
+futures = "0.3.4"
+tokio = { version = "0.2.15", features = ["full"] }
+sqlx = { version = "0.3.0", default-features = false, features = ["runtime-tokio", "macros", "postgres", "sqlite"] }
