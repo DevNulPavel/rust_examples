@@ -1,5 +1,5 @@
 // Used in the rendy example for sprite Tint
-(
+List((
     texture_width: 32,
     texture_height: 32,
     sprites: [
@@ -10,4 +10,4 @@
             height: 32,
         ),
     ],
-)
+))

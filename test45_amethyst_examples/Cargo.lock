@@ -72,10 +72,12 @@ dependencies = [
  "amethyst_core",
  "amethyst_derive",
  "amethyst_error",
+ "amethyst_gltf",
  "amethyst_input",
  "amethyst_locale",
  "amethyst_network",
  "amethyst_rendy",
+ "amethyst_tiles",
  "amethyst_ui",
  "amethyst_utils",
  "amethyst_window",
@@ -91,6 +93,7 @@ dependencies = [
  "rayon",
  "rustc_version_runtime",
  "serde",
+ "thread_profiler",
  "vergen",
  "winit",
 ]
@@ -113,6 +116,7 @@ dependencies = [
  "log",
  "minterpolate",
  "serde",
+ "thread_profiler",
 ]
 
 [[package]]
@@ -138,6 +142,7 @@ dependencies = [
  "rayon",
  "ron",
  "serde",
+ "thread_profiler",
 ]
 
 [[package]]
@@ -155,6 +160,7 @@ dependencies = [
  "rodio",
  "serde",
  "smallvec 1.3.0",
+ "thread_profiler",
 ]
 
 [[package]]
@@ -166,6 +172,7 @@ dependencies = [
  "log",
  "ron",
  "serde",
+ "thread_profiler",
 ]
 
 [[package]]
@@ -182,6 +189,7 @@ dependencies = [
  "derive-new",
  "log",
  "serde",
+ "thread_profiler",
  "winit",
 ]
 
@@ -206,6 +214,7 @@ dependencies = [
  "serde",
  "specs",
  "specs-hierarchy",
+ "thread_profiler",
 ]
 
 [[package]]
@@ -232,6 +241,30 @@ dependencies = [
 ]
 
 [[package]]
+name = "amethyst_gltf"
+version = "0.10.0"
+source = "registry+https://github.com/rust-lang/crates.io-index"
+checksum = "1e1185c0e6d7b18f62175bf55660e8190ac27b8cfe97e760c60e9f18009df107"
+dependencies = [
+ "amethyst_animation",
+ "amethyst_assets",
+ "amethyst_core",
+ "amethyst_error",
+ "amethyst_rendy",
+ "base64 0.11.0",
+ "derivative",
+ "err-derive",
+ "fnv",
+ "gltf",
+ "hibitset",
+ "image 0.22.5",
+ "itertools",
+ "log",
+ "mikktspace",
+ "serde",
+]
+
+[[package]]
 name = "amethyst_input"
 version = "0.11.0"
 source = "registry+https://github.com/rust-lang/crates.io-index"
@@ -246,6 +279,7 @@ dependencies = [
  "fnv",
  "serde",
  "smallvec 1.3.0",
+ "thread_profiler",
  "winit",
 ]
 
@@ -260,6 +294,7 @@ dependencies = [
  "amethyst_error",
  "fluent",
  "serde",
+ "thread_profiler",
  "unic-langid",
 ]
 
@@ -303,6 +338,33 @@ dependencies = [
  "serde",
  "smallvec 1.3.0",
  "static_assertions 1.1.0",
+ "thread_profiler",
+]
+
+[[package]]
+name = "amethyst_tiles"
+version = "0.3.0"
+source = "registry+https://github.com/rust-lang/crates.io-index"
+checksum = "4fb8040e5449071eb8902c58333dc687f6f95c854b646f7e7c2a2a022eed7b98"
+dependencies = [
+ "amethyst_assets",
+ "amethyst_core",
+ "amethyst_error",
+ "amethyst_rendy",
+ "amethyst_window",
+ "bitintr",
+ "derivative",
+ "err-derive",
+ "failure",
+ "fnv",
+ "glsl-layout",
+ "hibitset",
+ "lazy_static",
+ "log",
+ "rayon",
+ "serde",
+ "smallvec 1.3.0",
+ "thread_profiler",
 ]
 
 [[package]]
@@ -334,6 +396,7 @@ dependencies = [
  "ron",
  "serde",
  "smallvec 1.3.0",
+ "thread_profiler",
  "unicode-normalization",
  "unicode-segmentation",
  "winit",
@@ -357,6 +420,7 @@ dependencies = [
  "serde",
  "specs-derive",
  "specs-hierarchy",
+ "thread_profiler",
 ]
 
 [[package]]
@@ -522,6 +586,12 @@ source = "registry+https://github.com/rust-lang/crates.io-index"
 checksum = "cf1de2fe8c75bc145a2f577add951f8134889b4795d47466a54a5c846d691693"
 
 [[package]]
+name = "bitintr"
+version = "0.3.0"
+source = "registry+https://github.com/rust-lang/crates.io-index"
+checksum = "7ba5a5c4df8ac8673f22698f443ef1ce3853d7f22d5a15ebf66b9a7553b173dd"
+
+[[package]]
 name = "blake2b_simd"
 version = "0.5.10"
 source = "registry+https://github.com/rust-lang/crates.io-index"
@@ -549,6 +619,12 @@ name = "bumpalo"
 version = "3.2.1"
 source = "registry+https://github.com/rust-lang/crates.io-index"
 checksum = "12ae9db68ad7fac5fe51304d20f016c911539251075a214f8e663babefa35187"
+
+[[package]]
+name = "bytemuck"
+version = "1.2.0"
+source = "registry+https://github.com/rust-lang/crates.io-index"
+checksum = "37fa13df2292ecb479ec23aa06f4507928bef07839be9ef15281411076629431"
 
 [[package]]
 name = "byteorder"
@@ -976,6 +1052,16 @@ dependencies = [
 ]
 
 [[package]]
+name = "deflate"
+version = "0.8.4"
+source = "registry+https://github.com/rust-lang/crates.io-index"
+checksum = "e7e5d2a2273fed52a7f947ee55b092c4057025d7a3e04e5ecdbd25d6c3fb1bd7"
+dependencies = [
+ "adler32",
+ "byteorder",
+]
+
+[[package]]
 name = "derivative"
 version = "1.0.4"
 source = "registry+https://github.com/rust-lang/crates.io-index"
@@ -1385,6 +1471,43 @@ dependencies = [
 ]
 
 [[package]]
+name = "gltf"
+version = "0.15.2"
+source = "registry+https://github.com/rust-lang/crates.io-index"
+checksum = "d6fb0d1d772daf10ea74528c3aeb12215f6d5b820adf2ecfc93a6578d6779c3c"
+dependencies = [
+ "base64 0.11.0",
+ "byteorder",
+ "gltf-json",
+ "image 0.23.4",
+ "lazy_static",
+]
+
+[[package]]
+name = "gltf-derive"
+version = "0.15.2"
+source = "registry+https://github.com/rust-lang/crates.io-index"
+checksum = "f6636de7bf52227363554f1ca2d9cd180fc666129ddd0933097e1f227dfa7293"
+dependencies = [
+ "inflections",
+ "proc-macro2 1.0.10",
+ "quote 1.0.3",
+ "syn 1.0.17",
+]
+
+[[package]]
+name = "gltf-json"
+version = "0.15.2"
+source = "registry+https://github.com/rust-lang/crates.io-index"
+checksum = "e3fc3deb81e6fa04bf808f6be7c3983229552a95b77f687ad96af00f6d3e7d6c"
+dependencies = [
+ "gltf-derive",
+ "serde",
+ "serde_derive",
+ "serde_json",
+]
+
+[[package]]
 name = "glyph_brush"
 version = "0.6.3"
 source = "registry+https://github.com/rust-lang/crates.io-index"
@@ -1489,6 +1612,21 @@ dependencies = [
 ]
 
 [[package]]
+name = "image"
+version = "0.23.4"
+source = "registry+https://github.com/rust-lang/crates.io-index"
+checksum = "9117f4167a8f21fa2bb3f17a652a760acd7572645281c98e3b612a26242c96ee"
+dependencies = [
+ "bytemuck",
+ "byteorder",
+ "jpeg-decoder",
+ "num-iter",
+ "num-rational",
+ "num-traits 0.2.11",
+ "png 0.16.3",
+]
+
+[[package]]
 name = "inflate"
 version = "0.4.5"
 source = "registry+https://github.com/rust-lang/crates.io-index"
@@ -1496,6 +1634,12 @@ checksum = "1cdb29978cc5797bd8dcc8e5bf7de604891df2a8dc576973d71a281e916db2ff"
 dependencies = [
  "adler32",
 ]
+
+[[package]]
+name = "inflections"
+version = "1.1.1"
+source = "registry+https://github.com/rust-lang/crates.io-index"
+checksum = "a257582fdcde896fd96463bf2d40eefea0580021c0712a0e2b028b60b47a837a"
 
 [[package]]
 name = "intl-memoizer"
@@ -1788,6 +1932,15 @@ dependencies = [
  "foreign-types",
  "log",
  "objc",
+]
+
+[[package]]
+name = "mikktspace"
+version = "0.2.0"
+source = "registry+https://github.com/rust-lang/crates.io-index"
+checksum = "e7525a5f1b5c369e17a4b17853a57ca05726575eee26529876d0fd8963a6e1d6"
+dependencies = [
+ "nalgebra",
 ]
 
 [[package]]
@@ -2226,7 +2379,7 @@ source = "registry+https://github.com/rust-lang/crates.io-index"
 checksum = "63daf481fdd0defa2d1d2be15c674fbfa1b0fd71882c303a91f9a79b3252c359"
 dependencies = [
  "bitflags",
- "deflate",
+ "deflate 0.7.20",
  "inflate",
  "num-iter",
 ]
@@ -2239,7 +2392,19 @@ checksum = "ef859a23054bbfee7811284275ae522f0434a3c8e7f4b74bd4a35ae7e1c4a283"
 dependencies = [
  "bitflags",
  "crc32fast",
- "deflate",
+ "deflate 0.7.20",
+ "inflate",
+]
+
+[[package]]
+name = "png"
+version = "0.16.3"
+source = "registry+https://github.com/rust-lang/crates.io-index"
+checksum = "2c68a431ed29933a4eb5709aca9800989758c97759345860fa5db3cfced0b65d"
+dependencies = [
+ "bitflags",
+ "crc32fast",
+ "deflate 0.8.4",
  "inflate",
 ]
 

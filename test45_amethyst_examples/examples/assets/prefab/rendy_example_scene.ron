@@ -17,6 +17,7 @@ Prefab (
                                 mag_filter: Nearest,
                                 mip_filter: Nearest,
                                 wrap_mode: (Tile, Tile, Tile),
+                                normalized: true,
                                 lod_bias: (0),
                                 lod_range: (
                                     start: ( 0 ),
@@ -70,6 +71,7 @@ Prefab (
                                 min_filter: Nearest,
                                 mag_filter: Nearest,
                                 mip_filter: Nearest,
+                                normalized: true,
                                 wrap_mode: (Tile, Tile, Tile),
                                 lod_bias: (0),
                                 lod_range: (
@@ -106,6 +108,7 @@ Prefab (
                                 min_filter: Nearest,
                                 mag_filter: Nearest,
                                 mip_filter: Nearest,
+                                normalized: true,
                                 wrap_mode: (Tile, Tile, Tile),
                                 lod_bias: (0),
                                 lod_range: (
@@ -153,6 +156,7 @@ Prefab (
                                 min_filter: Nearest,
                                 mag_filter: Nearest,
                                 mip_filter: Nearest,
+                                normalized: true,
                                 wrap_mode: (Tile, Tile, Tile),
                                 lod_bias: (0),
                                 lod_range: (
@@ -224,15 +228,15 @@ Prefab (
                 ),
             ),
         ),
-        (
-            data: (
-                transform: (
-                    scale: (1.0, 1.0, 1.0),
-                    translation: (10.0, 0.0, 0.0),
-                ),
-                gltf: File("large/AlphaBlendModeTest.glb", ()),
-            ),
-        ),
+        // (
+        //     data: (
+        //         transform: (
+        //             scale: (1.0, 1.0, 1.0),
+        //             translation: (10.0, 0.0, 0.0),
+        //         ),
+        //         gltf: File("large/AlphaBlendModeTest.glb", ()),
+        //     ),
+        // ),
         (
             data: (
                 transform: (
@@ -250,50 +254,50 @@ Prefab (
                 ),
             ),
         ),
-        (
-            data: (
-                transform: (
-                    translation: (-5.0, 0.0, 0.0),
-                    scale: (10.0, 10.0, 10.0),
-                ),
-                gltf: File("large/SciFiHelmet/SciFiHelmet.gltf", ()),
-            ),
-        ),
-        (
-            data: (
-                transform: (
-                    scale: (2.0, 2.0, 2.0),
-                    translation: (-10.0, 0.0, 0.0),
-                ),
-                gltf: File("large/crystal_stone/scene.gltf", ()),
-            ),
-        ),
-        (
-            data: (
-                transform: (
-                    translation: (0.0, 1.5, 0.0),
-                ),
-                gltf: File("large/NormalTangentMirrorTest.glb", ()),
-            ),
-        ),
-        (
-            data: (
-                transform: (
-                    translation: (0.0, -1.5, 0.0),
-                ),
-                gltf: File("large/NormalTangentTest.glb", ()),
-            ),
-        ),
-        (
-            data: (
-                transform: (
-                    scale: (0.3, 0.3, 0.3),
-                    translation: (5.0, -3.5, 0.0),
-                ),
-                tag: (),
-                gltf: File("large/InterpolationTest.glb", ()),
-            ),
-        ),        
+        // (
+        //     data: (
+        //         transform: (
+        //             translation: (-5.0, 0.0, 0.0),
+        //             scale: (10.0, 10.0, 10.0),
+        //         ),
+        //         gltf: File("large/SciFiHelmet/SciFiHelmet.gltf", ()),
+        //     ),
+        // ),
+        // (
+        //     data: (
+        //         transform: (
+        //             scale: (2.0, 2.0, 2.0),
+        //             translation: (-10.0, 0.0, 0.0),
+        //         ),
+        //         gltf: File("large/crystal_stone/scene.gltf", ()),
+        //     ),
+        // ),
+        // (
+        //     data: (
+        //         transform: (
+        //             translation: (0.0, 1.5, 0.0),
+        //         ),
+        //         gltf: File("large/NormalTangentMirrorTest.glb", ()),
+        //     ),
+        // ),
+        // (
+        //     data: (
+        //         transform: (
+        //             translation: (0.0, -1.5, 0.0),
+        //         ),
+        //         gltf: File("large/NormalTangentTest.glb", ()),
+        //     ),
+        // ),
+        // (
+        //     data: (
+        //         transform: (
+        //             scale: (0.3, 0.3, 0.3),
+        //             translation: (5.0, -3.5, 0.0),
+        //         ),
+        //         tag: (),
+        //         gltf: File("large/InterpolationTest.glb", ()),
+        //     ),
+        // ),        
         (
             data: (
                 // SpriteRenderPrefab
