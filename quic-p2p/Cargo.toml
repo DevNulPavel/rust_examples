@@ -1,0 +1,45 @@
+[package]
+name = "quic-p2p"
+description = "Peer-to-peer networking library using QUIC"
+documentation = "https://docs.rs/quic-p2p"
+homepage = "https://maidsafe.net"
+license = "MIT OR BSD-3-Clause"
+readme = "README.md"
+repository = "https://github.com/maidsafe/quic-p2p"
+version = "0.5.0"
+authors = ["MaidSafe Developers <dev@maidsafe.net>"]
+edition = "2018"
+
+[dependencies]
+quinn = { version = "~0.6.0", features = ["tls-rustls"], default-features = false }
+futures = "~0.3.1"
+tokio = { version = "~0.2.5", features = ["rt-core", "sync", "time", "io-driver"] }
+unwrap = "~1.2.1"
+bincode = "~1.1.2"
+bytes = { version = "~0.4.12", features = ["serde"] }
+crossbeam-channel = "~0.3.8"
+serde = { version = "~1.0.91", features = ["derive"] }
+serde_json = "~1.0.39"
+structopt = "~0.2.15"
+rcgen = "~0.7.0"
+rustls = { version = "~0.17.0", features = ["dangerous_configuration"] }
+log = "~0.4.6"
+base64 = "~0.10.1"
+err-derive = "^0.2.2"
+derive_more = "^0.99.2"
+webpki = "~0.21.2"
+
+[dev-dependencies]
+clap = "~2.32.0"
+crc = "~1.8.1"
+env_logger = "~0.6.1"
+rustyline = "~4.1.0"
+unwrap = "~1.2.1"
+rand = "~0.6.5"
+
+# Mobile and embedded platforms should not include these dependencies to override config file paths
+[target.'cfg(any(all(unix, not(any(target_os = "android", target_os = "androideabi", target_os = "ios"))), windows))'.dependencies]
+directories = "~1.0.2"
+
+[workspace]
+members = ["mock"]
