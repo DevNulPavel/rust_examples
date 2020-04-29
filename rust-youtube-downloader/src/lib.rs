@@ -24,6 +24,8 @@ impl Stream {
     }
 }
 
+//////////////////////////////////////////////////////////////////////////////////////////
+
 #[derive(Deserialize, Debug)]
 struct VideoInfoResponse {
     author: String,
@@ -65,6 +67,8 @@ impl VideoInfoResponse {
     }
 }
 
+//////////////////////////////////////////////////////////////////////////////////////////
+
 #[derive(Debug)]
 pub struct VideoInfo {
     pub author: String,
@@ -80,6 +84,7 @@ pub struct VideoInfo {
 
 impl VideoInfo {
     pub fn parse(inp: &str) -> Result<VideoInfo, Error> {
+
         let resp: VideoInfoResponse = match serde_urlencoded::from_str(inp) {
             Ok(r) => r,
             Err(original_err) => {
@@ -105,6 +110,8 @@ impl VideoInfo {
         })
     }
 }
+
+//////////////////////////////////////////////////////////////////////////////////////////
 
 #[derive(Deserialize, Debug)]
 pub struct ErrorInfo {

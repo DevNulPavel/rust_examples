@@ -8,63 +8,60 @@ extern crate stderrlog;
 extern crate log;
 extern crate youtube_downloader;
 
-use pbr::ProgressBar;
-use std::{process,str};
-use hyper::client::response::Response;
-use hyper::Client;
-use hyper::net::HttpsConnector;
+use std::{
+    process,
+    str,
+    fs::File,
+    io::{
+        Read,
+        prelude::*
+    }
+};
+use hyper::{
+    Client,
+    client::response::Response,
+    net::HttpsConnector,
+    header::ContentLength
+};
 use hyper_native_tls::NativeTlsClient;
-use hyper::header::ContentLength;
-use std::io::Read;
-use std::io::prelude::*;
-use std::fs::File;
-use clap::{Arg, App};
+use pbr::ProgressBar;
+use clap::{
+    Arg, 
+    App
+};
 use regex::Regex;
 use youtube_downloader::VideoInfo;
 
-fn main() {
-    //Regex for youtube URLs.
-    let url_regex = Regex::new(r"^.*(?:(?:youtu\.be/|v/|vi/|u/w/|embed/)|(?:(?:watch)?\?v(?:i)?=|\&v(?:i)?=))([^#\&\?]*).*").unwrap();
-    let args = App::new("youtube-downloader")
-        .version("0.1.0")
-        .arg(Arg::with_name("verbose")
-             .help("Increase verbosity")
-             .short("v")
-             .multiple(true)
-             .long("verbose"))
-        .arg(Arg::with_name("adaptive")
-             .help("List adaptive streams, instead of video streams")
-             .short("A")
-             .long("adaptive"))
-        .arg(Arg::with_name("video-id")
-            .help("The ID of the video to download.")
-            .required(true)
-            .index(1))
-        .get_matches();
+fn send_request(url: &str) -> Response {
+    let ssl = NativeTlsClient::new().unwrap();
+    let connector = HttpsConnector::new(ssl);
+    let client = Client::with_connector(connector);
 
-    stderrlog::new()
-            .module(module_path!())
-            .verbosity(args.occurrences_of("verbose") as usize)
-            .init()
-            .expect("Unable to initialize stderr output");
-
-    let mut vid = args.value_of("video-id").unwrap();
-    if url_regex.is_match(vid) {
-        let vid_split = url_regex.captures(vid).unwrap();
-        vid = vid_split.get(1).unwrap().as_str();
-    }
-    let url = format!("https://youtube.com/get_video_info?video_id={}", vid);
-    download(&url, args.is_present("adaptive"));
+    client
+        .get(url)
+        .send()
+        .unwrap_or_else(|e| {
+            error!("Network request failed: {}", e);
+            process::exit(1);
+        })
 }
 
 fn download(url: &str, adaptive: bool) {
-    debug!("Fetching video info from {}", url);
-    let mut response = send_request(url);
+    println!("Fetching video info from {}", url);
+    
+    // Отправляем запрос
+    let mut response: Response = send_request(url);
+
+    // Получаем строку ответа
     let mut response_str = String::new();
-    response.read_to_string(&mut response_str).unwrap();
-    trace!("Response {}", response_str);
-    let info = VideoInfo::parse(&response_str).unwrap();
-    debug!("Video info {:#?}", info);
+    response.read_to_string(&mut response_str)
+        .unwrap();
+    //println!("Response {}", response_str);        
+
+    // Парсим информацию ответа
+    let info = VideoInfo::parse(&response_str)
+        .unwrap();
+    println!("Video info {:#?}", info);
 
     let streams = if adaptive {
         info.adaptive_streams
@@ -72,6 +69,7 @@ fn download(url: &str, adaptive: bool) {
         info.streams
     };
 
+    // Выводим список возможных качеств закачивания
     for (i, stream) in streams.iter().enumerate() {
         println!("{}- {} {}",
                  i,
@@ -105,6 +103,51 @@ fn download(url: &str, adaptive: bool) {
     }
 }
 
+fn main() {
+    // Регулярка парсинга урла
+    let url_regex = Regex::new(r"^.*(?:(?:youtu\.be/|v/|vi/|u/w/|embed/)|(?:(?:watch)?\?v(?:i)?=|\&v(?:i)?=))([^#\&\?]*).*")
+        .unwrap();
+
+    // Парсим аргументы коммандной строки
+    let args = App::new("youtube-downloader")
+        .version("0.1.0")
+        .arg(Arg::with_name("verbose")
+             .help("Increase verbosity")
+             .short("v")
+             .multiple(true)
+             .long("verbose"))
+        .arg(Arg::with_name("adaptive")
+             .help("List adaptive streams, instead of video streams")
+             .short("A")
+             .long("adaptive"))
+        .arg(Arg::with_name("video-id")
+            .help("The ID of the video to download.")
+            .required(true)
+            .index(1))
+        .get_matches();
+
+    stderrlog::new()
+            .module(module_path!())
+            .verbosity(args.occurrences_of("verbose") as usize)
+            .init()
+            .expect("Unable to initialize stderr output");
+
+    // Аргументы id видео
+    let mut vid = args.value_of("video-id").unwrap();
+
+    // Сверяемся с регуляркой урла
+    if url_regex.is_match(vid) {
+        let vid_split = url_regex.captures(vid).unwrap();
+        vid = vid_split.get(1).unwrap().as_str();
+    }
+    
+    // Формируем урл загрузки
+    let url = format!("https://youtube.com/get_video_info?video_id={}", vid);
+
+    // Стартуем загрузку
+    download(&url, args.is_present("adaptive"));
+}
+
 // get file size from Content-Length header
 fn get_file_size(response: &Response) -> u64 {
     let mut file_size = 0;
@@ -136,16 +179,6 @@ fn write_file(mut response: Response, title: &str, file_size: u64) {
             Err(why) => panic!("{}", why),
         };
     }
-}
-
-fn send_request(url: &str) -> Response {
-    let ssl = NativeTlsClient::new().unwrap();
-    let connector = HttpsConnector::new(ssl);
-    let client = Client::with_connector(connector);
-    client.get(url).send().unwrap_or_else(|e| {
-        error!("Network request failed: {}", e);
-        process::exit(1);
-    })
 }
 
 fn read_line() -> String {
