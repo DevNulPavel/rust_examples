@@ -1,0 +1,14 @@
+# See more keys and their definitions at https://doc.rust-lang.org/cargo/reference/manifest.html
+
+[package]
+name = "test47_mio"
+version = "0.1.0"
+authors = ["Pavel Ershov <pershov@game-insight.com>"]
+edition = "2018"
+
+[dependencies]
+# mio = "0.7.0"
+
+[dependencies.mio]
+version = "0.7.0"
+features = ["tcp", "udp", "uds", "os-util", "os-poll"]
