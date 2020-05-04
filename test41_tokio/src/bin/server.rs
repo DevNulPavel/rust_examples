@@ -49,7 +49,9 @@ async fn process_sending_data<'a>(mut writer: WriteHalf<'a>,
         println!("Data for send: {:?}", received);
 
         let data: String = received.1;
-        writer.write_all(data.as_bytes()).await?;
+        let data_bytes = data.as_bytes();
+        writer.write_u16(data_bytes.len() as u16).await?;
+        writer.write_all(data_bytes).await?;
     }
 }
 
@@ -131,7 +133,8 @@ async fn process_connection(mut sock: TcpStream,
 }
 
 
-#[tokio::main]
+// Сервер будет однопоточным, чтобы не отжирать бестолку ресурсы
+#[tokio::main(core_threads = 1)]
 async fn main() {
     // Каналы остановки работы
     let (mut stop_listen_sender, mut stop_listen_receiver) = tokio::sync::mpsc::channel::<()>(1);
