@@ -18,6 +18,10 @@ use tokio::{
             WriteHalf
         }
     },
+    time::{
+        timeout,
+        Duration
+    },
     sync::{
         Semaphore, 
         SemaphorePermit,
@@ -48,7 +52,6 @@ const MAX_PROCESSING_FILES_PER_ADDRESS: usize = 16;
 #[derive(Debug)]
 enum ProcessingMessage<'b>{
     Permit(SemaphorePermit<'b>),
-    //Stop(SemaphorePermit<'b>),
     Finished(),
 }
 
@@ -138,10 +141,25 @@ async fn process_address(addr: &str,
                          tasks: Arc<Mutex<Receiver<PathBuf>>>, 
                          exit_receiver: BroadcastReceiver<()>) {
     // Подключаемся к серверу
-    let mut stream: TcpStream = TcpStream::connect(addr)
-        .await
-        .unwrap();
-    println!("Сreated stream");
+    let mut stream: TcpStream = match timeout(Duration::from_secs(2), TcpStream::connect(addr)).await{
+        Ok(stream_res) => {
+            match stream_res {
+                Ok(stream) => {
+                    stream
+                },
+                Err(e) => {
+                    println!("Connect to address error: {} ({})", addr, e);
+                    return;
+                }
+            }
+        },
+        Err(e) => {
+            println!("Connect timeout to address: {} ({})", addr, e);
+            return;
+        }
+    };
+
+    println!("Stream created");
 
     let (reader, writer) = stream.split();
 
@@ -213,3 +231,9 @@ async fn main() {
 
     println!("Completed");
 }
+
+
+// TODO:
+// - таймауты на работу с сокетами
+// - если отвалился один из серверов по таймауту или по другой причне, 
+//      надо вернуть полученные им задачи снова в очередь, чтобы отработали другие сервера
