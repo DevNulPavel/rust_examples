@@ -26,11 +26,13 @@ use tokio::{
         Semaphore, 
         SemaphorePermit,
         Mutex,
-        //oneshot::{
-            //channel as oneshot_channel,
-            //Receiver as OneshotReceiver,
-            //Sender as OneshotSender
-        //},
+        // Notify,
+        // Barrier,
+        // oneshot::{
+        //     channel as oneshot_channel,
+        //     Receiver as OneshotReceiver,
+        //     Sender as OneshotSender
+        // },
         broadcast::{
             channel as broadcast_channel,
             Receiver as BroadcastReceiver
@@ -41,13 +43,14 @@ use tokio::{
             UnboundedReceiver,
             channel,
             Receiver,
-            //Sender
+            Sender
         }
     }
 };
 use test41_tokio::socket_helpers::write_file_to_socket;
 
 const MAX_PROCESSING_FILES_PER_ADDRESS: usize = 16;
+const CONNECTION_TIMEOUT_IN_SEC: u64 = 5;
 
 #[derive(Debug)]
 enum ProcessingMessage<'b>{
@@ -138,10 +141,11 @@ async fn process_receiving<'a, 'b>(mut reader: ReadHalf<'a>,
 }
 
 async fn process_address(addr: &str, 
+                         mut connected: Sender<bool>,
                          tasks: Arc<Mutex<Receiver<PathBuf>>>, 
                          exit_receiver: BroadcastReceiver<()>) {
     // Подключаемся к серверу
-    let mut stream: TcpStream = match timeout(Duration::from_secs(2), TcpStream::connect(addr)).await{
+    let mut stream: TcpStream = match timeout(Duration::from_secs(CONNECTION_TIMEOUT_IN_SEC), TcpStream::connect(addr)).await{
         Ok(stream_res) => {
             match stream_res {
                 Ok(stream) => {
@@ -149,17 +153,21 @@ async fn process_address(addr: &str,
                 },
                 Err(e) => {
                     println!("Connect to address error: {} ({})", addr, e);
+                    connected.send(false).await.unwrap();
                     return;
                 }
             }
         },
         Err(e) => {
             println!("Connect timeout to address: {} ({})", addr, e);
+            connected.send(false).await.unwrap();
             return;
         }
     };
 
     println!("Stream created");
+
+    connected.send(true).await.unwrap();
 
     let (reader, writer) = stream.split();
 
@@ -177,24 +185,56 @@ async fn process_address(addr: &str,
 async fn main() {
     const ADDRESSES: [&str; 2] = [
         "127.0.0.1:10000",
-        "127.0.0.1:10000"
+        "127.0.0.1:10001",
     ];
 
     // Канал для выхода из всех обработчиков
     let (exit_sender, _) = broadcast_channel(ADDRESSES.len());
 
+    // Канал отправки задач
     let (mut tasks_sender, tasks_receiver_raw) = channel(MAX_PROCESSING_FILES_PER_ADDRESS * ADDRESSES.len());
     let tasks_receiver = Arc::new(Mutex::new(tasks_receiver_raw));
 
+    // Переменая установки соединения
+    let (connection_established_sender, mut connection_established_receiver)  = channel(ADDRESSES.len());
+
     // Фьючи соединений с адресами, запуск в работу будет ниже при вызове await
-    let process_futures_join = tokio::spawn(futures::future::join_all(ADDRESSES
-        .iter()
-        .zip(std::iter::repeat_with(|| {
-            (tasks_receiver.clone(), exit_sender.subscribe())
-        }))
-        .map(|(addr, (task_receiver, exit_receiver))|{
-            process_address(addr, task_receiver, exit_receiver)
-        })));
+    let process_futures_join = {
+        let connections_iter = ADDRESSES
+            .iter()
+            .zip(std::iter::repeat_with(|| {
+                (connection_established_sender.clone(), tasks_receiver.clone(), exit_sender.subscribe())
+            }))
+            .map(move |(addr, (notify, task_receiver, exit_receiver))|{
+                process_address(addr, notify, task_receiver, exit_receiver)
+            });
+
+        let futures_join = futures::future::join_all(connections_iter);
+        let join = tokio::spawn(futures_join);
+        
+        join
+    };
+
+    // Результат установки хоть какого-то соединения, продолжаем работу только если установили соединение
+    {
+        let connected = {
+            let mut conn = false;
+            for _ in 0..ADDRESSES.len(){
+                let connect_success = connection_established_receiver.recv().await.unwrap();
+                if connect_success {
+                    conn = true;
+                    break;
+                }
+            }
+            conn
+        };
+        if connected == false {
+            println!("Connection failed");
+            return;
+        }
+        drop(connection_established_sender);
+        drop(connection_established_receiver);
+    }
 
     // Производитель задач
     let tasks_join = {
@@ -234,6 +274,7 @@ async fn main() {
 
 
 // TODO:
+// - может быть избавиться от Mutex?
 // - таймауты на работу с сокетами
 // - если отвалился один из серверов по таймауту или по другой причне, 
 //      надо вернуть полученные им задачи снова в очередь, чтобы отработали другие сервера
