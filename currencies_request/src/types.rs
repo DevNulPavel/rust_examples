@@ -5,6 +5,17 @@ use std::fmt::{
 };
 use derive_new::new;
 use chrono::prelude::*;
+//use crate::errors::CurrencyError;
+
+// pub trait BankRequestFuture: futures::Future {
+//     type Output = Result<CurrencyResult<'static>, CurrencyError>;
+// }
+
+// #[derive(Debug, Copy, Clone)]
+// pub enum BankType{
+//     Central,
+//     Alpha
+// }
 
 #[derive(Debug, Copy, Clone)]
 pub enum CurrencyType{

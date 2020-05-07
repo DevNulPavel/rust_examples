@@ -96,13 +96,7 @@ fn order_to_change(cur: &AlphaCurrency, cur_type: CurrencyType) -> Result<Curren
     }
 }
 
-pub async fn get_currencies_from_alpha<'a>(bank_name: &'a str) -> Result<CurrencyResult<'a>, CurrencyError> {
-    // Создаем клиента для запроса
-    let client: Client = ClientBuilder::new()
-        .connect_timeout(Duration::from_secs(3))
-        .timeout(Duration::from_secs(3))
-        .build()?;
-
+pub async fn get_currencies_from_alpha(client: &Client, bank_name: &'static str) -> Result<CurrencyResult<'static>, CurrencyError> {
     // Получаем json
     // "https://alfabank.ru/ext-json/0.2/exchange/cash?offset=0&limit=1&mode=rest"
     let json: HashMap<String, Vec<AlphaCurrency>> = client

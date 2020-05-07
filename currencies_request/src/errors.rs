@@ -22,6 +22,7 @@ macro_rules! error_from {
 #[derive(Debug)]
 pub enum CurrencyError{
     RequestErr(reqwest::Error),
+    InvalidResponse(&'static str),
     NoData(CurrencyType),
     NoSellInfo(CurrencyType),
     NoBuyInfo(CurrencyType),

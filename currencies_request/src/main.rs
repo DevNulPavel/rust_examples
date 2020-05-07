@@ -1,27 +1,45 @@
 #![warn(clippy::all)]
 
 mod errors;
-mod alpha;
 mod types;
+mod alpha;
+mod sber;
+mod central;
 
+
+use std::{
+    time::Duration
+};
+use futures::FutureExt;
 use tokio::{
     runtime::{
         Builder,
         Runtime
     }
 };
+use reqwest::{
+    Client,
+    ClientBuilder,
+};
 use prettytable::{
-    //color,
+    color::{
+        self,
+        Color
+    },
     Table, 
     Row, 
     Cell, 
-    //Attr
+    Attr
 };
 use crate::{
     errors::CurrencyError,
-    types::CurrencyResult,
-    //types::CurrencyChange,
+    types::{
+        CurrencyResult,
+        CurrencyChange,
+    },
     alpha::get_currencies_from_alpha,
+    central::get_currencies_from_central,
+    sber::get_currencies_from_sber
 };
 
 // https://doc.rust-lang.org/rust-by-example/macros/designators.html
@@ -48,17 +66,43 @@ macro_rules! new_cell {
     };
 }
 
+fn change_to_color(change: CurrencyChange) -> Color {
+    match change {
+        CurrencyChange::Increase => color::GREEN,
+        CurrencyChange::Decrease => color::RED,
+        CurrencyChange::NoChange => color::BRIGHT_YELLOW
+    }
+}
+
+fn new_cell_with_color(val: f32, change: CurrencyChange) -> Cell {
+    let color = change_to_color(change);
+    Cell::new(format!("{} {}", val, change).as_str())
+        .with_style(Attr::ForegroundColor(color))
+}
 
 async fn async_main(){
-    let result: Result<CurrencyResult, CurrencyError> = get_currencies_from_alpha("Alpha-Bank").await;
+    // Создаем клиента для запроса
+    let client: Client = ClientBuilder::new()
+        .connect_timeout(Duration::from_secs(3))
+        .timeout(Duration::from_secs(3))
+        .build()
+        .unwrap();
 
-    let results = [
-        result
+    // TODO: Посмотреть оборачивание в box + pin
+    // TODO: Избавиться от vec?
+    // https://users.rust-lang.org/t/expected-opaque-type-found-a-different-opaque-type-when-trying-futures-join-all/40596
+    // https://users.rust-lang.org/t/expected-opaque-type-found-a-different-opaque-type-when-trying-futures-join-all/40596/5
+    let futures_array = vec![
+        get_currencies_from_central(&client, "Central").boxed(),
+        get_currencies_from_alpha(&client, "Alpha-Bank").boxed(),
+        get_currencies_from_sber(&client, "Sber").boxed()
     ];
+    let joined_futures = futures::future::join_all(futures_array);
 
-    // Create the table
+    // Таблица
     let mut table = Table::new();
 
+    // Заголовок
     table.add_row(Row::new(vec![
         new_cell!("Bank"),
         new_cell!("Buy USD"),
@@ -69,42 +113,43 @@ async fn async_main(){
     ]));    
 
     // Выводим текст, используем into_iter для потребляющего итератора
-    for info in results.iter() {
-        let info: &Result<CurrencyResult, CurrencyError> = info;
+    for info in joined_futures.await {
+        let info: Result<CurrencyResult, CurrencyError> = info;
         match info {
             Ok(info) =>{
-                let info: &CurrencyResult = info;
+                let info: CurrencyResult = info;
 
                 let time_str: String = match info.update_time {
                     Some(time) => time.format("%Y-%m-%d %H:%M:%S").to_string(),
                     None => "No time".into()
                 };
 
-                // TODO: Макрос
+                // Строка со значениями
                 let row = Row::new(vec![
                     new_cell!(info.bank_name),
-                    new_cell!("{} {}", info.usd.buy, info.usd.buy_change),
-                    new_cell!("{} {}", info.usd.sell, info.usd.sell_change),
+                    new_cell_with_color(info.usd.buy, info.usd.buy_change),
+                    new_cell_with_color(info.usd.sell, info.usd.sell_change),
 
-                    new_cell!("{} {}", info.eur.buy, info.eur.buy_change),
-                    new_cell!("{} {}", info.eur.sell, info.eur.sell_change),
+                    new_cell_with_color(info.eur.buy, info.eur.buy_change),
+                    new_cell_with_color(info.eur.sell, info.eur.sell_change),
                     new_cell!(time_str.as_str()),
                 ]);
 
                 table.add_row(row);    
             },
-            Err(e) => {
-                let row = Row::new(vec![
+            Err(_e) => {
+                // TODO: Вывод ошибок
+                /*let row = Row::new(vec![
                     Cell::new(format!("{:?}", e).as_str()),
                 ]);
-                table.add_row(row);    
+                table.add_row(row);*/
+                println!("{:?}", _e);
             }
         }
     }
 
-    // Print the table to stdout
+    // Вывод таблицы
     table.printstd();
-
 }
 
 fn main() {

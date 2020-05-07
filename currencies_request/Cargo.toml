@@ -21,4 +21,4 @@ chrono = "0.4.11"
 # https://docs.rs/tokio/0.2.20/tokio/index.html
 # tokio = { version="0.2.20", features = ["rt-core", "rt-util", "io-driver", "io-util", "net", "tcp", "time"] }
 version = "0.2.20"
-features = ["rt-core", "rt-util", "io-driver", "io-util", "net", "tcp", "time", "fs", "blocking"]
+features = ["rt-core", "rt-util", "io-driver", "io-util", "net", "tcp", "time", "fs", "blocking", "macros"]
