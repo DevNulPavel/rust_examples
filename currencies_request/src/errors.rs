@@ -1,3 +1,11 @@
+use std::{
+    fmt::{
+        self,
+        Display,
+        Formatter
+    },
+    error::Error
+};
 use crate::{
     types::CurrencyType
 };
@@ -20,7 +28,7 @@ macro_rules! error_from {
 }
 
 #[derive(Debug)]
-pub enum CurrencyError{
+pub enum CurrencyErrorType{
     RequestErr(reqwest::Error),
     InvalidResponse(&'static str),
     NoData(CurrencyType),
@@ -28,5 +36,49 @@ pub enum CurrencyError{
     NoBuyInfo(CurrencyType),
     NoChangeInfo(CurrencyType)
 }
-error_from!(CurrencyError, RequestErr, reqwest::Error);
+error_from!(CurrencyErrorType, RequestErr, reqwest::Error);
 
+///////////////////////////////////////////////////////////////////////////
+
+#[derive(Debug)]
+pub struct CurrencyError{
+    pub bank: &'static str,
+    pub err_type: CurrencyErrorType
+}
+
+// TODO: Делать map_err для прописывания банка вместо ? на запросах
+impl From<reqwest::Error> for CurrencyError{
+    fn from(e: reqwest::Error) -> Self {
+        CurrencyError{
+            bank: "",
+            err_type: CurrencyErrorType::RequestErr(e)
+        }
+    }
+}
+
+impl CurrencyError{
+    pub fn new(bank: &'static str, err_type: CurrencyErrorType)->Self{
+        CurrencyError{
+            bank,
+            err_type
+        }
+    }
+}
+
+impl Display for CurrencyError {
+    fn fmt(&self, f: &mut Formatter) -> fmt::Result {
+        write!(f, "Bank {} error: {:?}", self.bank, self.err_type)
+    }
+}
+
+impl Error for CurrencyError {
+    fn source(&self) -> Option<&(dyn Error + 'static)> {
+        None
+    }
+    fn description(&self) -> &str {
+        "invalid first item to double"
+    }
+    fn cause(&self) -> Option<&dyn Error> {
+        None
+    }
+}

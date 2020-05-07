@@ -1,32 +1,35 @@
-use std::{
-    time::Duration,
-    collections::HashMap,
-};
-use chrono::prelude::*;
+// use std::{
+    // time::Duration,
+    // collections::HashMap,
+// };
+// use chrono::prelude::*;
 use reqwest::{
     Client,
-    ClientBuilder,
+    // ClientBuilder,
 };
-use serde::{
-    Deserialize, 
-    Serialize
-};
+// use serde::{
+    // Deserialize, 
+    // Serialize
+// };
 use crate::{
-    errors::CurrencyError,
+    errors::{
+        CurrencyError,
+        CurrencyErrorType::*,
+    },
     types::{
         CurrencyResult,
-        CurrencyValue,
-        CurrencyChange,
+        // CurrencyValue,
+        // CurrencyChange,
         CurrencyType::{
-            self,
-            EUR,
+            // self,
+            // EUR,
             USD
         },
     }
 };
-use derive_new::new;
+// use derive_new::new;
 
-pub async fn get_currencies_from_central(client: &Client, bank_name: &'static str) -> Result<CurrencyResult<'static>, CurrencyError> {
+pub async fn get_currencies_from_central(_client: &Client, bank_name: &'static str) -> Result<CurrencyResult<'static>, CurrencyError> {
     // Создаем клиента для запроса
     // let client: Client = ClientBuilder::new()
     //     .connect_timeout(Duration::from_secs(3))
@@ -45,5 +48,5 @@ pub async fn get_currencies_from_central(client: &Client, bank_name: &'static st
 
     //println!("{:?}", json);
     
-    Err(CurrencyError::NoData(USD))
+    Err(CurrencyError::new(bank_name, NoData(USD)))
 }

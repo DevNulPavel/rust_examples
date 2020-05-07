@@ -1,12 +1,5 @@
 #![warn(clippy::all)]
 
-mod errors;
-mod types;
-mod alpha;
-mod sber;
-mod central;
-
-
 use std::{
     time::Duration
 };
@@ -31,15 +24,13 @@ use prettytable::{
     Cell, 
     Attr
 };
-use crate::{
-    errors::CurrencyError,
-    types::{
-        CurrencyResult,
-        CurrencyChange,
-    },
-    alpha::get_currencies_from_alpha,
-    central::get_currencies_from_central,
-    sber::get_currencies_from_sber
+use currencies_request::{
+    CurrencyError,
+    CurrencyResult,
+    CurrencyChange,
+    get_currencies_from_alpha,
+    get_currencies_from_central,
+    get_currencies_from_sber
 };
 
 // https://doc.rust-lang.org/rust-by-example/macros/designators.html
@@ -120,7 +111,7 @@ async fn async_main(){
                 let info: CurrencyResult = info;
 
                 let time_str: String = match info.update_time {
-                    Some(time) => time.format("%Y-%m-%d %H:%M:%S").to_string(),
+                    Some(time) => time.format("%H:%M:%S %Y-%m-%d").to_string(),
                     None => "No time".into()
                 };
 

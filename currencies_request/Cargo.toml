@@ -9,16 +9,15 @@ edition = "2018"
 [dependencies]
 reqwest = { version = "0.10.4", features=["json"] } # https://docs.rs/reqwest/0.10.4/reqwest/
 futures = "0.3.4"
-scraper = "0.11.0"
 prettytable-rs = "0.8.0"
 serde = { version = "1.0.106", features = ["derive"] }
 serde_json = "1.0.52"
 dirs = "2.0.2"
 derive-new = "0.5.8"
 chrono = "0.4.11"
+telegram-bot = "0.7.0"
+#scraper = "0.11.0"
 
-[dependencies.tokio]
-# https://docs.rs/tokio/0.2.20/tokio/index.html
-# tokio = { version="0.2.20", features = ["rt-core", "rt-util", "io-driver", "io-util", "net", "tcp", "time"] }
+[dependencies.tokio] # https://docs.rs/tokio/0.2.20/tokio/index.html
 version = "0.2.20"
 features = ["rt-core", "rt-util", "io-driver", "io-util", "net", "tcp", "time", "fs", "blocking", "macros"]
