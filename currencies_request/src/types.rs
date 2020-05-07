@@ -1,4 +1,5 @@
 use derive_new::new;
+use chrono::prelude::*;
 
 #[derive(Debug, Copy, Clone)]
 pub enum CurrencyType{
@@ -6,12 +7,27 @@ pub enum CurrencyType{
     USD
 }
 
+#[derive(Debug, Copy, Clone)]
+pub enum CurrencyChange{
+    Increase,
+    Decrease,
+    NoChange
+}
+
 #[derive(new, Debug)]
 pub struct CurrencyValue{
-    pub usd_buy: f32,
-    pub usd_sell: f32,
-    pub eur_buy: f32,
-    pub eur_sell: f32
+    pub cur_type: CurrencyType,
+    pub buy: f32,
+    pub sell: f32,
+    pub buy_change: CurrencyChange,
+    pub sell_change: CurrencyChange,
+}
+
+#[derive(new, Debug)]
+pub struct CurrencyResult{
+    pub usd: CurrencyValue,
+    pub eur: CurrencyValue,
+    pub update_time: Option<DateTime<Utc>>
 }
 
 /*impl CurrencyValue{

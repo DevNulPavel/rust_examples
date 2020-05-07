@@ -25,6 +25,7 @@ pub enum CurrencyError{
     NoData(CurrencyType),
     NoSellInfo(CurrencyType),
     NoBuyInfo(CurrencyType),
+    NoChangeInfo(CurrencyType)
 }
 error_from!(CurrencyError, RequestErr, reqwest::Error);
 

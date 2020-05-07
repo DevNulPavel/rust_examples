@@ -1,5 +1,7 @@
 #![warn(clippy::all)]
 
+extern crate chrono;
+
 mod errors;
 mod alpha;
 mod types;
@@ -12,12 +14,12 @@ use tokio::{
 };
 use crate::{
     errors::CurrencyError,
-    types::CurrencyValue,
+    types::CurrencyResult,
     alpha::get_currencies_from_alpha,
 };
 
 async fn async_main(){
-    let result: Result<CurrencyValue, CurrencyError> = get_currencies_from_alpha().await;
+    let result: Result<CurrencyResult, CurrencyError> = get_currencies_from_alpha().await;
 
     println!("{:?}", result);
 }
