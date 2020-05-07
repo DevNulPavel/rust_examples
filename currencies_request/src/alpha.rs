@@ -69,14 +69,14 @@ fn get_buy_and_sell(info: &Vec<AlphaCurrency>, cur_type: CurrencyType) -> Result
     let buy: &AlphaCurrency = info
         .iter()
         .find(|val|{
-            val.type_val.eq("buy")
+            val.type_val.eq("sell")
         })
         .ok_or(CurrencyError::NoBuyInfo(cur_type))?;
 
     let sell: &AlphaCurrency = info
         .iter()
         .find(|val|{
-            val.type_val.eq("sell")
+            val.type_val.eq("buy")
         })
         .ok_or(CurrencyError::NoSellInfo(cur_type))?;
 
@@ -96,7 +96,7 @@ fn order_to_change(cur: &AlphaCurrency, cur_type: CurrencyType) -> Result<Curren
     }
 }
 
-pub async fn get_currencies_from_alpha() -> Result<CurrencyResult, CurrencyError> {
+pub async fn get_currencies_from_alpha<'a>(bank_name: &'a str) -> Result<CurrencyResult<'a>, CurrencyError> {
     // Создаем клиента для запроса
     let client: Client = ClientBuilder::new()
         .connect_timeout(Duration::from_secs(3))
@@ -134,5 +134,5 @@ pub async fn get_currencies_from_alpha() -> Result<CurrencyResult, CurrencyError
     let usd_result = CurrencyValue::from_alpha(usd_info)?;
     let eur_result = CurrencyValue::from_alpha(eur_info)?;
     
-    Ok(CurrencyResult::new(usd_result, eur_result, time))
+    Ok(CurrencyResult::new(bank_name, usd_result, eur_result, time))
 }

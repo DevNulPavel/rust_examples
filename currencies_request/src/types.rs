@@ -1,3 +1,8 @@
+use std::fmt::{
+    self,
+    Display,
+    Formatter
+};
 use derive_new::new;
 use chrono::prelude::*;
 
@@ -14,6 +19,22 @@ pub enum CurrencyChange{
     NoChange
 }
 
+impl Display for CurrencyChange {
+    fn fmt(&self, f: &mut Formatter) -> fmt::Result {
+        match self {
+            Self::Increase =>{
+                write!(f, "↑")
+            },
+            Self::Decrease =>{
+                write!(f, "↓")
+            },
+            Self::NoChange => {
+                write!(f, "=")
+            }
+        }
+    }
+}
+
 #[derive(new, Debug)]
 pub struct CurrencyValue{
     pub cur_type: CurrencyType,
@@ -24,7 +45,8 @@ pub struct CurrencyValue{
 }
 
 #[derive(new, Debug)]
-pub struct CurrencyResult{
+pub struct CurrencyResult<'a>{
+    pub bank_name: &'a str,
     pub usd: CurrencyValue,
     pub eur: CurrencyValue,
     pub update_time: Option<DateTime<Utc>>
