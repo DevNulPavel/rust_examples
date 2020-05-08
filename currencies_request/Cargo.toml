@@ -16,13 +16,17 @@ dirs = "2.0.2"
 derive-new = "0.5.8"
 chrono = "0.4.11"
 telegram-bot = "0.7.0"
-# telegram-bot-raw = "0.7.0"
-# hyper = "0.13.5"
-tracing = "0.1.13" # TODO: в DevDependencies
-tracing-subscriber = "0.2.5" # TODO: в DevDependencies
+telegram-bot-raw = "0.7.0"
+hyper = "0.13.5"
+hyper-proxy = "0.6.0"
+typed-headers = "0.2.0"
 # telebot = "0.3.1"
 #scraper = "0.11.0"
 
 [dependencies.tokio] # https://docs.rs/tokio/0.2.20/tokio/index.html
 version = "0.2.20"
 features = ["rt-core", "rt-util", "io-driver", "io-util", "net", "tcp", "time", "fs", "blocking", "macros"]
+
+[dev-dependencies]
+tracing = "0.1.13" # TODO: в DevDependencies
+tracing-subscriber = "0.2.5" # TODO: в DevDependencies
