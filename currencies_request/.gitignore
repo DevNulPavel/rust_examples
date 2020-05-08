@@ -1,4 +1,4 @@
 /target
 **/*.rs.bk
 test_upload_script.sh
-token.txt
+scripts/

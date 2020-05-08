@@ -15,3 +15,8 @@ RUN_BOT:
 
 UPDATE_VERSIONS:
 	cargo update
+
+BACKUP_KEYS:
+	mkdir -p backup/ && \
+	rm -f backup/*  && \
+	zip -er backup/scripts.zip ./scripts/
