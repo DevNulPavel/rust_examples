@@ -178,7 +178,7 @@ struct ProxyResponse{
     count: i32
 }
 
-async fn get_http_proxies() -> Result<Vec<String>, reqwest::Error>{
+/*async fn get_http_proxies() -> Result<Vec<String>, reqwest::Error>{
     let valid_addresses = loop {
         let result: ProxyResponse  = reqwest::get("http://pubproxy.com/api/proxy?type=http&limit=5?level=anonymous?post=true") // ?not_country=RU,BY,UA
             .await?
@@ -217,7 +217,7 @@ async fn get_http_proxies() -> Result<Vec<String>, reqwest::Error>{
     };
 
     Ok(valid_addresses)
-}
+}*/
 
 async fn async_main(){
     // TODO: 
@@ -234,7 +234,7 @@ async fn async_main(){
         // http://pubproxy.com/api/proxy?type=http
         // http://pubproxy.com/api/proxy?type=http&limit=5
        
-        /*const PROXIES: &[&str] = &[
+        const PROXIES: &[&str] = &[
             "http://174.138.42.112:8080",
             "http://52.179.231.206:80",
             "http://80.187.140.26:8080",
@@ -264,9 +264,9 @@ async fn async_main(){
                 // proxy.set_authorization(Credentials::bearer(Token68::new("").unwrap()));
                 // proxy.set_authorization(Credentials::basic("John Doe", "Agent1234").unwrap());
                 proxy
-            });*/
+            });
 
-        let addresses = get_http_proxies()
+        /*let addresses = get_http_proxies()
             .await
             .unwrap();
         let proxies_iter = addresses
@@ -277,7 +277,7 @@ async fn async_main(){
                 // proxy.set_authorization(Credentials::bearer(Token68::new("").unwrap()));
                 // proxy.set_authorization(Credentials::basic("John Doe", "Agent1234").unwrap());
                 proxy
-            });
+            });*/
 
         let connector: HttpConnector<GaiResolver> = HttpConnector::new();
         let mut proxy_connector = ProxyConnector::new(connector).unwrap();

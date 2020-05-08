@@ -11,7 +11,9 @@ INSTALL_CLI: BUILD_CLI_RELEASE
 	cp -r ./target/release/currencies_request_cli /usr/local/bin/currencies_request
 
 RUN_BOT:
-	cargo run --bin telegram_bot
+	while true ; do \
+	cargo run --bin telegram_bot; \
+	done;
 
 UPDATE_VERSIONS:
 	cargo update
