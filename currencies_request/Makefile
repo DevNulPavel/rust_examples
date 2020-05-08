@@ -7,7 +7,7 @@ BUILD_CLI:
 BUILD_CLI_RELEASE:
 	cargo build --bin currencies_request_cli --release
 
-INSTALL_CLI: BUILD_RELEASE
+INSTALL_CLI: BUILD_CLI_RELEASE
 	cp -r ./target/release/currencies_request_cli /usr/local/bin/currencies_request
 
 RUN_BOT:

@@ -1,20 +1,37 @@
 use std::env;
 
 use futures::StreamExt;
-use telegram_bot::*;
+use telegram_bot::{
+    Api,
+    UpdatesStream,
+    UpdateKind,
+    MessageKind,
+    Error,
+    CanReplySendMessage,
+    Update,
+};
 
-#[tokio::main]
+#[tokio::main(max_threads = 1)]
 async fn main() -> Result<(), Error> {
-    let token = env::var("TELEGRAM_TOKEN").expect("TELEGRAM_TOKEN not set");
+    let token: String = env::var("TELEGRAM_TOKEN").expect("TELEGRAM_TOKEN not set");
     println!("Token: {}", token);
 
-    let api = Api::new(token);
+    let api: Api = Api::new(token);
+
+    // tracing::subscriber::set_global_default(
+    //     tracing_subscriber::FmtSubscriber::builder()
+    //         .with_env_filter("telegram_bot=trace")
+    //         .finish(),
+    // )
+    // .unwrap();
 
     // Дергаем новые обновления через long poll метод
-    let mut stream = api.stream();
+    let mut stream: UpdatesStream = api.stream();
+
+    // Идем по новым событиям
     while let Some(update) = stream.next().await {
         // If the received update contains a new message...
-        let update = update?;
+        let update: Update = update?;
 
         println!("Update: {:?}", update);
 
