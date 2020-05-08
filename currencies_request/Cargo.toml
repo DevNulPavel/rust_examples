@@ -7,7 +7,8 @@ edition = "2018"
 # See more keys and their definitions at https://doc.rust-lang.org/cargo/reference/manifest.html
 
 [dependencies]
-reqwest = { version = "0.10.4", default-features = false, features=["json", "rustls-tls"] } # https://docs.rs/reqwest/0.10.4/reqwest/
+#reqwest = { version = "0.10.4", default-features = false, features=["json", "rustls-tls"] } # https://docs.rs/reqwest/0.10.4/reqwest/
+reqwest = { version = "0.10.4", features=["json"] } # https://docs.rs/reqwest/0.10.4/reqwest/
 futures = "0.3.4"
 prettytable-rs = "0.8.0"
 serde = { version = "1.0.106", features = ["derive"] }
@@ -15,10 +16,12 @@ serde_json = "1.0.52"
 dirs = "2.0.2"
 derive-new = "0.5.8"
 chrono = "0.4.11"
-telegram-bot = { version = "0.7.0", default-features = false, features=["rustls"]}
+#telegram-bot = { version = "0.7.0", default-features = false, features=["rustls"]}
+telegram-bot = "0.7.0"
 #telegram-bot-raw = "0.7.0"
 hyper = "0.13.5"
-hyper-proxy = { version = "0.6.0", default-features = false, features=["rustls"] }
+hyper-proxy = "0.6.0"
+#hyper-proxy = { version = "0.6.0", default-features = false, features=["rustls"] }
 typed-headers = "0.2.0"
 # telebot = "0.3.1"
 #scraper = "0.11.0"
