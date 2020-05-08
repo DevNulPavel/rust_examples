@@ -1,12 +1,16 @@
 use std::{
     env,
-    time::Duration
+    time::Duration,
+    //collections::HashMap
     //pin::Pin,
     //future::Future
 };
 use futures::{
     StreamExt,
     //FutureExt
+};
+use serde::{
+    Deserialize, 
 };
 use hyper_proxy::{
     Proxy, 
@@ -109,6 +113,112 @@ async fn process_currencies_command(api: &Api, message: &Message) -> Result<(), 
     Ok(())
 }
 
+async fn check_proxy_addr<S>(addr: S) -> Option<S>
+where S: std::fmt::Display + std::string::ToString // addr_str
+{
+    // TODO: копирование
+    let addr_str: String = addr.to_string();
+    let proxy = reqwest::Proxy::all(&addr_str).unwrap();
+    let client: Client = reqwest::ClientBuilder::new()
+        .proxy(proxy)
+        .timeout(Duration::from_secs(5))
+        .connect_timeout(Duration::from_secs(5))
+        .build()
+        .unwrap();
+    let req = client.get("https://api.telegram.org")
+        .build()
+        .unwrap();
+    let res = client.execute(req).await;
+    
+    //println!("Result: {:?}", res);
+
+    if res.is_ok() {
+        println!("Valid addr: {}", addr);
+        Some(addr)
+    }else{
+        println!("Invalid addr: {}", addr);
+        None
+    }
+}
+
+/*async fn check_proxy_addr(addr: String) -> Option<String>
+{
+    let proxy = reqwest::Proxy::all(addr.as_str()).unwrap();
+    let client: Client = reqwest::ClientBuilder::new()
+        .proxy(proxy)
+        .timeout(Duration::from_secs(5))
+        .connect_timeout(Duration::from_secs(5))
+        .build()
+        .unwrap();
+    let req = client.get("https://api.telegram.org")
+        .build()
+        .unwrap();
+    let res = client.execute(req).await;
+    
+    //println!("Result: {:?}", res);
+
+    if res.is_ok() {
+        println!("Valid addr: {}", addr);
+        Some(addr)
+    }else{
+        println!("Invalid addr: {}", addr);
+        None
+    }
+}*/
+
+#[derive(Deserialize, Debug)]
+struct ProxyInfo{
+    #[serde(rename(deserialize = "ipPort"))]
+    addr: String,
+}
+
+#[derive(Deserialize, Debug)]
+struct ProxyResponse{
+    data: Vec<ProxyInfo>,
+    count: i32
+}
+
+async fn get_http_proxies() -> Result<Vec<String>, reqwest::Error>{
+    let valid_addresses = loop {
+        let result: ProxyResponse  = reqwest::get("http://pubproxy.com/api/proxy?type=http&limit=5?level=anonymous?post=true") // ?not_country=RU,BY,UA
+            .await?
+            .json()
+            .await?;
+
+        //println!("{:?}", result);
+        let http_addresses_array: Vec<String> = result
+            .data
+            .into_iter()
+            .map(|info|{
+                format!("http://{}", info.addr)
+            })
+            .collect();
+
+        let check_futures_iter = http_addresses_array
+            .into_iter()
+            .map(|addr|{
+                check_proxy_addr(addr)
+            });
+        let check_results = futures::future::join_all(check_futures_iter).await;
+        
+        let valid_address: Vec<String> = check_results
+            .into_iter()
+            .filter_map(|addr_option|{
+                addr_option
+            })
+            // .map(|addr|{
+            //     addr
+            // })
+            .collect();
+
+        if valid_address.len() > 0 {
+            break valid_address;
+        }
+    };
+
+    Ok(valid_addresses)
+}
+
 async fn async_main(){
     // TODO: 
     // - добавить пример работы с прокси в библиотеку
@@ -119,21 +229,48 @@ async fn async_main(){
         // https://www.firexproxy.com/
         // http://free-proxy.cz/ru/
         // http://spys.one/proxylist/
-        
-        const PROXIES: &[&str] = &[
-            // "http://174.138.42.112:8080",
-            // "http://52.179.231.206:80",
-            // "http://82.119.170.106:8080",
-            // "http://80.187.140.26:8080",
+        // https://free-proxy-list.net/
+        // http://pubproxy.com/
+        // http://pubproxy.com/api/proxy?type=http
+        // http://pubproxy.com/api/proxy?type=http&limit=5
+       
+        /*const PROXIES: &[&str] = &[
+            "http://174.138.42.112:8080",
+            "http://52.179.231.206:80",
+            "http://80.187.140.26:8080",
             "http://95.179.167.232:8080",
-            // "http://95.179.130.83:8080",
-            // "http://82.119.170.106:8080",
+            "http://95.179.130.83:8080",
+            "http://82.119.170.106:8080",
             "http://54.37.131.45:3128",
             "http://51.158.68.68:8811",
             "http://51.91.212.159:3128",
             "http://95.179.130.83:8080",
         ];
-        let proxies_iter = PROXIES.iter()
+
+        let check_futures_iter = PROXIES
+            .iter()
+            .map(|addr|{
+                check_proxy_addr(addr)
+            });
+        let check_results = futures::future::join_all(check_futures_iter).await;
+
+        let proxies_iter = check_results.into_iter()
+            .filter_map(|addr_option|{
+                addr_option
+            })
+            .map(|addr|{
+                let proxy_uri: Uri = addr.parse().unwrap();
+                let proxy: Proxy = Proxy::new(Intercept::All, proxy_uri);
+                // proxy.set_authorization(Credentials::bearer(Token68::new("").unwrap()));
+                // proxy.set_authorization(Credentials::basic("John Doe", "Agent1234").unwrap());
+                proxy
+            });*/
+
+        let addresses = get_http_proxies()
+            .await
+            .unwrap();
+        let proxies_iter = addresses
+            .into_iter()
             .map(|addr|{
                 let proxy_uri: Uri = addr.parse().unwrap();
                 let proxy: Proxy = Proxy::new(Intercept::All, proxy_uri);
@@ -143,10 +280,13 @@ async fn async_main(){
             });
 
         let connector: HttpConnector<GaiResolver> = HttpConnector::new();
-
         let mut proxy_connector = ProxyConnector::new(connector).unwrap();
         proxy_connector.extend_proxies(proxies_iter);
-        
+
+        if proxy_connector.proxies().is_empty() {
+            panic!("No valid proxies");
+        }
+
         let client = hyper::Client::builder()
             .build(proxy_connector);
 

@@ -9,7 +9,6 @@ use reqwest::{
 };
 use serde::{
     Deserialize, 
-    Serialize
 };
 use crate::{
     errors::{
