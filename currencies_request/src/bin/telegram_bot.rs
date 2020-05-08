@@ -1,16 +1,20 @@
 use std::{
     env,
+    time::Duration
     //pin::Pin,
     //future::Future
 };
-use futures::StreamExt;
+use futures::{
+    StreamExt,
+    FutureExt
+};
 use hyper_proxy::{
     Proxy, 
     ProxyConnector, 
     Intercept
 };
 use hyper::{
-    Client, 
+    //Client, 
     //Request, 
     Uri,
     client::{
@@ -23,16 +27,94 @@ use hyper::{
 //     Token68
 // };
 use telegram_bot::{
+    prelude::*,
     connector::Connector,
     connector::hyper::HyperConnector,
     Api,
     UpdatesStream,
     UpdateKind,
     MessageKind,
+    MessageEntityKind,
     Error,
     CanReplySendMessage,
     Update,
+    Message,
+    MessageChat,
+    CanSendMessage
 };
+use reqwest::{
+    Client,
+    ClientBuilder,
+};
+use currencies_request::{
+    CurrencyError,
+    CurrencyResult,
+    CurrencyChange,
+    get_currencies_from_alpha,
+    get_currencies_from_central,
+    get_currencies_from_sber
+};
+
+async fn process_currencies_command(api: &Api, message: &Message, data: &String) -> Result<(), Error> {
+    // Создаем клиента для запроса
+    let client: Client = ClientBuilder::new()
+        .connect_timeout(Duration::from_secs(3))
+        .timeout(Duration::from_secs(3))
+        .build()
+        .unwrap();
+
+    // TODO: Посмотреть оборачивание в box + pin
+    // TODO: Избавиться от vec?
+    // https://users.rust-lang.org/t/expected-opaque-type-found-a-different-opaque-type-when-trying-futures-join-all/40596
+    // https://users.rust-lang.org/t/expected-opaque-type-found-a-different-opaque-type-when-trying-futures-join-all/40596/5
+    let futures_array = vec![
+        get_currencies_from_central(&client, "Central").boxed(),
+        get_currencies_from_alpha(&client, "Alpha-Bank").boxed(),
+        get_currencies_from_sber(&client, "Sber").boxed()
+    ];
+    let joined_futures = futures::future::join_all(futures_array);
+
+    let mut text = String::new();
+
+    // Выводим текст, используем into_iter для потребляющего итератора
+    for info in joined_futures.await {
+        let info: Result<CurrencyResult, CurrencyError> = info;
+        match info {
+            Ok(info) =>{
+                let info: CurrencyResult = info;
+
+                let time_str: String = match info.update_time {
+                    Some(time) => time.format("%H:%M:%S %Y-%m-%d").to_string(),
+                    None => "No time".into()
+                };
+
+                let bank_text = format!("{} ({}):\nUSD: buy = {}, sell = {}\nEUR: buy = {}, sell = {}\n\n",
+                        info.bank_name,
+                        time_str,
+                        info.usd.buy,
+                        info.usd.sell,
+                        info.eur.buy,
+                        info.eur.sell
+                    );
+                
+                text.push_str(bank_text.as_str())
+            },
+            Err(_e) => {
+                // TODO: Вывод ошибок
+                /*let row = Row::new(vec![
+                    Cell::new(format!("{:?}", e).as_str()),
+                ]);
+                table.add_row(row);*/
+                println!("{:?}", _e);
+            }
+        }
+    }
+
+    let private_messaage = message.from.text(text);    
+    api.send(private_messaage).await?;
+
+    Ok(())
+}
 
 #[tokio::main(max_threads = 1)]
 async fn main() -> Result<(), Error> {
@@ -63,7 +145,7 @@ async fn main() -> Result<(), Error> {
         let mut proxy_connector = ProxyConnector::new(connector).unwrap();
         proxy_connector.extend_proxies(proxies_iter);
         
-        let client = Client::builder()
+        let client = hyper::Client::builder()
             .build(proxy_connector);
 
         Box::new(HyperConnector::new(client))
@@ -97,18 +179,21 @@ async fn main() -> Result<(), Error> {
 
         match update.kind {
             // Тип обновления - сообщение
-            UpdateKind::Message(message) => {
+            UpdateKind::Message(ref message) => {
                 match message.kind {
                     // Сообщение с текстом, ref нужен для получения ссылки на data из message, вместо переноса владения 
-                    MessageKind::Text{ ref data, .. } =>  {
-                        // Полученное сообщение
-                        println!("<{}>: {}", &message.from.first_name, data);
-                        
-                        let text = format!("Hi, {}! You just wrote '{}'", &message.from.first_name, data);
-                        let reply = message.text_reply(text);
-
-                        // Answer message with "Hi".
-                        api.send(reply).await?;
+                    MessageKind::Text{ ref data, ref entities } =>  {
+                        for command in entities {
+                            match command.kind {
+                                MessageEntityKind::BotCommand => {
+                                    if data.starts_with("/currencies") {
+                                        process_currencies_command(&api, message, data).await?;
+                                    }
+                                },
+                                _ => {
+                                }
+                            }
+                        }
                     },
                     _ => {
 
