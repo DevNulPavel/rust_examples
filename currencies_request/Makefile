@@ -20,3 +20,14 @@ BACKUP_KEYS:
 	mkdir -p backup/ && \
 	rm -f backup/*  && \
 	zip -er backup/scripts.zip ./scripts/
+
+BUILD_AND_INSTALL_ON_PI:
+	# rustup target add arm-unknown-linux-gnueabihf
+	cargo build --release --bin telegram_bot --target=arm-unknown-linux-gnueabihf
+	scp target/arm-unknown-linux-gnueabihf/release/telegram_bot ~/bin/telegram_bot
+
+TREE:
+	# https://github.com/sfackler/cargo-tree
+	# https://github.com/seanmonstar/reqwest/issues/571
+	# cargo install cargo-tree
+	cargo tree -i -p native-tls
