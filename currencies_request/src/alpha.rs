@@ -30,7 +30,7 @@ use crate::{
 use derive_new::new;
 
 
-#[derive(Serialize, Deserialize, Debug)]
+#[derive(Deserialize, Debug)]
 struct AlphaCurrency{
     #[serde(rename(serialize = "type", deserialize = "type"))] // https://serde.rs/field-attrs.html
     type_val: String,

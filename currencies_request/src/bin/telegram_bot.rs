@@ -6,7 +6,7 @@ use std::{
 };
 use futures::{
     StreamExt,
-    FutureExt
+    //FutureExt
 };
 use hyper_proxy::{
     Proxy, 
@@ -27,7 +27,7 @@ use hyper::{
 //     Token68
 // };
 use telegram_bot::{
-    prelude::*,
+    //prelude::*,
     connector::Connector,
     connector::hyper::HyperConnector,
     Api,
@@ -36,11 +36,17 @@ use telegram_bot::{
     MessageKind,
     MessageEntityKind,
     Error,
-    CanReplySendMessage,
+    //CanReplySendMessage,
     Update,
     Message,
-    MessageChat,
+    //MessageChat,
     CanSendMessage
+};
+use tokio::{
+    runtime::{
+        Builder,
+        Runtime
+    }
 };
 use reqwest::{
     Client,
@@ -49,13 +55,11 @@ use reqwest::{
 use currencies_request::{
     CurrencyError,
     CurrencyResult,
-    CurrencyChange,
-    get_currencies_from_alpha,
-    get_currencies_from_central,
-    get_currencies_from_sber
+    //CurrencyChange,
+    get_all_currencies
 };
 
-async fn process_currencies_command(api: &Api, message: &Message, data: &String) -> Result<(), Error> {
+async fn process_currencies_command(api: &Api, message: &Message) -> Result<(), Error> {
     // Создаем клиента для запроса
     let client: Client = ClientBuilder::new()
         .connect_timeout(Duration::from_secs(3))
@@ -63,21 +67,10 @@ async fn process_currencies_command(api: &Api, message: &Message, data: &String)
         .build()
         .unwrap();
 
-    // TODO: Посмотреть оборачивание в box + pin
-    // TODO: Избавиться от vec?
-    // https://users.rust-lang.org/t/expected-opaque-type-found-a-different-opaque-type-when-trying-futures-join-all/40596
-    // https://users.rust-lang.org/t/expected-opaque-type-found-a-different-opaque-type-when-trying-futures-join-all/40596/5
-    let futures_array = vec![
-        get_currencies_from_central(&client, "Central").boxed(),
-        get_currencies_from_alpha(&client, "Alpha-Bank").boxed(),
-        get_currencies_from_sber(&client, "Sber").boxed()
-    ];
-    let joined_futures = futures::future::join_all(futures_array);
-
     let mut text = String::new();
 
     // Выводим текст, используем into_iter для потребляющего итератора
-    for info in joined_futures.await {
+    for info in get_all_currencies(&client).await {
         let info: Result<CurrencyResult, CurrencyError> = info;
         match info {
             Ok(info) =>{
@@ -116,20 +109,28 @@ async fn process_currencies_command(api: &Api, message: &Message, data: &String)
     Ok(())
 }
 
-#[tokio::main(max_threads = 1)]
-async fn main() -> Result<(), Error> {
+async fn async_main(){
     // TODO: 
     // - добавить пример работы с прокси в библиотеку
-    // - проверять доступность нескольких проксей
+    // - проверять доступность нескольких проксей, добавлять только доступные
 
     let proxy: Box<dyn Connector> = {
         // https://www.firexproxy.com/
+        // http://free-proxy.cz/ru/
+        // http://spys.one/proxylist/
         
-        const PROXIES: [&str; 4] = [
+        const PROXIES: &[&str] = &[
+            // "http://174.138.42.112:8080",
+            // "http://52.179.231.206:80",
+            // "http://82.119.170.106:8080",
+            // "http://80.187.140.26:8080",
             "http://95.179.167.232:8080",
+            // "http://95.179.130.83:8080",
+            // "http://82.119.170.106:8080",
+            "http://54.37.131.45:3128",
+            "http://51.158.68.68:8811",
+            "http://51.91.212.159:3128",
             "http://95.179.130.83:8080",
-            "http://82.119.170.106:8080",
-            "http://54.37.131.45:3128"
         ];
         let proxies_iter = PROXIES.iter()
             .map(|addr|{
@@ -174,8 +175,8 @@ async fn main() -> Result<(), Error> {
     // Идем по новым событиям
     while let Some(update) = stream.next().await {
         // Получаем новое обновление
-        let update: Update = update?;
-        //println!("Update: {:?}", update);
+        let update: Update = update.unwrap();
+        println!("Update: {:?}\n", update);
 
         match update.kind {
             // Тип обновления - сообщение
@@ -187,7 +188,7 @@ async fn main() -> Result<(), Error> {
                             match command.kind {
                                 MessageEntityKind::BotCommand => {
                                     if data.starts_with("/currencies") {
-                                        process_currencies_command(&api, message, data).await?;
+                                        process_currencies_command(&api, message).await.unwrap();
                                     }
                                 },
                                 _ => {
@@ -207,5 +208,15 @@ async fn main() -> Result<(), Error> {
             }
         }
     }
-    Ok(())
+}
+
+fn main() {
+    // Создаем однопоточный рантайм, здесь нет нужды в многопоточном
+    let mut runtime: Runtime = Builder::new()
+        .basic_scheduler()
+        .enable_all()
+        .build()
+        .unwrap();
+    
+    runtime.block_on(async_main());
 }
