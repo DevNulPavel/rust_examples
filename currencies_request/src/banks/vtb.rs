@@ -2,14 +2,14 @@ use std::{
     //time::Duration,
     collections::HashMap,
 };
-use chrono::prelude::*;
+// use chrono::prelude::*;
 use reqwest::{
     Client,
     //ClientBuilder,
 };
 use serde::{
     Deserialize, 
-    Serialize
+    // Serialize
 };
 use crate::{
     errors::{
@@ -19,13 +19,13 @@ use crate::{
     },
     types::{
         CurrencyResult,
-        CurrencyValue,
-        CurrencyChange,
-        CurrencyType::{
-            self,
-            EUR,
-            USD
-        },
+        // CurrencyValue,
+        // CurrencyChange,
+        // CurrencyType::{
+        //     self,
+        //     EUR,
+        //     USD
+        // },
     }
 };
 //use derive_new::new;

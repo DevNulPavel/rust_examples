@@ -1,12 +1,8 @@
 #![warn(clippy::all)]
 
-mod constants;
 mod errors;
 mod types;
-mod alpha;
-mod sber;
-mod vtb;
-mod central;
+mod banks;
 
 //use std::pin::Pin;
 use reqwest::Client;
@@ -16,14 +12,15 @@ use futures::future::{
     //JoinAll
 };
 use crate::{
-    alpha::get_currencies_from_alpha,
-    central::get_currencies_from_central,
-    sber::get_currencies_from_sber,
-    vtb::get_currencies_from_vtb
+    banks::{
+        get_currencies_from_alpha,
+        get_currencies_from_central,
+        get_currencies_from_sber,
+        get_currencies_from_vtb
+    }
 };
 
 pub use crate::{
-    constants::PROXIES,
     errors::CurrencyError,
     types::{
         CurrencyResult,

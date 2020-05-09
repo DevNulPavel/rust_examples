@@ -1,3 +1,5 @@
+mod constants;
+
 use std::{
     env,
     time::Duration,
@@ -65,11 +67,13 @@ use reqwest::{
     ClientBuilder,
 };
 use currencies_request::{
-    PROXIES,
     CurrencyError,
     CurrencyResult,
     //CurrencyChange,
     get_all_currencies
+};
+use self::{
+    constants::PROXIES
 };
 
 async fn process_currencies_command(client: &Client, api: &Api, message: &Message) -> Result<(), Error> {
