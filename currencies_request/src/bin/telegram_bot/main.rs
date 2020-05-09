@@ -1,62 +1,36 @@
 mod constants;
+mod proxy;
+mod currency;
+mod app_context;
+mod bot_context;
 
 use std::{
     env,
     time::Duration,
-    collections::HashSet
+    //collections::HashSet
     //collections::HashMap
     //pin::Pin,
     //future::Future
 };
 use futures::{
-    stream::FuturesUnordered,
-    //Stream,
     StreamExt,
-    //FutureExt
 };
-use serde::{
-    Deserialize, 
-};
-use hyper_proxy::{
-    Proxy, 
-    ProxyConnector, 
-    Intercept
-};
-use hyper::{
-    //Client, 
-    //Request, 
-    Uri,
-    client::{
-        HttpConnector,
-        connect::dns::GaiResolver
-    }
-};
-// use typed_headers::{
-//     Credentials,
-//     Token68
-// };
 use telegram_bot::{
     //prelude::*,
     connector::Connector,
-    connector::hyper::HyperConnector,
     Api,
     UpdatesStream,
     UpdateKind,
     MessageKind,
     MessageEntityKind,
-    Error,
+    //Error,
     //CanReplySendMessage,
     Update,
     Message,
     //MessageChat,
-    CanSendMessage,
-
+    //CanSendMessage,
 };
 use tokio::{
-    sync::{
-        Semaphore,
-        //SemaphorePermit
-    },
     runtime::{
         Builder,
         Runtime
@@ -66,250 +40,38 @@ use reqwest::{
     Client,
     ClientBuilder,
 };
-use currencies_request::{
-    CurrencyError,
-    CurrencyResult,
-    //CurrencyChange,
-    get_all_currencies
+use crate::{
+    constants::PROXIES,
+    app_context::AppContext,
+    bot_context::BotContext,
+    proxy::{
+        get_valid_proxy_addresses,
+        build_proxy_for_addresses,
+        check_all_proxy_addresses_accessible
+    },
+    currency::{
+        CurrencyUsersStorrage,
+        check_currencies_update,
+        process_currencies_command
+    }
 };
-use self::{
-    constants::PROXIES
-};
 
-async fn process_currencies_command(client: &Client, api: &Api, message: &Message) -> Result<(), Error> {
-    let mut text = String::new();
-
-    // Выводим текст, используем into_iter для потребляющего итератора
-    for info in get_all_currencies(&client).await {
-        let info: Result<CurrencyResult, CurrencyError> = info;
-        match info {
-            Ok(info) =>{
-                let info: CurrencyResult = info;
-
-                let time_str: String = match info.update_time {
-                    Some(time) => time.format("%H:%M:%S %Y-%m-%d").to_string(),
-                    None => "No time".into()
-                };
-
-                let bank_text = format!("{} ({}):\nUSD: buy = {}, sell = {}\nEUR: buy = {}, sell = {}\n\n",
-                        info.bank_name,
-                        time_str,
-                        info.usd.buy,
-                        info.usd.sell,
-                        info.eur.buy,
-                        info.eur.sell
-                    );
-                
-                text.push_str(bank_text.as_str())
-            },
-            Err(_e) => {
-                // TODO: Вывод ошибок
-                /*let row = Row::new(vec![
-                    Cell::new(format!("{:?}", e).as_str()),
-                ]);
-                table.add_row(row);*/
-                println!("{:?}", _e);
-            }
-        }
-    }
-
-    let private_messaage = message.from.text(text);
-    api.send(private_messaage).await?;
-
-    Ok(())
-}
-
-async fn check_proxy_addr<S>(addr: S) -> Option<S>
-where S: std::fmt::Display + std::string::ToString // addr_str
-{
-    // TODO: копирование
-    let addr_str: String = addr.to_string();
-    let proxy = reqwest::Proxy::all(&addr_str).unwrap();
-    let client: Client = reqwest::ClientBuilder::new()
-        .proxy(proxy)
-        .timeout(Duration::from_secs(5))
-        .connect_timeout(Duration::from_secs(5))
-        .build()
-        .unwrap();
-    let req = client.get("https://api.telegram.org")
-        .build()
-        .unwrap();
-    let res = client.execute(req).await;
-    
-    //println!("Result: {:?}", res);
-
-    if res.is_ok() {
-        println!("Valid addr: {}", addr);
-        Some(addr)
-    }else{
-        println!("Invalid addr: {}", addr);
-        None
-    }
-}
-
-/*async fn check_proxy_addr(addr: String) -> Option<String>
-{
-    let proxy = reqwest::Proxy::all(addr.as_str()).unwrap();
-    let client: Client = reqwest::ClientBuilder::new()
-        .proxy(proxy)
-        .timeout(Duration::from_secs(5))
-        .connect_timeout(Duration::from_secs(5))
-        .build()
-        .unwrap();
-    let req = client.get("https://api.telegram.org")
-        .build()
-        .unwrap();
-    let res = client.execute(req).await;
-    
-    //println!("Result: {:?}", res);
-
-    if res.is_ok() {
-        println!("Valid addr: {}", addr);
-        Some(addr)
-    }else{
-        println!("Invalid addr: {}", addr);
-        None
-    }
-}*/
-
-#[derive(Deserialize, Debug)]
-struct ProxyInfo{
-    #[serde(rename(deserialize = "ipPort"))]
-    addr: String,
-}
-
-#[derive(Deserialize, Debug)]
-struct ProxyResponse{
-    data: Vec<ProxyInfo>,
-    count: i32
-}
-
-/*async fn get_http_proxies() -> Result<Vec<String>, reqwest::Error>{
-    let valid_addresses = loop {
-        let result: ProxyResponse  = reqwest::get("http://pubproxy.com/api/proxy?type=http&limit=5?level=anonymous?post=true") // ?not_country=RU,BY,UA
-            .await?
-            .json()
-            .await?;
-
-        //println!("{:?}", result);
-        let http_addresses_array: Vec<String> = result
-            .data
-            .into_iter()
-            .map(|info|{
-                format!("http://{}", info.addr)
-            })
-            .collect();
-
-        let check_futures_iter = http_addresses_array
-            .into_iter()
-            .map(|addr|{
-                check_proxy_addr(addr)
-            });
-        let check_results = futures::future::join_all(check_futures_iter).await;
-        
-        let valid_address: Vec<String> = check_results
-            .into_iter()
-            .filter_map(|addr_option|{
-                addr_option
-            })
-            // .map(|addr|{
-            //     addr
-            // })
-            .collect();
-
-        if valid_address.len() > 0 {
-            break valid_address;
-        }
-    };
-
-    Ok(valid_addresses)
-}*/
-
-
-async fn get_valid_proxy_addresses<'a>(all_proxies: &[&'a str]) -> Option<Vec<&'a str>>{
-    let semaphore = Semaphore::new(32);
-
-    // Оптимальное хранилище для большого количества футур
-    let check_futures_container: FuturesUnordered<_> = all_proxies
-        .into_iter()
-        .zip(std::iter::repeat(&semaphore))
-        .map(|(addr, sem)| async move {
-            // Ограничение максимального количества обработок
-            let _lock = sem.acquire();
-            let result = check_proxy_addr(*addr).await;
-            result
-        })
-        .collect();
-    
-    // futures::pin_mut!(proxy_stream);
-
-    // Получаем из стрима 10 валидных адресов проксей
-    let valid_proxy_addresses: Vec<&str> = check_futures_container
-        .filter_map(|addr_option| async move {
-            addr_option
-        })
-        .take(10)
-        .collect()
-        .await;
-    
-    if !valid_proxy_addresses.is_empty(){
-        Some(valid_proxy_addresses)
-    }else{
-        None
-    }
-}
-
-async fn check_all_proxy_addresses_accessible<'a>(proxies: &[&'a str]) -> bool {
-    let all_futures_iter = proxies
-        .iter()
-        .map(|addr|{
-            check_proxy_addr(addr)
-        });
-    let result = futures::future::join_all(all_futures_iter).await;
-    result
-        .iter()
-        .all(|res|{
-            res.is_some()
-        })
-}
-
-fn build_proxy_for_addresses(valid_proxy_addresses: &[&str]) -> Box<dyn Connector> {
-    let proxy_iter = valid_proxy_addresses
-        .iter()
-        .map(|addr| {
-            let proxy_uri: Uri = addr.parse().unwrap();
-            let proxy: Proxy = Proxy::new(Intercept::All, proxy_uri);
-            // proxy.set_authorization(Credentials::bearer(Token68::new("").unwrap()));
-            // proxy.set_authorization(Credentials::basic("John Doe", "Agent1234").unwrap());
-            proxy
-        });
-
-    let connector: HttpConnector<GaiResolver> = HttpConnector::new();
-    let mut proxy_connector = ProxyConnector::new(connector).unwrap();
-    proxy_connector.extend_proxies(proxy_iter);
-
-    let client = hyper::Client::builder()
-        .build(proxy_connector);
-
-    Box::new(HyperConnector::new(client))
-}
-
-async fn process_bot_command(client: &Client, api: &Api, data: &String, message: &Message, users_for_push: &mut HashSet<telegram_bot::UserId>){
+async fn process_bot_command(bot_context: &mut BotContext, data: &String, message: &Message){
     // TODO: match
     if data.eq("/currencies") {
-        process_currencies_command(client, api, message).await.unwrap();
+        process_currencies_command(bot_context, message).await.unwrap();
     }
     if data.eq("/currencies_monitoring_on") {
         println!("Start monitoring for: {:?}", message.from);
-        users_for_push.insert(message.from.id.clone());
+        (*bot_context).users_for_push.add_user(&message.from.id);
     }
     if data.eq("/currencies_monitoring_off") {
         println!("Stop monitoring for: {:?}", message.from);
-        users_for_push.remove(&message.from.id);
+        (*bot_context).users_for_push.remove_user(&message.from.id);
     }
 }
 
-async fn process_update(client: &Client, api: &Api, update: Update, users_for_push: &mut HashSet<telegram_bot::UserId>){
+async fn process_update(bot_context: &mut BotContext, update: Update){
     match update.kind {
         // Тип обновления - сообщение
         UpdateKind::Message(ref message) => {
@@ -319,7 +81,7 @@ async fn process_update(client: &Client, api: &Api, update: Update, users_for_pu
                     for command in entities {
                         match command.kind {
                             MessageEntityKind::BotCommand => {
-                                process_bot_command(client, api, data, message, users_for_push).await;
+                                process_bot_command(bot_context, data, message).await;
                             },
                             _ => {
                             }
@@ -336,20 +98,6 @@ async fn process_update(client: &Client, api: &Api, update: Update, users_for_pu
         _ => {
     
         }
-    }
-}
-
-async fn check_currencies_update(client :&Client, api: &Api, users_for_push: &HashSet<telegram_bot::UserId>) {
-    //let currencies_info = get_all_currencies(client).await;
-    //println!("{:?}", api.send(telegram_bot::types::requests::GetMe).await);
-    //println!("{:?}", api.send(telegram_bot::types::requests::GetChat::new()).await);
-    //println!("{:?}", api.send(telegram_bot::types::requests::GetChatMember::n).await);
-    //println!("{:?}", api.send(telegram_bot::types::requests::Get).await);
-
-    for user in users_for_push{
-        //let chat = telegram_bot::MessageChat::Private(message.from.clone());
-        //let user = telegram_bot::UserId::new(871805190);
-        api.send(telegram_bot::types::requests::SendMessage::new(user, "Test")).await;
     }
 }
 
@@ -381,15 +129,21 @@ async fn async_main(){
         .build()
         .unwrap();
 
-    let mut users_for_push: HashSet<telegram_bot::UserId> = HashSet::new();
-
     // Таймер проверки проксей
     let mut proxy_check_timer = tokio::time::interval(Duration::from_secs(60*2));
     proxy_check_timer.tick().await; // Первый тик сбрасываем
 
     // Таймер проверки проксей
     let mut send_message_timer = tokio::time::interval(Duration::from_secs(5));
-    //proxy_check_timer.tick().await; // Первый тик сбрасываем
+    send_message_timer.tick().await; // Первый тик сбрасываем
+
+    let mut app_context = AppContext{
+        token,
+        proxy_check_timer,
+        send_message_timer,
+        client,
+        users_for_push: CurrencyUsersStorrage::new(), // Хранилище пользователей
+    };
 
     loop {
         // Получаем валидные адреса проксей
@@ -400,19 +154,19 @@ async fn async_main(){
         // Создаем прокси
         let proxy: Box<dyn Connector> = build_proxy_for_addresses(&valid_proxy_addresses);
 
-        // Подключаемся с использованием прокси
-        // let api: Api = Api::new(token);
-        let api: Api = Api::with_connector(token.clone(), proxy);
-
+        // Создаем хранилище данных бота
+        let token = app_context.token.clone();
+        let mut bot_context = BotContext::new(app_context, Api::with_connector(token, proxy)); // Подключаемся с использованием прокси
+            
         // Дергаем новые обновления через long poll метод
-        let mut stream: UpdatesStream = api.stream();
+        let mut stream: UpdatesStream = bot_context.api.stream();
 
         println!("Stream created\n");
 
         'select_loop: loop {
             tokio::select! {
                 // Таймер проверки проксей
-                _ = proxy_check_timer.tick() => {
+                _ = bot_context.app_context.proxy_check_timer.tick() => {
                     println!("Repeat proxy check");
                     let accessible = check_all_proxy_addresses_accessible(&valid_proxy_addresses).await;
                     if accessible {
@@ -424,8 +178,8 @@ async fn async_main(){
                 },
                 
                 // Таймер периодических сообщений
-                _ = send_message_timer.tick() => {
-                    check_currencies_update(&client, &api, &users_for_push).await;
+                _ = bot_context.app_context.send_message_timer.tick() => {
+                    check_currencies_update(&mut bot_context).await;
                 },
 
                 // Обработка обновлений
@@ -446,10 +200,13 @@ async fn async_main(){
                     println!("Update: {:?}\n", update);
 
                     // Обработка обновления
-                    process_update(&client, &api, update, &mut users_for_push).await;
+                    process_update(&mut bot_context, update).await;
                 }
             }
         }
+
+        // Возвращаем владение в переменные вне цикла
+        app_context = bot_context.into(); // bot_context.app_context;
 
         // Перед новым подключением - подождем немного
         tokio::time::delay_for(Duration::from_secs(15)).await;
