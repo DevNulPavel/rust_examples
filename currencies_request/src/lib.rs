@@ -1,5 +1,6 @@
 #![warn(clippy::all)]
 
+mod constants;
 mod errors;
 mod types;
 mod alpha;
@@ -22,6 +23,7 @@ use crate::{
 };
 
 pub use crate::{
+    constants::PROXIES,
     errors::CurrencyError,
     types::{
         CurrencyResult,
