@@ -1,6 +1,7 @@
 use std::{
     env,
     time::Duration,
+    collections::HashSet
     //collections::HashMap
     //pin::Pin,
     //future::Future
@@ -46,7 +47,8 @@ use telegram_bot::{
     Update,
     Message,
     //MessageChat,
-    CanSendMessage
+    CanSendMessage,
+
 };
 use tokio::{
     sync::{
@@ -70,14 +72,7 @@ use currencies_request::{
     get_all_currencies
 };
 
-async fn process_currencies_command(api: &Api, message: &Message) -> Result<(), Error> {
-    // Создаем клиента для запроса
-    let client: Client = ClientBuilder::new()
-        .connect_timeout(Duration::from_secs(3))
-        .timeout(Duration::from_secs(3))
-        .build()
-        .unwrap();
-
+async fn process_currencies_command(client: &Client, api: &Api, message: &Message) -> Result<(), Error> {
     let mut text = String::new();
 
     // Выводим текст, используем into_iter для потребляющего итератора
@@ -295,7 +290,22 @@ fn build_proxy_for_addresses(valid_proxy_addresses: &[&str]) -> Box<dyn Connecto
     Box::new(HyperConnector::new(client))
 }
 
-async fn process_update(api: &Api, update: Update){
+async fn process_bot_command(client: &Client, api: &Api, data: &String, message: &Message, users_for_push: &mut HashSet<telegram_bot::UserId>){
+    // TODO: match
+    if data.eq("/currencies") {
+        process_currencies_command(client, api, message).await.unwrap();
+    }
+    if data.eq("/currencies_monitoring_on") {
+        println!("Start monitoring for: {:?}", message.from);
+        users_for_push.insert(message.from.id.clone());
+    }
+    if data.eq("/currencies_monitoring_off") {
+        println!("Stop monitoring for: {:?}", message.from);
+        users_for_push.remove(&message.from.id);
+    }
+}
+
+async fn process_update(client: &Client, api: &Api, update: Update, users_for_push: &mut HashSet<telegram_bot::UserId>){
     match update.kind {
         // Тип обновления - сообщение
         UpdateKind::Message(ref message) => {
@@ -305,9 +315,7 @@ async fn process_update(api: &Api, update: Update){
                     for command in entities {
                         match command.kind {
                             MessageEntityKind::BotCommand => {
-                                if data.starts_with("/currencies") {
-                                    process_currencies_command(&api, message).await.unwrap();
-                                }
+                                process_bot_command(client, api, data, message, users_for_push).await;
                             },
                             _ => {
                             }
@@ -324,6 +332,20 @@ async fn process_update(api: &Api, update: Update){
         _ => {
     
         }
+    }
+}
+
+async fn check_currencies_update(client :&Client, api: &Api, users_for_push: &HashSet<telegram_bot::UserId>) {
+    //let currencies_info = get_all_currencies(client).await;
+    //println!("{:?}", api.send(telegram_bot::types::requests::GetMe).await);
+    //println!("{:?}", api.send(telegram_bot::types::requests::GetChat::new()).await);
+    //println!("{:?}", api.send(telegram_bot::types::requests::GetChatMember::n).await);
+    //println!("{:?}", api.send(telegram_bot::types::requests::Get).await);
+
+    for user in users_for_push{
+        //let chat = telegram_bot::MessageChat::Private(message.from.clone());
+        //let user = telegram_bot::UserId::new(871805190);
+        api.send(telegram_bot::types::requests::SendMessage::new(user, "Test")).await;
     }
 }
 
@@ -348,12 +370,21 @@ async fn async_main(){
     let token: String = env::var("TELEGRAM_TOKEN").expect("TELEGRAM_TOKEN not set");
     println!("Token: {}", token);
 
+    // Создаем клиента для запросов
+    let client: Client = ClientBuilder::new()
+        .connect_timeout(Duration::from_secs(3))
+        .timeout(Duration::from_secs(3))
+        .build()
+        .unwrap();
+
+    let mut users_for_push: HashSet<telegram_bot::UserId> = HashSet::new();
+
     // Таймер проверки проксей
     let mut proxy_check_timer = tokio::time::interval(Duration::from_secs(60*2));
     proxy_check_timer.tick().await; // Первый тик сбрасываем
 
     // Таймер проверки проксей
-    let mut send_message_timer = tokio::time::interval(Duration::from_secs(60*5));
+    let mut send_message_timer = tokio::time::interval(Duration::from_secs(5));
     //proxy_check_timer.tick().await; // Первый тик сбрасываем
 
     loop {
@@ -390,8 +421,7 @@ async fn async_main(){
                 
                 // Таймер периодических сообщений
                 _ = send_message_timer.tick() => {
-                    //let messaage = telegram_bot::;
-                    //api.send(messaage);
+                    check_currencies_update(&client, &api, &users_for_push).await;
                 },
 
                 // Обработка обновлений
@@ -412,7 +442,7 @@ async fn async_main(){
                     println!("Update: {:?}\n", update);
 
                     // Обработка обновления
-                    process_update(&api, update).await;
+                    process_update(&client, &api, update, &mut users_for_push).await;
                 }
             }
         }

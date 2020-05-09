@@ -35,6 +35,7 @@ pub use crate::{
 // type CurrenciesRequestReturnType = JoinAll<Pin<Box<CurrenciesRequestFutureType>>>;
 
 // TODO: Избавиться от vec?
+// использовать stream!
 pub async fn get_all_currencies(client: &Client) -> Vec<Result<CurrencyResult<'static>, CurrencyError>> {
     // TODO: Посмотреть оборачивание в box + pin
     // TODO: Избавиться от vec?
