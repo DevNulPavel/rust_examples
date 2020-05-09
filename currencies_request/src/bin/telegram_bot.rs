@@ -114,7 +114,7 @@ async fn process_currencies_command(api: &Api, message: &Message) -> Result<(), 
         }
     }
 
-    let private_messaage = message.from.text(text);    
+    let private_messaage = message.from.text(text);
     api.send(private_messaage).await?;
 
     Ok(())
@@ -349,8 +349,12 @@ async fn async_main(){
     println!("Token: {}", token);
 
     // Таймер проверки проксей
-    let mut timer = tokio::time::interval(Duration::from_secs(60*2));
-    timer.tick().await; // Первый тик сбрасываем
+    let mut proxy_check_timer = tokio::time::interval(Duration::from_secs(60*2));
+    proxy_check_timer.tick().await; // Первый тик сбрасываем
+
+    // Таймер проверки проксей
+    let mut send_message_timer = tokio::time::interval(Duration::from_secs(60*5));
+    //proxy_check_timer.tick().await; // Первый тик сбрасываем
 
     loop {
         // Получаем валидные адреса проксей
@@ -368,41 +372,49 @@ async fn async_main(){
         // Дергаем новые обновления через long poll метод
         let mut stream: UpdatesStream = api.stream();
 
-        loop{
-            let update = tokio::select! {
-                _ = timer.tick() => {
+        println!("Stream created\n");
+
+        'select_loop: loop {
+            tokio::select! {
+                // Таймер проверки проксей
+                _ = proxy_check_timer.tick() => {
                     println!("Repeat proxy check");
                     let accessible = check_all_proxy_addresses_accessible(&valid_proxy_addresses).await;
                     if accessible {
                         println!("All proxies are valid, continue");
-                        stream.next().await
                     }else{
                         println!("Some proxy is invalid, break");
-                        break;
+                        break 'select_loop;
                     }
                 },
-                update = stream.next() => {
-                    update
-                }
-            };
-
-            // Обновлений нету - выходим
-            let update = match update {
-                Some(update) => {
-                    update
+                
+                // Таймер периодических сообщений
+                _ = send_message_timer.tick() => {
+                    //let messaage = telegram_bot::;
+                    //api.send(messaage);
                 },
-                None =>{
-                    println!("No updates - break");
-                    break;
+
+                // Обработка обновлений
+                update = stream.next() => {
+                    // Обновлений нету - выходим
+                    let update = match update {
+                        Some(update) => {
+                            update
+                        },
+                        None =>{
+                            println!("No updates - break");
+                            break 'select_loop;
+                        }
+                    };
+
+                    // Получаем новое обновление, падая при ошибке
+                    let update: Update = update.unwrap();
+                    println!("Update: {:?}\n", update);
+
+                    // Обработка обновления
+                    process_update(&api, update).await;
                 }
-            };
-
-            // Получаем новое обновление, падая при ошибке
-            let update: Update = update.unwrap();
-            println!("Update: {:?}\n", update);
-
-            // Обработка обновления
-            process_update(&api, update).await;
+            }
         }
 
         // Перед новым подключением - подождем немного
