@@ -13,11 +13,13 @@ INSTALL_CLI: BUILD_CLI_RELEASE
 RUN_BOT:
 	while true ; do \
 	cargo run --bin telegram_bot; \
+	sleep 5;\
 	done;
 
 RUN_BOT_RELEASE:
 	while true ; do \
 	cargo run --release --bin telegram_bot; \
+	sleep 15;\
 	done;
 
 UPDATE_VERSIONS:
