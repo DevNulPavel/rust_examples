@@ -98,7 +98,7 @@ async fn async_main(){
                 let info: CurrencyResult = info;
 
                 let time_str: String = match info.update_time {
-                    Some(time) => time.format("%H:%M:%S %Y-%m-%d").to_string(),
+                    Some(time) => time.format("%H:%M %d-%m-%Y").to_string(),
                     None => "No time".into()
                 };
 

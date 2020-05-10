@@ -3,6 +3,7 @@ use std::{
     time::Duration,
 };
 use futures::{
+    //FutureExt,
     stream::FuturesUnordered,
     StreamExt,
 };
@@ -32,6 +33,15 @@ use reqwest::{
     Client,
     //ClientBuilder,
 };
+use serde::{
+    Deserialize
+};
+use crate::{
+    constants::{
+        PROXIES
+    }
+};
+
 
 async fn check_proxy_addr<S>(addr: S) -> Option<S>
     where S: std::fmt::Display + std::string::ToString {
@@ -86,7 +96,7 @@ async fn check_proxy_addr<S>(addr: S) -> Option<S>
     }
 }*/
 
-/*
+
 #[derive(Deserialize, Debug)]
 struct ProxyInfo{
     #[serde(rename(deserialize = "ipPort"))]
@@ -99,71 +109,99 @@ struct ProxyResponse{
     count: i32
 }
 
-async fn get_http_proxies() -> Result<Vec<String>, reqwest::Error>{
-    let valid_addresses = loop {
-        let result: ProxyResponse  = reqwest::get("http://pubproxy.com/api/proxy?type=http&limit=5?level=anonymous?post=true") // ?not_country=RU,BY,UA
-            .await?
-            .json()
-            .await?;
+async fn get_http_proxies_1() -> Result<Vec<String>, reqwest::Error>{
+    // ?not_country=RU,BY,UA
+    const URL: &str = "http://pubproxy.com/api/proxy?type=http&limit=5?level=anonymous?post=true";
+    let result: ProxyResponse  = reqwest::get(URL)
+        .await?
+        .json()
+        .await?;
 
-        //println!("{:?}", result);
-        let http_addresses_array: Vec<String> = result
-            .data
-            .into_iter()
-            .map(|info|{
-                format!("http://{}", info.addr)
-            })
-            .collect();
+    //println!("{:?}", result);
+    let http_addresses_array: Vec<String> = result
+        .data
+        .into_iter()
+        .map(|info|{
+            format!("http://{}", info.addr)
+        })
+        .collect();
 
-        let check_futures_iter = http_addresses_array
-            .into_iter()
-            .map(|addr|{
-                check_proxy_addr(addr)
-            });
-        let check_results = futures::future::join_all(check_futures_iter).await;
-        
-        let valid_address: Vec<String> = check_results
-            .into_iter()
-            .filter_map(|addr_option|{
-                addr_option
-            })
-            // .map(|addr|{
-            //     addr
-            // })
-            .collect();
+    Ok(http_addresses_array)
+}
 
-        if valid_address.len() > 0 {
-            break valid_address;
+/*fn build_http_proxies_stream<'a, F>(fut: std::pin::Pin<Box<F>>) -> tokio::sync::mpsc::Receiver<Option<String>> 
+    where F: std::future::Future<Output=Result<Vec<String>, reqwest::Error>> + Send + Sized + 'a
+{
+
+    let (mut tx, rx) = tokio::sync::mpsc::channel(32);
+    let f = *fut;
+    tokio::spawn(async move{
+        //let future = *fut;
+        //tokio::pin!(future);
+        let http_1_proxies_res = f.await;
+        if let Ok(http_1_proxies) = http_1_proxies_res {
+            println!("Http 1 proxies request resolved");
+            for addr in http_1_proxies {
+                let result: Option<String> = check_proxy_addr(addr.to_string()).await;
+                if tx.send(result).await.is_err(){
+                    println!("Http 1 proxies request exit");
+                    return;
+                }
+            }
         }
-    };
-
-    Ok(valid_addresses)
+        println!("Http 1 proxies request finished");
+    });
+    rx
 }*/
 
+fn build_http_1_proxies_stream() -> tokio::sync::mpsc::Receiver<Option<String>> {
+    let (mut tx, rx) = tokio::sync::mpsc::channel(32);
+    tokio::spawn(async move{
+        let http_1_proxies_res = get_http_proxies_1().await;
+        if let Ok(http_1_proxies) = http_1_proxies_res {
+            println!("Http 1 proxies request resolved");
+            for addr in http_1_proxies {
+                let result: Option<String> = check_proxy_addr(addr.to_string()).await;
+                if tx.send(result).await.is_err(){
+                    println!("Http 1 proxies request exit");
+                    return;
+                }
+            }
+        }
+        println!("Http 1 proxies request finished");
+    });
+    rx
+}
 
-pub async fn get_valid_proxy_addresses<'a>(all_proxies: &[&'a str]) -> Option<Vec<&'a str>>{
+pub async fn get_valid_proxy_addresses() -> Option<Vec<String>>{
     let semaphore = Semaphore::new(32);
 
-    // Оптимальное хранилище для большого количества футур
-    let check_futures_container: FuturesUnordered<_> = all_proxies
+    // Стрим из статически сохраненных проксей
+    let static_futures_stream: FuturesUnordered<_> = PROXIES
         .into_iter()
         .zip(std::iter::repeat(&semaphore))
         .map(|(addr, sem)| async move {
             // Ограничение максимального количества обработок
             let _lock = sem.acquire();
-            let result = check_proxy_addr(*addr).await;
+            let result: Option<String> = check_proxy_addr(addr.to_string()).await;
             result
         })
         .collect();
+
+    // TODO: Может как-то поможет пинирование
+    // Стрим из http адресов
+    //let fut = get_http_proxies_1().boxed();
+    //let http_1_proxies_stream: tokio::sync::mpsc::Receiver<Option<String>> = build_http_proxies_stream(fut);
+    let http_1_proxies_stream: tokio::sync::mpsc::Receiver<Option<String>> = build_http_1_proxies_stream();
     
     // futures::pin_mut!(proxy_stream);
 
     // Получаем из стрима 10 валидных адресов проксей
-    let valid_proxy_addresses: Vec<&str> = check_futures_container
+    let valid_proxy_addresses: Vec<String> = futures::stream::select(static_futures_stream, http_1_proxies_stream)
         .filter_map(|addr_option| async move {
             addr_option
         })
-        .take(10)
+        .take(3)
         .collect()
         .await;
     
@@ -174,7 +212,7 @@ pub async fn get_valid_proxy_addresses<'a>(all_proxies: &[&'a str]) -> Option<Ve
     }
 }
 
-pub async fn check_all_proxy_addresses_accessible<'a>(proxies: &[&'a str]) -> bool {
+pub async fn check_all_proxy_addresses_accessible(proxies: &[String]) -> bool {
     let all_futures_iter = proxies
         .iter()
         .map(|addr|{
@@ -188,7 +226,7 @@ pub async fn check_all_proxy_addresses_accessible<'a>(proxies: &[&'a str]) -> bo
         })
 }
 
-pub fn build_proxy_for_addresses(valid_proxy_addresses: &[&str]) -> Box<dyn Connector> {
+pub fn build_proxy_for_addresses(valid_proxy_addresses: &[String]) -> Box<dyn Connector> {
     let proxy_iter = valid_proxy_addresses
         .iter()
         .map(|addr| {

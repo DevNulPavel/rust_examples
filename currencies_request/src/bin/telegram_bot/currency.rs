@@ -5,19 +5,20 @@ use std::{
     //pin::Pin,
     //future::Future
 };
-use chrono::{
+// use chrono::{
     // Utc,
     // DateTime
-};
+// };
 use telegram_bot::{
     // Api,
     Error,
     Message,
     CanSendMessage,
+    ParseMode
 };
-use reqwest::{
-    Client,
-};
+// use reqwest::{
+    //Client,
+// };
 use currencies_request::{
     CurrencyError,
     CurrencyResult,
@@ -119,7 +120,7 @@ pub async fn check_currencies_update(bot_context: &mut BotContext) {
         }
     }else{
         for info in received.iter() {
-            updates.push(format!("{:?}\n", info));
+            updates.push(html_format_currency_result(info));
         }
         bot_context.currency_check_status = Some(CurrencyCheckStatus{
             minimum_values: received,
@@ -157,10 +158,34 @@ pub async fn check_currencies_update(bot_context: &mut BotContext) {
     for user in bot_context.app_context.users_for_push.iter_users() {
         //let chat = telegram_bot::MessageChat::Private(message.from.clone());
         //let user = telegram_bot::UserId::new(871805190);
-        bot_context.api.send(telegram_bot::types::requests::SendMessage::new(user, text))
+        bot_context.api.send(telegram_bot::types::requests::SendMessage::new(user, text)
+                                .parse_mode(ParseMode::Markdown))
             .await
             .ok();
     }
+}
+
+fn html_format_currency_result(info: &CurrencyResult) -> String{
+    let time_str: String = match info.update_time {
+        Some(time) => time.format("%H:%M %d-%m-%Y").to_string(),
+        None => "No time".into()
+    };
+
+    let bank_text = format!(   "*{} ({})*:\n\
+                                ```$: buy = {:.2} {}, sell = {:.2} {}\n\
+                                   €: buy = {:.2} {}, sell = {:.2} {}```\n",
+            info.bank_name,
+            time_str,
+            info.usd.buy,
+            info.usd.buy_change,
+            info.usd.sell,
+            info.usd.sell_change,
+            info.eur.buy,
+            info.eur.buy_change,
+            info.eur.sell,
+            info.eur.sell_change);
+
+    bank_text
 }
 
 pub async fn process_currencies_command(bot_context: &BotContext, message: &Message) -> Result<(), Error> {
@@ -173,19 +198,7 @@ pub async fn process_currencies_command(bot_context: &BotContext, message: &Mess
             Ok(info) =>{
                 let info: CurrencyResult = info;
 
-                let time_str: String = match info.update_time {
-                    Some(time) => time.format("%H:%M:%S %Y-%m-%d").to_string(),
-                    None => "No time".into()
-                };
-
-                let bank_text = format!("{} ({}):\nUSD: buy = {}, sell = {}\nEUR: buy = {}, sell = {}\n\n",
-                        info.bank_name,
-                        time_str,
-                        info.usd.buy,
-                        info.usd.sell,
-                        info.eur.buy,
-                        info.eur.sell
-                    );
+                let bank_text = html_format_currency_result(&info);
                 
                 text.push_str(bank_text.as_str())
             },
@@ -200,8 +213,8 @@ pub async fn process_currencies_command(bot_context: &BotContext, message: &Mess
         }
     }
 
-    let private_messaage = message.from.text(text);
-    bot_context.api.send(private_messaage).await?;
+    let mut private_messaage = message.from.text(text);
+    bot_context.api.send(private_messaage.parse_mode(ParseMode::Markdown)).await?;
 
     Ok(())
 }

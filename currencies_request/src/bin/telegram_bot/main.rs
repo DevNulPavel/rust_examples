@@ -25,6 +25,7 @@ use telegram_bot::{
     MessageEntityKind,
     //Error,
     //CanReplySendMessage,
+    CanSendMessage,
     Update,
     Message,
     //MessageChat,
@@ -41,7 +42,7 @@ use reqwest::{
     ClientBuilder,
 };
 use crate::{
-    constants::PROXIES,
+    // constants::PROXIES,
     app_context::AppContext,
     bot_context::BotContext,
     proxy::{
@@ -57,17 +58,30 @@ use crate::{
 };
 
 async fn process_bot_command(bot_context: &mut BotContext, data: &String, message: &Message){
+/*
+currencies - Receive currencies
+currencies_monitoring_on - Start monitoring
+currencies_monitoring_off - Stop monitoring
+habr - Habr news
+*/ 
+
     // TODO: match
+    if data.eq("/start") {
+    }
     if data.eq("/currencies") {
         process_currencies_command(bot_context, message).await.unwrap();
     }
     if data.eq("/currencies_monitoring_on") {
         println!("Start monitoring for: {:?}", message.from);
         (*bot_context).users_for_push.add_user(&message.from.id);
+        let private_messaage = message.from.text("Enabled");
+        bot_context.api.send(private_messaage).await.ok();
     }
     if data.eq("/currencies_monitoring_off") {
         println!("Stop monitoring for: {:?}", message.from);
         (*bot_context).users_for_push.remove_user(&message.from.id);
+        let private_messaage = message.from.text("Disabled");
+        bot_context.api.send(private_messaage).await.ok();
     }
 }
 
@@ -130,11 +144,11 @@ async fn async_main(){
         .unwrap();
 
     // Таймер проверки проксей
-    let mut proxy_check_timer = tokio::time::interval(Duration::from_secs(60*2));
+    let mut proxy_check_timer = tokio::time::interval(Duration::from_secs(60*5));
     proxy_check_timer.tick().await; // Первый тик сбрасываем
 
     // Таймер проверки проксей
-    let mut send_message_timer = tokio::time::interval(Duration::from_secs(5));
+    let mut send_message_timer = tokio::time::interval(Duration::from_secs(60*15));
     send_message_timer.tick().await; // Первый тик сбрасываем
 
     let mut app_context = AppContext{
@@ -147,7 +161,7 @@ async fn async_main(){
 
     loop {
         // Получаем валидные адреса проксей
-        let valid_proxy_addresses = get_valid_proxy_addresses(PROXIES)
+        let valid_proxy_addresses = get_valid_proxy_addresses()
             .await
             .expect("No valid proxies");
 
