@@ -1,0 +1,15 @@
+FROM ragnaroek/rust-raspberry:1.43.0
+# Install wget, openssl, libssl-dev, pkg-config
+RUN apt-get update && \
+    apt-get install -y wget openssl libssl-dev pkg-config curl
+# Set env variables
+ENV ARMV6_LINUX_GNUEABIHF_OPENSSL_LIB_DIR=/tmp/openssl-1.1.0h \
+    ARMV6_LINUX_GNUEABIHF_OPENSSL_INCLUDE_DIR=/tmp/openssl-1.1.0h/include
+# Download open-ssl from source and cross compiles it for arm7
+RUN cd /tmp && \
+    wget https://www.openssl.org/source/openssl-1.1.1g.tar.gz && \
+    tar xzf openssl-1.1.1g.tar.gz && \
+    export MACHINE=armv6 && \
+    export ARCH=arm && \
+    export CC=gcc && \
+    cd openssl-1.1.1g && ./config shared && make -j8

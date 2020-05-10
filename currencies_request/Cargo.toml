@@ -33,3 +33,6 @@ features = ["rt-core", "rt-util", "io-driver", "io-util", "net", "tcp", "time", 
 [dev-dependencies]
 tracing = "0.1.13" # TODO: в DevDependencies
 tracing-subscriber = "0.2.5" # TODO: в DevDependencies
+
+[target.arm-unknown-linux-gnueabihf]
+linker = "arm-linux-gnueabihf-gcc"
