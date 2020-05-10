@@ -1,7 +1,7 @@
 
 use std::{
-    collections::HashSet
-    //collections::HashMap
+    // collections::HashSet,
+    collections::HashMap
     //pin::Pin,
     //future::Future
 };
@@ -14,7 +14,8 @@ use telegram_bot::{
     Error,
     Message,
     CanSendMessage,
-    ParseMode
+    ParseMode,
+    UserId
 };
 // use reqwest::{
     //Client,
@@ -33,27 +34,29 @@ use crate::{
 
 
 pub struct CurrencyUsersStorrage{
-    users_for_push: HashSet<telegram_bot::UserId>
+    users_for_push: HashMap<UserId, CurrencyCheckStatus>
 }
 
 impl CurrencyUsersStorrage{
     pub fn new() -> Self{
         CurrencyUsersStorrage{
-            users_for_push: HashSet::new()
+            users_for_push: HashMap::new()
         }
     }
 
-    pub fn add_user(&mut self, user: &telegram_bot::UserId){
-        self.users_for_push.insert(user.clone());
+    pub fn add_user(&mut self, user: &UserId){
+        let check = CurrencyCheckStatus::new(user);
+        self.users_for_push.insert(user.clone(), check);
     }
 
-    pub fn remove_user(&mut self, user: &telegram_bot::UserId){
+    pub fn remove_user(&mut self, user: &UserId){
         self.users_for_push.remove(user);
     }
 
-    fn iter_users(&self) -> std::collections::hash_set::Iter<telegram_bot::UserId> {
+    // TODO: Mut iter
+    /*fn iter_users(&self) -> std::collections::hash_map::Iter<UserId, CurrencyCheckStatus> {
         self.users_for_push.iter()
-    }
+    }*/
 
     pub fn is_empty(&self) -> bool{
         self.users_for_push.is_empty()
@@ -62,10 +65,37 @@ impl CurrencyUsersStorrage{
 
 ///////////////////////////////////////////////////////////////////////////////////////
 
+#[derive(Clone)]
 pub struct CurrencyCheckStatus {
-    minimum_values: Vec<CurrencyResult<'static>>,
+    user: UserId,
+    minimum_values: Option<Vec<CurrencyResult<'static>>>,
     //minimum_time: DateTime<Utc>,        // TODO:
     //last_check_time: DateTime<Utc>,     // TODO:
+}
+
+impl CurrencyCheckStatus{
+    pub fn new(user: &UserId) -> Self{
+        CurrencyCheckStatus{
+            user: user.clone(),
+            minimum_values: None
+        }
+    }
+}
+
+// Пустая реализация на базе PartialEq без перегрузок
+impl Eq for CurrencyCheckStatus {
+}
+
+impl PartialEq for CurrencyCheckStatus{
+    fn eq(&self, other: &CurrencyCheckStatus) -> bool{
+        self.user.eq(&other.user)
+    }
+}
+
+impl std::hash::Hash for CurrencyCheckStatus {
+    fn hash<H: std::hash::Hasher>(&self, state: &mut H) {
+        self.user.hash(state);
+    }
 }
 
 impl CurrencyCheckStatus{
@@ -75,11 +105,13 @@ impl CurrencyCheckStatus{
 
 
 pub async fn check_currencies_update(bot_context: &mut BotContext) {
+    // Если некому слать - выходим
     if bot_context.app_context.users_for_push.is_empty(){
         return;
     }
 
-    let received: Vec<CurrencyResult<'static>> = 
+    // Получаем новые значения
+    let received_bank_currencies: Vec<CurrencyResult<'static>> = 
         get_all_currencies(&bot_context.client).await
         .into_iter()
         .filter_map(|result|{
@@ -87,92 +119,93 @@ pub async fn check_currencies_update(bot_context: &mut BotContext) {
         })
         .collect();
 
-    if received.is_empty(){
+    // Если пусто - выходим
+    if received_bank_currencies.is_empty(){
         return;
     }
 
-    let mut updates: Vec<String> = vec![];
+    // Кому и какие обновления рассылаем
+    let mut updates: HashMap<UserId, Vec<String>> = HashMap::new();
 
-    if let Some(ref mut status) = bot_context.currency_check_status {
-        for received_info in received {
-            let previous = status
-                .minimum_values
-                .iter_mut()
-                .find(|value|{
-                    value.bank_name.eq(received_info.bank_name)
-                });
-            if let Some(prev) = previous{
-                //let prev: & mut CurrencyResult = prev;
+    // TODO: Переделать на Reactive
+    // Идем по всем пользователям, у которых включено оповещение о снижении
+    for (user_id, user_subscribe_info) in &mut bot_context.app_context.users_for_push.users_for_push {
+        let mut updates_for_user: Vec<String> = vec![];
 
-                let usd_lower = prev.usd.buy > received_info.usd.buy;
-                let eur_lower = prev.eur.buy > received_info.eur.buy;
+        // Если у юзера есть предыдущие значения
+        if let Some(previous_minimum_values) = &mut user_subscribe_info.minimum_values {
+            // Перебираем информацию о каждом банке, которую получили
+            for received_bank_info in &received_bank_currencies {
+                // Ищем предыдущее значение для банка у юзера
+                let previous_value_for_bank = previous_minimum_values
+                    .iter_mut()
+                    .find(|value|{
+                        value.bank_name.eq(received_bank_info.bank_name)
+                    });
+                
+                // Если есть предыдущее значение
+                if let Some(previous_value_for_bank) = previous_value_for_bank{
+                    // Проверяем минимум
+                    let usd_lower = previous_value_for_bank.usd.buy > received_bank_info.usd.buy;
+                    let eur_lower = previous_value_for_bank.eur.buy > received_bank_info.eur.buy;
 
-                // TODO: Test
-                if usd_lower || eur_lower{
-                    // Обновляем значение
-                    //prev.clone_from(&received_info);
-                    *prev = received_info;
+                    // TODO: Test
+                    if usd_lower || eur_lower{
+                        // Обновляем значение
+                        *previous_value_for_bank = received_bank_info.clone();
 
-                    // Обновилось - можно сообщить
-                    updates.push(format!("{:?}\n", prev));
+                        updates_for_user.push(markdown_format_currency_result(previous_value_for_bank));
+                    }
                 }
             }
-        }
-    }else{
-        for info in received.iter() {
-            updates.push(html_format_currency_result(info));
-        }
-        bot_context.currency_check_status = Some(CurrencyCheckStatus{
-            minimum_values: received,
-        });
-        //bot_context.currency_check_status.unwrap().minimum_values;
+        }else{
+            // Иначе просто сохраняем значения для банков, которые мы получили
+            updates_for_user.reserve(received_bank_currencies.len());
             
-        // let iter = bot_context
-        //     .currency_check_status
-        //     .unwrap()
-        //     .minimum_values;
-        // let iter = bot_context
-        //     .currency_check_status
-        //     .unwrap()
-        //     .minimum_values
-        //     .iter();
-        // for info in iter {
-        //     updates.push(info);
-        // }
-    }
+            let str_iter = received_bank_currencies
+                .iter()
+                .map(|info|{
+                    markdown_format_currency_result(info)
+                });
 
-    //println!("{:?}", api.send(telegram_bot::types::requests::GetMe).await);
-    //println!("{:?}", api.send(telegram_bot::types::requests::GetChat::new()).await);
-    //println!("{:?}", api.send(telegram_bot::types::requests::GetChatMember::n).await);
-    //println!("{:?}", api.send(telegram_bot::types::requests::Get).await);
+            for str_val in str_iter{
+                updates_for_user.push(str_val);
+            };
+
+            user_subscribe_info.minimum_values = Some(received_bank_currencies.clone());
+        }
+
+        if !updates_for_user.is_empty(){
+            updates.insert(user_id.clone(), updates_for_user);
+        }
+    }
 
     if updates.is_empty() {
         return;
     }
 
-    // Создает переменную и ссылку на нее с помощью ref
-    let ref text: String = updates
+    let futures_iter = updates
         .into_iter()
-        .collect();
+        .map(|(user_id, updates_for_user)|{
+            let text: String = updates_for_user
+                .into_iter()
+                .collect();
+            let mut req = telegram_bot::types::requests::SendMessage::new(user_id, text);
+            req.parse_mode(ParseMode::Markdown);
+            bot_context.api.send(req)
+        });
 
-    for user in bot_context.app_context.users_for_push.iter_users() {
-        //let chat = telegram_bot::MessageChat::Private(message.from.clone());
-        //let user = telegram_bot::UserId::new(871805190);
-        bot_context.api.send(telegram_bot::types::requests::SendMessage::new(user, text)
-                                .parse_mode(ParseMode::Markdown))
-            .await
-            .ok();
-    }
+    futures::future::join_all(futures_iter).await;
 }
 
-fn html_format_currency_result(info: &CurrencyResult) -> String{
+fn markdown_format_currency_result(info: &CurrencyResult) -> String{
     let time_str: String = match info.update_time {
         Some(time) => time.format("%H:%M %d-%m-%Y").to_string(),
         None => "No time".into()
     };
 
     let bank_text = format!(   "*{} ({})*:\n\
-                                ```$: buy = {:.2} {}, sell = {:.2} {}\n\
+                                ```\n$: buy = {:.2} {}, sell = {:.2} {}\n\
                                    €: buy = {:.2} {}, sell = {:.2} {}```\n",
             info.bank_name,
             time_str,
@@ -198,7 +231,7 @@ pub async fn process_currencies_command(bot_context: &BotContext, message: &Mess
             Ok(info) =>{
                 let info: CurrencyResult = info;
 
-                let bank_text = html_format_currency_result(&info);
+                let bank_text = markdown_format_currency_result(&info);
                 
                 text.push_str(bank_text.as_str())
             },

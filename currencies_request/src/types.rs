@@ -46,7 +46,7 @@ impl Display for CurrencyChange {
     }
 }
 
-#[derive(new, Debug)]
+#[derive(new, Debug, Clone)]
 pub struct CurrencyValue{
     pub cur_type: CurrencyType,
     pub buy: f32,
@@ -55,7 +55,7 @@ pub struct CurrencyValue{
     pub sell_change: CurrencyChange,
 }
 
-#[derive(new, Debug)]
+#[derive(new, Debug, Clone)]
 pub struct CurrencyResult<'a>{
     pub bank_name: &'a str,
     pub usd: CurrencyValue,

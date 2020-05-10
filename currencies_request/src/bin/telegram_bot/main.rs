@@ -62,6 +62,7 @@ async fn process_bot_command(bot_context: &mut BotContext, data: &String, messag
 currencies - Receive currencies
 currencies_monitoring_on - Start monitoring
 currencies_monitoring_off - Stop monitoring
+currencies_monitoring_reset - Reset monitoring from current time
 habr - Habr news
 */ 
 
@@ -76,6 +77,11 @@ habr - Habr news
         (*bot_context).users_for_push.add_user(&message.from.id);
         let private_messaage = message.from.text("Enabled");
         bot_context.api.send(private_messaage).await.ok();
+
+        // После нового юзера - стартуем обновление для всех
+        check_currencies_update(bot_context).await;
+    }
+    if data.eq("/currencies_monitoring_reset") {
     }
     if data.eq("/currencies_monitoring_off") {
         println!("Stop monitoring for: {:?}", message.from);
@@ -122,6 +128,13 @@ async fn async_main(){
     // - запрашивать откуда-то список проксей, затем по очереди проверять через прокси доступность телеграма, периодически обновлять активный прокси
     // - сортировать прокси по пингу
     // - добавить систему логирования
+    // - добавить юнит тесты
+    // - добавить тесты обновления платежки
+    // - информация о боте на /start
+    // - еще прокси
+    // - банк ВТБ
+    // - сохранение в базу юзеров
+    // - рестарт мониторинга
 
     // TODO: Обернуть в cfg
     // Трассировка
@@ -148,7 +161,7 @@ async fn async_main(){
     proxy_check_timer.tick().await; // Первый тик сбрасываем
 
     // Таймер проверки проксей
-    let mut send_message_timer = tokio::time::interval(Duration::from_secs(60*15));
+    let mut send_message_timer = tokio::time::interval(Duration::from_secs(60*10));
     send_message_timer.tick().await; // Первый тик сбрасываем
 
     let mut app_context = AppContext{

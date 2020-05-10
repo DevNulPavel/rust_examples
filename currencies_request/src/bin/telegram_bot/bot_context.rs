@@ -5,9 +5,9 @@ use telegram_bot::{
     //Client
 // };
 use crate::{
-    currency::{
-        CurrencyCheckStatus
-    },
+    // currency::{
+    //     CurrencyCheckStatus
+    // },
     app_context::{
         AppContext
     },
@@ -16,7 +16,7 @@ use crate::{
 pub struct BotContext{
     pub app_context: AppContext,
     pub api: Api,
-    pub currency_check_status: Option<CurrencyCheckStatus>
+    //pub currency_check_status: Option<CurrencyCheckStatus>
 }
 
 impl BotContext {
@@ -24,7 +24,7 @@ impl BotContext {
         BotContext{
             app_context,
             api,
-            currency_check_status: None
+            // currency_check_status: None
         }
     }
 
