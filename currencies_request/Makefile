@@ -15,6 +15,11 @@ RUN_BOT:
 	cargo run --bin telegram_bot; \
 	done;
 
+RUN_BOT_RELEASE:
+	while true ; do \
+	cargo run --release --bin telegram_bot; \
+	done;
+
 UPDATE_VERSIONS:
 	cargo update
 
