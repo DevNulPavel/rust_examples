@@ -30,14 +30,30 @@ BACKUP_KEYS:
 	rm -f backup/*  && \
 	zip -er backup/scripts.zip ./scripts/
 
-# rustup target add arm-unknown-linux-gnueabihf
-# rustup default stable-x86_64-apple-darwin
-#TARGET_CC=clang cargo build --target arm-unknown-linux-gnueabihf
-#TARGET_LD=clang cargo build --target arm-unknown-linux-gnueabihf
-#export TARGET_CC=clang 
-#export TARGET_LD=clang-ld
 BUILD_AND_INSTALL_ON_PI:
-	# $ brew install arm-linux-gnueabihf-binutils
+	# https://github.com/rust-embedded/cross
+	# Docker required
+	# cargo install cross
+	cross build --release --bin telegram_bot --target arm-unknown-linux-gnueabi;
+	rsync -av target/arm-unknown-linux-gnueabi/release/telegram_bot pi@192.168.1.2:/home/pi/bin/
+
+	# export OPENSSL_LIB_DIR=/Users/devnul/Projects/Rust_Examples/currencies_request/open_ssl_armv6; \
+    # export OPENSSL_INCLUDE_DIR=/Users/devnul/Projects/Rust_Examples/currencies_request/open_ssl_armv6/include; \
+
+	# rustup target add arm-unknown-linux-gnueabi
+	# ARM_UNKNOWN_LINUX_GNUEABI_OPENSSL_LIB_DIR=/Users/devnul/Projects/Rust_Examples/currencies_request/open_ssl_armv6 \
+    # ARM_UNKNOWN_LINUX_GNUEABI_OPENSSL_INCLUDE_DIR=/Users/devnul/Projects/Rust_Examples/currencies_request/open_ssl_armv6/include \
+	# cargo build --release --bin telegram_bot --target arm-unknown-linux-gnueabi;
+	# rsync -av target/arm-unknown-linux-gnueabi/release/telegram_bot pi@192.168.1.2:/home/pi/bin/
+
+	# rustup target add arm-unknown-linux-gnueabi
+	# rustup default stable-x86_64-apple-darwin
+	#TARGET_CC=clang cargo build --target arm-unknown-linux-gnueabi
+	#TARGET_LD=clang cargo build --target arm-unknown-linux-gnueabi
+	#export TARGET_CC=clang 
+	#export TARGET_LD=clang-ld
+
+	# $ brew install arm-linux-gnueabi-binutils
 	# $ brew tap osx-cross/arm
 	# $ brew install arm-gcc-bin
 	# $ brew install llvm
@@ -46,33 +62,33 @@ BUILD_AND_INSTALL_ON_PI:
 	# target = "armv7-unknown-linux-musleabihf"
 	# [target.armv7-unknown-linux-c]
 	# linker = "arm-linux-gnueabihf-ld"
-	ARM_UNKNOWN_LINUX_GNUEABIHF_OPENSSL_LIB_DIR=/Users/devnul/Projects/Rust_Examples/currencies_request/open_ssl_armv6 \
-    ARM_UNKNOWN_LINUX_GNUEABIHF_OPENSSL_INCLUDE_DIR=/Users/devnul/Projects/Rust_Examples/currencies_request/open_ssl_armv6/include \
-	cargo build --release --bin telegram_bot --target arm-unknown-linux-gnueabihf; \
-	scp target/arm-unknown-linux-gnueabihf/release/telegram_bot ~/bin/telegram_bot
+	# ARM_UNKNOWN_LINUX_GNUEABIHF_OPENSSL_LIB_DIR=/Users/devnul/Projects/Rust_Examples/currencies_request/open_ssl_armv6 \
+    # ARM_UNKNOWN_LINUX_GNUEABIHF_OPENSSL_INCLUDE_DIR=/Users/devnul/Projects/Rust_Examples/currencies_request/open_ssl_armv6/include \
+	# cargo build --release --bin telegram_bot --target arm-unknown-linux-gnueabi; \
+	# scp target/arm-unknown-linux-gnueabi/release/telegram_bot ~/bin/telegram_bot
 
 	# cd /tmp
 	# wget https://www.openssl.org/source/openssl-1.1.1g.tar.gz
 	# tar xzf openssl-1.1.1g.tar.gz
 	# export MACHINE=armv6l
 	# export ARCH=arm
-	# export CC=arm-linux-gnueabihf-gcc
+	# export CC=arm-linux-gnueabi-gcc
 	# cd openssl-1.1.1g && ./config shared && make -j8 && cd -
 	# export OPENSSL_LIB_DIR=/tmp/openssl-1.1.1g/
 	# export OPENSSL_INCLUDE_DIR=/tmp/openssl-1.1.1g/include
-	# cargo build --release --bin telegram_bot --target arm-unknown-linux-gnueabihf;
-	# scp target/arm-unknown-linux-gnueabihf/release/telegram_bot ~/bin/telegram_bot
+	# cargo build --release --bin telegram_bot --target arm-unknown-linux-gnueabi;
+	# scp target/arm-unknown-linux-gnueabi/release/telegram_bot ~/bin/telegram_bot
 
 BUILD_AND_INSTALL_ON_PI_DOCKER:
 	# https://hackernoon.com/seamlessly-cross-compiling-rust-for-raspberry-pis-ede5e2bd3fe2
 	# https://hackernoon.com/compiling-rust-for-the-raspberry-pi-49fdcd7df658
 	# https://chacin.dev/blog/cross-compiling-rust-for-the-raspberry-pi/
-	docker build -t custom-x-compile .
-	docker run custom-x-compile > ./rpxc
-	chmod +x rpxc
-	./rpxc cargo --version
+	# docker build -t custom-x-compile .
+	# docker run custom-x-compile > ./rpxc
+	# chmod +x rpxc
+	# ./rpxc cargo --version
 	#./rpxc cargo build --release --bin telegram_bot --target arm-unknown-linux-gnueabihf
-	rm rpxc
+	# rm rpxc
 
 TREE:
 	# https://github.com/sfackler/cargo-tree
