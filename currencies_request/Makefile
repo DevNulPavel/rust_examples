@@ -37,10 +37,31 @@ BACKUP_KEYS:
 #export TARGET_CC=clang 
 #export TARGET_LD=clang-ld
 BUILD_AND_INSTALL_ON_PI:
+	# $ brew install arm-linux-gnueabihf-binutils
+	# $ brew tap osx-cross/arm
+	# $ brew install arm-gcc-bin
+	# $ brew install llvm
+	# ./cargo/config
+	# [build]
+	# target = "armv7-unknown-linux-musleabihf"
+	# [target.armv7-unknown-linux-c]
+	# linker = "arm-linux-gnueabihf-ld"
 	ARM_UNKNOWN_LINUX_GNUEABIHF_OPENSSL_LIB_DIR=/Users/devnul/Projects/Rust_Examples/currencies_request/open_ssl_armv6 \
     ARM_UNKNOWN_LINUX_GNUEABIHF_OPENSSL_INCLUDE_DIR=/Users/devnul/Projects/Rust_Examples/currencies_request/open_ssl_armv6/include \
-	cargo build --release --bin telegram_bot --target arm-unknown-linux-gnueabihf;
+	cargo build --release --bin telegram_bot --target arm-unknown-linux-gnueabihf; \
 	scp target/arm-unknown-linux-gnueabihf/release/telegram_bot ~/bin/telegram_bot
+
+	# cd /tmp
+	# wget https://www.openssl.org/source/openssl-1.1.1g.tar.gz
+	# tar xzf openssl-1.1.1g.tar.gz
+	# export MACHINE=armv6l
+	# export ARCH=arm
+	# export CC=arm-linux-gnueabihf-gcc
+	# cd openssl-1.1.1g && ./config shared && make -j8 && cd -
+	# export OPENSSL_LIB_DIR=/tmp/openssl-1.1.1g/
+	# export OPENSSL_INCLUDE_DIR=/tmp/openssl-1.1.1g/include
+	# cargo build --release --bin telegram_bot --target arm-unknown-linux-gnueabihf;
+	# scp target/arm-unknown-linux-gnueabihf/release/telegram_bot ~/bin/telegram_bot
 
 BUILD_AND_INSTALL_ON_PI_DOCKER:
 	# https://hackernoon.com/seamlessly-cross-compiling-rust-for-raspberry-pis-ede5e2bd3fe2

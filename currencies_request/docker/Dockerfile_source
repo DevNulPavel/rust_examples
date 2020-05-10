@@ -40,4 +40,4 @@ RUN cd /tmp && \
     export MACHINE=armv7 && \
     export ARCH=arm && \
     export CC=gcc && \
-    cd openssl-1.1.0h && ./config shared && make -j
+    cd openssl-1.1.0h && ./config shared && make
