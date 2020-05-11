@@ -5,3 +5,5 @@ scripts/
 openssl-*.tar.gz
 build/
 *.sqlite
+token.txt
+*.sqlite*

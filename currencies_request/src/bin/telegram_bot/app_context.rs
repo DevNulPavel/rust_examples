@@ -5,6 +5,7 @@ use tokio::{
     time::Interval
 };
 use sqlx::{
+    Connection,
     Connect,
     sqlite::{
         SqliteConnection

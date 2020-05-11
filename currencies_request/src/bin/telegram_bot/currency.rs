@@ -9,6 +9,11 @@ use std::{
     // Utc,
     // DateTime
 // };
+use futures::{
+    stream::{
+        StreamExt
+    }
+};
 use telegram_bot::{
     // Api,
     Error,
@@ -26,6 +31,19 @@ use currencies_request::{
     //CurrencyChange,
     get_all_currencies
 };
+use sqlx::{
+    prelude::*,
+    query,
+    Connect,
+    Connection,
+    Executor,
+    Cursor,
+    sqlite::{
+        SqliteConnection,
+        SqliteCursor,
+        SqliteRow
+    }
+};
 use crate::{
     bot_context::{
         BotContext
@@ -38,19 +56,74 @@ pub struct CurrencyUsersStorrage{
 }
 
 impl CurrencyUsersStorrage{
-    pub fn new() -> Self{
+    pub async fn new(conn: &mut SqliteConnection) -> Self{
+        let results: Vec<CurrencyCheckStatus> = sqlx::query("SELECT user_id FROM monitoring_users")
+            .map(|row: SqliteRow| {
+                let user_id: i64 = row.get(0);
+                println!("Load user with id from database: {}", user_id);
+
+                // TODO: загрузка минимумов внутри объекта
+                let status = CurrencyCheckStatus::load(UserId::new(user_id));
+                status
+            })
+            .fetch_all(conn)
+            .await
+            .expect("Failed select users form DB");
+        
+        let map: HashMap<UserId, CurrencyCheckStatus> = results
+            .into_iter()
+            .map(|val|{
+                (val.user.clone(), val)
+            })
+            .collect();
+
         CurrencyUsersStorrage{
-            users_for_push: HashMap::new()
+            users_for_push: map
         }
     }
 
-    pub fn add_user(&mut self, user: &UserId){
-        let check = CurrencyCheckStatus::new(user);
-        self.users_for_push.insert(user.clone(), check);
+    // TODO: Ошибка нормальная
+    pub async fn add_user(&mut self, user: &UserId, conn: &mut SqliteConnection) -> Result<(), ()>{
+        // TODO: Очистка минимумов перед добавлением
+        let check = CurrencyCheckStatus::new(user.clone());
+
+        let id_num: i64 = (*user).into();
+        let insert_result = sqlx::query("INSERT INTO monitoring_users(user_id) VALUES (?)")
+            .bind(id_num)
+            .execute(conn)
+            .await;
+
+        match insert_result{
+            Ok(_) => {
+                self.users_for_push.insert(user.clone(), check);
+                Ok(())
+            },
+            Err(e) => {
+                println!("Insert user SQL error: {}", e);
+                Err(())
+            }
+        }
     }
 
-    pub fn remove_user(&mut self, user: &UserId){
-        self.users_for_push.remove(user);
+    // TODO: Ошибка нормальная
+    pub async fn remove_user(&mut self, user: &UserId, conn: &mut SqliteConnection) -> Result<(), ()>{
+        // TODO: Очистка минимумов перед добавлением
+        let id_num: i64 = (*user).into();
+        let remove_result = sqlx::query("DELETE FROM monitoring_users WHERE user_id = ?")
+            .bind(id_num)
+            .execute(conn)
+            .await;
+
+        match remove_result{
+            Ok(_)=>{
+                self.users_for_push.remove(user);
+                Ok(())    
+            },
+            Err(e)=>{
+                println!("Delete user SQL error: {}", e);
+                Err(())
+            }
+        }
     }
 
     // TODO: Mut iter
@@ -74,9 +147,15 @@ pub struct CurrencyCheckStatus {
 }
 
 impl CurrencyCheckStatus{
-    pub fn new(user: &UserId) -> Self{
+    pub fn new(user: UserId) -> Self{
         CurrencyCheckStatus{
-            user: user.clone(),
+            user: user,
+            minimum_values: None
+        }
+    }
+    pub fn load(user: UserId) -> Self{
+        CurrencyCheckStatus{
+            user: user,
             minimum_values: None
         }
     }

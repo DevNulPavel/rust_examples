@@ -3,6 +3,7 @@ mod proxy;
 mod currency;
 mod app_context;
 mod bot_context;
+mod database;
 
 use std::{
     env,
@@ -60,6 +61,9 @@ use crate::{
         CurrencyUsersStorrage,
         check_currencies_update,
         process_currencies_command
+    },
+    database::{
+        get_database
     }
 };
 
@@ -80,20 +84,51 @@ habr - Habr news
     }
     if data.eq("/currencies_monitoring_on") {
         println!("Start monitoring for: {:?}", message.from);
-        (*bot_context).users_for_push.add_user(&message.from.id);
-        let private_messaage = message.from.text("Enabled");
-        bot_context.api.send(private_messaage).await.ok();
 
-        // После нового юзера - стартуем обновление для всех
-        check_currencies_update(bot_context).await;
+        // https://doc.rust-lang.org/book/ch18-03-pattern-syntax.html#destructuring-structs
+        let AppContext{
+            db_conn: db,
+            users_for_push: users,
+            ..
+        } = &mut bot_context.app_context;
+
+        let result = users
+            .add_user(&message.from.id, db)
+            .await;
+        
+        let message = if result.is_ok() {
+            // После нового юзера - стартуем обновление для всех
+            message.from.text("Enabled")
+        }else{
+            message.from.text("Enable failed")
+        };
+        bot_context.api.send(message).await.ok();
+
+        if result.is_ok() {
+            check_currencies_update(bot_context).await;
+        }
     }
     if data.eq("/currencies_monitoring_reset") {
     }
     if data.eq("/currencies_monitoring_off") {
         println!("Stop monitoring for: {:?}", message.from);
-        (*bot_context).users_for_push.remove_user(&message.from.id);
-        let private_messaage = message.from.text("Disabled");
-        bot_context.api.send(private_messaage).await.ok();
+
+        // https://doc.rust-lang.org/book/ch18-03-pattern-syntax.html#destructuring-structs
+        let AppContext{
+            db_conn: db,
+            users_for_push: users,
+            ..
+        } = &mut bot_context.app_context;
+
+        let remove_result = users.remove_user(&message.from.id, db)
+            .await;
+
+        let message = if remove_result.is_ok() {
+            message.from.text("Disabled")
+        }else{
+            message.from.text("Disable failed")
+        };
+        bot_context.api.send(message).await.ok();
     }
 }
 
@@ -128,22 +163,6 @@ async fn process_update(bot_context: &mut BotContext, update: Update){
 }
 
 async fn async_main(){
-    // TODO: 
-    // - добавить пример работы с прокси в библиотеку
-    // - проверять доступность нескольких проксей, добавлять только доступные
-    // - запрашивать откуда-то список проксей, затем по очереди проверять через прокси доступность телеграма, периодически обновлять активный прокси
-    // - сортировать прокси по пингу
-    // - добавить систему логирования c временем 
-    // - добавить юнит тесты
-    // - добавить тесты обновления платежки
-    // - информация о боте на /start
-    // - еще прокси
-    // - банк ВТБ
-    // - сохранение в базу юзеров
-    // - рестарт мониторинга
-    // - оборачивать приложение в docker
-    // - прокси в файлике контейнера
-
     // TODO: Обернуть в cfg
     // Трассировка
     // tracing::subscriber::set_global_default(
@@ -165,9 +184,7 @@ async fn async_main(){
         .unwrap();
 
     // База данных
-    let db_conn = SqliteConnection::connect("telegram_bot.sqlite")
-        .await
-        .unwrap();
+    let mut db_conn = get_database().await;
 
     // Таймер проверки проксей
     let mut proxy_check_timer = tokio::time::interval(Duration::from_secs(60*5));
@@ -177,13 +194,17 @@ async fn async_main(){
     let mut send_message_timer = tokio::time::interval(Duration::from_secs(60*10));
     send_message_timer.tick().await; // Первый тик сбрасываем
 
+    // Хранилище юзеров
+    let users_storrage = CurrencyUsersStorrage::new(&mut db_conn).await;
+
+    // Данные всего приложения
     let mut app_context = AppContext{
         token,
         proxy_check_timer,
         send_message_timer,
         client,
         db_conn,
-        users_for_push: CurrencyUsersStorrage::new(), // Хранилище пользователей
+        users_for_push: users_storrage, // Хранилище пользователей
     };
 
     loop {
