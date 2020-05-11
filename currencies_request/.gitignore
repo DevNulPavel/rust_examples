@@ -4,3 +4,4 @@ test_upload_script.sh
 scripts/
 openssl-*.tar.gz
 build/
+*.sqlite

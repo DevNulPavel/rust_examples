@@ -41,6 +41,12 @@ use reqwest::{
     Client,
     ClientBuilder,
 };
+use sqlx::{
+    Connect,
+    sqlite::{
+        SqliteConnection
+    }
+};
 use crate::{
     // constants::PROXIES,
     app_context::AppContext,
@@ -127,7 +133,7 @@ async fn async_main(){
     // - проверять доступность нескольких проксей, добавлять только доступные
     // - запрашивать откуда-то список проксей, затем по очереди проверять через прокси доступность телеграма, периодически обновлять активный прокси
     // - сортировать прокси по пингу
-    // - добавить систему логирования
+    // - добавить систему логирования c временем 
     // - добавить юнит тесты
     // - добавить тесты обновления платежки
     // - информация о боте на /start
@@ -135,6 +141,8 @@ async fn async_main(){
     // - банк ВТБ
     // - сохранение в базу юзеров
     // - рестарт мониторинга
+    // - оборачивать приложение в docker
+    // - прокси в файлике контейнера
 
     // TODO: Обернуть в cfg
     // Трассировка
@@ -156,6 +164,11 @@ async fn async_main(){
         .build()
         .unwrap();
 
+    // База данных
+    let db_conn = SqliteConnection::connect("telegram_bot.sqlite")
+        .await
+        .unwrap();
+
     // Таймер проверки проксей
     let mut proxy_check_timer = tokio::time::interval(Duration::from_secs(60*5));
     proxy_check_timer.tick().await; // Первый тик сбрасываем
@@ -169,6 +182,7 @@ async fn async_main(){
         proxy_check_timer,
         send_message_timer,
         client,
+        db_conn,
         users_for_push: CurrencyUsersStorrage::new(), // Хранилище пользователей
     };
 

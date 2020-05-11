@@ -30,11 +30,17 @@ BACKUP_KEYS:
 	rm -f backup/*  && \
 	zip -er backup/scripts.zip ./scripts/
 
-BUILD_AND_INSTALL_ON_PI:
+BUILD_FOR_PI:
 	# https://github.com/rust-embedded/cross
 	# Docker required
 	# cargo install cross
 	cross build --release --bin telegram_bot --target arm-unknown-linux-gnueabi;
+
+BUILD_AND_INSTALL_ON_PI_DOCKER: BUILD_FOR_PI
+	docker build -t devnul/telegram_bot .
+	docker push devnul/telegram_bot
+
+BUILD_AND_INSTALL_ON_PI: BUILD_FOR_PI
 	rsync -av target/arm-unknown-linux-gnueabi/release/telegram_bot pi@192.168.1.2:/home/pi/bin/
 
 	# export OPENSSL_LIB_DIR=/Users/devnul/Projects/Rust_Examples/currencies_request/open_ssl_armv6; \
@@ -79,7 +85,7 @@ BUILD_AND_INSTALL_ON_PI:
 	# cargo build --release --bin telegram_bot --target arm-unknown-linux-gnueabi;
 	# scp target/arm-unknown-linux-gnueabi/release/telegram_bot ~/bin/telegram_bot
 
-BUILD_AND_INSTALL_ON_PI_DOCKER:
+# BUILD_AND_INSTALL_ON_PI_DOCKER:
 	# https://hackernoon.com/seamlessly-cross-compiling-rust-for-raspberry-pis-ede5e2bd3fe2
 	# https://hackernoon.com/compiling-rust-for-the-raspberry-pi-49fdcd7df658
 	# https://chacin.dev/blog/cross-compiling-rust-for-the-raspberry-pi/
