@@ -42,12 +42,12 @@ use reqwest::{
     Client,
     ClientBuilder,
 };
-use sqlx::{
-    Connect,
-    sqlite::{
-        SqliteConnection
-    }
-};
+// use sqlx::{
+    // Connect,
+    // sqlite::{
+        // SqliteConnection
+    // }
+// };
 use crate::{
     // constants::PROXIES,
     app_context::AppContext,
@@ -96,7 +96,7 @@ habr - Habr news
             .add_user(&message.from.id, db)
             .await;
         
-        let message = if result.is_ok() {
+        let message = if (&result).is_ok() {
             // После нового юзера - стартуем обновление для всех
             message.from.text("Enabled")
         }else{
@@ -105,6 +105,7 @@ habr - Habr news
         bot_context.api.send(message).await.ok();
 
         if result.is_ok() {
+            println!("Check currencies");
             check_currencies_update(bot_context).await;
         }
     }

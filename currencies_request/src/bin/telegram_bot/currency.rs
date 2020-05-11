@@ -9,11 +9,11 @@ use std::{
     // Utc,
     // DateTime
 // };
-use futures::{
-    stream::{
-        StreamExt
-    }
-};
+// use futures::{
+    // stream::{
+        // StreamExt
+    // }
+// };
 use telegram_bot::{
     // Api,
     Error,
@@ -34,18 +34,21 @@ use currencies_request::{
 };
 use sqlx::{
     prelude::*,
-    query,
-    Connect,
-    Connection,
-    Executor,
-    Cursor,
+    // query,
+    // Connect,
+    // Connection,
+    // Executor,
+    // Cursor,
     sqlite::{
         SqliteConnection,
-        SqliteCursor,
+        // SqliteCursor,
         SqliteRow
     }
 };
 use crate::{
+    app_context::{
+        AppContext
+    },
     bot_context::{
         BotContext
     }
@@ -126,12 +129,20 @@ impl CurrencyUsersStorrage{
 
     // TODO: Ошибка нормальная
     pub async fn remove_user(&mut self, user: &UserId, conn: &mut SqliteConnection) -> Result<(), ()>{
+        // TODO: Нужна ли транзакция? Можно ли как-то удалить все, что относится к user
+        const SQL: &str =   "BEGIN; \
+                                DELETE FROM monitoring_users WHERE user_id = ?; \
+                                DELETE FROM currency_minimum WHERE user_id = ?; \
+                            COMMIT;";
+
         // TODO: Очистка минимумов перед добавлением
         let id_num: i64 = (*user).into();
-        let remove_result = sqlx::query("DELETE FROM monitoring_users WHERE user_id = ?")
+        let remove_result = sqlx::query(SQL)
+            .bind(id_num)
             .bind(id_num)
             .execute(conn)
             .await;
+        
 
         match remove_result{
             Ok(_)=>{
@@ -173,11 +184,8 @@ impl CurrencyCheckStatus{
         }
     }
     pub async fn load(user: UserId, conn: &mut SqliteConnection) -> Self{
-        // TODO: Inner or outer
         const SQL: &str = "SELECT * FROM currency_minimum \
-                            INNER JOIN currency_result \
-                                ON currency_minimum.minimum_value = currency_result.id \
-                            WHERE currency_minimum.user_id = ?";
+                            WHERE user_id = ?";
         let user_id: i64 = user.into();
         let results: Vec<CurrencyMinimum> = sqlx::query(SQL)
             .bind(user_id)
@@ -186,7 +194,7 @@ impl CurrencyCheckStatus{
                     bank_name: row.get("bank_name"),
                     usd: row.get("usd"),
                     eur: row.get("eur"),
-                    update_time: None 
+                    update_time: None // TODO: ???
                 };
                 println!("Load user's minimum for id = {} from database: {:?}", user_id, res);
                 res
@@ -249,7 +257,13 @@ pub async fn check_currencies_update(bot_context: &mut BotContext) {
 
     // TODO: Переделать на Reactive
     // Идем по всем пользователям, у которых включено оповещение о снижении
-    for (user_id, user_subscribe_info) in &mut bot_context.app_context.users_for_push.users_for_push {
+    let AppContext {
+        users_for_push: ref mut users_container,
+        db_conn: ref mut conn,
+        ..
+    } = bot_context.app_context;
+
+    for (user_id, user_subscribe_info) in &mut users_container.users_for_push {
         let mut updates_for_user: Vec<String> = vec![];
 
         // Если у юзера есть предыдущие значения
@@ -274,28 +288,66 @@ pub async fn check_currencies_update(bot_context: &mut BotContext) {
 
                 // TODO: Test
                 if usd_lower || eur_lower{
-                    // Обновляем значение
-                    *previous_value_for_bank = CurrencyMinimum{
-                        bank_name: received_bank_info.bank_name.clone(),
-                        usd: received_bank_info.usd.buy,
-                        eur: received_bank_info.eur.buy,
-                        update_time: received_bank_info.update_time.clone()
-                    };
+                    // user_id integer,
+                    // bank_name varchar(16),
+                    // usd integer,
+                    // eur integer,
+                    // update_time varchar(32),
 
-                    updates_for_user.push(markdown_format_minimum(previous_value_for_bank, received_bank_info));
+                    let user_id_int: i64 = (*user_id).into();
+                    let q = sqlx::query("INSERT INTO currency_minimum(user_id, bank_name, usd, eur, update_time) VALUES (?, ?, ?, ?, ?)")
+                        .bind(user_id_int)
+                        .bind(&received_bank_info.bank_name)
+                        .bind(received_bank_info.usd.buy)
+                        .bind(received_bank_info.eur.buy)
+                        .bind(""); // TODO: Date
+                    
+                    let query_result = q.execute(&mut (*conn)).await;
+                    match query_result{
+                        Ok(_)=>{
+                            // Обновляем значение
+                            *previous_value_for_bank = CurrencyMinimum{
+                                bank_name: received_bank_info.bank_name.clone(),
+                                usd: received_bank_info.usd.buy,
+                                eur: received_bank_info.eur.buy,
+                                update_time: received_bank_info.update_time.clone()
+                            };
+
+                            updates_for_user.push(markdown_format_minimum(previous_value_for_bank, received_bank_info));
+                        },
+                        Err(e) => {
+                            println!("Insert new minimum error: {}", e);
+                        }
+                    }
                 }
             }else{
-                // Иначе вкидываем новое
-                let minimum = CurrencyMinimum{
-                    bank_name: received_bank_info.bank_name.clone(),
-                    usd: received_bank_info.usd.buy,
-                    eur: received_bank_info.eur.buy,
-                    update_time: received_bank_info.update_time.clone()
-                };
+                let user_id_int: i64 = (*user_id).into();
+                let q = sqlx::query("INSERT INTO currency_minimum(user_id, bank_name, usd, eur, update_time) VALUES (?, ?, ?, ?, ?)")
+                    .bind(user_id_int)
+                    .bind(&received_bank_info.bank_name)
+                    .bind(received_bank_info.usd.buy)
+                    .bind(received_bank_info.eur.buy)
+                    .bind(""); // TODO: Date
+                
+                let query_result = q.execute(&mut (*conn)).await;
+                match query_result{
+                    Ok(_)=>{
+                        // Иначе вкидываем новое
+                        let minimum = CurrencyMinimum{
+                            bank_name: received_bank_info.bank_name.clone(),
+                            usd: received_bank_info.usd.buy,
+                            eur: received_bank_info.eur.buy,
+                            update_time: received_bank_info.update_time.clone()
+                        };
 
-                updates_for_user.push(markdown_format_minimum(&minimum, received_bank_info));
+                        updates_for_user.push(markdown_format_minimum(&minimum, received_bank_info));
 
-                previous_minimum_values.push(minimum);
+                        previous_minimum_values.push(minimum);
+                    },
+                    Err(e) => {
+                        println!("Insert new minimum error: {}", e);
+                    }
+                }
             }
         }
 
