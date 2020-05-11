@@ -77,7 +77,7 @@ struct VtbCurrencyResponse{
 //     }
 // }
 
-pub async fn get_currencies_from_vtb(client: &Client, bank_name: &'static str) -> Result<CurrencyResult<'static>, CurrencyError> {
+pub async fn get_currencies_from_vtb(client: &Client, bank_name: &'static str) -> Result<CurrencyResult, CurrencyError> {
     // Получаем json
     let url = "https://www.vtb.ru/api/currency-exchange/table-info\
                 ?contextItemId=%7BC5471052-2291-4AFD-9C2D-1DBC40A4769D%7D\
@@ -99,5 +99,5 @@ pub async fn get_currencies_from_vtb(client: &Client, bank_name: &'static str) -
 
     println!("{:?}", json);
 
-    Err(CurrencyError::new(bank_name, InvalidResponse("Test")))
+    Err(CurrencyError::new(bank_name.into(), InvalidResponse("Test")))
 }

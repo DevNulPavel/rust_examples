@@ -104,7 +104,7 @@ async fn async_main(){
 
                 // Строка со значениями
                 let row = Row::new(vec![
-                    new_cell!(info.bank_name),
+                    new_cell!(info.bank_name.as_str()),
                     new_cell_with_color(info.usd.buy, info.usd.buy_change),
                     new_cell_with_color(info.usd.sell, info.usd.sell_change),
 

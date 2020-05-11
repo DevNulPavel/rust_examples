@@ -56,10 +56,18 @@ pub struct CurrencyValue{
 }
 
 #[derive(new, Debug, Clone)]
-pub struct CurrencyResult<'a>{
-    pub bank_name: &'a str,
+pub struct CurrencyResult {
+    pub bank_name: String,
     pub usd: CurrencyValue,
     pub eur: CurrencyValue,
+    pub update_time: Option<DateTime<Utc>>
+}
+
+#[derive(new, Debug, Clone)]
+pub struct CurrencyMinimum {
+    pub bank_name: String,
+    pub usd: f32,
+    pub eur: f32,
     pub update_time: Option<DateTime<Utc>>
 }
 

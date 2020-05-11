@@ -69,7 +69,7 @@ impl CurrencyValue {
     }
 }
 
-pub async fn get_currencies_from_sber(client: &Client, bank_name: &'static str) -> Result<CurrencyResult<'static>, CurrencyError> {
+pub async fn get_currencies_from_sber(client: &Client, bank_name: &'static str) -> Result<CurrencyResult, CurrencyError> {
     // Получаем json
     let url = "https://www.sberbank.ru/portalserver/proxy/\
                ?pipe=shortCachePipe\
@@ -109,7 +109,7 @@ pub async fn get_currencies_from_sber(client: &Client, bank_name: &'static str) 
     let native_time = NaiveDateTime::from_timestamp(usd_info.date / 1000, 0);
     let time = DateTime::<Utc>::from_utc(native_time, Utc);
 
-    let result: CurrencyResult = CurrencyResult::new(bank_name, usd, eur, Some(time));
+    let result: CurrencyResult = CurrencyResult::new(bank_name.into(), usd, eur, Some(time));
 
     Ok(result)
 }

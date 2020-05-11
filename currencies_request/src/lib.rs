@@ -24,6 +24,7 @@ pub use crate::{
     errors::CurrencyError,
     types::{
         CurrencyResult,
+        CurrencyMinimum,
         CurrencyChange,
     },
 };
@@ -33,7 +34,7 @@ pub use crate::{
 
 // TODO: Избавиться от vec?
 // использовать stream!
-pub async fn get_all_currencies(client: &Client) -> Vec<Result<CurrencyResult<'static>, CurrencyError>> {
+pub async fn get_all_currencies(client: &Client) -> Vec<Result<CurrencyResult, CurrencyError>> {
     // TODO: Посмотреть оборачивание в box + pin
     // TODO: Избавиться от vec?
     // https://users.rust-lang.org/t/expected-opaque-type-found-a-different-opaque-type-when-trying-futures-join-all/40596

@@ -28,6 +28,7 @@ use telegram_bot::{
 use currencies_request::{
     CurrencyError,
     CurrencyResult,
+    CurrencyMinimum,
     //CurrencyChange,
     get_all_currencies
 };
@@ -57,18 +58,36 @@ pub struct CurrencyUsersStorrage{
 
 impl CurrencyUsersStorrage{
     pub async fn new(conn: &mut SqliteConnection) -> Self{
-        let results: Vec<CurrencyCheckStatus> = sqlx::query("SELECT user_id FROM monitoring_users")
+        //let mut conn = *conn;
+
+        let result_ids: Vec<i64> = sqlx::query("SELECT user_id FROM monitoring_users")
             .map(|row: SqliteRow| {
                 let user_id: i64 = row.get(0);
+                user_id
+            })
+            .fetch_all(&mut *conn)
+            .await
+            .expect("Failed select users form DB");
+
+        /*let conn_iter = std::iter::repeat(conn);
+        let results: Vec<CurrencyCheckStatus> = tokio::stream::iter(results)
+            .zip(tokio::stream::iter(conn_iter))
+            .then(|(user_id, conn)| {
                 println!("Load user with id from database: {}", user_id);
 
                 // TODO: загрузка минимумов внутри объекта
-                let status = CurrencyCheckStatus::load(UserId::new(user_id));
-                status
+                CurrencyCheckStatus::load(UserId::new(user_id), *conn)
             })
-            .fetch_all(conn)
-            .await
-            .expect("Failed select users form DB");
+            .collect()
+            .await;*/
+        
+        // TODO: убрать mut и переделать на stream
+        let mut results: Vec<CurrencyCheckStatus> = vec![];
+        results.reserve(result_ids.len());
+        for id_val in result_ids{
+            let status = CurrencyCheckStatus::load(UserId::new(id_val), &mut (*conn)).await;
+            results.push(status);
+        }
         
         let map: HashMap<UserId, CurrencyCheckStatus> = results
             .into_iter()
@@ -141,7 +160,7 @@ impl CurrencyUsersStorrage{
 #[derive(Clone)]
 pub struct CurrencyCheckStatus {
     user: UserId,
-    minimum_values: Option<Vec<CurrencyResult<'static>>>,
+    minimum_values: Vec<CurrencyMinimum>,
     //minimum_time: DateTime<Utc>,        // TODO:
     //last_check_time: DateTime<Utc>,     // TODO:
 }
@@ -150,13 +169,35 @@ impl CurrencyCheckStatus{
     pub fn new(user: UserId) -> Self{
         CurrencyCheckStatus{
             user: user,
-            minimum_values: None
+            minimum_values: vec![]
         }
     }
-    pub fn load(user: UserId) -> Self{
+    pub async fn load(user: UserId, conn: &mut SqliteConnection) -> Self{
+        // TODO: Inner or outer
+        const SQL: &str = "SELECT * FROM currency_minimum \
+                            INNER JOIN currency_result \
+                                ON currency_minimum.minimum_value = currency_result.id \
+                            WHERE currency_minimum.user_id = ?";
+        let user_id: i64 = user.into();
+        let results: Vec<CurrencyMinimum> = sqlx::query(SQL)
+            .bind(user_id)
+            .map(|row: SqliteRow| {
+                let res = CurrencyMinimum{
+                    bank_name: row.get("bank_name"),
+                    usd: row.get("usd"),
+                    eur: row.get("eur"),
+                    update_time: None 
+                };
+                println!("Load user's minimum for id = {} from database: {:?}", user_id, res);
+                res
+            })
+            .fetch_all(conn)
+            .await
+            .expect("Failed select user's minimums form DB");
+
         CurrencyCheckStatus{
             user: user,
-            minimum_values: None
+            minimum_values: results
         }
     }
 }
@@ -190,7 +231,7 @@ pub async fn check_currencies_update(bot_context: &mut BotContext) {
     }
 
     // Получаем новые значения
-    let received_bank_currencies: Vec<CurrencyResult<'static>> = 
+    let received_bank_currencies: Vec<CurrencyResult> = 
         get_all_currencies(&bot_context.client).await
         .into_iter()
         .filter_map(|result|{
@@ -212,46 +253,50 @@ pub async fn check_currencies_update(bot_context: &mut BotContext) {
         let mut updates_for_user: Vec<String> = vec![];
 
         // Если у юзера есть предыдущие значения
-        if let Some(previous_minimum_values) = &mut user_subscribe_info.minimum_values {
-            // Перебираем информацию о каждом банке, которую получили
-            for received_bank_info in &received_bank_currencies {
-                // Ищем предыдущее значение для банка у юзера
-                let previous_value_for_bank = previous_minimum_values
-                    .iter_mut()
-                    .find(|value|{
-                        value.bank_name.eq(received_bank_info.bank_name)
-                    });
-                
-                // Если есть предыдущее значение
-                if let Some(previous_value_for_bank) = previous_value_for_bank{
-                    // Проверяем минимум
-                    let usd_lower = previous_value_for_bank.usd.buy > received_bank_info.usd.buy;
-                    let eur_lower = previous_value_for_bank.eur.buy > received_bank_info.eur.buy;
+        let previous_minimum_values: &mut Vec<CurrencyMinimum> = &mut user_subscribe_info.minimum_values;
 
-                    // TODO: Test
-                    if usd_lower || eur_lower{
-                        // Обновляем значение
-                        *previous_value_for_bank = received_bank_info.clone();
+        // TODO: База данных
 
-                        updates_for_user.push(markdown_format_currency_result(previous_value_for_bank));
-                    }
-                }
-            }
-        }else{
-            // Иначе просто сохраняем значения для банков, которые мы получили
-            updates_for_user.reserve(received_bank_currencies.len());
-            
-            let str_iter = received_bank_currencies
-                .iter()
-                .map(|info|{
-                    markdown_format_currency_result(info)
+        // Перебираем информацию о каждом банке, которую получили
+        for received_bank_info in &received_bank_currencies {
+            // Ищем предыдущее значение для банка у юзера
+            let previous_value_for_bank: Option<&mut CurrencyMinimum> = previous_minimum_values
+                .iter_mut()
+                .find(|value|{
+                    value.bank_name.eq(&received_bank_info.bank_name)
                 });
+            
+            // Если есть предыдущее значение
+            if let Some(previous_value_for_bank) = previous_value_for_bank{
+                // Проверяем минимум
+                let usd_lower = previous_value_for_bank.usd > received_bank_info.usd.buy;
+                let eur_lower = previous_value_for_bank.eur > received_bank_info.eur.buy;
 
-            for str_val in str_iter{
-                updates_for_user.push(str_val);
-            };
+                // TODO: Test
+                if usd_lower || eur_lower{
+                    // Обновляем значение
+                    *previous_value_for_bank = CurrencyMinimum{
+                        bank_name: received_bank_info.bank_name.clone(),
+                        usd: received_bank_info.usd.buy,
+                        eur: received_bank_info.eur.buy,
+                        update_time: received_bank_info.update_time.clone()
+                    };
 
-            user_subscribe_info.minimum_values = Some(received_bank_currencies.clone());
+                    updates_for_user.push(markdown_format_minimum(previous_value_for_bank, received_bank_info));
+                }
+            }else{
+                // Иначе вкидываем новое
+                let minimum = CurrencyMinimum{
+                    bank_name: received_bank_info.bank_name.clone(),
+                    usd: received_bank_info.usd.buy,
+                    eur: received_bank_info.eur.buy,
+                    update_time: received_bank_info.update_time.clone()
+                };
+
+                updates_for_user.push(markdown_format_minimum(&minimum, received_bank_info));
+
+                previous_minimum_values.push(minimum);
+            }
         }
 
         if !updates_for_user.is_empty(){
@@ -296,6 +341,27 @@ fn markdown_format_currency_result(info: &CurrencyResult) -> String{
             info.eur.buy_change,
             info.eur.sell,
             info.eur.sell_change);
+
+    bank_text
+}
+
+fn markdown_format_minimum(info: &CurrencyMinimum, previous: &CurrencyResult) -> String{
+    let time_str: String = match info.update_time {
+        Some(time) => time.format("%H:%M %d-%m-%Y").to_string(),
+        None => "No time".into()
+    };
+
+    let bank_text = format!(   "New buy minimum\n\
+                                *{} ({})*:\n\
+                                ```\n\
+                                $: new = {:.2}, old = {:.2}\n\
+                                €: new = {:.2}, old = {:.2}\n```\n",
+            info.bank_name,
+            time_str,
+            info.usd,
+            previous.usd.buy,
+            info.eur,
+            previous.eur.buy);
 
     bank_text
 }

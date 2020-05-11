@@ -29,7 +29,7 @@ use crate::{
 };
 // use derive_new::new;
 
-pub async fn get_currencies_from_central(_client: &Client, bank_name: &'static str) -> Result<CurrencyResult<'static>, CurrencyError> {
+pub async fn get_currencies_from_central(_client: &Client, bank_name: &'static str) -> Result<CurrencyResult, CurrencyError> {
     // Создаем клиента для запроса
     // let client: Client = ClientBuilder::new()
     //     .connect_timeout(Duration::from_secs(3))
