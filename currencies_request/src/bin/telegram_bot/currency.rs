@@ -294,8 +294,14 @@ pub async fn check_currencies_update(bot_context: &mut BotContext) {
                     // eur integer,
                     // update_time varchar(32),
 
+                    // TODO: Optimize
                     let user_id_int: i64 = (*user_id).into();
-                    let q = sqlx::query("INSERT INTO currency_minimum(user_id, bank_name, usd, eur, update_time) VALUES (?, ?, ?, ?, ?)")
+                    let q = sqlx::query("BEGIN; \
+                                        DELETE FROM currency_minimum WHERE user_id = ? AND bank_name = ?; \
+                                        INSERT INTO currency_minimum(user_id, bank_name, usd, eur, update_time) VALUES (?, ?, ?, ?, ?); \
+                                        COMMIT;")
+                        .bind(user_id_int)
+                        .bind(&received_bank_info.bank_name)
                         .bind(user_id_int)
                         .bind(&received_bank_info.bank_name)
                         .bind(received_bank_info.usd.buy)
@@ -322,7 +328,13 @@ pub async fn check_currencies_update(bot_context: &mut BotContext) {
                 }
             }else{
                 let user_id_int: i64 = (*user_id).into();
-                let q = sqlx::query("INSERT INTO currency_minimum(user_id, bank_name, usd, eur, update_time) VALUES (?, ?, ?, ?, ?)")
+                // TODO: Optimize
+                let q = sqlx::query("BEGIN; \
+                                    DELETE FROM currency_minimum WHERE user_id = ? AND bank_name = ?; \
+                                    INSERT INTO currency_minimum(user_id, bank_name, usd, eur, update_time) VALUES (?, ?, ?, ?, ?); \
+                                    COMMIT;")
+                    .bind(user_id_int)
+                    .bind(&received_bank_info.bank_name)
                     .bind(user_id_int)
                     .bind(&received_bank_info.bank_name)
                     .bind(received_bank_info.usd.buy)
