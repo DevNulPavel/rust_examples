@@ -33,8 +33,10 @@ BACKUP_KEYS:
 BUILD_FOR_PI:
 	# https://github.com/rust-embedded/cross
 	# https://docs.rs/crate/openssl-sys/0.9.19
+	# Need to create build
+	# MUSL build !!!
 	export OPENSSL_DIR=/armv6_openssl/result && \
-	cross build --release --bin telegram_bot --target arm-unknown-linux-gnueabi;
+	cross build --release --bin telegram_bot --target arm-unknown-linux-musleabi;
 
 	# Docker required
 	# cargo install cross

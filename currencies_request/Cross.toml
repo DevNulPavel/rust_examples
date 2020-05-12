@@ -1,9 +1,9 @@
-[target.arm-unknown-linux-gnueabi]
-image = "devnul/armv6_openssl"
-
 # [build.env]
 
-[target.arm-unknown-linux-gnueabi.env]
+[target.arm-unknown-linux-musleabi]
+image = "devnul/armv6_openssl_musl"
+
+[target.arm-unknown-linux-musleabi.env]
 passthrough = [
     "OPENSSL_DIR",
     "TARGET",

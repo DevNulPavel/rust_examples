@@ -131,8 +131,8 @@ impl CurrencyUsersStorrage{
     pub async fn remove_user(&mut self, user: &UserId, conn: &mut SqliteConnection) -> Result<(), ()>{
         // TODO: Нужна ли транзакция? Можно ли как-то удалить все, что относится к user
         const SQL: &str =   "BEGIN; \
-                                DELETE FROM monitoring_users WHERE user_id = ?; \
                                 DELETE FROM currency_minimum WHERE user_id = ?; \
+                                DELETE FROM monitoring_users WHERE user_id = ?; \
                             COMMIT;";
 
         // TODO: Очистка минимумов перед добавлением

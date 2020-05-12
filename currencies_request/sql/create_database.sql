@@ -10,5 +10,5 @@ create table currency_minimum(
     eur integer,
     update_time varchar(32),
 
-    FOREIGN KEY(user_id) REFERENCES monitoring_users(user_id)
+    FOREIGN KEY(user_id) REFERENCES monitoring_users(user_id) ON DELETE CASCADE
 );
