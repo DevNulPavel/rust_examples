@@ -33,10 +33,15 @@ BACKUP_KEYS:
 BUILD_FOR_PI:
 	# https://github.com/rust-embedded/cross
 	# https://docs.rs/crate/openssl-sys/0.9.19
-	# Need to create build
+	# Need to create armv6 open ssl docker build
+
 	# MUSL build !!!
+	#export OPENSSL_DIR=/armv6_openssl/result && \
+	#cross build --release --bin telegram_bot --target arm-unknown-linux-musleabi;
+
+	# GNU LibC build !!
 	export OPENSSL_DIR=/armv6_openssl/result && \
-	cross build --release --bin telegram_bot --target arm-unknown-linux-musleabi;
+	cross build --release --bin telegram_bot --target arm-unknown-linux-gnueabi;
 
 	# Docker required
 	# cargo install cross
@@ -78,8 +83,12 @@ BUILD_ON_PI_DOCKER: BUILD_FOR_PI
 	docker push devnul/telegram_bot
 
 BUILD_AND_INSTALL_ON_PI: BUILD_FOR_PI
+	# MUSL excutable
+	#rsync -av target/arm-unknown-linux-musleabi/release/telegram_bot pi@192.168.1.2:/home/pi/bin/
+	# GNU executable
 	rsync -av target/arm-unknown-linux-gnueabi/release/telegram_bot pi@192.168.1.2:/home/pi/bin/
 	rsync -av sql/create_database.sql pi@192.168.1.2:/home/pi/bin/sql/
+	rsync -av bot_start.sh pi@192.168.1.2:/home/pi/bin/
 
 	# export OPENSSL_LIB_DIR=/Users/devnul/Projects/Rust_Examples/currencies_request/open_ssl_armv6; \
     # export OPENSSL_INCLUDE_DIR=/Users/devnul/Projects/Rust_Examples/currencies_request/open_ssl_armv6/include; \

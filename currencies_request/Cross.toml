@@ -11,3 +11,15 @@ passthrough = [
     "ARCH",
     "CC"
 ]
+
+[target.arm-unknown-linux-gnueabi]
+image = "devnul/armv6_openssl_gnu"
+
+[target.arm-unknown-linux-gnueabi.env]
+passthrough = [
+    "OPENSSL_DIR",
+    "TARGET",
+    "MACHINE",
+    "ARCH",
+    "CC"
+]
