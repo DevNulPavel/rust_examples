@@ -2,10 +2,13 @@
 
 # https://hub.docker.com/r/arm32v6/alpine
 # Uses MUSL as libC 
-FROM arm32v6/alpine
+# FROM arm32v6/alpine
 
 # https://hub.docker.com/r/arm32v6/busybox
+# MUSL
 # FROM arm32v6/busybox:musl
+# GNU
+FROM arm32v6/busybox:1.31.1
 
 # https://hub.docker.com/r/piersfinlayson/build
 # FROM piersfinlayson/build:latest:armv6l
@@ -17,7 +20,16 @@ ENV PATH=/bot:$PATH
 ENV TELEGRAM_TOKEN=""
 
 # Копия файлика
-COPY ./target/arm-unknown-linux-musleabi/release/telegram_bot /bot/telegram_bot
+# MUSL
+#COPY ./target/arm-unknown-linux-musleabi/release/telegram_bot /bot/telegram_bot
+# GNU
+COPY ./open_ssl_gnu_armv6_compiled/libcrypto.so.1.1 /lib/libcrypto.so.1.1
+COPY ./open_ssl_gnu_armv6_compiled/libssl.so.1.1 /lib/libssl.so.1.1
+COPY ./open_ssl_gnu_armv6_compiled/libcrypto.so.1.1 /bot/libcrypto.so.1.1
+COPY ./open_ssl_gnu_armv6_compiled/libssl.so.1.1 /bot/libssl.so.1.1
+COPY ./open_ssl_gnu_armv6_compiled/libcrypto.so.1.1 /bot/libcrypto.so
+COPY ./open_ssl_gnu_armv6_compiled/libssl.so.1.1 /bot/libssl.so
+COPY ./target/arm-unknown-linux-gnueabi/release/telegram_bot /bot/telegram_bot
 COPY ./sql/create_database.sql /bot/create_database.sql
 COPY ./bot_start.sh /bot/bot_start.sh
 
@@ -46,8 +58,8 @@ COPY ./bot_start.sh /bot/bot_start.sh
 # Установка зависимостей
 # apk search 
 # gcc
-RUN apk update && \
-    apk add --no-cache bash openssl
+# RUN apk update && \
+#     apk add --no-cache bash openssl
 
 WORKDIR /bot
 
