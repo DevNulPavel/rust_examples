@@ -36,12 +36,12 @@ BUILD_FOR_PI:
 	# Need to create armv6 open ssl docker build
 
 	# MUSL build !!!
-	#export OPENSSL_DIR=/armv6_openssl/result && \
-	#cross build --release --bin telegram_bot --target arm-unknown-linux-musleabi;
+	export OPENSSL_DIR=/armv6_openssl/result && \
+	cross build --release --bin telegram_bot --target arm-unknown-linux-musleabi;
 
 	# GNU LibC build !!
-	export OPENSSL_DIR=/armv6_openssl/result && \
-	cross build --release --bin telegram_bot --target arm-unknown-linux-gnueabi;
+	# export OPENSSL_DIR=/armv6_openssl/result && \
+	# cross build --release --bin telegram_bot --target arm-unknown-linux-gnueabi;
 
 	# Docker required
 	# cargo install cross
@@ -75,7 +75,8 @@ BUILD_FOR_PI:
 
 RUN_ON_PI_DOCKER: 
 	# https://github.com/alexey-goloburdin/telegram-finance-bot
-	docker run -d --name telegram_bot -v /home/pi/telegram_bot_db:/bot devnul/telegram_bot
+	#docker run -d --name telegram_bot -v /home/pi/telegram_bot_db:/bot devnul/telegram_bot
+	docker run -d --name telegram_bot --rm -v /home/pi/telegram_bot_db:/bot/database devnul/telegram_bot
 	# docker exec -ti telegram_bot bash
 
 BUILD_ON_PI_DOCKER: BUILD_FOR_PI

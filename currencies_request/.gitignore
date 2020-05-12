@@ -7,3 +7,4 @@ build/
 *.sqlite
 token.txt
 *.sqlite*
+database/

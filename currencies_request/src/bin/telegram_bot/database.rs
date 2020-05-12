@@ -50,14 +50,15 @@ async fn check_tables_exists(conn: &mut SqliteConnection) -> bool {
 }
 
 pub async fn get_database() -> SqliteConnection {
-    const FILE_NAME: &str = "telegram_bot.sqlite";
+    const FILE_NAME: &str = "database/telegram_bot.sqlite";
 
-    if tokio::fs::File::open(FILE_NAME).await.is_err(){
+    if std::path::Path::new(FILE_NAME).exists() == false{
+        tokio::fs::create_dir("database/").await.ok();
         tokio::fs::File::create(FILE_NAME).await.expect("Database file create failed");
     }
 
     // База данных
-    let mut db_conn = SqliteConnection::connect("sqlite:./telegram_bot.sqlite")
+    let mut db_conn = SqliteConnection::connect("sqlite:database/telegram_bot.sqlite")
         .await
         .expect("Sqlite connection create failed");
 
