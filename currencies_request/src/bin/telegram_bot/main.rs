@@ -80,7 +80,7 @@ habr - Habr news
     if data.eq("/start") {
     }
     if data.eq("/currencies") {
-        process_currencies_command(bot_context, message).await.unwrap();
+        process_currencies_command(bot_context, message).await.expect("Currencies command process failed");
     }
     if data.eq("/currencies_monitoring_on") {
         println!("Start monitoring for: {:?}", message.from);
@@ -182,7 +182,7 @@ async fn async_main(){
         .connect_timeout(Duration::from_secs(3))
         .timeout(Duration::from_secs(3))
         .build()
-        .unwrap();
+        .expect("Request build failed");
 
     // База данных
     let mut db_conn = get_database().await;
@@ -259,11 +259,20 @@ async fn async_main(){
                     };
 
                     // Получаем новое обновление, падая при ошибке
-                    let update: Update = update.unwrap();
-                    println!("Update: {:?}\n", update);
+                    match update {
+                        Ok(update) => {
+                            let update: Update = update;
+                            println!("Update: {:?}\n", update);
 
-                    // Обработка обновления
-                    process_update(&mut bot_context, update).await;
+                            // Обработка обновления
+                            process_update(&mut bot_context, update).await;
+                        },
+                        Err(e) => {
+                            println!("Update receive failed: {}", e);
+                            // Перед новым подключением - подождем немного
+                            tokio::time::delay_for(Duration::from_secs(15)).await;
+                        }
+                    }
                 }
             }
         }
@@ -282,7 +291,7 @@ fn main() {
         .basic_scheduler()
         .enable_all()
         .build()
-        .unwrap();
+        .expect("Tokio runtime build failed");
     
     runtime.block_on(async_main());
 }

@@ -48,16 +48,16 @@ async fn check_proxy_addr<S>(addr: S) -> Option<S>
 
     // TODO: копирование
     let addr_str: String = addr.to_string();
-    let proxy = reqwest::Proxy::all(&addr_str).unwrap();
+    let proxy = reqwest::Proxy::all(&addr_str).expect("Proxy all failed");
     let client: Client = reqwest::ClientBuilder::new()
         .proxy(proxy)
         .timeout(Duration::from_secs(25))
         .connect_timeout(Duration::from_secs(25))
         .build()
-        .unwrap();
+        .expect("Proxy client build failed");
     let req = client.get("https://api.telegram.org")
         .build()
-        .unwrap();
+        .expect("Proxy request build failed");
     let res = client.execute(req).await;
     
     //println!("Result: {:?}", res);

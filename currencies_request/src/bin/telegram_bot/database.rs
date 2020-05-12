@@ -64,13 +64,13 @@ pub async fn get_database() -> SqliteConnection {
     };
 
     if database_path.exists() == false{
-        let folder = database_path.parent().unwrap();
+        let folder = database_path.parent().expect("Database path get failed");
         tokio::fs::create_dir(folder).await.ok();
         tokio::fs::File::create(&database_path).await.expect("Database file create failed");
     }
 
     // База данных
-    let connect_path: String = format!("sqlite:{}", database_path.to_str().unwrap());
+    let connect_path: String = format!("sqlite:{}", database_path.to_str().expect("Db path to string failed"));
     let mut db_conn = SqliteConnection::connect(connect_path)
         .await
         .expect("Sqlite connection create failed");
