@@ -17,6 +17,7 @@ FROM arm32v6/alpine
 # FROM jenskeiner/muslrust-builder:develop-openssl-crypto-arm
 
 ENV PATH=/bot:$PATH
+ENV TELEGRAM_DATABASE_PATH="/bot/database/telegram_bot.sqlite"
 ENV TELEGRAM_TOKEN="1133317281:AAFwKpfcwG33lBvb90IZXV5gwkipUyvVZPw"
 
 # MUSL valid libraries paths
