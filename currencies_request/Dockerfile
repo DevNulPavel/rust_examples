@@ -18,7 +18,8 @@ FROM arm32v6/alpine
 
 ENV PATH=/bot:$PATH
 ENV TELEGRAM_DATABASE_PATH="/bot/database/telegram_bot.sqlite"
-ENV TELEGRAM_TOKEN="1133317281:AAFwKpfcwG33lBvb90IZXV5gwkipUyvVZPw"
+ENV TELEGRAM_TOKEN=""
+ENV RUST_BACKTRACE=1
 
 # MUSL valid libraries paths
 # Список зависимостей для приложения 1
