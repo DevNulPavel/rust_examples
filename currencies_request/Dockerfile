@@ -61,7 +61,7 @@ COPY ./target/arm-unknown-linux-musleabi/release/telegram_bot /bot/telegram_bot
 
 # Копия ресурсов
 COPY ./sql/create_database.sql /bot/sql/create_database.sql
-COPY ./bot_start.sh /bot/bot_start.sh
+COPY ./support/bot_start.sh /bot/bot_start.sh
 
 # Порт наружу
 # EXPOSE 5000

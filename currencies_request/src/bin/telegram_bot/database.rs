@@ -1,16 +1,11 @@
 use std::{
     path::{
         Path,
-        // PathBuf
     },
     env
 };
 use sqlx::{
-    // prelude::*,
-    // query,
     Connect,
-    // Connection,
-    // Executor,
     Cursor,
     sqlite::{
         SqliteConnection,
@@ -27,8 +22,8 @@ use tokio::{
 
 
 async fn build_tables(conn: &mut SqliteConnection){
-    let db_path = Path::new("sql/create_database.sql");
-    let sql_text: String = read_to_string(db_path)
+    let sql_path = Path::new("sql/create_database.sql");
+    let sql_text: String = read_to_string(sql_path)
         .await
         .expect("File сreate_database.sql does not exist");
 
@@ -53,24 +48,33 @@ async fn check_tables_exists(conn: &mut SqliteConnection) -> bool {
 pub async fn get_database() -> SqliteConnection {
     // TODO: Improve
     let database_path: std::path::PathBuf = if cfg!(debug_assertions) {
-        const FILE_NAME: &str = "database/telegram_bot.sqlite";
-        let database_path: String = env::var("TELEGRAM_DATABASE_PATH").unwrap_or(FILE_NAME.into());
-        println!("TELEGRAM_DATABASE_PATH: {}", database_path);
+        const DEFAULT_FILE_NAME: &str = "database/telegram_bot.sqlite";
+        let database_path: String = env::var("TELEGRAM_DATABASE_PATH").
+            unwrap_or(DEFAULT_FILE_NAME.into());
         database_path.into()
     }else{
-        let database_path: String = env::var("TELEGRAM_DATABASE_PATH").expect("TELEGRAM_DATABASE_PATH not set");
-        println!("TELEGRAM_DATABASE_PATH: {}", database_path);
+        let database_path: String = env::var("TELEGRAM_DATABASE_PATH")
+            .expect("TELEGRAM_DATABASE_PATH not set");
         database_path.into()
     };
 
+    println!("TELEGRAM_DATABASE_PATH: {:?}", database_path);
+
     if database_path.exists() == false{
-        let folder = database_path.parent().expect("Database path get failed");
-        tokio::fs::create_dir(folder).await.ok();
-        tokio::fs::File::create(&database_path).await.expect("Database file create failed");
+        let folder = database_path.parent().expect("Database path get get folder failed");
+        tokio::fs::create_dir(folder)
+            .await
+            .ok();
+        tokio::fs::File::create(&database_path)
+            .await
+            .expect("Database file create failed");
     }
 
     // База данных
-    let connect_path: String = format!("sqlite:{}", database_path.to_str().expect("Db path to string failed"));
+    let connect_path: String = format!("sqlite:{}", database_path
+        .to_str()
+        .expect("Db path to string failed"));
+
     let mut db_conn = SqliteConnection::connect(connect_path)
         .await
         .expect("Sqlite connection create failed");

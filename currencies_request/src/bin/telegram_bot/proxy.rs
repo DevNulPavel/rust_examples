@@ -27,6 +27,12 @@ use tokio::{
     sync::{
         Semaphore,
         //SemaphorePermit
+    },
+    sync::{
+        mpsc::{
+            Receiver,
+            channel
+        }
     }
 };
 use reqwest::{
@@ -71,32 +77,6 @@ async fn check_proxy_addr<S>(addr: S) -> Option<S>
     }
 }
 
-/*async fn check_proxy_addr(addr: String) -> Option<String>
-{
-    let proxy = reqwest::Proxy::all(addr.as_str()).unwrap();
-    let client: Client = reqwest::ClientBuilder::new()
-        .proxy(proxy)
-        .timeout(Duration::from_secs(5))
-        .connect_timeout(Duration::from_secs(5))
-        .build()
-        .unwrap();
-    let req = client.get("https://api.telegram.org")
-        .build()
-        .unwrap();
-    let res = client.execute(req).await;
-    
-    //println!("Result: {:?}", res);
-
-    if res.is_ok() {
-        println!("Valid addr: {}", addr);
-        Some(addr)
-    }else{
-        println!("Invalid addr: {}", addr);
-        None
-    }
-}*/
-
-
 #[derive(Deserialize, Debug)]
 struct ProxyInfo{
     #[serde(rename(deserialize = "ipPort"))]
@@ -129,33 +109,8 @@ async fn get_http_proxies_1() -> Result<Vec<String>, reqwest::Error>{
     Ok(http_addresses_array)
 }
 
-/*fn build_http_proxies_stream<'a, F>(fut: std::pin::Pin<Box<F>>) -> tokio::sync::mpsc::Receiver<Option<String>> 
-    where F: std::future::Future<Output=Result<Vec<String>, reqwest::Error>> + Send + Sized + 'a
-{
-
-    let (mut tx, rx) = tokio::sync::mpsc::channel(32);
-    let f = *fut;
-    tokio::spawn(async move{
-        //let future = *fut;
-        //tokio::pin!(future);
-        let http_1_proxies_res = f.await;
-        if let Ok(http_1_proxies) = http_1_proxies_res {
-            println!("Http 1 proxies request resolved");
-            for addr in http_1_proxies {
-                let result: Option<String> = check_proxy_addr(addr.to_string()).await;
-                if tx.send(result).await.is_err(){
-                    println!("Http 1 proxies request exit");
-                    return;
-                }
-            }
-        }
-        println!("Http 1 proxies request finished");
-    });
-    rx
-}*/
-
-fn build_http_1_proxies_stream() -> tokio::sync::mpsc::Receiver<Option<String>> {
-    let (mut tx, rx) = tokio::sync::mpsc::channel(32);
+fn build_http_1_proxies_stream() -> Receiver<Option<String>> {
+    let (mut tx, rx) = channel(32);
     tokio::spawn(async move{
         let http_1_proxies_res = get_http_proxies_1().await;
         if let Ok(http_1_proxies) = http_1_proxies_res {
@@ -173,31 +128,40 @@ fn build_http_1_proxies_stream() -> tokio::sync::mpsc::Receiver<Option<String>> 
     rx
 }
 
+fn get_static_proxies_stream() -> Receiver<Option<String>>{
+    let (mut tx, rx) = channel(32);
+    tokio::spawn(async move {
+        let semaphore = Semaphore::new(32);
+
+        let mut static_futures_stream: FuturesUnordered<_> = PROXIES
+            .into_iter()
+            .zip(std::iter::repeat(&semaphore))
+            .map(|(addr, sem)| async move {
+                // Ограничение максимального количества обработок
+                let _lock = sem.acquire();
+                let result: Option<String> = check_proxy_addr(addr.to_string()).await;
+                result
+            })
+            .collect();
+
+        while let Some(addr) = static_futures_stream.next().await {
+            if tx.send(addr).await.is_err(){
+                return;
+            }
+        }
+    });
+    rx
+}
+
 pub async fn get_valid_proxy_addresses() -> Option<Vec<String>>{
-    let semaphore = Semaphore::new(32);
-
-    // Стрим из статически сохраненных проксей
-    let static_futures_stream: FuturesUnordered<_> = PROXIES
-        .into_iter()
-        .zip(std::iter::repeat(&semaphore))
-        .map(|(addr, sem)| async move {
-            // Ограничение максимального количества обработок
-            let _lock = sem.acquire();
-            let result: Option<String> = check_proxy_addr(addr.to_string()).await;
-            result
-        })
-        .collect();
-
-    // TODO: Может как-то поможет пинирование
-    // Стрим из http адресов
-    //let fut = get_http_proxies_1().boxed();
-    //let http_1_proxies_stream: tokio::sync::mpsc::Receiver<Option<String>> = build_http_proxies_stream(fut);
-    let http_1_proxies_stream: tokio::sync::mpsc::Receiver<Option<String>> = build_http_1_proxies_stream();
-    
-    // futures::pin_mut!(proxy_stream);
+    let mut streams: [Receiver<Option<String>>; 2] = [
+        get_static_proxies_stream(),  // Стрим из статически сохраненных проксей
+        build_http_1_proxies_stream() // Стрим из http адресов
+    ];
 
     // Получаем из стрима 10 валидных адресов проксей
-    let valid_proxy_addresses: Vec<String> = futures::stream::select(static_futures_stream, http_1_proxies_stream)
+    let streams_iter = streams.iter_mut();
+    let valid_proxy_addresses: Vec<String> = futures::stream::select_all(streams_iter)
         .filter_map(|addr_option| async move {
             addr_option
         })

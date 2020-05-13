@@ -5,8 +5,6 @@ use tokio::{
     time::Interval
 };
 use sqlx::{
-    // Connection,
-    // Connect,
     sqlite::{
         SqliteConnection
     }
@@ -24,8 +22,4 @@ pub struct AppContext{
     pub client: Client,
     pub db_conn: SqliteConnection,
     pub users_for_push: CurrencyUsersStorrage
-}
-
-impl AppContext{
-
 }

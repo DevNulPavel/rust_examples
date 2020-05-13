@@ -22,7 +22,8 @@ use telegram_bot::{
     Message,
     CanSendMessage,
     ParseMode,
-    UserId
+    UserId,
+    SendMessage
 };
 // use reqwest::{
     //Client,
@@ -331,6 +332,64 @@ async fn process_currency_value(conn: &mut SqliteConnection,
     None
 }
 
+async fn check_minimum_for_value(user_id: &UserId,
+                                 conn: &mut SqliteConnection,
+                                 cur_type: CurrencyType,
+                                 received_minimum: &CurrencyResult, 
+                                 previous_minimum_values: &mut Vec<CurrencyMinimum>) -> Option<String> {
+    // Ищем предыдущее значение для банка у юзера
+    let previous_minimum: Option<CurrencyMinimum> = previous_minimum_values
+        .iter()
+        .find(|value|{
+            value.cur_type == cur_type
+        })
+        .map(|ref_val|{
+            ref_val.clone()
+        });
+
+    let received_minimum_val = match cur_type{
+        CurrencyType::USD => &received_minimum.usd,
+        CurrencyType::EUR => &received_minimum.eur,
+    };
+
+    // Если есть предыдущее значение
+    let new_minimum = process_currency_value(conn,
+                                            user_id,
+                                            previous_minimum,  
+                                            &received_minimum.bank_name,
+                                            received_minimum.update_time,
+                                            received_minimum_val).await;
+
+    if let Some(new_minimum) = new_minimum{
+        let result = markdown_format_minimum(&new_minimum, &received_minimum.usd);
+
+        let old = previous_minimum_values
+            .iter_mut()
+            .find(|val|{
+                val.cur_type == new_minimum.cur_type 
+            });
+        if let Some(old) = old {
+            *old = new_minimum;
+        }else{
+            previous_minimum_values.push(new_minimum);
+        }
+
+        return Some(result);
+    }    
+      
+    None
+}
+
+fn comparator(v1: f32, v2: f32) -> std::cmp::Ordering{
+    if v1 < v2{
+        std::cmp::Ordering::Less
+    }else if v1 > v2 {
+        std::cmp::Ordering::Greater
+    }else{
+        std::cmp::Ordering::Equal
+    }
+}
+
 pub async fn check_currencies_update(bot_context: &mut BotContext) {
     // Если некому слать - выходим
     if bot_context.app_context.users_for_push.is_empty(){
@@ -339,7 +398,7 @@ pub async fn check_currencies_update(bot_context: &mut BotContext) {
 
     // Получаем новые значения
     let received_bank_currencies: Vec<CurrencyResult> = 
-        get_all_currencies(&bot_context.client).await
+        get_all_currencies(&bot_context.app_context.client).await
         .into_iter()
         .filter_map(|result|{
             result.ok()
@@ -362,115 +421,53 @@ pub async fn check_currencies_update(bot_context: &mut BotContext) {
         ..
     } = bot_context.app_context;
 
-    // Перебираем информацию о каждом банке, которую получили
+    // Долларовый минимум
     let usd_received_minimum = received_bank_currencies
         .iter()
         .min_by(|val1, val2|{
-            if val1.usd.buy < val2.usd.buy{
-                std::cmp::Ordering::Less
-            }else if val1.usd.buy > val2.usd.buy{
-                std::cmp::Ordering::Greater
-            }else{
-                std::cmp::Ordering::Equal
-            }
+            let v1 = val1.usd.buy;
+            let v2 = val2.usd.buy;
+            comparator(v1, v2)
         });
 
     println!("Minimum USD: {:?}\n", usd_received_minimum);
 
+    // Евро минимум
     let eur_received_minimum = received_bank_currencies
         .iter()
         .min_by(|val1, val2|{
-            if val1.usd.buy < val2.usd.buy{
-                std::cmp::Ordering::Less
-            }else if val1.usd.buy > val2.usd.buy{
-                std::cmp::Ordering::Greater
-            }else{
-                std::cmp::Ordering::Equal
-            }
+            let v1 = val1.eur.buy;
+            let v2 = val2.eur.buy;
+            comparator(v1, v2)
         });
 
     println!("Minimum EUR: {:?}\n", usd_received_minimum);
 
+    // Идем по всем пользователям
     for (user_id, user_subscribe_info) in &mut users_container.users_for_push {
+        // Список апдейтов для пользователя
         let mut updates_for_user: Vec<String> = vec![];
 
         // Если у юзера есть предыдущие значения
         let previous_minimum_values: &mut Vec<CurrencyMinimum> = &mut user_subscribe_info.minimum_values;
         
+        // Получаем апдейт для долларов
         if let Some(usd_received_minimum) = usd_received_minimum {
-            // Ищем предыдущее значение для банка у юзера
-            let previous_usd: Option<CurrencyMinimum> = previous_minimum_values
-                .iter()
-                .find(|value|{
-                    value.cur_type == CurrencyType::USD
-                })
-                .map(|ref_val|{
-                    ref_val.clone()
-                });
-
-            // Если есть предыдущее значение
-            let new_minimum = process_currency_value(conn,
-                                                     user_id,
-                                                     previous_usd,  
-                                                     &usd_received_minimum.bank_name,
-                                                     usd_received_minimum.update_time,
-                                                     &usd_received_minimum.usd).await;
-
-            if let Some(new_minimum) = new_minimum{
-                let result = markdown_format_minimum(&new_minimum, &usd_received_minimum.usd);
-                updates_for_user.push(result);
-
-                let old = previous_minimum_values
-                    .iter_mut()
-                    .find(|val|{
-                        val.cur_type == new_minimum.cur_type 
-                    });
-                if let Some(old) = old {
-                    *old = new_minimum;
-                }else{
-                    previous_minimum_values.push(new_minimum);
-                }
+            let update = check_minimum_for_value(user_id, conn, CurrencyType::USD, usd_received_minimum, previous_minimum_values).await;
+            if let Some(update) = update {
+                updates_for_user.push(update);
             }
         }
 
+        // Получаем апдейт для евро
         if let Some(eur_received_minimum) = eur_received_minimum {
-            // Ищем предыдущее значение для банка у юзера
-            let previous_eur: Option<CurrencyMinimum> = previous_minimum_values
-                .iter()
-                .find(|value|{
-                    value.cur_type == CurrencyType::EUR
-                })
-                .map(|ref_val|{
-                    ref_val.clone()
-                });
-
-
-            // Если есть предыдущее значение
-            // Если есть предыдущее значение
-            let new_minimum = process_currency_value(conn,
-                                                     user_id,
-                                                     previous_eur,  
-                                                     &eur_received_minimum.bank_name,
-                                                     eur_received_minimum.update_time,
-                                                     &eur_received_minimum.eur).await;
-
-            if let Some(new_minimum) = new_minimum{
-                let result = markdown_format_minimum(&new_minimum, &eur_received_minimum.eur);
-                updates_for_user.push(result);
-
-                let old = previous_minimum_values
-                    .iter_mut()
-                    .find(|val|{
-                        val.cur_type == new_minimum.cur_type 
-                    });
-                if let Some(old) = old {
-                    *old = new_minimum;
-                }else{
-                    previous_minimum_values.push(new_minimum);
-                }
+            let update = check_minimum_for_value(user_id, conn, CurrencyType::EUR, eur_received_minimum, previous_minimum_values).await;
+            if let Some(update) = update {
+                updates_for_user.push(update);
             }
-        }        
+        }
 
+        // Если есть что отправлять - отправляем
         if !updates_for_user.is_empty(){
             updates.insert(user_id.clone(), updates_for_user);
         }
@@ -486,7 +483,7 @@ pub async fn check_currencies_update(bot_context: &mut BotContext) {
             let text: String = updates_for_user
                 .into_iter()
                 .collect();
-            let mut req = telegram_bot::types::requests::SendMessage::new(user_id, text);
+            let mut req = SendMessage::new(user_id, text);
             req.parse_mode(ParseMode::Markdown);
             bot_context.api.send(req)
         });
@@ -540,7 +537,7 @@ pub async fn process_currencies_command(bot_context: &BotContext, message: &Mess
     let mut text = String::new();
 
     // Выводим текст, используем into_iter для потребляющего итератора
-    for info in get_all_currencies(&bot_context.client).await {
+    for info in get_all_currencies(&bot_context.app_context.client).await {
         let info: Result<CurrencyResult, CurrencyError> = info;
         match info {
             Ok(info) =>{
