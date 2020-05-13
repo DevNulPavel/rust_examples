@@ -192,7 +192,7 @@ async fn async_main(){
     proxy_check_timer.tick().await; // Первый тик сбрасываем
 
     // Таймер проверки проксей
-    let mut send_message_timer = tokio::time::interval(Duration::from_secs(15));
+    let mut send_message_timer = tokio::time::interval(Duration::from_secs(60*5));
     send_message_timer.tick().await; // Первый тик сбрасываем
 
     // Хранилище юзеров
