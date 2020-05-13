@@ -82,7 +82,7 @@ RUN_ON_PI_DOCKER:
 	# docker exec -ti telegram_bot bash
 
 BUILD_ON_PI_DOCKER: BUILD_FOR_PI
-	docker build -t devnul/telegram_bot .
+	docker build --no-cache -t devnul/telegram_bot .
 	docker push devnul/telegram_bot
 
 BUILD_AND_INSTALL_ON_PI: BUILD_FOR_PI

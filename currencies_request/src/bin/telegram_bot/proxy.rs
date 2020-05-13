@@ -66,7 +66,7 @@ async fn check_proxy_addr<S>(addr: S) -> Option<S>
         println!("Valid addr: {}", addr);
         Some(addr)
     }else{
-        println!("Invalid addr: {}", addr);
+        //println!("Invalid addr: {}", addr);
         None
     }
 }
