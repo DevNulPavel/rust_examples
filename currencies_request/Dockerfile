@@ -2,7 +2,7 @@
 
 # https://hub.docker.com/r/arm32v6/alpine
 # Uses MUSL as libC 
-FROM arm32v6/alpine
+FROM arm32v6/alpine:latest
 
 # https://hub.docker.com/r/arm32v6/busybox
 # MUSL
@@ -70,7 +70,7 @@ COPY ./bot_start.sh /bot/bot_start.sh
 # apk search 
 # gcc
 RUN apk update && \
-    apk add --no-cache bash openssl
+    apk add --no-cache openssl
 
 WORKDIR /bot
 
