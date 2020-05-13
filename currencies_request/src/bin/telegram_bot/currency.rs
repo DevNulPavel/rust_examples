@@ -242,7 +242,7 @@ async fn process_currency_value(conn: &mut SqliteConnection,
                                 previous_value: Option<CurrencyMinimum>, 
                                 bank_name: &str,
                                 update_time: Option<DateTime<Utc>>,
-                                received_value: &CurrencyValue) -> (Option<String>,  Option<CurrencyMinimum>) {
+                                received_value: &CurrencyValue) ->  Option<CurrencyMinimum> {
     // Если есть предыдущее значение
     if let Some(previous_value) = previous_value {
         // Проверяем минимум
@@ -255,6 +255,8 @@ async fn process_currency_value(conn: &mut SqliteConnection,
             // usd integer,
             // eur integer,
             // update_time varchar(32),
+
+            println!("New minimum update");
 
             // TODO: Optimize
             let user_id_int: i64 = (*user_id).into();
@@ -274,8 +276,6 @@ async fn process_currency_value(conn: &mut SqliteConnection,
             let query_result = q.execute(&mut (*conn)).await;
             match query_result{
                 Ok(_)=>{
-                    let result = markdown_format_minimum(&previous_value, received_value);
-
                     // Обновляем значение
                     let minimum = CurrencyMinimum{
                         bank_name: bank_name.to_string(),
@@ -284,7 +284,7 @@ async fn process_currency_value(conn: &mut SqliteConnection,
                         update_time: update_time
                     };
 
-                    return (Some(result), Some(minimum));
+                    return Some(minimum);
                 },
                 Err(e) => {
                     println!("Insert new minimum error: {}", e);
@@ -292,6 +292,8 @@ async fn process_currency_value(conn: &mut SqliteConnection,
             }
         }
     }else{
+        println!("New minimum");
+
         // TODO: Optimize
         let user_id_int: i64 = (*user_id).into();
         let type_str: &'static str = received_value.cur_type.into();
@@ -318,8 +320,7 @@ async fn process_currency_value(conn: &mut SqliteConnection,
                     update_time: update_time
                 };
 
-                let result = markdown_format_minimum(&minimum, received_value);
-                return (Some(result), Some(minimum))
+                return Some(minimum)
             },
             Err(e) => {
                 println!("Insert new minimum error: {}", e);
@@ -327,7 +328,7 @@ async fn process_currency_value(conn: &mut SqliteConnection,
         }
     }
 
-    (None, None)
+    None
 }
 
 pub async fn check_currencies_update(bot_context: &mut BotContext) {
@@ -361,72 +362,64 @@ pub async fn check_currencies_update(bot_context: &mut BotContext) {
         ..
     } = bot_context.app_context;
 
+    // Перебираем информацию о каждом банке, которую получили
+    let usd_received_minimum = received_bank_currencies
+        .iter()
+        .min_by(|val1, val2|{
+            if val1.usd.buy < val2.usd.buy{
+                std::cmp::Ordering::Less
+            }else if val1.usd.buy > val2.usd.buy{
+                std::cmp::Ordering::Greater
+            }else{
+                std::cmp::Ordering::Equal
+            }
+        });
+
+    println!("Minimum USD: {:?}\n", usd_received_minimum);
+
+    let eur_received_minimum = received_bank_currencies
+        .iter()
+        .min_by(|val1, val2|{
+            if val1.usd.buy < val2.usd.buy{
+                std::cmp::Ordering::Less
+            }else if val1.usd.buy > val2.usd.buy{
+                std::cmp::Ordering::Greater
+            }else{
+                std::cmp::Ordering::Equal
+            }
+        });
+
+    println!("Minimum EUR: {:?}\n", usd_received_minimum);
+
     for (user_id, user_subscribe_info) in &mut users_container.users_for_push {
         let mut updates_for_user: Vec<String> = vec![];
 
         // Если у юзера есть предыдущие значения
         let previous_minimum_values: &mut Vec<CurrencyMinimum> = &mut user_subscribe_info.minimum_values;
-
-        // Перебираем информацию о каждом банке, которую получили
-        for received_bank_info in &received_bank_currencies {
+        
+        if let Some(usd_received_minimum) = usd_received_minimum {
             // Ищем предыдущее значение для банка у юзера
-            let previous_usd_for_bank: Option<CurrencyMinimum> = {
-                previous_minimum_values
-                    .iter()
-                    .find(|value|{
-                        value.bank_name.eq(&received_bank_info.bank_name) && value.cur_type == CurrencyType::USD
-                    })
-                    .map(|ref_val|{
-                        ref_val.clone()
-                    })
-            };
-
-            // Если есть предыдущее значение
-            let (update, new_minimum) = process_currency_value(conn,
-                                                               user_id,
-                                                               previous_usd_for_bank,  
-                                                               &received_bank_info.bank_name,
-                                                               received_bank_info.update_time,
-                                                               &received_bank_info.usd).await;
-
-            if let Some(update) = update {
-                updates_for_user.push(update);
-            }
-            if let Some(new_minimum) = new_minimum{
-                let old = previous_minimum_values
-                    .iter_mut()
-                    .find(|val|{
-                        val.cur_type == new_minimum.cur_type 
-                    });
-                if let Some(old) = old {
-                    *old = new_minimum;
-                }else{
-                    previous_minimum_values.push(new_minimum);
-                }
-            }
-
-            // Ищем предыдущее значение для банка у юзера
-            let previous_eur_for_bank: Option<CurrencyMinimum> = previous_minimum_values
-                .iter_mut()
+            let previous_usd: Option<CurrencyMinimum> = previous_minimum_values
+                .iter()
                 .find(|value|{
-                    value.bank_name.eq(&received_bank_info.bank_name) && value.cur_type == CurrencyType::EUR
+                    value.cur_type == CurrencyType::USD
                 })
                 .map(|ref_val|{
                     ref_val.clone()
                 });
 
             // Если есть предыдущее значение
-            // Если есть предыдущее значение
-            let (update, new_minimum) = process_currency_value(conn,
-                                                               user_id,
-                                                               previous_eur_for_bank,  
-                                                               &received_bank_info.bank_name,
-                                                               received_bank_info.update_time,
-                                                               &received_bank_info.eur).await;
-            if let Some(update) = update {
-                updates_for_user.push(update);
-            }
+            let new_minimum = process_currency_value(conn,
+                                                     user_id,
+                                                     previous_usd,  
+                                                     &usd_received_minimum.bank_name,
+                                                     usd_received_minimum.update_time,
+                                                     &usd_received_minimum.usd).await;
+
             if let Some(new_minimum) = new_minimum{
+                let result = markdown_format_minimum(&new_minimum, &usd_received_minimum.usd);
+                updates_for_user.push(result);
+
                 let old = previous_minimum_values
                     .iter_mut()
                     .find(|val|{
@@ -437,8 +430,46 @@ pub async fn check_currencies_update(bot_context: &mut BotContext) {
                 }else{
                     previous_minimum_values.push(new_minimum);
                 }
-            }                                                             
+            }
         }
+
+        if let Some(eur_received_minimum) = eur_received_minimum {
+            // Ищем предыдущее значение для банка у юзера
+            let previous_eur: Option<CurrencyMinimum> = previous_minimum_values
+                .iter()
+                .find(|value|{
+                    value.cur_type == CurrencyType::EUR
+                })
+                .map(|ref_val|{
+                    ref_val.clone()
+                });
+
+
+            // Если есть предыдущее значение
+            // Если есть предыдущее значение
+            let new_minimum = process_currency_value(conn,
+                                                     user_id,
+                                                     previous_eur,  
+                                                     &eur_received_minimum.bank_name,
+                                                     eur_received_minimum.update_time,
+                                                     &eur_received_minimum.eur).await;
+
+            if let Some(new_minimum) = new_minimum{
+                let result = markdown_format_minimum(&new_minimum, &eur_received_minimum.eur);
+                updates_for_user.push(result);
+
+                let old = previous_minimum_values
+                    .iter_mut()
+                    .find(|val|{
+                        val.cur_type == new_minimum.cur_type 
+                    });
+                if let Some(old) = old {
+                    *old = new_minimum;
+                }else{
+                    previous_minimum_values.push(new_minimum);
+                }
+            }
+        }        
 
         if !updates_for_user.is_empty(){
             updates.insert(user_id.clone(), updates_for_user);
