@@ -1,10 +1,12 @@
 
 use std::{
     // collections::HashSet,
-    collections::HashMap
+    collections::HashMap,
+    convert::TryFrom
     //pin::Pin,
     //future::Future
 };
+use chrono::prelude::*;
 // use chrono::{
     // Utc,
     // DateTime
@@ -29,6 +31,8 @@ use currencies_request::{
     CurrencyError,
     CurrencyResult,
     CurrencyMinimum,
+    CurrencyValue,
+    CurrencyType,
     //CurrencyChange,
     get_all_currencies
 };
@@ -190,10 +194,12 @@ impl CurrencyCheckStatus{
         let results: Vec<CurrencyMinimum> = sqlx::query(SQL)
             .bind(user_id)
             .map(|row: SqliteRow| {
+                let type_str: String = row.get("cur_type");
+                let cur_type = CurrencyType::try_from(type_str.as_str()).expect("Invalid currency type");
                 let res = CurrencyMinimum{
                     bank_name: row.get("bank_name"),
-                    usd: row.get("usd"),
-                    eur: row.get("eur"),
+                    value: row.get("value"),
+                    cur_type: cur_type,
                     update_time: None // TODO: ???
                 };
                 println!("Load user's minimum for id = {} from database: {:?}", user_id, res);
@@ -231,6 +237,98 @@ impl CurrencyCheckStatus{
 
 ///////////////////////////////////////////////////////////////////////////////////////
 
+async fn process_currency_value(conn: &mut SqliteConnection,
+                                user_id: &UserId, 
+                                previous_value: Option<CurrencyMinimum>, 
+                                bank_name: &str,
+                                update_time: Option<DateTime<Utc>>,
+                                received_value: &CurrencyValue) -> (Option<String>,  Option<CurrencyMinimum>) {
+    // Если есть предыдущее значение
+    if let Some(previous_value) = previous_value {
+        // Проверяем минимум
+        let is_lower = previous_value.value > received_value.buy;
+
+        // TODO: Test
+        if is_lower {
+            // user_id integer,
+            // bank_name varchar(16),
+            // usd integer,
+            // eur integer,
+            // update_time varchar(32),
+
+            // TODO: Optimize
+            let user_id_int: i64 = (*user_id).into();
+            let type_str: &'static str = received_value.cur_type.into();
+            let q = sqlx::query("BEGIN; \
+                                DELETE FROM currency_minimum WHERE user_id = ? AND cur_type = ?; \
+                                INSERT INTO currency_minimum(user_id, bank_name, value, cur_type, update_time) VALUES (?, ?, ?, ?, ?); \
+                                COMMIT;")
+                .bind(user_id_int)
+                .bind(type_str)
+                .bind(user_id_int)
+                .bind(bank_name)
+                .bind(&received_value.buy)
+                .bind(type_str)
+                .bind(""); // TODO: Date
+            
+            let query_result = q.execute(&mut (*conn)).await;
+            match query_result{
+                Ok(_)=>{
+                    let result = markdown_format_minimum(&previous_value, received_value);
+
+                    // Обновляем значение
+                    let minimum = CurrencyMinimum{
+                        bank_name: bank_name.to_string(),
+                        value: received_value.buy,
+                        cur_type: received_value.cur_type,
+                        update_time: update_time
+                    };
+
+                    return (Some(result), Some(minimum));
+                },
+                Err(e) => {
+                    println!("Insert new minimum error: {}", e);
+                }
+            }
+        }
+    }else{
+        // TODO: Optimize
+        let user_id_int: i64 = (*user_id).into();
+        let type_str: &'static str = received_value.cur_type.into();
+        let q = sqlx::query("BEGIN; \
+                            DELETE FROM currency_minimum WHERE user_id = ? AND cur_type = ?; \
+                            INSERT INTO currency_minimum(user_id, bank_name, value, cur_type, update_time) VALUES (?, ?, ?, ?, ?); \
+                            COMMIT;")
+            .bind(user_id_int)
+            .bind(type_str)
+            .bind(user_id_int)
+            .bind(bank_name)
+            .bind(&received_value.buy)
+            .bind(type_str)
+            .bind(""); // TODO: Date
+        
+        let query_result = q.execute(&mut (*conn)).await;
+        match query_result{
+            Ok(_)=>{
+                // Иначе вкидываем новое
+                let minimum = CurrencyMinimum{
+                    bank_name: bank_name.to_string(),
+                    value: received_value.buy,
+                    cur_type: received_value.cur_type,
+                    update_time: update_time
+                };
+
+                let result = markdown_format_minimum(&minimum, received_value);
+                return (Some(result), Some(minimum))
+            },
+            Err(e) => {
+                println!("Insert new minimum error: {}", e);
+            }
+        }
+    }
+
+    (None, None)
+}
 
 pub async fn check_currencies_update(bot_context: &mut BotContext) {
     // Если некому слать - выходим
@@ -269,98 +367,77 @@ pub async fn check_currencies_update(bot_context: &mut BotContext) {
         // Если у юзера есть предыдущие значения
         let previous_minimum_values: &mut Vec<CurrencyMinimum> = &mut user_subscribe_info.minimum_values;
 
-        // TODO: База данных
-
         // Перебираем информацию о каждом банке, которую получили
         for received_bank_info in &received_bank_currencies {
             // Ищем предыдущее значение для банка у юзера
-            let previous_value_for_bank: Option<&mut CurrencyMinimum> = previous_minimum_values
-                .iter_mut()
-                .find(|value|{
-                    value.bank_name.eq(&received_bank_info.bank_name)
-                });
-            
+            let previous_usd_for_bank: Option<CurrencyMinimum> = {
+                previous_minimum_values
+                    .iter()
+                    .find(|value|{
+                        value.bank_name.eq(&received_bank_info.bank_name) && value.cur_type == CurrencyType::USD
+                    })
+                    .map(|ref_val|{
+                        ref_val.clone()
+                    })
+            };
+
             // Если есть предыдущее значение
-            if let Some(previous_value_for_bank) = previous_value_for_bank{
-                // Проверяем минимум
-                let usd_lower = previous_value_for_bank.usd > received_bank_info.usd.buy;
-                let eur_lower = previous_value_for_bank.eur > received_bank_info.eur.buy;
+            let (update, new_minimum) = process_currency_value(conn,
+                                                               user_id,
+                                                               previous_usd_for_bank,  
+                                                               &received_bank_info.bank_name,
+                                                               received_bank_info.update_time,
+                                                               &received_bank_info.usd).await;
 
-                // TODO: Test
-                if usd_lower || eur_lower{
-                    // user_id integer,
-                    // bank_name varchar(16),
-                    // usd integer,
-                    // eur integer,
-                    // update_time varchar(32),
-
-                    // TODO: Optimize
-                    let user_id_int: i64 = (*user_id).into();
-                    let q = sqlx::query("BEGIN; \
-                                        DELETE FROM currency_minimum WHERE user_id = ? AND bank_name = ?; \
-                                        INSERT INTO currency_minimum(user_id, bank_name, usd, eur, update_time) VALUES (?, ?, ?, ?, ?); \
-                                        COMMIT;")
-                        .bind(user_id_int)
-                        .bind(&received_bank_info.bank_name)
-                        .bind(user_id_int)
-                        .bind(&received_bank_info.bank_name)
-                        .bind(received_bank_info.usd.buy)
-                        .bind(received_bank_info.eur.buy)
-                        .bind(""); // TODO: Date
-                    
-                    let query_result = q.execute(&mut (*conn)).await;
-                    match query_result{
-                        Ok(_)=>{
-                            // Обновляем значение
-                            *previous_value_for_bank = CurrencyMinimum{
-                                bank_name: received_bank_info.bank_name.clone(),
-                                usd: received_bank_info.usd.buy,
-                                eur: received_bank_info.eur.buy,
-                                update_time: received_bank_info.update_time.clone()
-                            };
-
-                            updates_for_user.push(markdown_format_minimum(previous_value_for_bank, received_bank_info));
-                        },
-                        Err(e) => {
-                            println!("Insert new minimum error: {}", e);
-                        }
-                    }
-                }
-            }else{
-                let user_id_int: i64 = (*user_id).into();
-                // TODO: Optimize
-                let q = sqlx::query("BEGIN; \
-                                    DELETE FROM currency_minimum WHERE user_id = ? AND bank_name = ?; \
-                                    INSERT INTO currency_minimum(user_id, bank_name, usd, eur, update_time) VALUES (?, ?, ?, ?, ?); \
-                                    COMMIT;")
-                    .bind(user_id_int)
-                    .bind(&received_bank_info.bank_name)
-                    .bind(user_id_int)
-                    .bind(&received_bank_info.bank_name)
-                    .bind(received_bank_info.usd.buy)
-                    .bind(received_bank_info.eur.buy)
-                    .bind(""); // TODO: Date
-                
-                let query_result = q.execute(&mut (*conn)).await;
-                match query_result{
-                    Ok(_)=>{
-                        // Иначе вкидываем новое
-                        let minimum = CurrencyMinimum{
-                            bank_name: received_bank_info.bank_name.clone(),
-                            usd: received_bank_info.usd.buy,
-                            eur: received_bank_info.eur.buy,
-                            update_time: received_bank_info.update_time.clone()
-                        };
-
-                        updates_for_user.push(markdown_format_minimum(&minimum, received_bank_info));
-
-                        previous_minimum_values.push(minimum);
-                    },
-                    Err(e) => {
-                        println!("Insert new minimum error: {}", e);
-                    }
+            if let Some(update) = update {
+                updates_for_user.push(update);
+            }
+            if let Some(new_minimum) = new_minimum{
+                let old = previous_minimum_values
+                    .iter_mut()
+                    .find(|val|{
+                        val.cur_type == new_minimum.cur_type 
+                    });
+                if let Some(old) = old {
+                    *old = new_minimum;
+                }else{
+                    previous_minimum_values.push(new_minimum);
                 }
             }
+
+            // Ищем предыдущее значение для банка у юзера
+            let previous_eur_for_bank: Option<CurrencyMinimum> = previous_minimum_values
+                .iter_mut()
+                .find(|value|{
+                    value.bank_name.eq(&received_bank_info.bank_name) && value.cur_type == CurrencyType::EUR
+                })
+                .map(|ref_val|{
+                    ref_val.clone()
+                });
+
+            // Если есть предыдущее значение
+            // Если есть предыдущее значение
+            let (update, new_minimum) = process_currency_value(conn,
+                                                               user_id,
+                                                               previous_eur_for_bank,  
+                                                               &received_bank_info.bank_name,
+                                                               received_bank_info.update_time,
+                                                               &received_bank_info.eur).await;
+            if let Some(update) = update {
+                updates_for_user.push(update);
+            }
+            if let Some(new_minimum) = new_minimum{
+                let old = previous_minimum_values
+                    .iter_mut()
+                    .find(|val|{
+                        val.cur_type == new_minimum.cur_type 
+                    });
+                if let Some(old) = old {
+                    *old = new_minimum;
+                }else{
+                    previous_minimum_values.push(new_minimum);
+                }
+            }                                                             
         }
 
         if !updates_for_user.is_empty(){
@@ -409,8 +486,8 @@ fn markdown_format_currency_result(info: &CurrencyResult) -> String{
     bank_text
 }
 
-fn markdown_format_minimum(info: &CurrencyMinimum, previous: &CurrencyResult) -> String{
-    let time_str: String = match info.update_time {
+fn markdown_format_minimum(new_minimum: &CurrencyMinimum, previous_value: &CurrencyValue) -> String{
+    let time_str: String = match new_minimum.update_time {
         Some(time) => time.format("%H:%M %d-%m-%Y").to_string(),
         None => "No time".into()
     };
@@ -418,14 +495,12 @@ fn markdown_format_minimum(info: &CurrencyMinimum, previous: &CurrencyResult) ->
     let bank_text = format!(   "New buy minimum\n\
                                 *{} ({})*:\n\
                                 ```\n\
-                                $: new = {:.2}, old = {:.2}\n\
-                                €: new = {:.2}, old = {:.2}\n```\n",
-            info.bank_name,
+                                {}: new = {:.2}, old = {:.2}```\n",
+            new_minimum.bank_name,
             time_str,
-            info.usd,
-            previous.usd.buy,
-            info.eur,
-            previous.eur.buy);
+            new_minimum.cur_type,
+            new_minimum.value,
+            previous_value.buy);
 
     bank_text
 }

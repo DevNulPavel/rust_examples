@@ -17,10 +17,56 @@ use chrono::prelude::*;
 //     Alpha
 // }
 
-#[derive(Debug, Copy, Clone)]
+#[derive(Debug, Copy, Clone, Eq, PartialEq)]
 pub enum CurrencyType{
     EUR,
     USD
+}
+
+impl Into<&'static str> for &CurrencyType {
+    fn into(self) -> &'static str {
+        match self {
+            CurrencyType::USD =>{
+                "USD"
+            },
+            CurrencyType::EUR =>{
+                "EUR"
+            }
+        }
+    }
+}
+
+impl From<CurrencyType> for &'static str {
+    fn from(val: CurrencyType) -> &'static str {
+        match val {
+            CurrencyType::USD =>{
+                "USD"
+            },
+            CurrencyType::EUR =>{
+                "EUR"
+            }
+        }
+    }
+}
+
+impl Display for CurrencyType {
+    fn fmt(&self, f: &mut Formatter) -> fmt::Result {
+        let s: &'static str = self.into();
+        write!(f, "{}", s)
+    }
+}
+
+impl std::convert::TryFrom<&str> for CurrencyType{
+    // TODO: ??
+    type Error = ();
+
+    fn try_from(value: &str) -> Result<Self, Self::Error>{
+        match value {
+            "EUR" => Ok(Self::EUR),
+            "USD" => Ok(Self::USD),
+            _ => Err(())
+        }
+    }
 }
 
 #[derive(Debug, Copy, Clone)]
@@ -63,11 +109,11 @@ pub struct CurrencyResult {
     pub update_time: Option<DateTime<Utc>>
 }
 
-#[derive(new, Debug, Clone)]
+#[derive(new, Debug, Clone, PartialEq)]
 pub struct CurrencyMinimum {
     pub bank_name: String,
-    pub usd: f32,
-    pub eur: f32,
+    pub value: f32,
+    pub cur_type: CurrencyType,
     pub update_time: Option<DateTime<Utc>>
 }
 

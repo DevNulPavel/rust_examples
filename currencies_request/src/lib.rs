@@ -25,6 +25,8 @@ pub use crate::{
     types::{
         CurrencyResult,
         CurrencyMinimum,
+        CurrencyValue,
+        CurrencyType,
         CurrencyChange,
     },
 };
