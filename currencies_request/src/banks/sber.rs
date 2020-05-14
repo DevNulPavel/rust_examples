@@ -100,8 +100,8 @@ pub async fn get_currencies_from_sber(client: &Client, bank_name: &'static str) 
         .get("0")
         .ok_or(CurrencyError::new(bank_name, NoData(USD)))?;
     
-    //println!("{:?}", usd_info);
-    //println!("{:?}", eur_info);
+    //info!("{:?}", usd_info);
+    //info!("{:?}", eur_info);
         
     let usd: CurrencyValue = CurrencyValue::from_sber(USD, usd_info);
     let eur: CurrencyValue = CurrencyValue::from_sber(EUR, eur_info);

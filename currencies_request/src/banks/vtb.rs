@@ -97,7 +97,7 @@ pub async fn get_currencies_from_vtb(_client: &Client, bank_name: &'static str) 
     //     .json()
     //     .await?;
 
-    //println!("{:?}", json);
+    //info!("{:?}", json);
 
     Err(CurrencyError::new(bank_name.into(), InvalidResponse("Test")))
 }

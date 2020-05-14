@@ -16,7 +16,7 @@ RUN_BOT:
 	# RUST_LOG=debug
 	# RUST_LOG=trace
 	# https://docs.rs/env_logger/0.7.1/env_logger/
-	RUST_LOG=telegram_bot=trace; \
+	export RUST_LOG=telegram_bot=trace; \
 	while true ; do \
 	cargo run --bin telegram_bot; \
 	sleep 5;\

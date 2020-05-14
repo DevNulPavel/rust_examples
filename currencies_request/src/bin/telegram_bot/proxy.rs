@@ -77,7 +77,7 @@ async fn check_proxy_addr<S>(addr: S) -> Option<S>
         info!("Valid addr: {}", addr);
         Some(addr)
     }else{
-        //println!("Invalid addr: {}", addr);
+        //info!("Invalid addr: {}", addr);
         None
     }
 }
@@ -123,7 +123,7 @@ fn build_http_1_proxies_stream() -> Receiver<Option<String>> {
             for addr in http_1_proxies {
                 let result: Option<String> = check_proxy_addr(addr.to_string()).await;
                 if tx.send(result).await.is_err(){
-                    println!("Http 1 proxies request exit");
+                    info!("Http 1 proxies request exit");
                     return;
                 }
             }

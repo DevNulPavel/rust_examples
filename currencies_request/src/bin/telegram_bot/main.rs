@@ -153,7 +153,9 @@ async fn process_update(bot_context: &mut BotContext, update: Update){
 }
 
 async fn async_main(){
-    pretty_env_logger::init();
+    // pretty_env_logger::init_timed();
+    std::env::set_var("RUST_LOG", "telegram_bot=trace");
+    pretty_env_logger::init_timed();
 
     // TODO: Обернуть в cfg
     // Трассировка
@@ -260,9 +262,9 @@ async fn async_main(){
                             process_update(&mut bot_context, update).await;
                         },
                         Err(e) => {
-                            error!("Update receive failed: {}", e);
+                            info!("Update receive failed: {}", e);
                             // Перед новым подключением - подождем немного
-                            tokio::time::delay_for(Duration::from_secs(15)).await;
+                            //tokio::time::delay_for(Duration::from_secs(5)).await;
                         }
                     }
                 }

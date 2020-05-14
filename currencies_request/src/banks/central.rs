@@ -46,7 +46,7 @@ pub async fn get_currencies_from_central(_client: &Client, bank_name: &'static s
     //     .json()
     //     .await?;
 
-    //println!("{:?}", json);
+    //info!("{:?}", json);
     
     Err(CurrencyError::new(bank_name, NoData(USD)))
 }

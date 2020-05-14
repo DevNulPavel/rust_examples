@@ -84,7 +84,7 @@ fn get_buy_and_sell<'a>(info: &'a Vec<AlphaCurrency>, cur_type: CurrencyType, ba
 
     // Время
     let chrono_time = Utc.datetime_from_str(buy.date.as_str(), "%Y-%m-%d %H:%M:%S"); // "2014-11-28 12:00:09" "2020-05-07 12:29:00" "2020-05-07 12:29:00"
-    //println!("{:?}", chrono_time);
+    //info!("{:?}", chrono_time);
 
     Ok(AlphaBuyAndSellInfo::new(cur_type, buy, sell, chrono_time.ok()))
 }
@@ -109,7 +109,7 @@ pub async fn get_currencies_from_alpha(client: &Client, bank_name: &'static str)
         .json()
         .await?;
 
-    //println!("{:?}", json);
+    //info!("{:?}", json);
 
     // Дергаем значения
     let usd: &Vec<AlphaCurrency> = json
