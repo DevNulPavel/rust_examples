@@ -21,7 +21,9 @@ use crate::{
 };
 
 pub use crate::{
-    errors::CurrencyError,
+    errors::{
+        CurrencyError,
+    },
     types::{
         CurrencyResult,
         CurrencyMinimum,

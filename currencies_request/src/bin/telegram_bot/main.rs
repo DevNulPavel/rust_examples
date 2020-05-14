@@ -4,6 +4,7 @@ mod currency;
 mod app_context;
 mod bot_context;
 mod database;
+mod error;
 
 use std::{
     env,
@@ -22,6 +23,8 @@ use telegram_bot::{
     CanSendMessage,
     Update,
     Message,
+    ParseMode,
+    MessageOrChannelPost,
 };
 use tokio::{
     runtime::{
@@ -41,6 +44,10 @@ use log::{
 use crate::{
     app_context::AppContext,
     bot_context::BotContext,
+    error::{
+        TelegramBotError,
+        TelegramBotResult
+    },
     proxy::{
         get_valid_proxy_addresses,
         build_proxy_for_addresses,
@@ -56,70 +63,112 @@ use crate::{
     }
 };
 
-async fn process_bot_command(bot_context: &mut BotContext, data: &String, message: &Message){
-/*
-currencies - Receive currencies
-currencies_monitoring_on - Start monitoring
-currencies_monitoring_off - Stop monitoring
-currencies_monitoring_reset - Reset monitoring from current time
-habr - Habr news
-*/ 
+async fn send_tutorial(api: &Api, message: &Message) -> Result<MessageOrChannelPost, TelegramBotError>{
+    //telegram_bot::types::requests::Messa
+    const FAQ_TEXT: &str = "\
+        Information: /start or /help \n/
+        Currencies: /currencies \n/
+        Start minimum monitoring: /currencies_monitoring_on \n/
+        Stop minimum monitoring with reset: /currencies_monitoring_off \n/
+        Reset minimum monitoring values: /currencies_monitoring_reset \n/
+        Information: /start or /help \n/";
+    let mut req = message.from.text(FAQ_TEXT);
+    req.parse_mode(ParseMode::Markdown);
+    let send_result = api.send(req).await?;
+    Ok(send_result)
+}
 
-    // TODO: match
-    if data.eq("/start") {
+async fn start_user_monitoring(bot_context: &mut BotContext, message: &Message) -> TelegramBotResult {
+    info!("Start monitoring for: {:?}", message.from);
+
+    // https://doc.rust-lang.org/book/ch18-03-pattern-syntax.html#destructuring-structs
+    // Разворачиваем структуру в поля
+    let AppContext{
+        db_conn: db,
+        users_for_push: users,
+        ..
+    } = &mut bot_context.app_context;
+
+    // Добавляем пользователя к мониторингу
+    let result = users
+        .add_user(&message.from.id, db)
+        .await;
+    
+    // Если добавили юзера - хорошо
+    let message = if (&result).is_ok() {
+        message.from.text("Enabled")
+    }else{
+        message.from.text("Enable failed")
+    };
+    bot_context.api.send(message).await?;
+
+    // Если было все ок - запрашиваем валюты принудительно
+    if result.is_ok() {
+        info!("Check currencies");
+        check_currencies_update(bot_context).await;
     }
-    if data.eq("/currencies") {
-        process_currencies_command(bot_context, message).await.expect("Currencies command process failed");
-    }
-    if data.eq("/currencies_monitoring_on") {
-        info!("Start monitoring for: {:?}", message.from);
 
-        // https://doc.rust-lang.org/book/ch18-03-pattern-syntax.html#destructuring-structs
-        let AppContext{
-            db_conn: db,
-            users_for_push: users,
-            ..
-        } = &mut bot_context.app_context;
+    Ok(())
+}
 
-        let result = users
-            .add_user(&message.from.id, db)
-            .await;
-        
-        let message = if (&result).is_ok() {
-            // После нового юзера - стартуем обновление для всех
-            message.from.text("Enabled")
-        }else{
-            message.from.text("Enable failed")
-        };
-        bot_context.api.send(message).await.ok();
+async fn stop_user_monitoring(bot_context: &mut BotContext, message: &Message) -> TelegramBotResult {
+    info!("Stop monitoring for: {:?}", message.from);
 
-        if result.is_ok() {
-            info!("Check currencies");
-            check_currencies_update(bot_context).await;
+    // https://doc.rust-lang.org/book/ch18-03-pattern-syntax.html#destructuring-structs
+    // Разворачиваем структуру в поля
+    let AppContext{
+        db_conn: db,
+        users_for_push: users,
+        ..
+    } = &mut bot_context.app_context;
+
+    // Добавляем пользователя из монитринга
+    let remove_result = users.remove_user(&message.from.id, db)
+        .await;
+
+    // TODO: Осмысленные сообщения
+    // Если было все ок - сообщение успешности
+    let message = if remove_result.is_ok() {
+        message.from.text("Disabled")
+    }else{
+        message.from.text("Disable failed")
+    };
+    bot_context.api.send(message).await?;
+
+    Ok(())
+}
+
+async fn process_bot_command(bot_context: &mut BotContext, data: &String, message: &Message) -> TelegramBotResult {
+    /*
+    currencies - Receive currencies
+    currencies_monitoring_on - Start monitoring
+    currencies_monitoring_off - Stop monitoring
+    currencies_monitoring_reset - Reset monitoring from current time
+    habr - Habr news
+    */ 
+
+    match data.as_str() {
+        "/start" =>{
+            send_tutorial(&bot_context.api, message).await?;
+        },
+        "/currencies" => {
+            process_currencies_command(bot_context, message).await?;
+        },
+        "/currencies_monitoring_on" => {
+            start_user_monitoring(bot_context, message).await?;
+        }
+        "/currencies_monitoring_off" => {
+            stop_user_monitoring(bot_context, message).await?;
+        },
+        "/currencies_monitoring_reset" => {
+            // TODO: Reset
+        },
+        text => {
+            return Err(TelegramBotError::CustomError(format!("Invalid bot command: {}", text)));
         }
     }
-    if data.eq("/currencies_monitoring_reset") {
-    }
-    if data.eq("/currencies_monitoring_off") {
-        info!("Stop monitoring for: {:?}", message.from);
 
-        // https://doc.rust-lang.org/book/ch18-03-pattern-syntax.html#destructuring-structs
-        let AppContext{
-            db_conn: db,
-            users_for_push: users,
-            ..
-        } = &mut bot_context.app_context;
-
-        let remove_result = users.remove_user(&message.from.id, db)
-            .await;
-
-        let message = if remove_result.is_ok() {
-            message.from.text("Disabled")
-        }else{
-            message.from.text("Disable failed")
-        };
-        bot_context.api.send(message).await.ok();
-    }
+    Ok(())
 }
 
 async fn process_update(bot_context: &mut BotContext, update: Update){
@@ -132,7 +181,9 @@ async fn process_update(bot_context: &mut BotContext, update: Update){
                     for command in entities {
                         match command.kind {
                             MessageEntityKind::BotCommand => {
-                                process_bot_command(bot_context, data, message).await;
+                                if let Err(e) = process_bot_command(bot_context, data, message).await{
+                                    error!("Process command error: {:?}", e);
+                                }
                             },
                             _ => {
                             }
@@ -155,7 +206,7 @@ async fn process_update(bot_context: &mut BotContext, update: Update){
 async fn async_main(){
     // pretty_env_logger::init_timed();
     std::env::set_var("RUST_LOG", "telegram_bot=trace");
-    pretty_env_logger::init_timed();
+    pretty_env_logger::init();
 
     // TODO: Обернуть в cfg
     // Трассировка
@@ -182,12 +233,12 @@ async fn async_main(){
     let mut db_conn = get_database().await;
 
     // Таймер проверки проксей
-    let mut proxy_check_timer = tokio::time::interval(Duration::from_secs(60*5));
+    let mut proxy_check_timer = tokio::time::interval(Duration::from_secs(60*3));
     proxy_check_timer.tick().await; // Первый тик сбрасываем
 
     // Таймер проверки проксей
-    let mut send_message_timer = tokio::time::interval(Duration::from_secs(60*5));
-    send_message_timer.tick().await; // Первый тик сбрасываем
+    let mut check_updates_timer = tokio::time::interval(Duration::from_secs(60*5));
+    check_updates_timer.tick().await; // Первый тик сбрасываем
 
     // Хранилище юзеров
     let users_storrage = CurrencyUsersStorrage::new(&mut db_conn).await;
@@ -196,7 +247,7 @@ async fn async_main(){
     let mut app_context = AppContext{
         token,
         proxy_check_timer,
-        send_message_timer,
+        check_updates_timer,
         client,
         db_conn,
         users_for_push: users_storrage, // Хранилище пользователей
@@ -235,7 +286,7 @@ async fn async_main(){
                 },
                 
                 // Таймер периодических сообщений
-                _ = bot_context.app_context.send_message_timer.tick() => {
+                _ = bot_context.app_context.check_updates_timer.tick() => {
                     check_currencies_update(&mut bot_context).await;
                 },
 

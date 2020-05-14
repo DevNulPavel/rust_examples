@@ -10,6 +10,8 @@ use crate::{
     types::CurrencyType
 };
 
+// TODO: Экспортирует в корень крейта
+#[macro_export]
 macro_rules! error_from {
     ($err_struct: ty, $enum_val: ident, $source_type: ty) => {
         impl From<$source_type> for $err_struct{

@@ -18,7 +18,7 @@ use crate::{
 pub struct AppContext{
     pub(super) token: String,
     pub(super) proxy_check_timer: Interval, // Ограничение видимости толкьо родителем
-    pub(super) send_message_timer: Interval,
+    pub(super) check_updates_timer: Interval,
     pub client: Client,
     pub db_conn: SqliteConnection,
     pub users_for_push: CurrencyUsersStorrage

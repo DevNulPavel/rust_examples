@@ -23,7 +23,6 @@ use chrono::prelude::*;
 // };
 use telegram_bot::{
     // Api,
-    Error,
     Message,
     CanSendMessage,
     ParseMode,
@@ -62,6 +61,9 @@ use crate::{
     },
     bot_context::{
         BotContext
+    },
+    error::{
+        TelegramBotError
     }
 };
 
@@ -539,29 +541,14 @@ fn markdown_format_minimum(new_minimum: &CurrencyMinimum, previous_value: &Curre
     bank_text
 }
 
-pub async fn process_currencies_command(bot_context: &BotContext, message: &Message) -> Result<(), Error> {
+pub async fn process_currencies_command(bot_context: &BotContext, message: &Message) -> Result<(), TelegramBotError> {
     let mut text = String::new();
 
     // Выводим текст, используем into_iter для потребляющего итератора
     for info in get_all_currencies(&bot_context.app_context.client).await {
-        let info: Result<CurrencyResult, CurrencyError> = info;
-        match info {
-            Ok(info) =>{
-                let info: CurrencyResult = info;
-
-                let bank_text = markdown_format_currency_result(&info);
-                
-                text.push_str(bank_text.as_str())
-            },
-            Err(_e) => {
-                // TODO: Вывод ошибок
-                /*let row = Row::new(vec![
-                    Cell::new(format!("{:?}", e).as_str()),
-                ]);
-                table.add_row(row);*/
-                error!("{:?}", _e);
-            }
-        }
+        let info: CurrencyResult = info?;
+        let bank_text = markdown_format_currency_result(&info);
+        text.push_str(bank_text.as_str());
     }
 
     let mut private_messaage = message.from.text(text);
