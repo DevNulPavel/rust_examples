@@ -8,29 +8,20 @@ mod database;
 use std::{
     env,
     time::Duration,
-    //collections::HashSet
-    //collections::HashMap
-    //pin::Pin,
-    //future::Future
 };
 use futures::{
     StreamExt,
 };
 use telegram_bot::{
-    //prelude::*,
     connector::Connector,
     Api,
     UpdatesStream,
     UpdateKind,
     MessageKind,
     MessageEntityKind,
-    //Error,
-    //CanReplySendMessage,
     CanSendMessage,
     Update,
     Message,
-    //MessageChat,
-    //CanSendMessage,
 };
 use tokio::{
     runtime::{
@@ -42,14 +33,12 @@ use reqwest::{
     Client,
     ClientBuilder,
 };
-// use sqlx::{
-    // Connect,
-    // sqlite::{
-        // SqliteConnection
-    // }
-// };
+use log::{
+    info,
+    warn,
+    error
+};
 use crate::{
-    // constants::PROXIES,
     app_context::AppContext,
     bot_context::BotContext,
     proxy::{
@@ -83,7 +72,7 @@ habr - Habr news
         process_currencies_command(bot_context, message).await.expect("Currencies command process failed");
     }
     if data.eq("/currencies_monitoring_on") {
-        println!("Start monitoring for: {:?}", message.from);
+        info!("Start monitoring for: {:?}", message.from);
 
         // https://doc.rust-lang.org/book/ch18-03-pattern-syntax.html#destructuring-structs
         let AppContext{
@@ -105,14 +94,14 @@ habr - Habr news
         bot_context.api.send(message).await.ok();
 
         if result.is_ok() {
-            println!("Check currencies");
+            info!("Check currencies");
             check_currencies_update(bot_context).await;
         }
     }
     if data.eq("/currencies_monitoring_reset") {
     }
     if data.eq("/currencies_monitoring_off") {
-        println!("Stop monitoring for: {:?}", message.from);
+        info!("Stop monitoring for: {:?}", message.from);
 
         // https://doc.rust-lang.org/book/ch18-03-pattern-syntax.html#destructuring-structs
         let AppContext{
@@ -164,6 +153,8 @@ async fn process_update(bot_context: &mut BotContext, update: Update){
 }
 
 async fn async_main(){
+    pretty_env_logger::init();
+
     // TODO: Обернуть в cfg
     // Трассировка
     // tracing::subscriber::set_global_default(
@@ -174,8 +165,9 @@ async fn async_main(){
     // .unwrap();
 
     // Получаем токен нашего бота
-    let token: String = env::var("TELEGRAM_TOKEN").expect("TELEGRAM_TOKEN not set");
-    println!("Token: {}", token);
+    let token: String = env::var("TELEGRAM_TOKEN")
+        .expect("TELEGRAM_TOKEN not set");
+    info!("Token: {}", token);
 
     // Создаем клиента для запросов
     let client: Client = ClientBuilder::new()
@@ -224,18 +216,18 @@ async fn async_main(){
         // Дергаем новые обновления через long poll метод
         let mut stream: UpdatesStream = bot_context.api.stream();
 
-        println!("Stream created\n");
+        info!("Stream created\n");
 
         'select_loop: loop {
             tokio::select! {
                 // Таймер проверки проксей
                 _ = bot_context.app_context.proxy_check_timer.tick() => {
-                    println!("Repeat proxy check");
+                    info!("Repeat proxy check");
                     let accessible = check_all_proxy_addresses_accessible(&valid_proxy_addresses).await;
                     if accessible {
-                        println!("All proxies are valid, continue");
+                        info!("All proxies are valid, continue");
                     }else{
-                        println!("Some proxy is invalid, break");
+                        warn!("Some proxy is invalid, break");
                         break 'select_loop;
                     }
                 },
@@ -253,7 +245,7 @@ async fn async_main(){
                             update
                         },
                         None =>{
-                            println!("No updates - break");
+                            error!("No updates - break");
                             break 'select_loop;
                         }
                     };
@@ -262,13 +254,13 @@ async fn async_main(){
                     match update {
                         Ok(update) => {
                             let update: Update = update;
-                            println!("Update: {:?}\n", update);
+                            info!("Update: {:?}\n", update);
 
                             // Обработка обновления
                             process_update(&mut bot_context, update).await;
                         },
                         Err(e) => {
-                            println!("Update receive failed: {}", e);
+                            error!("Update receive failed: {}", e);
                             // Перед новым подключением - подождем немного
                             tokio::time::delay_for(Duration::from_secs(15)).await;
                         }

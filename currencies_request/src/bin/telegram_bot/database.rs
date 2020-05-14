@@ -4,6 +4,11 @@ use std::{
     },
     env
 };
+use log::{
+    info,
+    // warn,
+    // debug
+};
 use sqlx::{
     Connect,
     Cursor,
@@ -45,6 +50,22 @@ async fn check_tables_exists(conn: &mut SqliteConnection) -> bool {
     value.is_some()
 }
 
+pub async fn build_sqlite_connection(connection_param: &str) -> SqliteConnection {
+    let mut db_conn = SqliteConnection::connect(connection_param)
+        .await
+        .expect("Sqlite connection create failed");
+
+    let tables_exist = check_tables_exists(&mut db_conn).await;
+    if !tables_exist {
+        info!("Database doesn't exist, need to create it");
+        build_tables(&mut db_conn).await;
+    }else{
+        info!("Database already exists");
+    }
+
+    db_conn
+}
+
 pub async fn get_database() -> SqliteConnection {
     // TODO: Improve
     let database_path: std::path::PathBuf = if cfg!(debug_assertions) {
@@ -58,7 +79,7 @@ pub async fn get_database() -> SqliteConnection {
         database_path.into()
     };
 
-    println!("TELEGRAM_DATABASE_PATH: {:?}", database_path);
+    info!("TELEGRAM_DATABASE_PATH: {:?}", database_path);
 
     if database_path.exists() == false{
         let folder = database_path.parent().expect("Database path get get folder failed");
@@ -74,18 +95,14 @@ pub async fn get_database() -> SqliteConnection {
     let connect_path: String = format!("sqlite:{}", database_path
         .to_str()
         .expect("Db path to string failed"));
+ 
+    build_sqlite_connection(connect_path.as_str()).await
+}
 
-    let mut db_conn = SqliteConnection::connect(connect_path)
-        .await
-        .expect("Sqlite connection create failed");
 
-    let tables_exist = check_tables_exists(&mut db_conn).await;
-    if !tables_exist {
-        println!("Database doesn't exist, need to create it");
-        build_tables(&mut db_conn).await;
-    }else{
-        println!("Database already exists");
+#[cfg(test)]
+mod tests{
+    #[test]
+    fn build_db(){
     }
-
-    db_conn
 }

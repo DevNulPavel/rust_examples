@@ -77,27 +77,27 @@ struct VtbCurrencyResponse{
 //     }
 // }
 
-pub async fn get_currencies_from_vtb(client: &Client, bank_name: &'static str) -> Result<CurrencyResult, CurrencyError> {
+pub async fn get_currencies_from_vtb(_client: &Client, bank_name: &'static str) -> Result<CurrencyResult, CurrencyError> {
     // Получаем json
-    let url = "https://www.vtb.ru/api/currency-exchange/table-info\
-                ?contextItemId=%7BC5471052-2291-4AFD-9C2D-1DBC40A4769D%7D\
-                &conversionPlace=1\
-                &conversionType=1\
-                &renderingId=ede2e4d0-eb6b-4730-857b-06fd4975c06b\
-                &renderingParams=LegalStatus__%7BF2A32685-E909-44E8-A954-1E206D92FFF8%7D\
-                    ;IsFromRuble__1\
-                    ;CardMaxPeriodDays__5\
-                    ;CardRecordsOnPage__5\
-                    ;ConditionsUrl__%2Fpersonal%2Fplatezhi-i-perevody%2Fobmen-valjuty%2Fspezkassy%2F\
-                    ;Multiply100JPYand10SEK__1";
-    let json: VtbCurrencyResponse = client
-        .get(url)
-        .send()
-        .await?
-        .json()
-        .await?;
+    // let url = "https://www.vtb.ru/api/currency-exchange/table-info\
+    //             ?contextItemId=%7BC5471052-2291-4AFD-9C2D-1DBC40A4769D%7D\
+    //             &conversionPlace=1\
+    //             &conversionType=1\
+    //             &renderingId=ede2e4d0-eb6b-4730-857b-06fd4975c06b\
+    //             &renderingParams=LegalStatus__%7BF2A32685-E909-44E8-A954-1E206D92FFF8%7D\
+    //                 ;IsFromRuble__1\
+    //                 ;CardMaxPeriodDays__5\
+    //                 ;CardRecordsOnPage__5\
+    //                 ;ConditionsUrl__%2Fpersonal%2Fplatezhi-i-perevody%2Fobmen-valjuty%2Fspezkassy%2F\
+    //                 ;Multiply100JPYand10SEK__1";
+    // let json: VtbCurrencyResponse = client
+    //     .get(url)
+    //     .send()
+    //     .await?
+    //     .json()
+    //     .await?;
 
-    println!("{:?}", json);
+    //println!("{:?}", json);
 
     Err(CurrencyError::new(bank_name.into(), InvalidResponse("Test")))
 }

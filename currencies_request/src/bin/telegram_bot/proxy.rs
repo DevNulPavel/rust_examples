@@ -2,6 +2,11 @@
 use std::{
     time::Duration,
 };
+use log::{
+    info,
+    //warn,
+    //debug
+};
 use futures::{
     //FutureExt,
     stream::FuturesUnordered,
@@ -66,10 +71,10 @@ async fn check_proxy_addr<S>(addr: S) -> Option<S>
         .expect("Proxy request build failed");
     let res = client.execute(req).await;
     
-    //println!("Result: {:?}", res);
+    //info!("Result: {:?}", res);
 
     if res.is_ok() {
-        println!("Valid addr: {}", addr);
+        info!("Valid addr: {}", addr);
         Some(addr)
     }else{
         //println!("Invalid addr: {}", addr);
@@ -97,7 +102,7 @@ async fn get_http_proxies_1() -> Result<Vec<String>, reqwest::Error>{
         .json()
         .await?;
 
-    //println!("{:?}", result);
+    //info!("{:?}", result);
     let http_addresses_array: Vec<String> = result
         .data
         .into_iter()
@@ -114,7 +119,7 @@ fn build_http_1_proxies_stream() -> Receiver<Option<String>> {
     tokio::spawn(async move{
         let http_1_proxies_res = get_http_proxies_1().await;
         if let Ok(http_1_proxies) = http_1_proxies_res {
-            println!("Http 1 proxies request resolved");
+            info!("Http 1 proxies request resolved");
             for addr in http_1_proxies {
                 let result: Option<String> = check_proxy_addr(addr.to_string()).await;
                 if tx.send(result).await.is_err(){
@@ -123,7 +128,7 @@ fn build_http_1_proxies_stream() -> Receiver<Option<String>> {
                 }
             }
         }
-        println!("Http 1 proxies request finished");
+        info!("Http 1 proxies request finished");
     });
     rx
 }

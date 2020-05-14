@@ -6,6 +6,11 @@ use std::{
     //pin::Pin,
     //future::Future
 };
+use log::{
+    info,
+    // warn,
+    error
+};
 use chrono::prelude::*;
 // use chrono::{
     // Utc,
@@ -34,6 +39,7 @@ use currencies_request::{
     CurrencyMinimum,
     CurrencyValue,
     CurrencyType,
+    // CurrencyChange,
     //CurrencyChange,
     get_all_currencies
 };
@@ -81,7 +87,7 @@ impl CurrencyUsersStorrage{
         let results: Vec<CurrencyCheckStatus> = tokio::stream::iter(results)
             .zip(tokio::stream::iter(conn_iter))
             .then(|(user_id, conn)| {
-                println!("Load user with id from database: {}", user_id);
+                info!("Load user with id from database: {}", user_id);
 
                 // TODO: загрузка минимумов внутри объекта
                 CurrencyCheckStatus::load(UserId::new(user_id), *conn)
@@ -126,7 +132,7 @@ impl CurrencyUsersStorrage{
                 Ok(())
             },
             Err(e) => {
-                println!("Insert user SQL error: {}", e);
+                error!("Insert user SQL error: {}", e);
                 Err(())
             }
         }
@@ -155,7 +161,7 @@ impl CurrencyUsersStorrage{
                 Ok(())    
             },
             Err(e)=>{
-                println!("Delete user SQL error: {}", e);
+                error!("Delete user SQL error: {}", e);
                 Err(())
             }
         }
@@ -203,7 +209,7 @@ impl CurrencyCheckStatus{
                     cur_type: cur_type,
                     update_time: None // TODO: ???
                 };
-                println!("Load user's minimum for id = {} from database: {:?}", user_id, res);
+                info!("Load user's minimum for id = {} from database: {:?}", user_id, res);
                 res
             })
             .fetch_all(conn)
@@ -257,7 +263,7 @@ async fn process_currency_value(conn: &mut SqliteConnection,
             // eur integer,
             // update_time varchar(32),
 
-            println!("New minimum update");
+            info!("New minimum update");
 
             // TODO: Optimize
             let user_id_int: i64 = (*user_id).into();
@@ -288,12 +294,12 @@ async fn process_currency_value(conn: &mut SqliteConnection,
                     return Some(minimum);
                 },
                 Err(e) => {
-                    println!("Insert new minimum error: {}", e);
+                    error!("Insert new minimum error: {}", e);
                 }
             }
         }
     }else{
-        println!("New minimum");
+        info!("New minimum");
 
         // TODO: Optimize
         let user_id_int: i64 = (*user_id).into();
@@ -324,7 +330,7 @@ async fn process_currency_value(conn: &mut SqliteConnection,
                 return Some(minimum)
             },
             Err(e) => {
-                println!("Insert new minimum error: {}", e);
+                error!("Insert new minimum error: {}", e);
             }
         }
     }
@@ -430,7 +436,7 @@ pub async fn check_currencies_update(bot_context: &mut BotContext) {
             comparator(v1, v2)
         });
 
-    println!("Minimum USD: {:?}\n", usd_received_minimum);
+    info!("Minimum USD: {:?}\n", usd_received_minimum);
 
     // Евро минимум
     let eur_received_minimum = received_bank_currencies
@@ -441,7 +447,7 @@ pub async fn check_currencies_update(bot_context: &mut BotContext) {
             comparator(v1, v2)
         });
 
-    println!("Minimum EUR: {:?}\n", usd_received_minimum);
+    info!("Minimum EUR: {:?}\n", usd_received_minimum);
 
     // Идем по всем пользователям
     for (user_id, user_subscribe_info) in &mut users_container.users_for_push {
@@ -553,7 +559,7 @@ pub async fn process_currencies_command(bot_context: &BotContext, message: &Mess
                     Cell::new(format!("{:?}", e).as_str()),
                 ]);
                 table.add_row(row);*/
-                println!("{:?}", _e);
+                error!("{:?}", _e);
             }
         }
     }
@@ -562,4 +568,113 @@ pub async fn process_currencies_command(bot_context: &BotContext, message: &Mess
     bot_context.api.send(private_messaage.parse_mode(ParseMode::Markdown)).await?;
 
     Ok(())
+}
+
+#[cfg(test)]
+mod tests{
+    use super::*;
+    use currencies_request::{
+        CurrencyChange
+    };
+    use crate::{
+        database::{
+            build_sqlite_connection
+        },
+    };
+
+    #[test]
+    fn simple_test(){
+    }
+
+    fn get_usd_val(buy: f32, sell: f32) -> CurrencyValue {
+        let usd_val = CurrencyValue{
+            cur_type: CurrencyType::USD,
+            buy: buy,
+            sell: sell,
+            buy_change: CurrencyChange::Decrease,
+            sell_change: CurrencyChange::Increase,
+        };
+        usd_val
+    }
+
+    fn get_eur_val(buy: f32, sell: f32) -> CurrencyValue {
+        let eur_val = CurrencyValue{
+            cur_type: CurrencyType::EUR,
+            buy: buy,
+            sell: sell,
+            buy_change: CurrencyChange::Increase,
+            sell_change: CurrencyChange::Decrease,
+        };
+        eur_val
+    }
+
+    #[tokio::test]
+    async fn test(){
+        let time_now = chrono::Utc::now();
+
+        let user_int: i64 = 12345;
+        let user = UserId::new(user_int);
+
+        let mut conn = {
+            const DB_FILE: &str = "test.db";
+            const SQL_FILE: &str = "sqlite:test.db";
+            let conn = build_sqlite_connection(SQL_FILE).await;
+            let mut conn = scopeguard::guard(conn, |conn|{
+                conn.close();
+                std::fs::remove_file(std::path::Path::new(DB_FILE)).ok();
+            });
+            let q = sqlx::query("INSERT INTO monitoring_users(user_id) VALUES (?)")
+                .bind(user_int);
+            conn.execute(q)
+                .await
+                .expect("Insert test user error");
+            
+            conn
+        };
+
+        let received_minimum_alpha = CurrencyResult{
+            bank_name: "Alpha".to_string(),
+            usd: get_usd_val(74.20, 73.1),
+            eur: get_eur_val(83.60, 80.50),
+            update_time: Some(time_now)
+        };
+        let mut previous_minimums = vec![
+        ];
+
+        {
+            let cur_type = CurrencyType::USD;
+
+            let usd_result: Option<String> = check_minimum_for_value(&user, 
+                                                                    &mut conn, 
+                                                                    cur_type, 
+                                                                    &received_minimum_alpha, 
+                                                                    &mut previous_minimums).await;
+
+            assert_eq!(previous_minimums.len(), 1);
+            assert_eq!(usd_result.is_some(), true);
+
+            let saved_minimum: &CurrencyMinimum = previous_minimums.get(0).expect("First elemement doesn't exist");
+            assert_eq!(saved_minimum.cur_type, cur_type);
+            assert_eq!(saved_minimum.value, received_minimum_alpha.usd.buy);
+            assert_eq!(saved_minimum.bank_name, received_minimum_alpha.bank_name);
+        }
+
+        {
+            let cur_type = CurrencyType::EUR;
+
+            let eur_result: Option<String> = check_minimum_for_value(&user, 
+                                                                    &mut conn, 
+                                                                    cur_type, 
+                                                                    &received_minimum_alpha, 
+                                                                    &mut previous_minimums).await;
+
+            assert_eq!(previous_minimums.len(), 2);
+            assert_eq!(eur_result.is_some(), true);
+
+            let saved_minimum: &CurrencyMinimum = previous_minimums.get(1).expect("Second elemement doesn't exist");
+            assert_eq!(saved_minimum.cur_type, cur_type);
+            assert_eq!(saved_minimum.value, received_minimum_alpha.eur.buy);
+            assert_eq!(saved_minimum.bank_name, received_minimum_alpha.bank_name); 
+        }
+    }
 }

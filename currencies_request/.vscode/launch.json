@@ -11,25 +11,14 @@
             "cargo": {
                 "args": [
                     "build",
-                    "--bin=slack_direct_messenger",
-                    "--package=slack_direct_messenger"
+                    "--bin=telegram_bot"
                 ],
                 "filter": {
-                    "name": "slack_direct_messenger",
+                    "name": "telegram_bot",
                     "kind": "bin"
                 }
             },
             "args": [
-                "--slack_user_email",
-                "pershov@game-insight.com",
-                "--slack_user",
-                "Pavel Ershov",
-                "--slack_user_text",
-                "Птичка",
-                "--slack_user_qr_commentary",
-                "Птичка",
-                "--slack_user_qr_text",
-                "https://v1rt.ru/upload/iblock/965/965b0132433f8d8e8933238aebbddd0b.jpg"
             ],
             "cwd": "${workspaceFolder}"
         },
@@ -41,11 +30,10 @@
                 "args": [
                     "test",
                     "--no-run",
-                    "--bin=slack_direct_messenger",
-                    "--package=slack_direct_messenger"
+                    "--bin=telegram_bot"
                 ],
                 "filter": {
-                    "name": "slack_direct_messenger",
+                    "name": "telegram_bot",
                     "kind": "bin"
                 }
             },

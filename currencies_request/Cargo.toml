@@ -26,14 +26,17 @@ typed-headers = "0.2.0"
 # telebot = "0.3.1"
 #scraper = "0.11.0"
 sqlx = { version = "0.3.5", default-features = false, features = [ "runtime-tokio", "sqlite"] } # "macros"
+log = "0.4.0"
+pretty_env_logger = "0.4.0"
 
 [dependencies.tokio] # https://docs.rs/tokio/0.2.20/tokio/index.html
 version = "0.2.20"
 features = ["rt-core", "rt-util", "io-driver", "io-util", "net", "tcp", "time", "fs", "blocking", "macros"]
 
 [dev-dependencies]
-tracing = "0.1.13" # TODO: в DevDependencies
-tracing-subscriber = "0.2.5" # TODO: в DevDependencies
+scopeguard = "1.1.0"
+# tracing = "0.1.13" # TODO: в DevDependencies
+# tracing-subscriber = "0.2.5" # TODO: в DevDependencies
 
 # [target.arm-unknown-linux-gnueabihf]
 # linker = "arm-linux-gnueabihf-gcc"

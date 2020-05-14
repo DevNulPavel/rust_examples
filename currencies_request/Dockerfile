@@ -20,6 +20,7 @@ ENV PATH=/bot:$PATH
 ENV TELEGRAM_DATABASE_PATH="/bot/database/telegram_bot.sqlite"
 ENV TELEGRAM_TOKEN=""
 ENV RUST_BACKTRACE=1
+ENV RUST_LOG=telegram_bot=trace
 
 # MUSL valid libraries paths
 # Список зависимостей для приложения 1
