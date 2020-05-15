@@ -96,15 +96,22 @@ impl CurrencyUsersStorrage{
     }
 
     pub async fn add_user(&mut self, user: &UserId, conn: &mut SqliteConnection) -> TelegramBotResult {
+        if self.users_for_push.contains_key(&*user) {
+            return Err(TelegramBotError::CustomError("User monitoring already enabled".into()));
+        }
+
         let check = CurrencyCheckStatus::new(user.clone());
         
         // TODO: Именованные параметры в SQL, убрать дупликаты
+        // TODO: Валидация параметров!!
         let id_num: i64 = (*user).into();
         const SQL: &str =   "BEGIN; \
                                 DELETE FROM currency_minimum WHERE user_id = ?; \
                                 INSERT INTO monitoring_users(user_id) VALUES (?); \
                             COMMIT;";
+        //info!("Add user SQL: {}", SQL);
         let insert_result = sqlx::query(SQL)
+            .bind(id_num)
             .bind(id_num)
             .execute(conn)
             .await;
@@ -124,12 +131,15 @@ impl CurrencyUsersStorrage{
     }
 
     pub async fn remove_user(&mut self, user: &UserId, conn: &mut SqliteConnection) -> TelegramBotResult {
+        if self.users_for_push.contains_key(&*user) == false {
+            return Err(TelegramBotError::CustomError("User monitoring doesn't enabled".into()));
+        }
+
         // TODO: Нужна ли транзакция? Можно ли как-то удалить все, что относится к user
         const SQL: &str =   "BEGIN; \
                                 DELETE FROM currency_minimum WHERE user_id = ?; \
                                 DELETE FROM monitoring_users WHERE user_id = ?; \
                             COMMIT;";
-
         let id_num: i64 = (*user).into();
         let remove_result = sqlx::query(SQL)
             .bind(id_num)
@@ -553,9 +563,11 @@ pub async fn process_currencies_command(bot_context: &BotContext, message: &Mess
 
     // Выводим текст, используем into_iter для потребляющего итератора
     for info in get_all_currencies(&bot_context.app_context.client).await {
-        let info: CurrencyResult = info?;
-        let bank_text = markdown_format_currency_result(&info);
-        text.push_str(bank_text.as_str());
+        if let Ok(info) = info {
+            let info: CurrencyResult = info;
+            let bank_text = markdown_format_currency_result(&info);
+            text.push_str(bank_text.as_str());    
+        }
     }
 
     let mut private_messaage = message.from.text(text);
