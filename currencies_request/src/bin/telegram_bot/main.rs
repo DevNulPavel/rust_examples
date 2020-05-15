@@ -56,7 +56,8 @@ use crate::{
     currency::{
         CurrencyUsersStorrage,
         check_currencies_update,
-        process_currencies_command
+        process_currencies_command,
+        process_currencies_status
     },
     database::{
         get_database
@@ -161,10 +162,11 @@ async fn process_bot_command(bot_context: &mut BotContext, data: &String, messag
             stop_user_monitoring(bot_context, message).await?;
         },
         "/currencies_monitoring_status" => {
-            // TODO: status
+            process_currencies_status(bot_context, message).await?;
         },
         "/currencies_monitoring_reset" => {
-            // TODO: Reset
+            // TODO: ???
+            //reset_user_monitoring(bot_context, message).await?;
         },
         text => {
             return Err(TelegramBotError::CustomError(format!("Invalid bot command: {}", text)));

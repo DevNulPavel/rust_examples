@@ -151,6 +151,10 @@ impl CurrencyUsersStorrage{
         }
     }
 
+    pub fn try_get_user(&self, user: &UserId) -> Option<&CurrencyCheckStatus> {
+        self.users_for_push.get(user)
+    }
+
     // TODO: Mut iter
     /*fn iter_users(&self) -> std::collections::hash_map::Iter<UserId, CurrencyCheckStatus> {
         self.users_for_push.iter()
@@ -178,6 +182,7 @@ impl CurrencyCheckStatus{
             minimum_values: vec![]
         }
     }
+
     pub async fn load(user: UserId, conn: &mut SqliteConnection) -> Self{
         const SQL: &str = "SELECT * FROM currency_minimum \
                             WHERE user_id = ?";
@@ -510,6 +515,7 @@ fn markdown_format_minimum(new_minimum: &CurrencyMinimum, previous_value: &Curre
         None => "No time".into()
     };
 
+    // TODO: Время
     let bank_text = format!(   "New buy minimum\n\
                                 *{} ({})*:\n\
                                 ```\n\
@@ -523,6 +529,25 @@ fn markdown_format_minimum(new_minimum: &CurrencyMinimum, previous_value: &Curre
     bank_text
 }
 
+fn markdown_format_minimum_for_status(new_minimum: &CurrencyMinimum) -> String{
+    let time_str: String = match new_minimum.update_time {
+        Some(time) => time.format("%H:%M %d-%m-%Y").to_string(),
+        None => "No time".into()
+    };
+
+    // TODO: Время
+    let bank_text = format!(   "Buy minimum\n\
+                                *{} ({})*:\n\
+                                ```\n\
+                                {}: {:.2}```\n",
+            new_minimum.bank_name,
+            time_str,
+            new_minimum.cur_type,
+            new_minimum.value);
+
+    bank_text
+}
+
 pub async fn process_currencies_command(bot_context: &BotContext, message: &Message) -> Result<(), TelegramBotError> {
     let mut text = String::new();
 
@@ -532,6 +557,33 @@ pub async fn process_currencies_command(bot_context: &BotContext, message: &Mess
         let bank_text = markdown_format_currency_result(&info);
         text.push_str(bank_text.as_str());
     }
+
+    let mut private_messaage = message.from.text(text);
+    bot_context.api.send(private_messaage.parse_mode(ParseMode::Markdown)).await?;
+
+    Ok(())
+}
+
+pub async fn process_currencies_status(bot_context: &BotContext, message: &Message) -> Result<(), TelegramBotError> {
+    let user_status = bot_context.app_context.users_for_push.try_get_user(&message.from.id);
+
+    let text: String = match user_status{
+        Some(status) => {
+            if status.minimum_values.is_empty() {
+                "Currency check enabled, buy there is no currency minimums".into()
+            }else{
+                status.minimum_values
+                    .iter()
+                    .map(|min| {
+                        markdown_format_minimum_for_status(min)
+                    })
+                    .collect()
+            }
+        },
+        None => {
+            "Currency check disabled".into()
+        }
+    };
 
     let mut private_messaage = message.from.text(text);
     bot_context.api.send(private_messaage.parse_mode(ParseMode::Markdown)).await?;
