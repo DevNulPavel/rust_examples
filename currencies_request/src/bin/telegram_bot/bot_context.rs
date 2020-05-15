@@ -26,17 +26,3 @@ impl Into<AppContext> for BotContext {
         self.app_context
     }
 }
-
-/*impl std::ops::Deref for BotContext{
-    type Target = AppContext;
-
-    fn deref(&self) -> &Self::Target {
-        &self.app_context
-    }
-}
-
-impl std::ops::DerefMut for BotContext{
-    fn deref_mut(&mut self) -> &mut Self::Target {
-        &mut self.app_context
-    }
-}*/

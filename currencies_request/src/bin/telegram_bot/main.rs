@@ -73,8 +73,7 @@ async fn send_tutorial(api: &Api, message: &Message) -> Result<MessageOrChannelP
         Reset minimum monitoring values: /currencies_monitoring_reset \n/
         Information: /start or /help \n/";
     let mut req = message.from.text(FAQ_TEXT);
-    req.parse_mode(ParseMode::Markdown);
-    let send_result = api.send(req).await?;
+    let send_result = api.send(req.parse_mode(ParseMode::Markdown)).await?;
     Ok(send_result)
 }
 
@@ -144,6 +143,7 @@ async fn process_bot_command(bot_context: &mut BotContext, data: &String, messag
     currencies_monitoring_on - Start monitoring
     currencies_monitoring_off - Stop monitoring
     currencies_monitoring_reset - Reset monitoring from current time
+    currencies_monitoring_status - Get current monitoring status and values
     habr - Habr news
     */ 
 
@@ -159,6 +159,9 @@ async fn process_bot_command(bot_context: &mut BotContext, data: &String, messag
         }
         "/currencies_monitoring_off" => {
             stop_user_monitoring(bot_context, message).await?;
+        },
+        "/currencies_monitoring_status" => {
+            // TODO: status
         },
         "/currencies_monitoring_reset" => {
             // TODO: Reset
@@ -182,7 +185,7 @@ async fn process_update(bot_context: &mut BotContext, update: Update){
                         match command.kind {
                             MessageEntityKind::BotCommand => {
                                 if let Err(e) = process_bot_command(bot_context, data, message).await{
-                                    error!("Process command error: {:?}", e);
+                                    error!("Process command error: {}", e);
                                 }
                             },
                             _ => {

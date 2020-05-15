@@ -1,57 +1,31 @@
 
 use std::{
-    // collections::HashSet,
     collections::HashMap,
     convert::TryFrom
-    //pin::Pin,
-    //future::Future
 };
 use log::{
     info,
-    // warn,
     error
 };
 use chrono::prelude::*;
-// use chrono::{
-    // Utc,
-    // DateTime
-// };
-// use futures::{
-    // stream::{
-        // StreamExt
-    // }
-// };
 use telegram_bot::{
-    // Api,
     Message,
     CanSendMessage,
     ParseMode,
     UserId,
     SendMessage
 };
-// use reqwest::{
-    //Client,
-// };
 use currencies_request::{
-    CurrencyError,
     CurrencyResult,
     CurrencyMinimum,
     CurrencyValue,
     CurrencyType,
-    // CurrencyChange,
-    //CurrencyChange,
     get_all_currencies
 };
 use sqlx::{
     prelude::*,
-    // query,
-    // Connect,
-    // Connection,
-    // Executor,
-    // Cursor,
     sqlite::{
         SqliteConnection,
-        // SqliteCursor,
         SqliteRow
     }
 };
@@ -63,7 +37,9 @@ use crate::{
         BotContext
     },
     error::{
-        TelegramBotError
+        TelegramBotError,
+        TelegramBotResult,
+        DatabaseErrKind
     }
 };
 
@@ -74,8 +50,7 @@ pub struct CurrencyUsersStorrage{
 
 impl CurrencyUsersStorrage{
     pub async fn new(conn: &mut SqliteConnection) -> Self{
-        //let mut conn = *conn;
-
+        // TODO: Заменить на ошибку вместо падения?
         let result_ids: Vec<i64> = sqlx::query("SELECT user_id FROM monitoring_users")
             .map(|row: SqliteRow| {
                 let user_id: i64 = row.get(0);
@@ -98,6 +73,7 @@ impl CurrencyUsersStorrage{
             .await;*/
         
         // TODO: убрать mut и переделать на stream
+        // Полученные id пользователей перегоняем в CurrencyCheckStatus, загружая информацию о минимумах внутри
         let mut results: Vec<CurrencyCheckStatus> = vec![];
         results.reserve(result_ids.len());
         for id_val in result_ids{
@@ -105,6 +81,7 @@ impl CurrencyUsersStorrage{
             results.push(status);
         }
         
+        // Просто перегоняем в HashMap
         let map: HashMap<UserId, CurrencyCheckStatus> = results
             .into_iter()
             .map(|val|{
@@ -112,18 +89,22 @@ impl CurrencyUsersStorrage{
             })
             .collect();
 
+        // Создаем хранилище с результатами
         CurrencyUsersStorrage{
             users_for_push: map
         }
     }
 
-    // TODO: Ошибка нормальная
-    pub async fn add_user(&mut self, user: &UserId, conn: &mut SqliteConnection) -> Result<(), ()>{
-        // TODO: Очистка минимумов перед добавлением
+    pub async fn add_user(&mut self, user: &UserId, conn: &mut SqliteConnection) -> TelegramBotResult {
         let check = CurrencyCheckStatus::new(user.clone());
-
+        
+        // TODO: Именованные параметры в SQL, убрать дупликаты
         let id_num: i64 = (*user).into();
-        let insert_result = sqlx::query("INSERT INTO monitoring_users(user_id) VALUES (?)")
+        const SQL: &str =   "BEGIN; \
+                                DELETE FROM currency_minimum WHERE user_id = ?; \
+                                INSERT INTO monitoring_users(user_id) VALUES (?); \
+                            COMMIT;";
+        let insert_result = sqlx::query(SQL)
             .bind(id_num)
             .execute(conn)
             .await;
@@ -134,21 +115,21 @@ impl CurrencyUsersStorrage{
                 Ok(())
             },
             Err(e) => {
-                error!("Insert user SQL error: {}", e);
-                Err(())
+                Err(TelegramBotError::DatabaseErr{
+                    err: e,
+                    context: DatabaseErrKind::InsertUser
+                })
             }
         }
     }
 
-    // TODO: Ошибка нормальная
-    pub async fn remove_user(&mut self, user: &UserId, conn: &mut SqliteConnection) -> Result<(), ()>{
+    pub async fn remove_user(&mut self, user: &UserId, conn: &mut SqliteConnection) -> TelegramBotResult {
         // TODO: Нужна ли транзакция? Можно ли как-то удалить все, что относится к user
         const SQL: &str =   "BEGIN; \
                                 DELETE FROM currency_minimum WHERE user_id = ?; \
                                 DELETE FROM monitoring_users WHERE user_id = ?; \
                             COMMIT;";
 
-        // TODO: Очистка минимумов перед добавлением
         let id_num: i64 = (*user).into();
         let remove_result = sqlx::query(SQL)
             .bind(id_num)
@@ -156,15 +137,16 @@ impl CurrencyUsersStorrage{
             .execute(conn)
             .await;
         
-
         match remove_result{
             Ok(_)=>{
                 self.users_for_push.remove(user);
                 Ok(())    
             },
             Err(e)=>{
-                error!("Delete user SQL error: {}", e);
-                Err(())
+                Err(TelegramBotError::DatabaseErr{
+                    err: e,
+                    context: DatabaseErrKind::RemoveUser
+                })
             }
         }
     }
