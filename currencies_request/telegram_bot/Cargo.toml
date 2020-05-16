@@ -1,0 +1,36 @@
+[package]
+name = "telegram_bot"
+version = "0.1.0"
+authors = ["Pavel Ershov <devnulpavel@gmail.com>"]
+edition = "2018"
+
+# See more keys and their definitions at https://doc.rust-lang.org/cargo/reference/manifest.html
+
+[dependencies]
+reqwest = { version = "0.10.4", features=["json"] } # https://docs.rs/reqwest/0.10.4/reqwest/
+futures = "0.3.4"
+serde = { version = "1.0.106", features = ["derive"] }
+serde_json = "1.0.52"
+derive-new = "0.5.8"
+chrono = "0.4.11"
+telegram-bot = "0.7.0"
+hyper = "0.13.5"
+hyper-proxy = "0.6.0"
+typed-headers = "0.2.0"
+sqlx = { version = "0.3.5", default-features = false, features = [ "runtime-tokio", "sqlite"] } # "macros"
+log = "0.4.0"
+pretty_env_logger = "0.4.0"
+currency_lib = { path="../currency_lib" }
+#telegram-bot-raw = "0.7.0"
+# reqwest = { version = "0.10.4", default-features = false, features=["json", "rustls-tls"] } # https://docs.rs/reqwest/0.10.4/reqwest/
+# telegram-bot = { version = "0.7.0", default-features = false, features=["rustls"]}
+# hyper-proxy = { version = "0.6.0", default-features = false, features=["rustls"] }
+
+[dependencies.tokio] # https://docs.rs/tokio/0.2.20/tokio/index.html
+version = "0.2.20"
+features = ["rt-core", "rt-util", "io-driver", "io-util", "net", "tcp", "time", "fs", "blocking", "macros"]
+
+[dev-dependencies]
+scopeguard = "1.1.0"
+# tracing = "0.1.13" # TODO: в DevDependencies
+# tracing-subscriber = "0.2.5" # TODO: в DevDependencies

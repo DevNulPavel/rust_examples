@@ -4,7 +4,7 @@ use std::{
         Formatter
     }
 };
-use currencies_request::{
+use currency_lib::{
     error_from
 };
 
@@ -12,7 +12,7 @@ use currencies_request::{
 #[derive(Debug)]
 pub enum TelegramBotError{
     TelegramErr(telegram_bot::Error),
-    CurrencyErr(currencies_request::CurrencyError),
+    CurrencyErr(currency_lib::CurrencyError),
     DatabaseErr{
         err: sqlx::Error,
         context: DatabaseErrKind
@@ -21,7 +21,7 @@ pub enum TelegramBotError{
 }
 
 error_from!(TelegramBotError, TelegramErr, telegram_bot::Error);
-error_from!(TelegramBotError, CurrencyErr, currencies_request::CurrencyError);
+error_from!(TelegramBotError, CurrencyErr, currency_lib::CurrencyError);
 error_from!(TelegramBotError, CustomError, &str, to_string);
 
 impl Display for TelegramBotError{

@@ -1,0 +1,34 @@
+[package]
+name = "currency_lib"
+version = "0.1.0"
+authors = ["Pavel Ershov <devnulpavel@gmail.com>"]
+edition = "2018"
+
+# See more keys and their definitions at https://doc.rust-lang.org/cargo/reference/manifest.html
+
+[dependencies]
+futures = "0.3.4"
+reqwest = { version = "0.10.4", features=["json"] } # https://docs.rs/reqwest/0.10.4/reqwest/
+serde = { version = "1.0.106", features = ["derive"] }
+derive-new = "0.5.8"
+chrono = "0.4.11"
+# serde_json = "1.0.52"
+# typed-headers = "0.2.0"
+# log = "0.4.0"
+# scopeguard = "1.1.0"
+# reqwest = { version = "0.10.4", default-features = false, features=["json", "rustls-tls"] } # https://docs.rs/reqwest/0.10.4/reqwest/
+# hyper = "0.13.5"
+#telegram-bot-raw = "0.7.0"
+# telebot = "0.3.1"
+#scraper = "0.11.0"
+
+[dependencies.tokio] # https://docs.rs/tokio/0.2.20/tokio/index.html
+version = "0.2.20"
+features = ["rt-core", "rt-util", "io-driver", "io-util", "net", "tcp", "time", "fs", "blocking", "macros"]
+
+# [dev-dependencies]
+# tracing = "0.1.13" # TODO: в DevDependencies
+# tracing-subscriber = "0.2.5" # TODO: в DevDependencies
+
+# [target.arm-unknown-linux-gnueabihf]
+# linker = "arm-linux-gnueabihf-gcc"

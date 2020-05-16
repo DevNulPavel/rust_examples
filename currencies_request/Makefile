@@ -165,3 +165,7 @@ TREE:
 	# cargo install cargo-tree
 	cargo tree -i -p native-tls
 	# cargo tree -i -p openssl-sys
+
+UNUSED_DEPS:
+	# cargo install cargo-udeps --locked
+	cargo udeps
