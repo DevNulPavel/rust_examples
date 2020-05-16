@@ -24,6 +24,7 @@ use currency_lib::{
 };
 use sqlx::{
     prelude::*,
+    // Transaction,
     sqlite::{
         SqliteConnection,
         SqliteRow
@@ -109,17 +110,28 @@ impl CurrencyUsersStorrage{
                                 DELETE FROM currency_minimum WHERE user_id = ?; \
                                 INSERT INTO monitoring_users(user_id) VALUES (?); \
                             COMMIT;";
-        //info!("Add user SQL: {}", SQL);
         let insert_result = sqlx::query(SQL)
             .bind(id_num)
             .bind(id_num)
             .execute(conn)
+            .await;                         
+
+        /*const SQL: &str =   "DELETE FROM currency_minimum WHERE user_id = ?; \
+                             INSERT INTO monitoring_users(user_id) VALUES (?);";
+        let mut transaction = conn.begin().await?;
+        let insert_result = sqlx::query(SQL)
+            .bind(id_num)
+            .execute(&mut transaction)
             .await;
+        transaction.commit().await?;*/
 
         match insert_result{
-            Ok(_) => {
+            Ok(rows_updated) if rows_updated > 0 => {
                 self.users_for_push.insert(user.clone(), check);
                 Ok(())
+            },
+            Ok(_) => {
+                Err(TelegramBotError::CustomError("User insert failed, 0 rows included".into()))
             },
             Err(e) => {
                 Err(TelegramBotError::DatabaseErr{
@@ -136,6 +148,7 @@ impl CurrencyUsersStorrage{
         }
 
         // TODO: Нужна ли транзакция? Можно ли как-то удалить все, что относится к user
+        // TODO: Валидация параметров!!
         const SQL: &str =   "BEGIN; \
                                 DELETE FROM currency_minimum WHERE user_id = ?; \
                                 DELETE FROM monitoring_users WHERE user_id = ?; \
@@ -148,9 +161,12 @@ impl CurrencyUsersStorrage{
             .await;
         
         match remove_result{
-            Ok(_)=>{
+            Ok(users_updated) if users_updated > 0 =>{
                 self.users_for_push.remove(user);
                 Ok(())    
+            },
+            Ok(_) => {
+                Err(TelegramBotError::CustomError("User remove failed, 0 rows removed".into()))
             },
             Err(e)=>{
                 Err(TelegramBotError::DatabaseErr{
@@ -164,11 +180,6 @@ impl CurrencyUsersStorrage{
     pub fn try_get_user(&self, user: &UserId) -> Option<&CurrencyCheckStatus> {
         self.users_for_push.get(user)
     }
-
-    // TODO: Mut iter
-    /*fn iter_users(&self) -> std::collections::hash_map::Iter<UserId, CurrencyCheckStatus> {
-        self.users_for_push.iter()
-    }*/
 
     pub fn is_empty(&self) -> bool{
         self.users_for_push.is_empty()

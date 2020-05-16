@@ -41,6 +41,9 @@ use log::{
     warn,
     error
 };
+// use sqlx::{
+    //Connection
+// };
 use crate::{
     app_context::AppContext,
     bot_context::BotContext,
@@ -236,6 +239,10 @@ async fn async_main(){
 
     // База данных
     let mut db_conn = get_database().await;
+    /*let mut db_conn = scopeguard::guard(db_conn, |conn|{
+        info!("Database closed");
+        futures::executor::block_on(conn.close());
+    });*/
 
     // Таймер проверки проксей
     let mut proxy_check_timer = tokio::time::interval(Duration::from_secs(60*3));
