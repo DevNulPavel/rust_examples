@@ -24,7 +24,7 @@ use prettytable::{
     Cell, 
     Attr
 };
-use currencies_request::{
+use currency_lib::{
     CurrencyError,
     CurrencyResult,
     CurrencyChange,

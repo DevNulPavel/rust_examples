@@ -1,0 +1,22 @@
+[package]
+name = "currencies_request_cli"
+version = "0.1.0"
+authors = ["Pavel Ershov <devnulpavel@gmail.com>"]
+edition = "2018"
+
+# See more keys and their definitions at https://doc.rust-lang.org/cargo/reference/manifest.html
+
+[dependencies]
+reqwest = { version = "0.10.4", features=["json"] } # https://docs.rs/reqwest/0.10.4/reqwest/
+futures = "0.3.4"
+prettytable-rs = "0.8.0"
+log = "0.4.0"
+currency_lib = { path="../currency_lib" }
+# reqwest = { version = "0.10.4", default-features = false, features=["json", "rustls-tls"] } # https://docs.rs/reqwest/0.10.4/reqwest/
+
+[dependencies.tokio] # https://docs.rs/tokio/0.2.20/tokio/index.html
+version = "0.2.20"
+features = ["rt-core", "rt-util", "io-driver", "io-util", "net", "tcp", "time", "fs", "blocking", "macros"]
+
+# [target.arm-unknown-linux-gnueabihf]
+# linker = "arm-linux-gnueabihf-gcc"

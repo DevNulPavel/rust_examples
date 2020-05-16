@@ -15,7 +15,7 @@ use telegram_bot::{
     UserId,
     SendMessage
 };
-use currencies_request::{
+use currency_lib::{
     CurrencyResult,
     CurrencyMinimum,
     CurrencyValue,
@@ -594,7 +594,7 @@ pub async fn process_currencies_status(bot_context: &BotContext, message: &Messa
 #[cfg(test)]
 mod tests{
     use super::*;
-    use currencies_request::{
+    use currency_lib::{
         CurrencyChange
     };
     use crate::{
