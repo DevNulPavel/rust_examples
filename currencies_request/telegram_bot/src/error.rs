@@ -13,15 +13,17 @@ use currency_lib::{
 pub enum TelegramBotError{
     TelegramErr(telegram_bot::Error),
     CurrencyErr(currency_lib::CurrencyError),
+    ReqwestError(reqwest::Error),
+    CustomError(String),
     DatabaseErr{
         err: sqlx::Error,
         context: DatabaseErrKind
-    },
-    CustomError(String),
+    }
 }
 
 error_from!(TelegramBotError, TelegramErr, telegram_bot::Error);
 error_from!(TelegramBotError, CurrencyErr, currency_lib::CurrencyError);
+error_from!(TelegramBotError, ReqwestError, reqwest::Error);
 error_from!(TelegramBotError, CustomError, &str, to_string);
 
 impl Display for TelegramBotError{
@@ -32,6 +34,12 @@ impl Display for TelegramBotError{
             },
             TelegramBotError::CurrencyErr(e) => {
                 e.fmt(f)
+            },
+            TelegramBotError::ReqwestError(e) => {
+                e.fmt(f)
+            },
+            TelegramBotError::CustomError(e) => {
+                write!(f, "Unknown error: {}", e)
             },
             TelegramBotError::DatabaseErr{err, context} => {
                 match context {
@@ -48,9 +56,6 @@ impl Display for TelegramBotError{
                         err.fmt(f)
                     }
                 }
-            },
-            TelegramBotError::CustomError(e) => {
-                write!(f, "Unknown error: {}", e)
             },
         }
     }

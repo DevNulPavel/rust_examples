@@ -265,12 +265,19 @@ async fn async_main(){
         users_for_push: users_storrage, // Хранилище пользователей
     };
 
-    loop {
+    'main_loop: loop {
         // Получаем валидные адреса проксей
-        let valid_proxy_addresses = get_valid_proxy_addresses()
-            .await
-            .expect("No valid proxies");
-
+        let valid_proxy_addresses = match get_valid_proxy_addresses().await{
+            Some(addresses) => {
+                addresses
+            },
+            None=>{
+                error!("There is no valid proxies, pause 15 sec");
+                tokio::time::delay_for(Duration::from_secs(15)).await;
+                continue 'main_loop;
+            }
+        };
+        
         // Создаем прокси
         let proxy: Box<dyn Connector> = build_proxy_for_addresses(&valid_proxy_addresses);
 
