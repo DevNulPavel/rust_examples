@@ -45,6 +45,12 @@ ENV RUST_LOG=telegram_bot=trace
 # + #  0x00000001 (NEEDED)                     Shared library: [libc.so.6]
 # + #  0x00000001 (NEEDED)                     Shared library: [ld-linux.so.3]
 # + #  0x00000001 (NEEDED)                     Shared library: [libm.so.6]
+# 
+# https://www.ibm.com/developerworks/ru/library/l-lpic1-v3-102-3/index.html
+# Для запуска приложения можно вызвать /lib/ld-musl-armhf.so.1 telegram_bot
+# - для получения списка зависимостей /lib/ld-musl-armhf.so.1 --list telegram_bot
+# - для проверки зависимостей /lib/ld-linux.so.3 --verify /bin/bash
+# так как на самом деле - это не библиотека, а бинарник
 RUN ln -s /lib/ld-musl-armhf.so.1 /usr/lib/ld.so.1
 
 # Копия файлика

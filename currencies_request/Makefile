@@ -100,11 +100,18 @@ BUILD_ON_PI_DOCKER: BUILD_FOR_PI
 
 BUILD_AND_INSTALL_ON_PI: BUILD_FOR_PI
 	# MUSL excutable
-	#rsync -av target/arm-unknown-linux-musleabi/release/telegram_bot pi@192.168.1.2:/home/pi/bin/
-	# GNU executable
-	rsync -av target/arm-unknown-linux-gnueabi/release/telegram_bot pi@192.168.1.2:/home/pi/bin/
+	# https://www.ibm.com/developerworks/ru/library/l-lpic1-v3-102-3/index.html
+	rsync -av target/arm-unknown-linux-musleabi/release/telegram_bot pi@192.168.1.2:/home/pi/bin/
 	rsync -av sql/create_database.sql pi@192.168.1.2:/home/pi/bin/sql/
-	rsync -av bot_start.sh pi@192.168.1.2:/home/pi/bin/
+	rsync -av support/bot_start.sh pi@192.168.1.2:/home/pi/bin/
+	# Запуск musl бинарника: 
+	# 	export LD_LIBRARY_PATH=/openssl_musl_library_path
+	#	/lib/ld-musl-armhf.so.1 telegram_bot
+
+	# GNU executable
+	#rsync -av target/arm-unknown-linux-gnueabi/release/telegram_bot pi@192.168.1.2:/home/pi/bin/
+	#rsync -av sql/create_database.sql pi@192.168.1.2:/home/pi/bin/sql/
+	#rsync -av bot_start.sh pi@192.168.1.2:/home/pi/bin/
 
 	# export OPENSSL_LIB_DIR=/Users/devnul/Projects/Rust_Examples/currencies_request/open_ssl_armv6; \
     # export OPENSSL_INCLUDE_DIR=/Users/devnul/Projects/Rust_Examples/currencies_request/open_ssl_armv6/include; \
