@@ -129,7 +129,6 @@ async fn stop_user_monitoring(bot_context: &mut BotContext, message: &Message) -
     let remove_result = users.remove_user(&message.from.id, db)
         .await;
 
-    // TODO: Осмысленные сообщения
     // Если было все ок - сообщение успешности
     let message = if remove_result.is_ok() {
         message.from.text("Disabled")
@@ -143,6 +142,8 @@ async fn stop_user_monitoring(bot_context: &mut BotContext, message: &Message) -
 
 async fn process_bot_command(bot_context: &mut BotContext, data: &String, message: &Message) -> TelegramBotResult {
     /*
+    start - Start bot
+    help - Show bot help
     currencies - Receive currencies
     currencies_monitoring_on - Start monitoring
     currencies_monitoring_off - Stop monitoring
@@ -216,14 +217,15 @@ async fn async_main(){
     std::env::set_var("RUST_LOG", "telegram_bot=trace");
     pretty_env_logger::init();
 
-    // TODO: Обернуть в cfg
-    // Трассировка
-    // tracing::subscriber::set_global_default(
-    //     tracing_subscriber::FmtSubscriber::builder()
-    //         .with_env_filter("telegram_bot=trace")
-    //         .finish(),
-    // )
-    // .unwrap();
+    if cfg!(debug_assertions){
+        // Трассировка
+        // tracing::subscriber::set_global_default(
+        //     tracing_subscriber::FmtSubscriber::builder()
+        //         .with_env_filter("telegram_bot=trace")
+        //         .finish(),
+        // )
+        // .unwrap();
+    }
 
     // Получаем токен нашего бота
     let token: String = env::var("TELEGRAM_TOKEN")

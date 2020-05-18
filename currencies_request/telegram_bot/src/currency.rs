@@ -60,27 +60,16 @@ impl CurrencyUsersStorrage{
             .fetch_all(&mut *conn)
             .await
             .expect("Failed select users form DB");
-
-        /*let conn_iter = std::iter::repeat(conn);
-        let results: Vec<CurrencyCheckStatus> = tokio::stream::iter(results)
-            .zip(tokio::stream::iter(conn_iter))
-            .then(|(user_id, conn)| {
-                info!("Load user with id from database: {}", user_id);
-
-                // TODO: загрузка минимумов внутри объекта
-                CurrencyCheckStatus::load(UserId::new(user_id), *conn)
-            })
-            .collect()
-            .await;*/
         
-        // TODO: убрать mut и переделать на stream
         // Полученные id пользователей перегоняем в CurrencyCheckStatus, загружая информацию о минимумах внутри
-        let mut results: Vec<CurrencyCheckStatus> = vec![];
-        results.reserve(result_ids.len());
-        for id_val in result_ids{
-            let status = CurrencyCheckStatus::load(UserId::new(id_val), &mut (*conn)).await;
-            results.push(status);
-        }
+        let results: Vec<CurrencyCheckStatus> = {
+            let mut results = Vec::with_capacity(result_ids.len());
+            for id_val in result_ids{
+                let status = CurrencyCheckStatus::load(UserId::new(id_val), &mut (*conn)).await;
+                results.push(status);
+            }
+            results
+        };
         
         // Просто перегоняем в HashMap
         let map: HashMap<UserId, CurrencyCheckStatus> = results
@@ -192,8 +181,6 @@ impl CurrencyUsersStorrage{
 pub struct CurrencyCheckStatus {
     user: UserId,
     minimum_values: Vec<CurrencyMinimum>,
-    //minimum_time: DateTime<Utc>,        // TODO:
-    //last_check_time: DateTime<Utc>,     // TODO:
 }
 
 impl CurrencyCheckStatus{
@@ -254,6 +241,46 @@ impl CurrencyCheckStatus{
 
 ///////////////////////////////////////////////////////////////////////////////////////
 
+async fn build_minimum_value(conn: &mut SqliteConnection,
+                             user_id: &UserId,
+                             bank_name: &str,
+                             update_time: Option<DateTime<Utc>>,
+                             received_value: &CurrencyValue) ->  Option<CurrencyMinimum>{
+    
+    let user_id_int: i64 = (*user_id).into();
+    let type_str: &'static str = received_value.cur_type.into();
+    let q = sqlx::query("BEGIN; \
+                            DELETE FROM currency_minimum WHERE user_id = ? AND cur_type = ?; \
+                            INSERT INTO currency_minimum(user_id, bank_name, value, cur_type, update_time) VALUES (?, ?, ?, ?, ?); \
+                         COMMIT;")
+        .bind(user_id_int)
+        .bind(type_str)
+        .bind(user_id_int)
+        .bind(bank_name)
+        .bind(&received_value.buy)
+        .bind(type_str)
+        .bind(""); // TODO: Date
+                
+    let query_result = q.execute(&mut (*conn)).await;
+    match query_result{
+        Ok(_)=>{
+            // Обновляем значение
+            let minimum = CurrencyMinimum{
+                bank_name: bank_name.to_string(),
+                value: received_value.buy,
+                cur_type: received_value.cur_type,
+                update_time: update_time
+            };
+
+            return Some(minimum);
+        },
+        Err(e) => {
+            error!("Insert new minimum error: {}", e);
+        }
+    }
+    None 
+}
+
 async fn process_currency_value(conn: &mut SqliteConnection,
                                 user_id: &UserId, 
                                 previous_value: Option<CurrencyMinimum>, 
@@ -265,84 +292,15 @@ async fn process_currency_value(conn: &mut SqliteConnection,
         // Проверяем минимум
         let is_lower = previous_value.value > received_value.buy;
 
-        // TODO: Test
         if is_lower {
-            // user_id integer,
-            // bank_name varchar(16),
-            // usd integer,
-            // eur integer,
-            // update_time varchar(32),
-
             info!("New minimum update");
 
-            // TODO: Optimize
-            let user_id_int: i64 = (*user_id).into();
-            let type_str: &'static str = received_value.cur_type.into();
-            let q = sqlx::query("BEGIN; \
-                                DELETE FROM currency_minimum WHERE user_id = ? AND cur_type = ?; \
-                                INSERT INTO currency_minimum(user_id, bank_name, value, cur_type, update_time) VALUES (?, ?, ?, ?, ?); \
-                                COMMIT;")
-                .bind(user_id_int)
-                .bind(type_str)
-                .bind(user_id_int)
-                .bind(bank_name)
-                .bind(&received_value.buy)
-                .bind(type_str)
-                .bind(""); // TODO: Date
-            
-            let query_result = q.execute(&mut (*conn)).await;
-            match query_result{
-                Ok(_)=>{
-                    // Обновляем значение
-                    let minimum = CurrencyMinimum{
-                        bank_name: bank_name.to_string(),
-                        value: received_value.buy,
-                        cur_type: received_value.cur_type,
-                        update_time: update_time
-                    };
-
-                    return Some(minimum);
-                },
-                Err(e) => {
-                    error!("Insert new minimum error: {}", e);
-                }
-            }
+            return build_minimum_value(conn, user_id, bank_name, update_time, received_value).await;
         }
     }else{
         info!("New minimum");
 
-        // TODO: Optimize
-        let user_id_int: i64 = (*user_id).into();
-        let type_str: &'static str = received_value.cur_type.into();
-        let q = sqlx::query("BEGIN; \
-                            DELETE FROM currency_minimum WHERE user_id = ? AND cur_type = ?; \
-                            INSERT INTO currency_minimum(user_id, bank_name, value, cur_type, update_time) VALUES (?, ?, ?, ?, ?); \
-                            COMMIT;")
-            .bind(user_id_int)
-            .bind(type_str)
-            .bind(user_id_int)
-            .bind(bank_name)
-            .bind(&received_value.buy)
-            .bind(type_str)
-            .bind(""); // TODO: Date
-        
-        let query_result = q.execute(&mut (*conn)).await;
-        match query_result{
-            Ok(_)=>{
-                // Иначе вкидываем новое
-                let minimum = CurrencyMinimum{
-                    bank_name: bank_name.to_string(),
-                    value: received_value.buy,
-                    cur_type: received_value.cur_type,
-                    update_time: update_time
-                };
-
-                return Some(minimum)
-            },
-            Err(e) => {
-                error!("Insert new minimum error: {}", e);
-            }
-        }
+        return build_minimum_value(conn, user_id, bank_name, update_time, received_value).await;
     }
 
     None
@@ -626,10 +584,6 @@ mod tests{
         },
     };
 
-    #[test]
-    fn simple_test(){
-    }
-
     fn get_usd_val(buy: f32, sell: f32) -> CurrencyValue {
         let usd_val = CurrencyValue{
             cur_type: CurrencyType::USD,
@@ -662,10 +616,12 @@ mod tests{
         let mut conn = {
             const DB_FILE: &str = "test.db";
             const SQL_FILE: &str = "sqlite:test.db";
+            scopeguard::defer!(
+                std::fs::remove_file(std::path::Path::new(DB_FILE)).ok();
+            );
             let conn = build_sqlite_connection(SQL_FILE).await;
             let mut conn = scopeguard::guard(conn, |conn|{
                 conn.close();
-                std::fs::remove_file(std::path::Path::new(DB_FILE)).ok();
             });
             let q = sqlx::query("INSERT INTO monitoring_users(user_id) VALUES (?)")
                 .bind(user_int);

@@ -102,7 +102,7 @@ pub async fn get_database() -> SqliteConnection {
 
 #[cfg(test)]
 mod tests{
-    #[test]
-    fn build_db(){
-    }
+    // #[test]
+    // fn build_db(){
+    // }
 }
