@@ -16,11 +16,13 @@ FROM arm32v6/alpine:latest
 # FROM clux/muslrust
 # FROM jenskeiner/muslrust-builder:develop-openssl-crypto-arm
 
-ENV PATH=/bot:$PATH
-ENV TELEGRAM_DATABASE_PATH="/bot/database/telegram_bot.sqlite"
-ENV TELEGRAM_TOKEN=""
-ENV RUST_BACKTRACE=1
-ENV RUST_LOG=telegram_bot=trace
+ENV PATH=/bot:$PATH \
+    TELEGRAM_DATABASE_PATH="/bot/database/telegram_bot.sqlite" \
+    TELEGRAM_TOKEN="" \
+    RUST_BACKTRACE=1 \
+    RUST_LOG=telegram_bot=trace
+
+ENV TZ Europe/Moscow
 
 # MUSL valid libraries paths
 # Список зависимостей для приложения 1

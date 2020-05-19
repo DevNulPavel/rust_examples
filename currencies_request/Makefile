@@ -176,3 +176,11 @@ TREE:
 UNUSED_DEPS:
 	# cargo install cargo-udeps --locked
 	cargo udeps
+
+MIRI_UB_TEST:
+	# https://github.com/rust-lang/miri
+	# https://rust-lang.github.io/rustup-components-history/x86_64-apple-darwin.html
+	# cargo update
+	# cargo default nightly
+	# rustup +nightly component add miri
+	cargo miri run
