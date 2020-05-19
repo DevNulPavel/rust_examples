@@ -1,0 +1,17 @@
+version: "3"
+
+volumes: 
+    sqlite_db_volume:
+
+services:
+    telegram_bot:
+        build: .
+        restart: always
+        volumes: 
+            - sqlite_db_volume:/bot/db
+        enviroment:
+            - TZ=Europe/Moscow
+            - TELEGRAM_TOKEN=testtest
+            - TELEGRAM_DATABASE_PATH="/bot/database/telegram_bot.sqlite"
+            - RUST_BACKTRACE=1
+            - RUST_LOG=telegram_bot=trace
