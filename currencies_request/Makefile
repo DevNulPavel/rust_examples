@@ -22,6 +22,7 @@ RUN_BOT:
 	# RUST_LOG=trace
 	# https://docs.rs/env_logger/0.7.1/env_logger/
 	export RUST_LOG=telegram_bot=trace; \
+	export RUSTC_WRAPPER=/usr/local/bin/sccache; \
 	while true ; do \
 	$(BUILD_COMMAND) build --bin telegram_bot && \
 	./target/debug/telegram_bot; \
