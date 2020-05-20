@@ -2,11 +2,13 @@ BUILD_COMMAND=cargo
 # BUILD_COMMAND=cargo remote -c --
 
 
-RUN_CLI:
-	$(BUILD_COMMAND) build --bin currencies_request_cli && \
-	./target/debug/currencies_request_cli;
+RUN_CLI: BUILD_CLI
+	./target/debug/currencies_request_cli
 
 BUILD_CLI:
+	# export SCCACHE_MEMCACHED="tcp://192.168.1.2:11211";
+	# export SCCACHE_REDIS=""; 
+	export RUSTC_WRAPPER=/usr/local/bin/sccache; \
 	$(BUILD_COMMAND) build --bin currencies_request_cli 
 
 BUILD_CLI_RELEASE:
@@ -21,6 +23,7 @@ RUN_BOT:
 	# RUST_LOG=debug
 	# RUST_LOG=trace
 	# https://docs.rs/env_logger/0.7.1/env_logger/
+	# export SCCACHE_MEMCACHED="tcp://192.168.1.2:11211";
 	export RUST_LOG=telegram_bot=trace; \
 	export RUSTC_WRAPPER=/usr/local/bin/sccache; \
 	while true ; do \
@@ -45,6 +48,7 @@ BACKUP_KEYS:
 	zip -er backup/scripts.zip ./scripts/
 
 BUILD_FOR_PI:
+	export RUSTC_WRAPPER="";
 	# https://github.com/rust-embedded/cross
 	# https://docs.rs/crate/openssl-sys/0.9.19
 	# Need to create armv6 open ssl docker build

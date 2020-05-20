@@ -91,8 +91,8 @@ fn get_buy_and_sell<'a>(info: &'a Vec<AlphaCurrency>, cur_type: CurrencyType, ba
 
 fn order_to_change(cur: &AlphaCurrency, cur_type: CurrencyType, bank_name: &'static str) -> Result<CurrencyChange, CurrencyError> {
     match cur.order.as_str() {
-        "-" => Ok(CurrencyChange::Increase),
-        "+" => Ok(CurrencyChange::Decrease),
+        "-" => Ok(CurrencyChange::Decrease),
+        "+" => Ok(CurrencyChange::Increase),
         "0" => Ok(CurrencyChange::NoChange),
         _ => return Err(CurrencyError::new(bank_name, NoChangeInfo(cur_type)))
     }

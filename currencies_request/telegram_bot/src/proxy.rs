@@ -59,10 +59,11 @@ use crate::{
 
 /// Проверяем адрес на валидность
 async fn check_proxy_addr<S>(addr: S) -> Option<S>
-    where S: std::fmt::Display + std::string::ToString {
+    where S: std::fmt::Display + AsRef<str> {
 
     // TODO: копирование
-    let proxy = match reqwest::Proxy::all(&addr.to_string()){
+    let addr_str: &str = addr.as_ref();
+    let proxy = match reqwest::Proxy::all(addr_str){
         Ok(proxy) => {
             proxy
         },
@@ -174,7 +175,7 @@ fn get_static_proxies_stream() -> Receiver<Option<String>>{
 /// Получаем вектор из валидных адресов
 async fn get_first_valid_addresses<I, T>(addresses: I, max_count: usize, max_connections: usize) -> Vec<T>
 where I: std::iter::IntoIterator<Item=T>,
-      T: std::string::ToString + std::fmt::Display
+      T: AsRef<str> + std::fmt::Display
 {
     let semaphore = Semaphore::new(max_connections);
 
