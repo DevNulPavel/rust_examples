@@ -76,6 +76,15 @@ pub enum CurrencyChange{
     NoChange
 }
 
+impl From<bool> for CurrencyChange{
+    fn from(val: bool) -> Self {
+        match val {
+            true => CurrencyChange::Increase,
+            false => CurrencyChange::Decrease,
+        }
+    }
+}
+
 impl Display for CurrencyChange {
     fn fmt(&self, f: &mut Formatter) -> fmt::Result {
         match self {

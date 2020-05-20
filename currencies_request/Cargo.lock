@@ -244,6 +244,7 @@ dependencies = [
  "currency_lib",
  "futures",
  "log 0.4.8",
+ "pretty_env_logger",
  "prettytable-rs",
  "reqwest",
  "tokio",

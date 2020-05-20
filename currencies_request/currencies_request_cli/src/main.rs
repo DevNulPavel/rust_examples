@@ -70,6 +70,9 @@ fn new_cell_with_color(val: f32, change: CurrencyChange) -> Cell {
 }
 
 async fn async_main(){
+    // std::env::set_var("RUST_LOG", "currencies_request_cli=trace");
+    // pretty_env_logger::init();
+
     // Создаем клиента для запроса
     let client: Client = ClientBuilder::new()
         .connect_timeout(Duration::from_secs(3))

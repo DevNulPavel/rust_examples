@@ -12,9 +12,9 @@ reqwest = { version = "0.10.4", features=["json"] } # https://docs.rs/reqwest/0.
 serde = { version = "1.0.106", features = ["derive"] }
 derive-new = "0.5.8"
 chrono = "0.4.11"
+# log = "0.4.0"
 # serde_json = "1.0.52"
 # typed-headers = "0.2.0"
-# log = "0.4.0"
 # scopeguard = "1.1.0"
 # reqwest = { version = "0.10.4", default-features = false, features=["json", "rustls-tls"] } # https://docs.rs/reqwest/0.10.4/reqwest/
 # hyper = "0.13.5"

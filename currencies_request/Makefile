@@ -3,7 +3,7 @@ BUILD_COMMAND=cargo
 
 
 RUN_CLI:
-	$(BUILD_COMMAND) build --bin telegram_bot && \
+	$(BUILD_COMMAND) build --bin currencies_request_cli && \
 	./target/debug/currencies_request_cli;
 
 BUILD_CLI:
