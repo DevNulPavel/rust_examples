@@ -8,7 +8,7 @@ create table currency_minimum(
     bank_name varchar(16),
     value integer,
     cur_type varchar(8),
-    update_time varchar(32),
+    update_time integer,
     
     FOREIGN KEY(user_id) REFERENCES monitoring_users(user_id) ON DELETE CASCADE
 );

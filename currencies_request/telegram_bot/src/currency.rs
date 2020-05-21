@@ -197,14 +197,30 @@ impl CurrencyCheckStatus{
         let user_id: i64 = user.into();
         let results: Vec<CurrencyMinimum> = sqlx::query(SQL)
             .bind(user_id)
-            .map(|row: SqliteRow| {
-                let type_str: String = row.get("cur_type");
-                let cur_type = CurrencyType::try_from(type_str.as_str()).expect("Invalid currency type");
+            .map(|row: SqliteRow| {                
+                // Валюта
+                let cur_type = {
+                    let type_str: String = row.get("cur_type");
+                    CurrencyType::try_from(type_str.as_str()).expect("Invalid currency type")
+                };
+
+                // Получаем время в виде timestamp в UTC
+                let time: Option<chrono::DateTime<chrono::Utc>> = {
+                    let timestamp: i64 = row.get("update_time");
+                    if timestamp > 0 {
+                        let native_time = chrono::NaiveDateTime::from_timestamp(timestamp, 0);
+                        let time = chrono::DateTime::<chrono::Utc>::from_utc(native_time, chrono::Utc);
+                        Some(time)
+                    } else {
+                        None
+                    }
+                };
+
                 let res = CurrencyMinimum{
                     bank_name: row.get("bank_name"),
                     value: row.get("value"),
                     cur_type: cur_type,
-                    update_time: None // TODO: ???
+                    update_time: time
                 };
                 info!("Load user's minimum for id = {} from database: {:?}", user_id, res);
                 res
@@ -247,6 +263,15 @@ async fn build_minimum_value(conn: &mut SqliteConnection,
                              update_time: Option<DateTime<Utc>>,
                              received_value: &CurrencyValue) ->  Option<CurrencyMinimum>{
     
+    let timestamp = match update_time{
+        Some(time) => {
+            time.timestamp()
+        },
+        None => {
+            -1
+        }
+    };
+
     let user_id_int: i64 = (*user_id).into();
     let type_str: &'static str = received_value.cur_type.into();
     let q = sqlx::query("BEGIN; \
@@ -259,7 +284,7 @@ async fn build_minimum_value(conn: &mut SqliteConnection,
         .bind(bank_name)
         .bind(&received_value.buy)
         .bind(type_str)
-        .bind(""); // TODO: Date
+        .bind(timestamp);
                 
     let query_result = q.execute(&mut (*conn)).await;
     match query_result{
@@ -476,7 +501,7 @@ fn markdown_format_currency_result(info: &CurrencyResult) -> String{
 
     let bank_text = format!(   "*{} ({})*:\n\
                                 ```\n$: buy = {:.2} {}, sell = {:.2} {}\n\
-                                   €: buy = {:.2} {}, sell = {:.2} {}```\n",
+                                   €: buy = {:.2} {}, sell = {:.2} {}```\n\n",
             info.bank_name,
             time_str,
             info.usd.buy,
@@ -500,11 +525,10 @@ fn markdown_format_minimum(new_minimum: &CurrencyMinimum, previous_value: &Curre
         None => "No time".into()
     };
 
-    // TODO: Время
     let bank_text = format!(   "New buy minimum\n\
                                 *{} ({})*:\n\
                                 ```\n\
-                                {}: new = {:.2}, old = {:.2}```\n",
+                                {}: new = {:.2}, old = {:.2}```\n\n",
             new_minimum.bank_name,
             time_str,
             new_minimum.cur_type,
@@ -523,7 +547,6 @@ fn markdown_format_minimum_for_status(new_minimum: &CurrencyMinimum) -> String{
         None => "No time".into()
     };
 
-    // TODO: Время
     let bank_text = format!(   "Buy minimum\n\
                                 *{} ({})*:\n\
                                 ```\n\

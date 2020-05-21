@@ -61,7 +61,6 @@ use crate::{
 async fn check_proxy_addr<S>(addr: S) -> Option<S>
     where S: std::fmt::Display + AsRef<str> {
 
-    // TODO: копирование
     let addr_str: &str = addr.as_ref();
     let proxy = match reqwest::Proxy::all(addr_str){
         Ok(proxy) => {
