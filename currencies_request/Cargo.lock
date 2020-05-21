@@ -241,10 +241,10 @@ dependencies = [
 name = "currencies_request_cli"
 version = "0.1.0"
 dependencies = [
+ "chrono",
  "currency_lib",
  "futures",
  "log 0.4.8",
- "pretty_env_logger",
  "prettytable-rs",
  "reqwest",
  "tokio",

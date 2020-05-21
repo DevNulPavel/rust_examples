@@ -101,7 +101,12 @@ async fn async_main(){
                 let info: CurrencyResult = info;
 
                 let time_str: String = match info.update_time {
-                    Some(time) => time.format("%H:%M %d-%m-%Y").to_string(),
+                    Some(time) => {
+                        //chrono::DateTime::<chrono::Local>::from_native()
+                        //let timezone = chrono::Local
+                        let time = time.with_timezone(&chrono::Local);
+                        time.format("%H:%M %d-%m-%Y").to_string()
+                    },
                     None => "No time".into()
                 };
 

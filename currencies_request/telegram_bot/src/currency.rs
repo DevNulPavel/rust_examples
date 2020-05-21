@@ -467,7 +467,10 @@ pub async fn check_currencies_update(bot_context: &mut BotContext) {
 
 fn markdown_format_currency_result(info: &CurrencyResult) -> String{
     let time_str: String = match info.update_time {
-        Some(time) => time.format("%H:%M %d-%m-%Y").to_string(),
+        Some(time) => {
+            let local_time = time.with_timezone(&chrono::offset::Local{});
+            local_time.format("%H:%M %d-%m-%Y").to_string()
+        },
         None => "No time".into()
     };
 
@@ -490,7 +493,10 @@ fn markdown_format_currency_result(info: &CurrencyResult) -> String{
 
 fn markdown_format_minimum(new_minimum: &CurrencyMinimum, previous_value: &CurrencyValue) -> String{
     let time_str: String = match new_minimum.update_time {
-        Some(time) => time.format("%H:%M %d-%m-%Y").to_string(),
+        Some(time) => {
+            let local_time = time.with_timezone(&chrono::offset::Local{});
+            local_time.format("%H:%M %d-%m-%Y").to_string()
+        },
         None => "No time".into()
     };
 
@@ -510,7 +516,10 @@ fn markdown_format_minimum(new_minimum: &CurrencyMinimum, previous_value: &Curre
 
 fn markdown_format_minimum_for_status(new_minimum: &CurrencyMinimum) -> String{
     let time_str: String = match new_minimum.update_time {
-        Some(time) => time.format("%H:%M %d-%m-%Y").to_string(),
+        Some(time) => {
+            let local_time = time.with_timezone(&chrono::offset::Local{});
+            local_time.format("%H:%M %d-%m-%Y").to_string()
+        },
         None => "No time".into()
     };
 

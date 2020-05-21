@@ -83,7 +83,10 @@ fn get_buy_and_sell<'a>(info: &'a Vec<AlphaCurrency>, cur_type: CurrencyType, ba
         .ok_or(CurrencyError::new(bank_name, NoSellInfo(cur_type)))?;
 
     // Время
-    let chrono_time = Utc.datetime_from_str(buy.date.as_str(), "%Y-%m-%d %H:%M:%S"); // "2014-11-28 12:00:09" "2020-05-07 12:29:00" "2020-05-07 12:29:00"
+    let chrono_time = chrono::Local{}.datetime_from_str(buy.date.as_str(), "%Y-%m-%d %H:%M:%S")
+        .map(|time|{
+            time.with_timezone(&chrono::Utc)
+        }); // "2014-11-28 12:00:09" "2020-05-07 12:29:00" "2020-05-07 12:29:00"
     //info!("{:?}", chrono_time);
 
     Ok(AlphaBuyAndSellInfo::new(cur_type, buy, sell, chrono_time.ok()))

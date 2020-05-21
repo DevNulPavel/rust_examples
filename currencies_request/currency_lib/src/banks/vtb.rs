@@ -125,18 +125,33 @@ pub async fn get_currencies_from_vtb(client: &Client, bank_name: &'static str) -
             CurrencyError::new(bank_name, CurrencyErrorType::NoData(EUR))
         })?;
 
-    println!("{:?}", usd_to_rub.date);
+    // println!("{:?}", usd_to_rub.date);
     // println!("{:?}", eur_to_rub);
 
-    // let time = chrono::DateTime::parse_from_str(usd_to_rub.date.as_str(), "%Y-%m-%d%z%H:%M:%S");
-    let time = usd_to_rub.date.parse::<chrono::DateTime<chrono::Utc>>();
-    println!("{:?}", time);
+    use chrono::offset::TimeZone;
+
+    let time = match chrono::NaiveDateTime::parse_from_str(usd_to_rub.date.as_str(), "%Y-%m-%dT%H:%M:%S"){
+        Ok(time) => {
+            match chrono::offset::Local.from_local_datetime(&time).single(){
+                Some(local_time) => {
+                    let local_time: chrono::DateTime<chrono::Local> = local_time;
+                    Some(local_time.with_timezone(&chrono::Utc))
+                },
+                None => {
+                    None
+                }
+            }
+        },
+        Err(_) => {
+            None
+        }
+    };
     
     let res = CurrencyResult{
         bank_name: bank_name.to_string(),
         usd: CurrencyValue::from_vtb(USD, &usd_to_rub),
         eur: CurrencyValue::from_vtb(EUR, &eur_to_rub),
-        update_time: None // TODO: ???
+        update_time: time
     };
 
     Ok(res)

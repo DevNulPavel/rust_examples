@@ -71,12 +71,12 @@ impl CurrencyValue {
 
 pub async fn get_currencies_from_sber(client: &Client, bank_name: &'static str) -> Result<CurrencyResult, CurrencyError> {
     // Получаем json
-    let url = "https://www.sberbank.ru/portalserver/proxy/\
+    /*let url = "https://www.sberbank.ru/portalserver/proxy/\
                ?pipe=shortCachePipe\
-               &url=http%3A%2F%2Flocalhost%2Frates-web%2FrateService%2Frate%2Fcurrent%3FregionId%3D77%26rateCategory%3Dcards%26currencyCode%3D978%26currencyCode%3D840";
-    // let url = "https://www.sberbank.ru/portalserver/proxy/\
-    //            ?pipe=shortCachePipe\
-    //            &url=http%3A%2F%2Flocalhost%2Frates-web%2FrateService%2Frate%2Fcurrent%3FregionId%3D77%26rateCategory%3Dcards%26currencyCode%3D840"; 
+               &url=http%3A%2F%2Flocalhost%2Frates-web%2FrateService%2Frate%2Fcurrent%3FregionId%3D77%26rateCategory%3Dcards%26currencyCode%3D978%26currencyCode%3D840";*/
+
+    //    https://www.sberbank.ru/ru/quotes/currenciesbeznal
+    let url = "https://www.sberbank.ru/portalserver/proxy/?pipe=shortCachePipe&url=http%3A%2F%2Flocalhost%2Frates-web%2FrateService%2Frate%2Fcurrent%3FregionId%3D77%26rateCategory%3Dbeznal%26currencyCode%3D978%26currencyCode%3D840";
     let json: HashMap<String, HashMap<String, HashMap<String, SberCurrency>>> = client
         .get(url)
         .send()
@@ -85,7 +85,7 @@ pub async fn get_currencies_from_sber(client: &Client, bank_name: &'static str) 
         .await?;
     
     let json = json
-        .get("cards")
+        .get("beznal")
         .ok_or(CurrencyError::new(bank_name, InvalidResponse("No cards info in sber")))?;
 
     let usd_info = json
@@ -107,6 +107,7 @@ pub async fn get_currencies_from_sber(client: &Client, bank_name: &'static str) 
     let eur: CurrencyValue = CurrencyValue::from_sber(EUR, eur_info);
 
     let native_time = NaiveDateTime::from_timestamp(usd_info.date / 1000, 0);
+    println!("{:?}", native_time);
     let time = DateTime::<Utc>::from_utc(native_time, Utc);
 
     let result: CurrencyResult = CurrencyResult::new(bank_name.into(), usd, eur, Some(time));

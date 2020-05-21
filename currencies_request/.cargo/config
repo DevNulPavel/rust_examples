@@ -5,4 +5,4 @@
 # https://github.com/mozilla/sccache
 # set -g -x RUSTC_WRAPPER /usr/local/bin/sccache
 # set -g -x SCCACHE_DIR /Users/devnul/sccache
-rustc-wrapper = "/usr/local/bin/sccache"
+#rustc-wrapper = "/usr/local/bin/sccache"
