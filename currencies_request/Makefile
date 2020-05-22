@@ -19,20 +19,23 @@ INSTALL_CLI: BUILD_CLI_RELEASE
 
 PROFILE_MEMORY_CLI:
 	# Открывать в браузере http://localhost:8080
-	# export OPENSSL_DIR=/x64_openssl/result;
-	# //LD_PRELOAD=/usr/local/lib/libmemory_profiler.so
-	# target/x86_64-unknown-linux-gnu/debug/currencies_request_cli
-	# && \
-	#		/usr/local/bin/memory-profiler-cli server memory-profiling_*.dat
-	export OPENSSL_DIR=/x64_openssl/result;
-	cross build --target x86_64-unknown-linux-gnu --bin currencies_request_cli
-	docker run -it --rm \
-		--user "$(id -u)":"$(id -g)" \
+	export OPENSSL_DIR=/x64_openssl/result && \
+	cross build --target x86_64-unknown-linux-gnu --bin currencies_request_cli && \
+	docker run \
+		-it \
+		--rm \
+		--user "$(shell id -u)":"$(shell id -g)" \
 		-v "$(PWD)":/usr/src/test_app \
-		-p 8080:8080 \
 		-w /usr/src/test_app \
+		-p 8080:8080 \
 		devnul/rust_memory_profile_x64_docker \
-			bash
+		bash -c "\
+			export MEMORY_PROFILER_ENABLE_SERVER=1; \
+			export MEMORY_PROFILER_BASE_SERVER_PORT=8080; \
+			export MEMORY_PROFILER_OUTPUT=memory-profiling_%e_%t_%p.dat; \
+			LD_PRELOAD=/usr/local/lib/libmemory_profiler.so \
+			target/x86_64-unknown-linux-gnu/debug/currencies_request_cli && \
+			/usr/local/bin/memory-profiler-cli server -p 8080 -i 0.0.0.0 memory-profiling_*.dat"
 
 RUN_BOT:
 	# RUST_LOG=error
@@ -120,6 +123,38 @@ BUILD_ON_PI_DOCKER: BUILD_FOR_PI
 	docker build --no-cache -t devnul/telegram_bot .
 	docker push devnul/telegram_bot
 
+PROFILE_MEMORY_BOT_COLLECT:
+	# Открывать в браузере http://localhost:8080
+	export OPENSSL_DIR=/x64_openssl/result && \
+	cross build --target x86_64-unknown-linux-gnu --bin telegram_bot && \
+	docker run \
+		-it \
+		--rm \
+		--user "$(shell id -u)":"$(shell id -g)" \
+		-v "$(PWD)":/usr/src/test_app \
+		-w /usr/src/test_app \
+		devnul/rust_memory_profile_x64_docker \
+		bash -c "\
+			export TELEGRAM_TOKEN=$(TELEGRAM_TOKEN); \
+			export MEMORY_PROFILER_ENABLE_SERVER=1; \
+			export MEMORY_PROFILER_BASE_SERVER_PORT=8080; \
+			export MEMORY_PROFILER_OUTPUT=memory-profiling_%e_%t_%p.dat; \
+			LD_PRELOAD=/usr/local/lib/libmemory_profiler.so \
+			target/x86_64-unknown-linux-gnu/debug/telegram_bot"
+
+PROFILE_MEMORY_BOT_SERVER:
+	# Открывать в браузере http://localhost:8080
+	docker run \
+		-it \
+		--rm \
+		--user "$(shell id -u)":"$(shell id -g)" \
+		-v "$(PWD)":/usr/src/test_app \
+		-w /usr/src/test_app \
+		-p 8080:8080 \
+		devnul/rust_memory_profile_x64_docker \
+		bash -c "\
+			/usr/local/bin/memory-profiler-cli server -p 8080 -i 0.0.0.0 memory-profiling_*.dat"
+			
 BUILD_AND_INSTALL_ON_PI: BUILD_FOR_PI
 	# MUSL excutable
 	# https://www.ibm.com/developerworks/ru/library/l-lpic1-v3-102-3/index.html

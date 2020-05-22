@@ -39,8 +39,37 @@ RUN cargo build -p memory-profiler-cli
 #######################################################################################################################
 
 FROM debian:buster-slim
+
+# RUN apt-get update && \
+#     apt-get install openssl libssl-dev -y
+
+# TODO: Без кеша
 RUN apt-get update && \
-    apt-get install openssl libssl-dev -y
+    apt-get install -y wget perl build-essential
+
+RUN mkdir /tmp/openssl && \
+    cd /tmp/openssl && \
+    wget https://www.openssl.org/source/openssl-1.1.1g.tar.gz && \
+    tar xzf openssl-1.1.1g.tar.gz && \
+    rm openssl-1.1.1g.tar.gz && \
+    mv openssl-1.1.1g sources
+
+RUN export MACHINE=x86_64 && \
+    export ARCH=x86_64 && \
+    export CC=x86_64-linux-gnu-gcc && \
+    export TARGET=x86_64-linux-gnu && \
+    cd /tmp/openssl/sources && \
+    rm -rf build && \
+    mkdir build && \
+    cd build && \
+    ../Configure linux-x86_64 && \
+    make -j16 && \
+    make install
+
+RUN rm -rf /tmp/openssl
+
+RUN apt-get remove -y wget perl build-essential
+
 # TODO: Не хватает памяти похоже для компиляции release
 # COPY --from=builder /usr/src/memory-profiler/target/release/memory-profiler-cli /usr/local/bin/memory-profiler-cli
 COPY --from=builder /usr/src/memory-profiler/target/debug/memory-profiler-cli /usr/local/bin/memory-profiler-cli

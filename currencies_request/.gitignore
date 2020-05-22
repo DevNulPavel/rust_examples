@@ -8,3 +8,4 @@ build/
 token.txt
 *.sqlite*
 database/
+memory-profiling_*.dat
