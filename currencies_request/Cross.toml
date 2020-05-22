@@ -2,7 +2,6 @@
 
 [target.arm-unknown-linux-musleabi]
 image = "devnul/armv6_openssl_musl"
-
 [target.arm-unknown-linux-musleabi.env]
 passthrough = [
     "OPENSSL_DIR",
@@ -14,8 +13,18 @@ passthrough = [
 
 [target.arm-unknown-linux-gnueabi]
 image = "devnul/armv6_openssl_gnu"
-
 [target.arm-unknown-linux-gnueabi.env]
+passthrough = [
+    "OPENSSL_DIR",
+    "TARGET",
+    "MACHINE",
+    "ARCH",
+    "CC"
+]
+
+[target.x86_64-unknown-linux-gnu]
+image = "devnul/x64_linux_openssl_gnu"
+[target.x86_64-unknown-linux-gnui.env]
 passthrough = [
     "OPENSSL_DIR",
     "TARGET",

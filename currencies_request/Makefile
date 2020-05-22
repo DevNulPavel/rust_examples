@@ -17,6 +17,23 @@ BUILD_CLI_RELEASE:
 INSTALL_CLI: BUILD_CLI_RELEASE
 	cp -r ./target/release/currencies_request_cli /usr/local/bin/currencies_request
 
+PROFILE_MEMORY_CLI:
+	# Открывать в браузере http://localhost:8080
+	# export OPENSSL_DIR=/x64_openssl/result;
+	# //LD_PRELOAD=/usr/local/lib/libmemory_profiler.so
+	# target/x86_64-unknown-linux-gnu/debug/currencies_request_cli
+	# && \
+	#		/usr/local/bin/memory-profiler-cli server memory-profiling_*.dat
+	export OPENSSL_DIR=/x64_openssl/result;
+	cross build --target x86_64-unknown-linux-gnu --bin currencies_request_cli
+	docker run -it --rm \
+		--user "$(id -u)":"$(id -g)" \
+		-v "$(PWD)":/usr/src/test_app \
+		-p 8080:8080 \
+		-w /usr/src/test_app \
+		devnul/rust_memory_profile_x64_docker \
+			bash
+
 RUN_BOT:
 	# RUST_LOG=error
 	# RUST_LOG=info

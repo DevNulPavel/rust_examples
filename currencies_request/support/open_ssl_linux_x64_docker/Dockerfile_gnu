@@ -1,0 +1,27 @@
+FROM rustembedded/cross:x86_64-unknown-linux-gnu-0.2.0
+
+# RUN apt-get install -y libssl-dev
+
+RUN apt-get install -y wget
+
+RUN mkdir /x64_openssl && \
+    cd /x64_openssl && \
+    wget https://www.openssl.org/source/openssl-1.1.1g.tar.gz && \
+    tar xzf openssl-1.1.1g.tar.gz && \
+    rm openssl-1.1.1g.tar.gz && \
+    mv openssl-1.1.1g sources
+
+RUN apt-get remove -y wget
+
+RUN export MACHINE=x86_64 && \
+    export ARCH=x86_64 && \
+    export CC=x86_64-linux-gnu-gcc && \
+    export TARGET=x86_64-linux-gnu && \
+    cd /x64_openssl/sources && \
+    mkdir build && \
+    cd build && \
+    ../Configure linux-x86_64 --prefix=/x64_openssl/result && \
+    make -j16 && \
+    make install && \
+    cd /x64_openssl && \
+    rm -rf sources
