@@ -1,5 +1,6 @@
+# source ios_osx_bash.env &&
+
 BUILD_FOR_IOS_AND_OSX:
-	source ios_osx_bash.env && \
 	cargo build --release
 
 TEST:
