@@ -4,7 +4,9 @@ BUILD_FOR_IOS_AND_OSX:
 	cargo build --release
 
 # Applications/Xcode.app/Contents/Developer/Toolchains/XcodeDefault.xctoolchain/usr/bin/clang
-TEST_CONFIG_FILE: MAKE_CONFIG
+TEST_CONFIG_FILE: | PREPARE MAKE_COMPILER_FILE
+	XGEN_DISTCC_ENABLED=1 \
+	XGEN_CCACHE_ENABLED=1 \
 	cargo run -- \
 	-lstdc++ \
 	-g \
@@ -12,7 +14,7 @@ TEST_CONFIG_FILE: MAKE_CONFIG
 	test.cpp \
 	-o test_result
 
-TEST_PARAM: REMOVE_CONFIG
+TEST_PARAM: | PREPARE REMOVE_COMPILER_FILE
 	cargo run -- \
 	/Applications/Xcode.app/Contents/Developer/Toolchains/XcodeDefault.xctoolchain/usr/bin/clang \
 	-lstdc++ \
@@ -21,11 +23,17 @@ TEST_PARAM: REMOVE_CONFIG
 	test.cpp \
 	-o test_result
 
-REMOVE_CONFIG:
+PREPARE:
+	mkdir -p target/debug/ && \
+	mkdir -p target/release/ && \
+	cp compiler_wrapper_config.json target/debug/ && \
+	cp compiler_wrapper_config.json target/release/
+
+REMOVE_COMPILER_FILE:
 	rm -rf target/release/compiler_wrapper_path.cfg;
 	rm -rf target/debug/compiler_wrapper_path.cfg;
 
-MAKE_CONFIG: REMOVE_CONFIG
+MAKE_COMPILER_FILE: REMOVE_COMPILER_FILE
 	mkdir -p target/debug/;
 	mkdir -p target/release/;
 	rm -rf target/release/compiler_wrapper_path.cfg;

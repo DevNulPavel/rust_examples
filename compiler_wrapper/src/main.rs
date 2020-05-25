@@ -27,6 +27,9 @@ use std::{
         Read
     }
 };
+use serde::{    
+    Deserialize
+};
 
 /*enum AppExitStatus{
     Ok,
@@ -67,7 +70,7 @@ fn file_is_not_empty_and_exists(path: impl AsRef<Path>) -> bool {
 }
 
 /// Итератор по параметрам CCcache
-fn build_cccache_params_iter() -> impl Iterator<Item=(&'static OsStr, &'static OsStr)>{
+/*fn build_cccache_params_iter() -> impl Iterator<Item=(&'static OsStr, &'static OsStr)>{
     let cccache_params_iter = {
         [
             ("CCACHE_MAXSIZE", "50G"),
@@ -81,7 +84,7 @@ fn build_cccache_params_iter() -> impl Iterator<Item=(&'static OsStr, &'static O
         })
     };
     cccache_params_iter
-}
+}*/
 
 //#[allow(dead_code)]
 fn read_compiler_path_file(filename: &str)-> Option<PathBuf>{
@@ -157,6 +160,57 @@ fn check_compiler_path(compiler_path: &Path) {
     }
 }
 
+#[derive(Deserialize, Debug)]
+struct Configuration {
+    env_variables: std::collections::hash_map::HashMap<String, String>
+}
+
+impl Configuration{
+    fn env_to_arg_iter<'a>(&'a self) -> impl Iterator<Item=(&'a OsStr, &'a OsStr)>{
+        let cccache_params_iter = {
+            self.env_variables
+                .iter()
+                .map(|(key,val)|{
+                    (std::ffi::OsStr::new(key), std::ffi::OsStr::new(val))
+                })
+        };
+        cccache_params_iter
+    }
+}
+
+fn read_configuration_file(filename: &str) -> Configuration {
+    let current_executable_path = std::env::current_exe()
+        .expect("Current executable get path failed");
+
+    let executable_folder = current_executable_path
+        .parent()
+        .expect("Current executable get directory failed");
+
+    let config_path = executable_folder.join(filename);
+
+    let text = match std::fs::read_to_string(&config_path){
+        Ok(text) => text,
+        Err(e) => {
+            let path_str = config_path
+                .to_str()
+                .expect("Failed to get path str");
+            panic!("Failed to read config file {}, {}", path_str, e)
+        }
+    };
+
+    let config = match serde_json::from_str(&text) {
+        Ok(conf) => conf,
+        Err(e) => {
+            let path_str = config_path
+                .to_str()
+                .expect("Failed to get path str");
+            panic!("Failed to parse config file {}: {}", path_str, e)
+        }
+    };
+
+    config
+}
+
 fn spawn_compiler() -> Result<Child, io::Error> {
     let mut args = args()
         .skip(1);
@@ -192,16 +246,17 @@ fn spawn_compiler() -> Result<Child, io::Error> {
     //dbg!(&distcc_hosts_path);
 
     // Флаги наличия бинарников distcc
-    let distcc_exists = distcc_path.exists();
-    //let distcc_pump_exists = distcc_pump_path.exists();
-    let dist_cc_hosts_exist = if distcc_exists {
-        file_is_not_empty_and_exists(&distcc_hosts_path)
-    }else{
-        false
+    let use_distcc = {
+        distcc_path.exists() 
+            && file_is_not_empty_and_exists(&distcc_hosts_path) 
+            && std::env::var("XGEN_DISTCC_ENABLED").is_ok()
     };
 
     // Флаги наличия бинарника ccache
-    let ccache_exists = ccache_path.exists();
+    let use_ccache = {
+        ccache_path.exists()
+            && std::env::var("XGEN_CCACHE_ENABLED").is_ok()
+    };
 
     // Аргументы компилятора
     let compiler_args_iter = args
@@ -220,26 +275,31 @@ fn spawn_compiler() -> Result<Child, io::Error> {
     }else */
 
     // Выбираем, что именно исполнять
-    let command_result = if distcc_exists && dist_cc_hosts_exist && ccache_exists {
+    const FILENAME: &str = "compiler_wrapper_config.json";
+    let command_result = if use_distcc && use_ccache {
+        let config = read_configuration_file(FILENAME);
+
         // CCCache + DistCC
-        //println!("CCCache + DistCC");
+        println!("CCCache + DistCC");
         Command::new(ccache_path)
-            .envs(build_cccache_params_iter())
+            .envs(config.env_to_arg_iter())
             .env("CCACHE_PREFIX", distcc_path)
             .arg(compiler_path)
             .args(compiler_args_iter)
             .spawn()
-    }else if ccache_exists{
+    }else if use_ccache {
         // CCCache
-        // println!("CCCache");
+        println!("CCCache");
+        let config = read_configuration_file(FILENAME);
+
         Command::new(ccache_path)
-            .envs(build_cccache_params_iter())
+            .envs(config.env_to_arg_iter())
             .arg(compiler_path)
             .args(compiler_args_iter)
             .spawn()
     }else{
         // Compiler only
-        //println!("Compiler only");
+        println!("Compiler only");
         Command::new(compiler_path)
             .args(compiler_args_iter)
             .spawn()
