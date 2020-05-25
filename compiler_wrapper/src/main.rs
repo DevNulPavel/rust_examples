@@ -6,7 +6,7 @@
 use std::{
     path::{
         Path,
-        PathBuf
+        //PathBuf
     },
     ffi::{
         OsStr
@@ -22,7 +22,8 @@ use std::{
         args
     },
     io::{
-        self
+        self,
+        //Read
     }
 };
 
@@ -82,24 +83,96 @@ fn build_cccache_params_iter() -> impl Iterator<Item=(&'static OsStr, &'static O
 
 fn spawn_compiler() -> Result<Child, io::Error> {
     let distcc_path: &Path = Path::new("/usr/local/bin/distcc");
-    let distcc_hosts_path: &Path = Path::new("~/.distcc/hosts");
+    let distcc_hosts_path: &Path = Path::new("/Users/devnul/.distcc/hosts");
     let distcc_pump_path: &Path = Path::new("/usr/local/bin/pump");
     let ccache_path: &Path = Path::new("/usr/local/bin/ccache");
 
     // Аргументы приложения включая путь к нему
-    let mut args = args()
+    let args = args()
         .skip(1); // Пропускаем имя самого приложения
 
     // Путь к компилятору
     // TODO: Убрать как-то PathBuf?
-    let clang_path: PathBuf = {
+    /*let clang_path: PathBuf = {
         let path = args
             .next()
             .expect("Missing compiler argument");
 
         PathBuf::from(path)
+    };*/
+    /*let clang_path: &Path = Path::new("/Applications/Xcode.app/Contents/Developer/Toolchains/XcodeDefault.xctoolchain/usr/bin/clang");*/
+    let mut buf: [u8; 256] = [0; 256];
+    let compiler_path = {
+        let current_executable_path = std::env::current_exe()
+            .expect("Current executable get path failed");
+        
+        let executable_folder = current_executable_path
+            .parent()
+            .expect("Current executable get directory failed");
+        
+        let compiler_config_path = executable_folder.join("compiler_path.cfg");
+
+        // Читаем данные в буффер и получаем длину прочитаннных данных
+        let read_len = {
+            let path_str = compiler_config_path
+                .to_str()
+                .expect("Invalid compiler config file path");
+            let mut file = match std::fs::File::open(&compiler_config_path){
+                Ok(file) => {
+                    file
+                },
+                Err(_) => {
+                    panic!("Failed to open compiler config file: {}", path_str);
+                }
+            };
+            use std::io::Read;
+            let len = match file.read(&mut buf){
+                Ok(len) => {
+                    len
+                },
+                Err(_)=> {
+                    panic!("Failed to read compiler config file: {}", path_str);
+                }
+            };
+            len
+        };
+
+        // Парсим текст из буффера
+        let text = match std::str::from_utf8(&buf[0..read_len]) {
+            Ok(text) => {
+                text 
+            },
+            Err(_) => {
+                panic!("Failed to convert config to utf8");
+            }
+        };
+
+        // Создаем переменную пути
+        Path::new(text.trim_end())
+
+        // Вариант с аллокацией
+        /*let file_text = match std::fs::read_to_string(&compiler_config_path){
+            Ok(text) => {
+                text
+            },
+            Err(_) => {
+                let path = compiler_config_path
+                    .to_str()
+                    .expect("Invalid compiler config file path");
+                panic!("Failed to read compiler config file: {}", path);
+            }
+        };
+        let file_text_without_trailing = file_text.trim_end();
+        PathBuf::from(file_text_without_trailing)*/
     };
-    assert!(clang_path.exists(), "Clang doesn't exist at path"); // TODO: Print path
+
+    if !compiler_path.exists() {
+        let path = compiler_path
+                    .to_str()
+                    .expect("Invalid compiler path string");
+        panic!("Clang doesn't exist at path: {}", path);
+    }
+    
     //dbg!(&clang_path);
 
     // Аргументы компилятора
@@ -129,7 +202,7 @@ fn spawn_compiler() -> Result<Child, io::Error> {
             .envs(build_cccache_params_iter())
             .env("CCACHE_PREFIX", distcc_path)
             .arg(ccache_path)
-            .arg(clang_path)
+            .arg(compiler_path)
             .args(compiler_args_iter)
             .spawn()
     }else if distcc_exists && dist_cc_hosts_exist && ccache_exists {
@@ -138,7 +211,7 @@ fn spawn_compiler() -> Result<Child, io::Error> {
         Command::new(ccache_path)
             .envs(build_cccache_params_iter())
             .env("CCACHE_PREFIX", distcc_path)
-            .arg(clang_path)
+            .arg(compiler_path)
             .args(compiler_args_iter)
             .spawn()
     }else if ccache_exists{
@@ -146,13 +219,13 @@ fn spawn_compiler() -> Result<Child, io::Error> {
         //println!("CCCache");
         Command::new(ccache_path)
             .envs(build_cccache_params_iter())
-            .arg(clang_path)
+            .arg(compiler_path)
             .args(compiler_args_iter)
             .spawn()
     }else{
         // Compiler only
         //println!("Compiler only");
-        Command::new(clang_path)
+        Command::new(compiler_path)
             .args(compiler_args_iter)
             .spawn()
     };

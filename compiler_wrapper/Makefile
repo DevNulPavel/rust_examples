@@ -3,11 +3,16 @@
 BUILD_FOR_IOS_AND_OSX:
 	cargo build --release
 
-TEST:
+TEST: MAKE_CONFIG
 	cargo run -- \
-	/Applications/Xcode.app/Contents/Developer/Toolchains/XcodeDefault.xctoolchain/usr/bin/clang \
 	-lstdc++ \
 	-g \
 	-O2 \
 	test.cpp \
 	-o test_result
+
+MAKE_CONFIG:
+	rm -rf target/release/compiler_path.cfg;
+	rm -rf target/debug/compiler_path.cfg;
+	echo /Applications/Xcode.app/Contents/Developer/Toolchains/XcodeDefault.xctoolchain/usr/bin/clang > target/debug/compiler_path.cfg;
+	echo /Applications/Xcode.app/Contents/Developer/Toolchains/XcodeDefault.xctoolchain/usr/bin/clang > target/release/compiler_path.cfg;
