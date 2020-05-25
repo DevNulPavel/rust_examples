@@ -12,6 +12,8 @@ TEST: MAKE_CONFIG
 	-o test_result
 
 MAKE_CONFIG:
+	mkdir -p target/debug/;
+	mkdir -p target/release/;
 	rm -rf target/release/compiler_path.cfg;
 	rm -rf target/debug/compiler_path.cfg;
 	echo /Applications/Xcode.app/Contents/Developer/Toolchains/XcodeDefault.xctoolchain/usr/bin/clang > target/debug/compiler_path.cfg;

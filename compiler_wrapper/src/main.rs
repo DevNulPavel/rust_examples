@@ -23,7 +23,7 @@ use std::{
     },
     io::{
         self,
-        //Read
+        Read
     }
 };
 
@@ -81,25 +81,7 @@ fn build_cccache_params_iter() -> impl Iterator<Item=(&'static OsStr, &'static O
     cccache_params_iter
 }
 
-fn spawn_compiler() -> Result<Child, io::Error> {
-    let distcc_path: &Path = Path::new("/usr/local/bin/distcc");
-    //let distcc_hosts_path: &Path = Path::new("/Users/devnul/.distcc/hosts");
-    let distcc_hosts_path: PathBuf = {
-        let home_dir = dirs::home_dir()
-            .expect("Failed to get home directory");
-        dbg!(&home_dir);
-        home_dir.join(".distcc/hosts")
-    };
-    let distcc_pump_path: &Path = Path::new("/usr/local/bin/pump");
-    let ccache_path: &Path = Path::new("/usr/local/bin/ccache");
-
-    dbg!(&distcc_hosts_path);
-
-    // Аргументы приложения включая путь к нему
-    let args = args()
-        .skip(1); // Пропускаем имя самого приложения
-
-    // Путь к компилятору
+fn read_compiler_path<'a>(buf: &'a mut [u8])-> &'a Path{
     // TODO: Убрать как-то PathBuf?
     /*let clang_path: PathBuf = {
         let path = args
@@ -109,86 +91,90 @@ fn spawn_compiler() -> Result<Child, io::Error> {
         PathBuf::from(path)
     };*/
     /*let clang_path: &Path = Path::new("/Applications/Xcode.app/Contents/Developer/Toolchains/XcodeDefault.xctoolchain/usr/bin/clang");*/
-    let mut buf: [u8; 256] = [0; 256];
-    let compiler_path = {
-        let current_executable_path = std::env::current_exe()
-            .expect("Current executable get path failed");
-        
-        let executable_folder = current_executable_path
-            .parent()
-            .expect("Current executable get directory failed");
-        
-        let compiler_config_path = executable_folder.join("compiler_path.cfg");
 
-        // Читаем данные в буффер и получаем длину прочитаннных данных
-        let read_len = {
-            let path_str = compiler_config_path
-                .to_str()
-                .expect("Invalid compiler config file path");
-            let mut file = match std::fs::File::open(&compiler_config_path){
-                Ok(file) => {
-                    file
-                },
-                Err(_) => {
-                    panic!("Failed to open compiler config file: {}", path_str);
-                }
-            };
-            use std::io::Read;
-            let len = match file.read(&mut buf){
-                Ok(len) => {
-                    len
-                },
-                Err(_)=> {
-                    panic!("Failed to read compiler config file: {}", path_str);
-                }
-            };
-            len
-        };
+    let current_executable_path = std::env::current_exe()
+        .expect("Current executable get path failed");
 
-        // Парсим текст из буффера
-        let text = match std::str::from_utf8(&buf[0..read_len]) {
-            Ok(text) => {
-                text 
+    let executable_folder = current_executable_path
+        .parent()
+        .expect("Current executable get directory failed");
+
+    let compiler_config_path = executable_folder.join("compiler_path.cfg");
+
+    // Читаем данные в буффер и получаем длину прочитаннных данных
+    let read_len = {
+        let path_str = compiler_config_path
+            .to_str()
+            .expect("Invalid compiler config file path");
+        let mut file = match std::fs::File::open(&compiler_config_path){
+            Ok(file) => {
+                file
             },
             Err(_) => {
-                panic!("Failed to convert config to utf8");
+                panic!("Failed to open compiler config file: {}", path_str);
             }
         };
-
-        // Создаем переменную пути
-        Path::new(text.trim_end())
-
-        // Вариант с аллокацией
-        /*let file_text = match std::fs::read_to_string(&compiler_config_path){
-            Ok(text) => {
-                text
+        let len = match file.read(buf){
+            Ok(len) => {
+                len
             },
-            Err(_) => {
-                let path = compiler_config_path
-                    .to_str()
-                    .expect("Invalid compiler config file path");
-                panic!("Failed to read compiler config file: {}", path);
+            Err(_)=> {
+                panic!("Failed to read compiler config file: {}", path_str);
             }
         };
-        let file_text_without_trailing = file_text.trim_end();
-        PathBuf::from(file_text_without_trailing)*/
+        len
     };
 
+    // Парсим текст из буффера
+    let text = match std::str::from_utf8(&buf[0..read_len]) {
+        Ok(text) => {
+            text 
+        },
+        Err(_) => {
+            panic!("Failed to convert config to utf8");
+        }
+    };
+
+    let trimmed_str = text.trim_end();
+
+    // Создаем переменную пути
+    Path::new(trimmed_str)
+}
+
+fn check_compiler_path(compiler_path: &Path) {
     if !compiler_path.exists() {
         let path = compiler_path
                     .to_str()
                     .expect("Invalid compiler path string");
         panic!("Clang doesn't exist at path: {}", path);
     }
-    
-    //dbg!(&clang_path);
+}
+
+fn spawn_compiler() -> Result<Child, io::Error> {
+    // Пути к исполняемым файлам
+    let distcc_path: &Path = Path::new("/usr/local/bin/distcc");
+    let distcc_hosts_path: PathBuf = {
+        let home_dir = dirs::home_dir()
+            .expect("Failed to get home directory");
+        //dbg!(&home_dir);
+        home_dir.join(".distcc/hosts")
+    };
+    let distcc_pump_path: &Path = Path::new("/usr/local/bin/pump");
+    let ccache_path: &Path = Path::new("/usr/local/bin/ccache");
+    //dbg!(&distcc_hosts_path);
+
+    // Путь к компилятору
+    let mut buf: [u8; 256] = [0; 256];
+    let compiler_path = read_compiler_path(&mut buf);
+    //dbg!(&compiler_path);
+
+    // Проверяем, что компилятор есть по этому пути
+    check_compiler_path(&compiler_path);
 
     // Аргументы компилятора
-    let compiler_args_iter = args
+    let compiler_args_iter = args()
+        .skip(1) // Пропускаем имя самого приложения
         .into_iter();
-
-    // Итератор по параметрам окружения ccache
-    // let cccache_params_iter = get_cccache_params_iter();
 
     // Флаги наличия бинарников distcc
     let distcc_exists = distcc_path.exists();
@@ -205,7 +191,7 @@ fn spawn_compiler() -> Result<Child, io::Error> {
     // Выбираем, что именно исполнять
     let command_result = if distcc_exists && distcc_pump_exists && dist_cc_hosts_exist && ccache_exists {
         // CCCache + DistCC + DistCC-Pump
-        println!("CCCache + DistCC + DistCC-Pump");
+        //println!("CCCache + DistCC + DistCC-Pump");
         Command::new(distcc_pump_path)
             .envs(build_cccache_params_iter())
             .env("CCACHE_PREFIX", distcc_path)
@@ -215,7 +201,7 @@ fn spawn_compiler() -> Result<Child, io::Error> {
             .spawn()
     }else if distcc_exists && dist_cc_hosts_exist && ccache_exists {
         // CCCache + DistCC
-        println!("CCCache + DistCC");
+        //println!("CCCache + DistCC");
         Command::new(ccache_path)
             .envs(build_cccache_params_iter())
             .env("CCACHE_PREFIX", distcc_path)
@@ -224,7 +210,7 @@ fn spawn_compiler() -> Result<Child, io::Error> {
             .spawn()
     }else if ccache_exists{
         // CCCache
-        println!("CCCache");
+        // println!("CCCache");
         Command::new(ccache_path)
             .envs(build_cccache_params_iter())
             .arg(compiler_path)
@@ -232,7 +218,7 @@ fn spawn_compiler() -> Result<Child, io::Error> {
             .spawn()
     }else{
         // Compiler only
-        println!("Compiler only");
+        //println!("Compiler only");
         Command::new(compiler_path)
             .args(compiler_args_iter)
             .spawn()
