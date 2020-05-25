@@ -14,8 +14,9 @@ use std::{
     process::{
         Command,
         Child,
-        //ExitCode,
+        Output,
         //ExitStatus,
+        //ExitCode,
         //Termination
     },
     env::{
@@ -50,17 +51,18 @@ impl Termination for AppExitStatus{
 }*/
 
 fn file_is_not_empty_and_exists(path: impl AsRef<Path>) -> bool {
-    match std::fs::read_to_string(path){
-        Ok(data) => {
-            if data.len() > 0{
-                return true;
-            }else{
-                return false;
-            }
-        },
-        Err(_) => {
-            return false;
-        }
+    let file = match std::fs::File::open(path){
+        Ok(file) => file,
+        Err(_) => return false
+    };
+    let meta = match file.metadata(){
+        Ok(meta) => meta,
+        Err(_) => return false
+    };
+    if meta.len() > 3 {
+        true
+    }else{
+        false
     }
 }
 
@@ -81,7 +83,8 @@ fn build_cccache_params_iter() -> impl Iterator<Item=(&'static OsStr, &'static O
     cccache_params_iter
 }
 
-fn read_compiler_path<'a>(buf: &'a mut [u8])-> &'a Path{
+//#[allow(dead_code)]
+fn read_compiler_path_file(filename: &str)-> Option<PathBuf>{
     // TODO: Убрать как-то PathBuf?
     /*let clang_path: PathBuf = {
         let path = args
@@ -99,27 +102,31 @@ fn read_compiler_path<'a>(buf: &'a mut [u8])-> &'a Path{
         .parent()
         .expect("Current executable get directory failed");
 
-    let compiler_config_path = executable_folder.join("compiler_path.cfg");
+    let compiler_config_path = executable_folder.join(filename);
+
+    let mut buf: [u8; 256] = [0; 256];
 
     // Читаем данные в буффер и получаем длину прочитаннных данных
     let read_len = {
-        let path_str = compiler_config_path
+        /*let path_str = compiler_config_path
             .to_str()
-            .expect("Invalid compiler config file path");
+            .expect("Invalid compiler config file path");*/
         let mut file = match std::fs::File::open(&compiler_config_path){
             Ok(file) => {
                 file
             },
             Err(_) => {
-                panic!("Failed to open compiler config file: {}", path_str);
+                //panic!("Failed to open compiler config file: {}", path_str);
+                return None;
             }
         };
-        let len = match file.read(buf){
+        let len = match file.read(&mut buf){
             Ok(len) => {
                 len
             },
             Err(_)=> {
-                panic!("Failed to read compiler config file: {}", path_str);
+                //panic!("Failed to read compiler config file: {}", path_str);
+                return None;
             }
         };
         len
@@ -138,7 +145,7 @@ fn read_compiler_path<'a>(buf: &'a mut [u8])-> &'a Path{
     let trimmed_str = text.trim_end();
 
     // Создаем переменную пути
-    Path::new(trimmed_str)
+    Some(Path::new(trimmed_str).to_owned())
 }
 
 fn check_compiler_path(compiler_path: &Path) {
@@ -151,6 +158,27 @@ fn check_compiler_path(compiler_path: &Path) {
 }
 
 fn spawn_compiler() -> Result<Child, io::Error> {
+    let mut args = args()
+        .skip(1);
+
+    // Путь к компилятору
+    let compiler_path: PathBuf = match read_compiler_path_file("compiler_wrapper_path.cfg"){
+        Some(path) => {
+            path
+        },
+        None => {
+            // Если нету файлика с компилятором, значит компилятор передан как второй параметр
+            args
+                .next()
+                .expect("Missing compiler path parameter or 'compiler_wrapper_path.cfg' file")
+                .into()
+        }
+    };
+    // dbg!(&compiler_path);
+
+    // Проверяем, что компилятор есть по этому пути
+    check_compiler_path(&compiler_path);
+
     // Пути к исполняемым файлам
     let distcc_path: &Path = Path::new("/usr/local/bin/distcc");
     let distcc_hosts_path: PathBuf = {
@@ -159,26 +187,13 @@ fn spawn_compiler() -> Result<Child, io::Error> {
         //dbg!(&home_dir);
         home_dir.join(".distcc/hosts")
     };
-    let distcc_pump_path: &Path = Path::new("/usr/local/bin/pump");
+    //let distcc_pump_path: &Path = Path::new("/usr/local/bin/pump");
     let ccache_path: &Path = Path::new("/usr/local/bin/ccache");
     //dbg!(&distcc_hosts_path);
 
-    // Путь к компилятору
-    let mut buf: [u8; 256] = [0; 256];
-    let compiler_path = read_compiler_path(&mut buf);
-    //dbg!(&compiler_path);
-
-    // Проверяем, что компилятор есть по этому пути
-    check_compiler_path(&compiler_path);
-
-    // Аргументы компилятора
-    let compiler_args_iter = args()
-        .skip(1) // Пропускаем имя самого приложения
-        .into_iter();
-
     // Флаги наличия бинарников distcc
     let distcc_exists = distcc_path.exists();
-    let distcc_pump_exists = distcc_pump_path.exists();
+    //let distcc_pump_exists = distcc_pump_path.exists();
     let dist_cc_hosts_exist = if distcc_exists {
         file_is_not_empty_and_exists(&distcc_hosts_path)
     }else{
@@ -188,8 +203,11 @@ fn spawn_compiler() -> Result<Child, io::Error> {
     // Флаги наличия бинарника ccache
     let ccache_exists = ccache_path.exists();
 
-    // Выбираем, что именно исполнять
-    let command_result = if distcc_exists && distcc_pump_exists && dist_cc_hosts_exist && ccache_exists {
+    // Аргументы компилятора
+    let compiler_args_iter = args
+        .into_iter();
+
+    /*if distcc_exists && distcc_pump_exists && dist_cc_hosts_exist && ccache_exists {
         // CCCache + DistCC + DistCC-Pump
         //println!("CCCache + DistCC + DistCC-Pump");
         Command::new(distcc_pump_path)
@@ -199,7 +217,10 @@ fn spawn_compiler() -> Result<Child, io::Error> {
             .arg(compiler_path)
             .args(compiler_args_iter)
             .spawn()
-    }else if distcc_exists && dist_cc_hosts_exist && ccache_exists {
+    }else */
+
+    // Выбираем, что именно исполнять
+    let command_result = if distcc_exists && dist_cc_hosts_exist && ccache_exists {
         // CCCache + DistCC
         //println!("CCCache + DistCC");
         Command::new(ccache_path)
@@ -227,6 +248,45 @@ fn spawn_compiler() -> Result<Child, io::Error> {
     command_result
 }
 
+fn get_jobs_count() -> i8 {
+    // TODO: Дублирование кода
+
+    // Пути к исполняемым файлам
+    let distcc_path: &Path = Path::new("/usr/local/bin/distcc");
+    let distcc_hosts_path: PathBuf = {
+        let home_dir = dirs::home_dir()
+            .expect("Failed to get home directory");
+        //dbg!(&home_dir);
+        home_dir.join(".distcc/hosts")
+    };
+
+    // Флаги наличия бинарников distcc
+    let distcc_exists = distcc_path.exists();
+    let dist_cc_hosts_exist = if distcc_exists {
+        file_is_not_empty_and_exists(&distcc_hosts_path)
+    }else{
+        false
+    };
+
+    if distcc_exists && dist_cc_hosts_exist{
+        let out: Output = Command::new(distcc_path)
+            .arg("-j")
+            .output()
+            .expect("Wait failed: distcc -j");
+        if out.status.success() {
+            let text = std::str::from_utf8(&out.stdout)
+                .expect("Out parse failed: distcc -j");
+            //dbg!(&text);
+            text.trim_end().parse::<i8>()
+                .expect("Int parse failed: distcc -j")
+        }else{
+            panic!("Failed status: distcc -j")
+        }
+    }else{
+        return num_cpus::get() as i8;
+    }
+}
+
 // TODO: Возвращать код ошибки компилятора
 // https://www.joshmcguigan.com/blog/custom-exit-status-codes-rust/
 fn main() {
@@ -248,6 +308,11 @@ fn main() {
     assert!(!ccache_path.as_os_str().is_empty(), "Empty ccache_path");
     assert!(!clang_path.as_os_str().is_empty(), "Empty clang_path");*/
     
+    if args().len() == 1 {
+        println!("{}", get_jobs_count());
+        return;
+    }
+
     let command_result = spawn_compiler();
 
     // Результат работа комманды
