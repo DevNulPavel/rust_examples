@@ -6,7 +6,7 @@
 use std::{
     path::{
         Path,
-        //PathBuf
+        PathBuf
     },
     ffi::{
         OsStr
@@ -49,7 +49,7 @@ impl Termination for AppExitStatus{
     }
 }*/
 
-fn file_is_not_empty_and_exists(path: &Path) -> bool {
+fn file_is_not_empty_and_exists(path: impl AsRef<Path>) -> bool {
     match std::fs::read_to_string(path){
         Ok(data) => {
             if data.len() > 0{
@@ -83,9 +83,17 @@ fn build_cccache_params_iter() -> impl Iterator<Item=(&'static OsStr, &'static O
 
 fn spawn_compiler() -> Result<Child, io::Error> {
     let distcc_path: &Path = Path::new("/usr/local/bin/distcc");
-    let distcc_hosts_path: &Path = Path::new("/Users/devnul/.distcc/hosts");
+    //let distcc_hosts_path: &Path = Path::new("/Users/devnul/.distcc/hosts");
+    let distcc_hosts_path: PathBuf = {
+        let home_dir = dirs::home_dir()
+            .expect("Failed to get home directory");
+        dbg!(&home_dir);
+        home_dir.join(".distcc/hosts")
+    };
     let distcc_pump_path: &Path = Path::new("/usr/local/bin/pump");
     let ccache_path: &Path = Path::new("/usr/local/bin/ccache");
+
+    dbg!(&distcc_hosts_path);
 
     // Аргументы приложения включая путь к нему
     let args = args()
@@ -186,7 +194,7 @@ fn spawn_compiler() -> Result<Child, io::Error> {
     let distcc_exists = distcc_path.exists();
     let distcc_pump_exists = distcc_pump_path.exists();
     let dist_cc_hosts_exist = if distcc_exists {
-        file_is_not_empty_and_exists(distcc_hosts_path)
+        file_is_not_empty_and_exists(&distcc_hosts_path)
     }else{
         false
     };
@@ -197,7 +205,7 @@ fn spawn_compiler() -> Result<Child, io::Error> {
     // Выбираем, что именно исполнять
     let command_result = if distcc_exists && distcc_pump_exists && dist_cc_hosts_exist && ccache_exists {
         // CCCache + DistCC + DistCC-Pump
-        //println!("CCCache + DistCC + DistCC-Pump");
+        println!("CCCache + DistCC + DistCC-Pump");
         Command::new(distcc_pump_path)
             .envs(build_cccache_params_iter())
             .env("CCACHE_PREFIX", distcc_path)
@@ -207,7 +215,7 @@ fn spawn_compiler() -> Result<Child, io::Error> {
             .spawn()
     }else if distcc_exists && dist_cc_hosts_exist && ccache_exists {
         // CCCache + DistCC
-        //println!("CCCache + DistCC");
+        println!("CCCache + DistCC");
         Command::new(ccache_path)
             .envs(build_cccache_params_iter())
             .env("CCACHE_PREFIX", distcc_path)
@@ -216,7 +224,7 @@ fn spawn_compiler() -> Result<Child, io::Error> {
             .spawn()
     }else if ccache_exists{
         // CCCache
-        //println!("CCCache");
+        println!("CCCache");
         Command::new(ccache_path)
             .envs(build_cccache_params_iter())
             .arg(compiler_path)
@@ -224,7 +232,7 @@ fn spawn_compiler() -> Result<Child, io::Error> {
             .spawn()
     }else{
         // Compiler only
-        //println!("Compiler only");
+        println!("Compiler only");
         Command::new(compiler_path)
             .args(compiler_args_iter)
             .spawn()
