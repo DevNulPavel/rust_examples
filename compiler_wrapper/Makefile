@@ -5,7 +5,7 @@ CLEAN:
 	rm -rf test_result.dSYM
 	rm -rf test_result
 
-BUILD_FOR_IOS_AND_OSX:
+BUILD_EXECUTABLE:
 	cargo build --release
 
 # Applications/Xcode.app/Contents/Developer/Toolchains/XcodeDefault.xctoolchain/usr/bin/clang
@@ -35,13 +35,13 @@ PREPARE:
 	cp compiler_wrapper_config.json target/release/
 
 REMOVE_COMPILER_FILE:
-	rm -rf target/release/compiler_wrapper_path.cfg;
-	rm -rf target/debug/compiler_wrapper_path.cfg;
+	rm -rf target/release/compiler_wrapper_compiler_path.cfg;
+	rm -rf target/debug/compiler_wrapper_compiler_path.cfg;
 
 MAKE_COMPILER_FILE: REMOVE_COMPILER_FILE
 	mkdir -p target/debug/;
 	mkdir -p target/release/;
-	rm -rf target/release/compiler_wrapper_path.cfg;
-	rm -rf target/debug/compiler_wrapper_path.cfg;
-	echo /Applications/Xcode.app/Contents/Developer/Toolchains/XcodeDefault.xctoolchain/usr/bin/clang > target/debug/compiler_wrapper_path.cfg;
-	echo /Applications/Xcode.app/Contents/Developer/Toolchains/XcodeDefault.xctoolchain/usr/bin/clang > target/release/compiler_wrapper_path.cfg;
+	rm -rf target/release/compiler_wrapper_compiler_path.cfg;
+	rm -rf target/debug/compiler_wrapper_compiler_path.cfg;
+	echo /Applications/Xcode.app/Contents/Developer/Toolchains/XcodeDefault.xctoolchain/usr/bin/clang > target/debug/compiler_wrapper_compiler_path.cfg;
+	echo /Applications/Xcode.app/Contents/Developer/Toolchains/XcodeDefault.xctoolchain/usr/bin/clang > target/release/compiler_wrapper_compiler_path.cfg;
