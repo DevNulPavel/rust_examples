@@ -1,12 +1,17 @@
 # source ios_osx_bash.env &&
 
+CLEAN:
+	cargo clean
+	rm -rf test_result.dSYM
+	rm -rf test_result
+
 BUILD_FOR_IOS_AND_OSX:
 	cargo build --release
 
 # Applications/Xcode.app/Contents/Developer/Toolchains/XcodeDefault.xctoolchain/usr/bin/clang
 TEST_CONFIG_FILE: | PREPARE MAKE_COMPILER_FILE
-	XGEN_DISTCC_ENABLED=1 \
-	XGEN_CCACHE_ENABLED=1 \
+	XGEN_ENABLE_DISTCC=0 \
+	XGEN_ENABLE_CCACHE=0 \
 	cargo run -- \
 	-lstdc++ \
 	-g \

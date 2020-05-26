@@ -27,9 +27,9 @@ use std::{
         Read
     }
 };
-use serde::{    
+/*use serde::{    
     Deserialize
-};
+};*/
 
 /*enum AppExitStatus{
     Ok,
@@ -70,12 +70,18 @@ fn file_is_not_empty_and_exists(path: impl AsRef<Path>) -> bool {
 }
 
 /// Итератор по параметрам CCcache
-/*fn build_cccache_params_iter() -> impl Iterator<Item=(&'static OsStr, &'static OsStr)>{
+fn build_cccache_params_iter() -> impl Iterator<Item=(&'static OsStr, &'static OsStr)>{
+    // https://ccache.dev/manual/3.7.9.html#_configuration_settings
+    // ~/.ccache/ccache.conf
+    // max_size = 50.0G
+    // run_second_cpp = true
+    // hard_link = true
+    // sloppiness = file_macro,time_macros,include_file_mtime,include_file_ctime,file_stat_matches
     let cccache_params_iter = {
         [
             ("CCACHE_MAXSIZE", "50G"),
-            ("CCACHE_CPP2", "true"),
-            ("CCACHE_HARDLINK", "true"),
+            ("CCACHE_CPP2", "true"),        // Должно избавлять от проблем
+            ("CCACHE_HARDLINK", "true"),    // Создаются ссылки, вроде бы работает хорошо
             ("CCACHE_SLOPPINESS", "file_macro,time_macros,include_file_mtime,include_file_ctime,file_stat_matches")
         ]
         .iter()
@@ -84,7 +90,7 @@ fn file_is_not_empty_and_exists(path: impl AsRef<Path>) -> bool {
         })
     };
     cccache_params_iter
-}*/
+}
 
 //#[allow(dead_code)]
 fn read_compiler_path_file(filename: &str)-> Option<PathBuf>{
@@ -160,7 +166,7 @@ fn check_compiler_path(compiler_path: &Path) {
     }
 }
 
-#[derive(Deserialize, Debug)]
+/*#[derive(Deserialize, Debug)]
 struct Configuration {
     env_variables: std::collections::hash_map::HashMap<String, String>
 }
@@ -209,7 +215,65 @@ fn read_configuration_file(filename: &str) -> Configuration {
     };
 
     config
+}*/
+
+fn is_env_var_enabled(var_name: &str) -> bool {
+    match std::env::var(var_name){
+        Ok(val) => {
+            val.eq("1") || val.eq("true")
+        },
+        Err(_) => {
+            false
+        }
+    }
 }
+
+struct DistCCPaths{ 
+    distcc_path: &'static Path
+}
+
+impl DistCCPaths{
+    fn new() -> DistCCPaths{
+        // Пути к исполняемым файлам
+        let distcc_path: &Path = Path::new("/usr/local/bin/distcc");
+        DistCCPaths{
+            distcc_path
+        }
+    }
+
+    fn can_use_distcc(&self) -> bool {
+        let distcc_hosts_path: PathBuf = {
+            let home_dir = dirs::home_dir()
+                .expect("Failed to get home directory");
+            //dbg!(&home_dir);
+            home_dir.join(".distcc/hosts")
+        };
+        self.distcc_path.exists() 
+            && file_is_not_empty_and_exists(&distcc_hosts_path) 
+            && is_env_var_enabled("XGEN_ENABLE_DISTCC")
+    }
+}
+
+
+struct CCCachePaths{ 
+    ccache_path: &'static Path
+}
+
+impl CCCachePaths{
+    fn new() -> CCCachePaths{
+        // Пути к исполняемым файлам
+        let ccache_path: &Path = Path::new("/usr/local/bin/ccache");
+        CCCachePaths{
+            ccache_path
+        }
+    }
+
+    fn can_use_ccache(&self) -> bool {
+        self.ccache_path.exists()
+            && is_env_var_enabled("XGEN_ENABLE_CCACHE")
+    }
+}
+
 
 fn spawn_compiler() -> Result<Child, io::Error> {
     let mut args = args()
@@ -234,29 +298,16 @@ fn spawn_compiler() -> Result<Child, io::Error> {
     check_compiler_path(&compiler_path);
 
     // Пути к исполняемым файлам
-    let distcc_path: &Path = Path::new("/usr/local/bin/distcc");
-    let distcc_hosts_path: PathBuf = {
-        let home_dir = dirs::home_dir()
-            .expect("Failed to get home directory");
-        //dbg!(&home_dir);
-        home_dir.join(".distcc/hosts")
-    };
     //let distcc_pump_path: &Path = Path::new("/usr/local/bin/pump");
-    let ccache_path: &Path = Path::new("/usr/local/bin/ccache");
     //dbg!(&distcc_hosts_path);
 
-    // Флаги наличия бинарников distcc
-    let use_distcc = {
-        distcc_path.exists() 
-            && file_is_not_empty_and_exists(&distcc_hosts_path) 
-            && std::env::var("XGEN_DISTCC_ENABLED").is_ok()
-    };
+    // DistCC
+    let distcc = DistCCPaths::new();
+    let use_distcc = distcc.can_use_distcc();
 
-    // Флаги наличия бинарника ccache
-    let use_ccache = {
-        ccache_path.exists()
-            && std::env::var("XGEN_CCACHE_ENABLED").is_ok()
-    };
+    // CCcache
+    let ccache = CCCachePaths::new();
+    let use_ccache = ccache.can_use_ccache();
 
     // Аргументы компилятора
     let compiler_args_iter = args
@@ -275,31 +326,33 @@ fn spawn_compiler() -> Result<Child, io::Error> {
     }else */
 
     // Выбираем, что именно исполнять
-    const FILENAME: &str = "compiler_wrapper_config.json";
     let command_result = if use_distcc && use_ccache {
-        let config = read_configuration_file(FILENAME);
-
         // CCCache + DistCC
-        println!("CCCache + DistCC");
-        Command::new(ccache_path)
-            .envs(config.env_to_arg_iter())
-            .env("CCACHE_PREFIX", distcc_path)
+        //println!("CCCache + DistCC");
+        Command::new(ccache.ccache_path)
+            .envs(build_cccache_params_iter())
+            .env("CCACHE_PREFIX", distcc.distcc_path)
+            .arg(compiler_path)
+            .args(compiler_args_iter)
+            .spawn()
+    }else if use_distcc {
+        // DistCC
+        //println!("DistCC");
+        Command::new(distcc.distcc_path)
             .arg(compiler_path)
             .args(compiler_args_iter)
             .spawn()
     }else if use_ccache {
         // CCCache
-        println!("CCCache");
-        let config = read_configuration_file(FILENAME);
-
-        Command::new(ccache_path)
-            .envs(config.env_to_arg_iter())
+        //println!("CCCache");
+        Command::new(ccache.ccache_path)
+            .envs(build_cccache_params_iter())
             .arg(compiler_path)
             .args(compiler_args_iter)
             .spawn()
     }else{
         // Compiler only
-        println!("Compiler only");
+        //println!("Compiler only");
         Command::new(compiler_path)
             .args(compiler_args_iter)
             .spawn()
@@ -309,27 +362,14 @@ fn spawn_compiler() -> Result<Child, io::Error> {
 }
 
 fn get_jobs_count() -> i8 {
-    // TODO: Дублирование кода
+    // TODO: expect убрать
 
-    // Пути к исполняемым файлам
-    let distcc_path: &Path = Path::new("/usr/local/bin/distcc");
-    let distcc_hosts_path: PathBuf = {
-        let home_dir = dirs::home_dir()
-            .expect("Failed to get home directory");
-        //dbg!(&home_dir);
-        home_dir.join(".distcc/hosts")
-    };
+    // DistCC
+    let distcc = DistCCPaths::new();
+    let use_distcc = distcc.can_use_distcc();
 
-    // Флаги наличия бинарников distcc
-    let distcc_exists = distcc_path.exists();
-    let dist_cc_hosts_exist = if distcc_exists {
-        file_is_not_empty_and_exists(&distcc_hosts_path)
-    }else{
-        false
-    };
-
-    if distcc_exists && dist_cc_hosts_exist{
-        let out: Output = Command::new(distcc_path)
+    if use_distcc {
+        let out: Output = Command::new(distcc.distcc_path)
             .arg("-j")
             .output()
             .expect("Wait failed: distcc -j");
