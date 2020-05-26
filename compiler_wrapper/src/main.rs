@@ -12,9 +12,9 @@ use std::{
         // Path,
         // PathBuf
     // },
-    ffi::{
-        OsStr
-    },
+    //ffi::{
+    //    OsStr
+    //},
     process::{
         Command,
         Child,
@@ -38,7 +38,7 @@ use crate::{
 };
 
 /// Итератор по параметрам CCcache
-fn build_cccache_params_iter() -> impl Iterator<Item=(&'static OsStr, &'static OsStr)>{
+/*fn build_cccache_params_iter() -> impl Iterator<Item=(&'static OsStr, &'static OsStr)>{
     // https://ccache.dev/manual/3.7.9.html#_configuration_settings
     // ~/.ccache/ccache.conf
     // max_size = 50.0G
@@ -58,7 +58,7 @@ fn build_cccache_params_iter() -> impl Iterator<Item=(&'static OsStr, &'static O
         })
     };
     cccache_params_iter
-}
+}*/
 
 fn read_compiler_path_file(filename: &str)-> Option<String>{
     // TODO: Убрать как-то PathBuf?
@@ -204,7 +204,7 @@ fn spawn_compiler() -> Result<Child, io::Error> {
             // CCCache + DistCC
             //println!("CCCache + DistCC");
             Command::new(ccache_path)
-                .envs(build_cccache_params_iter())
+                //.envs(build_cccache_params_iter())
                 .env("CCACHE_PREFIX", distcc_path)
                 .arg(compiler)
                 .args(compiler_args_iter)
@@ -224,7 +224,7 @@ fn spawn_compiler() -> Result<Child, io::Error> {
             // CCCache
             //println!("CCCache");
             Command::new(ccache_path)
-                .envs(build_cccache_params_iter())
+                //.envs(build_cccache_params_iter())
                 .arg(compiler)
                 .args(compiler_args_iter)
                 .args(wrapper_args_iter)
