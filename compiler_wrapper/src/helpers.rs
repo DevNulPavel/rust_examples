@@ -36,3 +36,21 @@ pub fn file_is_not_empty_and_exists(path: impl AsRef<Path>) -> bool {
         false
     }
 }
+
+pub fn get_executable_full_path(name: &str) -> Option<String> {
+    // TODO: Обработка ошибок
+    let out = std::process::Command::new("which")
+        .arg(name)
+        .output()
+        .expect("which command perform failed");
+    if out.status.success() {
+        let text = std::str::from_utf8(&out.stdout).expect("Utf8 parse failed").trim_end();
+        if !text.is_empty(){
+            Some(text.to_owned())
+        }else{
+            None
+        }
+    }else{
+        None
+    }
+}

@@ -6,7 +6,11 @@ CLEAN:
 	rm -rf test_result
 
 BUILD_EXECUTABLE:
-	cargo build --release
+	# rustup target add x86_64-unknown-linux-gnu x86_64-apple-darwin
+	cargo build --release --target x86_64-apple-darwin
+	# https://github.com/rust-embedded/cross
+	# Docker required
+	cross build --release --target x86_64-unknown-linux-gnu
 
 # Applications/Xcode.app/Contents/Developer/Toolchains/XcodeDefault.xctoolchain/usr/bin/clang
 TEST_CONFIG_FILE: | PREPARE MAKE_COMPILER_FILE

@@ -8,10 +8,10 @@ mod helpers;
 mod ccache;
 
 use std::{
-    path::{
-        Path,
-        PathBuf
-    },
+    // path::{
+        // Path,
+        // PathBuf
+    // },
     ffi::{
         OsStr
     },
@@ -60,7 +60,7 @@ fn build_cccache_params_iter() -> impl Iterator<Item=(&'static OsStr, &'static O
     cccache_params_iter
 }
 
-fn read_compiler_path_file(filename: &str)-> Option<PathBuf>{
+fn read_compiler_path_file(filename: &str)-> Option<String>{
     // TODO: Убрать как-то PathBuf?
     /*let clang_path: PathBuf = {
         let path = args
@@ -121,39 +121,45 @@ fn read_compiler_path_file(filename: &str)-> Option<PathBuf>{
     let trimmed_str = text.trim_end();
 
     // Создаем переменную пути
-    Some(Path::new(trimmed_str).to_owned())
+    Some(trimmed_str.to_owned())
 }
 
-fn check_compiler_path(compiler_path: &Path) {
+/*fn check_compiler_path(compiler_path: &Path) {
     if !compiler_path.exists() {
         let path = compiler_path
                     .to_str()
                     .expect("Invalid compiler path string");
         panic!("Clang doesn't exist at path: {}", path);
     }
-}
+}*/
+
+// <T, I>
+//where T: IntoIterator<Item=String> + Sized
+/*fn get_compiler(args: &mut std::env::Args) -> String {
+    // Путь к компилятору из файлика
+    match read_compiler_path_file("compiler_wrapper_compiler_path.cfg"){
+        Some(text) => {
+            text
+        },
+        None => {
+            // Если нету файлика с компилятором, значит компилятор передан как второй параметр
+            let compiler: String = args
+                .next()
+                .expect("Missing compiler path parameter or 'compiler_wrapper_compiler_path.cfg' file");
+            compiler
+        }
+    }
+}*/
 
 fn spawn_compiler() -> Result<Child, io::Error> {
     let mut args = args()
         .skip(1);
 
-    // Путь к компилятору из файлика
-    let compiler_path: PathBuf = match read_compiler_path_file("compiler_wrapper_compiler_path.cfg"){
-        Some(path) => {
-            path
-        },
-        None => {
-            // Если нету файлика с компилятором, значит компилятор передан как второй параметр
-            args
-                .next()
-                .expect("Missing compiler path parameter or 'compiler_wrapper_compiler_path.cfg' file")
-                .into()
-        }
-    };
+
     // dbg!(&compiler_path);
 
     // Проверяем, что компилятор есть по этому пути
-    check_compiler_path(&compiler_path);
+    //check_compiler_path(&compiler_path);
 
     // DistCC
     let distcc = DistCCPaths::new();
@@ -163,41 +169,75 @@ fn spawn_compiler() -> Result<Child, io::Error> {
     let ccache = CCCachePaths::new();
     let use_ccache = ccache.can_use_ccache();
 
-    // Аргументы компилятора
-    let compiler_args_iter = args
+    // Содержимое файлика с указанием компилятора
+    let compiler_text = match read_compiler_path_file("compiler_wrapper_compiler_path.cfg"){
+        Some(text) => {
+            text
+        },
+        None => {
+            // Если нету файлика с компилятором, значит компилятор передан как второй параметр
+            let compiler: String = args
+                .next()
+                .expect("Missing compiler path parameter or 'compiler_wrapper_compiler_path.cfg' file");
+            compiler
+        }
+    };
+
+    // Компилятор и наши указанные параметры к нему
+    let (compiler, compiler_args_iter) = {
+        let mut compiler_args_iter = compiler_text
+            .split_whitespace()
+            .into_iter();
+        let compiler = compiler_args_iter
+            .next()
+            .expect("Compiler parameter is missing");
+        (compiler, compiler_args_iter)
+    };
+
+    // Внешние аргументы компилятора
+    let wrapper_args_iter = args
         .into_iter();
 
     // Выбираем, что именно исполнять
-    let command_result = if use_distcc && use_ccache {
-        // CCCache + DistCC
-        //println!("CCCache + DistCC");
-        Command::new(ccache.ccache_path)
-            .envs(build_cccache_params_iter())
-            .env("CCACHE_PREFIX", distcc.distcc_path)
-            .arg(compiler_path)
-            .args(compiler_args_iter)
-            .spawn()
-    }else if use_distcc {
-        // DistCC
-        //println!("DistCC");
-        Command::new(distcc.distcc_path)
-            .arg(compiler_path)
-            .args(compiler_args_iter)
-            .spawn()
-    }else if use_ccache {
-        // CCCache
-        //println!("CCCache");
-        Command::new(ccache.ccache_path)
-            .envs(build_cccache_params_iter())
-            .arg(compiler_path)
-            .args(compiler_args_iter)
-            .spawn()
-    }else{
-        // Compiler only
-        //println!("Compiler only");
-        Command::new(compiler_path)
-            .args(compiler_args_iter)
-            .spawn()
+    let command_result = match (use_ccache, use_distcc) {
+        (Some(ccache_path), Some(distcc_path)) => {
+            // CCCache + DistCC
+            //println!("CCCache + DistCC");
+            Command::new(ccache_path)
+                .envs(build_cccache_params_iter())
+                .env("CCACHE_PREFIX", distcc_path)
+                .arg(compiler)
+                .args(compiler_args_iter)
+                .args(wrapper_args_iter)
+                .spawn()
+        }
+        (None, Some(distcc_path)) => {
+            // DistCC
+            //println!("DistCC");
+            Command::new(distcc_path)
+                .arg(compiler)
+                .args(compiler_args_iter)
+                .args(wrapper_args_iter)
+                .spawn()            
+        },
+        (Some(ccache_path), None) => {
+            // CCCache
+            //println!("CCCache");
+            Command::new(ccache_path)
+                .envs(build_cccache_params_iter())
+                .arg(compiler)
+                .args(compiler_args_iter)
+                .args(wrapper_args_iter)
+                .spawn()            
+        },
+        (None, None) => {
+            // Compiler only
+            //println!("Compiler only");
+            Command::new(compiler)
+                .args(compiler_args_iter)
+                .args(wrapper_args_iter)
+                .spawn()            
+        },
     };
 
     command_result
@@ -207,23 +247,27 @@ fn get_jobs_count() -> i8 {
     // DistCC
     let distcc = DistCCPaths::new();
     let use_distcc = distcc.can_use_distcc();
+    //dbg!(use_distcc);
 
-    if use_distcc {
-        let out: Output = Command::new(distcc.distcc_path)
-            .arg("-j")
-            .output()
-            .expect("Wait failed: distcc -j");
-        if out.status.success() {
-            let text = std::str::from_utf8(&out.stdout)
-                .expect("Out parse failed: distcc -j");
-            //dbg!(&text);
-            text.trim_end().parse::<i8>()
-                .expect("Int parse failed: distcc -j")
-        }else{
-            panic!("Failed status: distcc -j")
+    match use_distcc {
+        Some(path) => {
+            let out: Output = Command::new(path)
+                .arg("-j")
+                .output()
+                .expect("Wait failed: distcc -j");
+            if out.status.success() {
+                let text = std::str::from_utf8(&out.stdout)
+                    .expect("Out parse failed: distcc -j");
+                //dbg!(&text);
+                text.trim_end().parse::<i8>()
+                    .expect("Int parse failed: distcc -j")
+            }else{
+                panic!("Failed status: distcc -j")
+            }
+        },
+        None => {
+            return num_cpus::get() as i8;
         }
-    }else{
-        return num_cpus::get() as i8;
     }
 }
 
