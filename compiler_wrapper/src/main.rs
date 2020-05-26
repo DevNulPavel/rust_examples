@@ -44,13 +44,13 @@ fn build_cccache_params_iter() -> impl Iterator<Item=(&'static OsStr, &'static O
     // max_size = 50.0G
     // run_second_cpp = true
     // hard_link = true
-    // sloppiness = file_macro,time_macros,include_file_mtime,include_file_ctime,file_stat_matches
+    // sloppiness = clang_index_store,file_macro,time_macros,include_file_mtime,include_file_ctime,file_stat_matches,file_stat_matches_ctime
     let cccache_params_iter = {
         [
             ("CCACHE_MAXSIZE", "50G"),
             ("CCACHE_CPP2", "true"),        // Должно избавлять от проблем
             ("CCACHE_HARDLINK", "true"),    // Создаются ссылки, вроде бы работает хорошо
-            ("CCACHE_SLOPPINESS", "file_macro,time_macros,include_file_mtime,include_file_ctime,file_stat_matches")
+            ("CCACHE_SLOPPINESS", "clang_index_store,file_macro,time_macros,include_file_mtime,include_file_ctime,file_stat_matches,file_stat_matches_ctime")
         ]
         .iter()
         .map(|val|{
