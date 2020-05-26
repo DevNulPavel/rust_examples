@@ -49,7 +49,7 @@ impl DistCCPaths{
                 //dbg!(distcc_path.exists());
                 //dbg!(&distcc_hosts_path);
                 let allow = distcc_path.exists() 
-                    && file_is_not_empty_and_exists(&distcc_hosts_path) 
+                    && file_is_not_empty_and_exists(&distcc_hosts_path, 3) 
                     && is_env_var_enabled("XGEN_ENABLE_DISTCC");
                 if allow{
                     Some(distcc_path)

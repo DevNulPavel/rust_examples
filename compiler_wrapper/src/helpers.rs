@@ -21,7 +21,7 @@ pub fn is_env_var_enabled(var_name: &str) -> bool {
     }
 }
 
-pub fn file_is_not_empty_and_exists(path: impl AsRef<Path>) -> bool {
+pub fn file_is_not_empty_and_exists(path: impl AsRef<Path>, size_minimum: u64) -> bool {
     let file = match File::open(path){
         Ok(file) => file,
         Err(_) => return false
@@ -30,7 +30,7 @@ pub fn file_is_not_empty_and_exists(path: impl AsRef<Path>) -> bool {
         Ok(meta) => meta,
         Err(_) => return false
     };
-    if meta.len() > 3 {
+    if meta.len() > size_minimum {
         true
     }else{
         false
