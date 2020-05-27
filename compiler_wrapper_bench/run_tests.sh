@@ -22,7 +22,7 @@ TIME_BIN=time #TIME_BIN=/usr/local/opt/gnu-time/libexec/gnubin/time
 # 11254
 # +0
 # -pl 
-JOBS_COUNT=10 # parallel плохо задействует cpu при большом количестве потоков на мелких и очень быстрых задачах
+JOBS_COUNT=12 # parallel плохо задействует cpu при большом количестве потоков на мелких и очень быстрых задачах
 ITERATIONS=11254
 TIME_FORMAT="Elapsed time: %es (%Es)\\nUser time: %Us\\nSystem time: %Ss\\nProcess utilization: %P\\nCotnext switches: %c"
 
@@ -35,9 +35,15 @@ echo "--- Python test ---"
 ${TIME_BIN} --format="${TIME_FORMAT}" ./executor_bin ${JOBS_COUNT} ${ITERATIONS} "./test_python.py"
 
 echo ""
-echo "--- Bash test ---"
+echo "--- Bash test (exec) ---"
 # seq ${ITERATIONS} | ${TIME_BIN} --format="${TIME_FORMAT}" parallel -j ${JOBS_COUNT} "./test_bash.sh 2> /dev/null"
-${TIME_BIN} --format="${TIME_FORMAT}" ./executor_bin ${JOBS_COUNT} ${ITERATIONS} "./test_bash.sh"
+${TIME_BIN} --format="${TIME_FORMAT}" ./executor_bin ${JOBS_COUNT} ${ITERATIONS} "./test_bash_exec.sh"
+
+echo ""
+echo "--- Bash test (classic) ---"
+# seq ${ITERATIONS} | ${TIME_BIN} --format="${TIME_FORMAT}" parallel -j ${JOBS_COUNT} "./test_bash.sh 2> /dev/null"
+${TIME_BIN} --format="${TIME_FORMAT}" ./executor_bin ${JOBS_COUNT} ${ITERATIONS} "./test_bash_classic.sh"
+
 
 echo ""
 echo "--- C test ---"
