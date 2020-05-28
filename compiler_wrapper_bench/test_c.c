@@ -1,4 +1,4 @@
-#include <stdio.h>
+/*#include <stdio.h>
 #include <stdlib.h>
 #include <unistd.h>
 #include <errno.h> 
@@ -18,17 +18,24 @@ int main(int argc, char* argv[]){
         return -1;    
     }
     return errno;
-}
+}*/
 
-// #include <stdio.h>
-// #include <stdlib.h>
-// #include <unistd.h>
-// int main(){
-//     int pid = fork();
-//     if(pid != 0){
-//         execlp("clang", "clang", NULL);
-//         exit(1);
-//     }
-//     wait(NULL);
-//     return 0;
-// }
+#include <stdio.h>
+#include <stdlib.h>
+#include <unistd.h>
+#include <errno.h> 
+int main(){
+    int pid = fork();
+    if(pid == 0){
+        if (execlp("clang", "clang", NULL) == 0){
+            exit(0);
+            return 0;
+        }else{
+            exit(errno);
+            return errno;
+        }
+    }
+    int status;
+    wait(&status);
+    return WEXITSTATUS(status);
+}

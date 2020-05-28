@@ -54,3 +54,8 @@ echo ""
 echo "--- RUST test ---"
 # seq ${ITERATIONS} | ${TIME_BIN} --format="${TIME_FORMAT}" parallel -j ${JOBS_COUNT} "./test_rust_bin 2> /dev/null"
 ${TIME_BIN} --format="${TIME_FORMAT}" ./executor_bin ${JOBS_COUNT} ${ITERATIONS} "./test_rust_bin"
+
+echo ""
+echo "--- NO wrapper ---"
+# seq ${ITERATIONS} | ${TIME_BIN} --format="${TIME_FORMAT}" parallel -j ${JOBS_COUNT} "clang 2> /dev/null"
+${TIME_BIN} --format="${TIME_FORMAT}" ./executor_bin ${JOBS_COUNT} ${ITERATIONS} "clang"
