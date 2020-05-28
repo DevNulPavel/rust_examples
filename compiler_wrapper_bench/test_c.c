@@ -8,10 +8,8 @@ int main(int argc, char* argv[]){
     const int prefixes = 2;
     char** args_new = (char**)malloc(sizeof(char*) * (argc + prefixes));
     int index = 0;
-    {
-        args_new[index++] = "ccache";
-        args_new[index++] = "clang";
-    }
+    args_new[index++] = "ccache";
+    args_new[index++] = "clang";
     for(int i = index; i < argc; i++){
         args_new[i] = argv[i];
     }
