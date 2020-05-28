@@ -22,9 +22,9 @@ TIME_BIN=time #TIME_BIN=/usr/local/opt/gnu-time/libexec/gnubin/time
 # 11254
 # +0
 # -pl 
-JOBS_COUNT=12 # parallel плохо задействует cpu при большом количестве потоков на мелких и очень быстрых задачах
+JOBS_COUNT=10 # parallel плохо задействует cpu при большом количестве потоков на мелких и очень быстрых задачах
 ITERATIONS=11254
-TIME_FORMAT="Elapsed time: %es (%Es)\\nUser time: %Us\\nSystem time: %Ss\\nProcess utilization: %P\\nCotnext switches: %c"
+TIME_FORMAT="Elapsed time: %es (%Es)\\nUser time: %Us\\nSystem time: %Ss\\nCPU utilization: %P\\nContext switches: %c"
 
 echo "Jobs count = ${JOBS_COUNT}"
 echo "Iterations count = ${ITERATIONS}"
