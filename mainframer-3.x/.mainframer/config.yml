@@ -1,0 +1,6 @@
+remote:
+  host: "devnul@192.168.1.13"
+push:
+  compression: 1
+pull:
+  compression: 1

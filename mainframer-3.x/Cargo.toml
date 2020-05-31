@@ -1,0 +1,15 @@
+[package]
+name = "mainframer"
+
+# We override this version with one from Git tag on CI.
+# Version in this file only used to track major updates like 3.x.
+# Don't forget to update ci/mainframer_version.sh if version here gets changed.
+version = "3.0.0-dev"
+
+authors = ["Artem Zinnatullin <artem.zinnatullin@gmail.com>", "Artur Dryomov <artur.dryomov@gmail.com>", "Mainframer Developers and Contributors"]
+
+[dependencies]
+yaml-rust = "0.4.2"
+linked-hash-map = "0.5.1"
+crossbeam-channel = "0.3"
+bus = "2.2.1"
