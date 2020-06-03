@@ -5,6 +5,7 @@ authors = ["Pavel Ershov <devnulpavel@gmail.com>"]
 license = "MIT"
 build = "build.rs"
 exclude = ["artifacts.json", "index.node"]
+edition = "2018"
 
 [lib]
 name = "nodejs_neon_example"
