@@ -1,7 +1,7 @@
 const addon = require('../native');
 
 
-function main(){
+async function main(){
     let text = addon.hello();
     console.log(`Text from Rust: ${text}`);
 
@@ -67,6 +67,35 @@ function main(){
     john.name(); // John
     john.greet(); // Hi John!
     john.askQuestion(); // How are you?
+
+    //////////////////////////////////////////////////////////////////////////////////////////
+
+    // Итерируемся много много раз в фоновом потоке
+    addon.perform_async_task(2.0, (err, res) => {
+        console.log("Background task finished: sleep duration = ", res);
+    });
+    try{
+        addon.perform_async_task(-2.0, (err, res) => {
+            console.log(err);
+        });
+    }catch(err){
+        console.log(err);
+    }
+    addon.perform_async_task(15.0, (err, res) => {
+        console.log(err);
+    });
+    const async_task_promise = new Promise((resolve, reject) => {
+        addon.perform_async_task(3.0, (err, res) => {
+            console.log("Background task finished from promise: sleep duration = ", res);
+            if (!err) {
+                resolve(res);
+            }else{
+                reject(err);
+            }
+        });
+    });
+    console.log("Main thread finished");
+    async_task_promise.await;
 }
 
 main();
