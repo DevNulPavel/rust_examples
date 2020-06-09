@@ -1,4 +1,3 @@
-
 use std::{
     collections::HashMap,
     convert::TryFrom
@@ -37,225 +36,15 @@ use crate::{
     bot_context::{
         BotContext
     },
+    currency_users_storrage::{
+        CurrencyUsersStorrage
+    },
     error::{
         TelegramBotError,
         TelegramBotResult,
         DatabaseErrKind
     }
 };
-
-
-pub struct CurrencyUsersStorrage{
-    users_for_push: HashMap<UserId, CurrencyCheckStatus>
-}
-
-impl CurrencyUsersStorrage{
-    pub async fn new(conn: &mut SqliteConnection) -> Self{
-        // TODO: Заменить на ошибку вместо падения?
-        let result_ids: Vec<i64> = sqlx::query("SELECT user_id FROM monitoring_users")
-            .map(|row: SqliteRow| {
-                let user_id: i64 = row.get(0);
-                user_id
-            })
-            .fetch_all(&mut *conn)
-            .await
-            .expect("Failed select users form DB");
-        
-        // Полученные id пользователей перегоняем в CurrencyCheckStatus, загружая информацию о минимумах внутри
-        let results: Vec<CurrencyCheckStatus> = {
-            let mut results = Vec::with_capacity(result_ids.len());
-            for id_val in result_ids{
-                let status = CurrencyCheckStatus::load(UserId::new(id_val), &mut (*conn)).await;
-                results.push(status);
-            }
-            results
-        };
-        
-        // Просто перегоняем в HashMap
-        let map: HashMap<UserId, CurrencyCheckStatus> = results
-            .into_iter()
-            .map(|val|{
-                (val.user.clone(), val)
-            })
-            .collect();
-
-        // Создаем хранилище с результатами
-        CurrencyUsersStorrage{
-            users_for_push: map
-        }
-    }
-
-    pub async fn add_user(&mut self, user: &UserId, conn: &mut SqliteConnection) -> TelegramBotResult {
-        if self.users_for_push.contains_key(&*user) {
-            return Err(TelegramBotError::CustomError("User monitoring already enabled".into()));
-        }
-
-        let check = CurrencyCheckStatus::new(user.clone());
-        
-        // TODO: Именованные параметры в SQL, убрать дупликаты
-        // TODO: Валидация параметров!!
-        let id_num: i64 = (*user).into();
-        const SQL: &str =   "BEGIN; \
-                                DELETE FROM currency_minimum WHERE user_id = ?; \
-                                INSERT INTO monitoring_users(user_id) VALUES (?); \
-                            COMMIT;";
-        let insert_result = sqlx::query(SQL)
-            .bind(id_num)
-            .bind(id_num)
-            .execute(conn)
-            .await;                         
-
-        /*const SQL: &str =   "DELETE FROM currency_minimum WHERE user_id = ?; \
-                             INSERT INTO monitoring_users(user_id) VALUES (?);";
-        let mut transaction = conn.begin().await?;
-        let insert_result = sqlx::query(SQL)
-            .bind(id_num)
-            .execute(&mut transaction)
-            .await;
-        transaction.commit().await?;*/
-
-        match insert_result{
-            Ok(rows_updated) if rows_updated > 0 => {
-                self.users_for_push.insert(user.clone(), check);
-                Ok(())
-            },
-            Ok(_) => {
-                Err(TelegramBotError::CustomError("User insert failed, 0 rows included".into()))
-            },
-            Err(e) => {
-                Err(TelegramBotError::DatabaseErr{
-                    err: e,
-                    context: DatabaseErrKind::InsertUser
-                })
-            }
-        }
-    }
-
-    pub async fn remove_user(&mut self, user: &UserId, conn: &mut SqliteConnection) -> TelegramBotResult {
-        if self.users_for_push.contains_key(&*user) == false {
-            return Err(TelegramBotError::CustomError("User monitoring doesn't enabled".into()));
-        }
-
-        // TODO: Нужна ли транзакция? Можно ли как-то удалить все, что относится к user
-        // TODO: Валидация параметров!!
-        const SQL: &str =   "BEGIN; \
-                                DELETE FROM currency_minimum WHERE user_id = ?; \
-                                DELETE FROM monitoring_users WHERE user_id = ?; \
-                            COMMIT;";
-        let id_num: i64 = (*user).into();
-        let remove_result = sqlx::query(SQL)
-            .bind(id_num)
-            .bind(id_num)
-            .execute(conn)
-            .await;
-        
-        match remove_result{
-            Ok(users_updated) if users_updated > 0 =>{
-                self.users_for_push.remove(user);
-                Ok(())    
-            },
-            Ok(_) => {
-                Err(TelegramBotError::CustomError("User remove failed, 0 rows removed".into()))
-            },
-            Err(e)=>{
-                Err(TelegramBotError::DatabaseErr{
-                    err: e,
-                    context: DatabaseErrKind::RemoveUser
-                })
-            }
-        }
-    }
-
-    pub fn try_get_user(&self, user: &UserId) -> Option<&CurrencyCheckStatus> {
-        self.users_for_push.get(user)
-    }
-
-    pub fn is_empty(&self) -> bool{
-        self.users_for_push.is_empty()
-    }
-}
-
-///////////////////////////////////////////////////////////////////////////////////////
-
-#[derive(Clone)]
-pub struct CurrencyCheckStatus {
-    user: UserId,
-    minimum_values: Vec<CurrencyMinimum>,
-}
-
-impl CurrencyCheckStatus{
-    pub fn new(user: UserId) -> Self{
-        CurrencyCheckStatus{
-            user: user,
-            minimum_values: vec![]
-        }
-    }
-
-    pub async fn load(user: UserId, conn: &mut SqliteConnection) -> Self{
-        const SQL: &str = "SELECT * FROM currency_minimum \
-                            WHERE user_id = ?";
-        let user_id: i64 = user.into();
-        let results: Vec<CurrencyMinimum> = sqlx::query(SQL)
-            .bind(user_id)
-            .map(|row: SqliteRow| {                
-                // Валюта
-                let cur_type = {
-                    let type_str: String = row.get("cur_type");
-                    CurrencyType::try_from(type_str.as_str()).expect("Invalid currency type")
-                };
-
-                // Получаем время в виде timestamp в UTC
-                let time: Option<chrono::DateTime<chrono::Utc>> = {
-                    let timestamp: i64 = row.get("update_time");
-                    if timestamp > 0 {
-                        let native_time = chrono::NaiveDateTime::from_timestamp(timestamp, 0);
-                        let time = chrono::DateTime::<chrono::Utc>::from_utc(native_time, chrono::Utc);
-                        Some(time)
-                    } else {
-                        None
-                    }
-                };
-
-                let res = CurrencyMinimum{
-                    bank_name: row.get("bank_name"),
-                    value: row.get("value"),
-                    cur_type: cur_type,
-                    update_time: time
-                };
-                info!("Load user's minimum for id = {} from database: {:?}", user_id, res);
-                res
-            })
-            .fetch_all(conn)
-            .await
-            .expect("Failed select user's minimums form DB");
-
-        CurrencyCheckStatus{
-            user: user,
-            minimum_values: results
-        }
-    }
-}
-
-// Пустая реализация на базе PartialEq без перегрузок
-impl Eq for CurrencyCheckStatus {
-}
-
-impl PartialEq for CurrencyCheckStatus{
-    fn eq(&self, other: &CurrencyCheckStatus) -> bool{
-        self.user.eq(&other.user)
-    }
-}
-
-impl std::hash::Hash for CurrencyCheckStatus {
-    fn hash<H: std::hash::Hasher>(&self, state: &mut H) {
-        self.user.hash(state);
-    }
-}
-
-impl CurrencyCheckStatus{
-}
-
-///////////////////////////////////////////////////////////////////////////////////////
 
 async fn build_minimum_value(conn: &mut SqliteConnection,
                              user_id: &UserId,
@@ -360,7 +149,7 @@ async fn check_minimum_for_value(user_id: &UserId,
                                             received_minimum_val).await;
 
     if let Some(new_minimum) = new_minimum{
-        let result = markdown_format_minimum(&new_minimum, &received_minimum.usd);
+        let result = markdown_format_minimum(&new_minimum, received_minimum_val);
 
         let old = previous_minimum_values
             .iter_mut()
@@ -395,9 +184,9 @@ pub async fn check_currencies_update(bot_context: &mut BotContext) {
         return;
     }
 
-    // Получаем новые значения
-    let received_bank_currencies: Vec<CurrencyResult> = 
-        get_all_currencies(&bot_context.app_context.client).await
+    // Получаем новые значения и фильтруем только валидные
+    let received_bank_currencies: Vec<CurrencyResult> = get_all_currencies(&bot_context.app_context.client)
+        .await
         .into_iter()
         .filter_map(|result|{
             result.ok()
@@ -452,7 +241,11 @@ pub async fn check_currencies_update(bot_context: &mut BotContext) {
         
         // Получаем апдейт для долларов
         if let Some(usd_received_minimum) = usd_received_minimum {
-            let update = check_minimum_for_value(user_id, conn, CurrencyType::USD, usd_received_minimum, previous_minimum_values).await;
+            let update = check_minimum_for_value(user_id, 
+                                                 conn, 
+                                                 CurrencyType::USD, 
+                                                 usd_received_minimum, 
+                                                 previous_minimum_values).await;
             if let Some(update) = update {
                 updates_for_user.push(update);
             }
@@ -460,7 +253,11 @@ pub async fn check_currencies_update(bot_context: &mut BotContext) {
 
         // Получаем апдейт для евро
         if let Some(eur_received_minimum) = eur_received_minimum {
-            let update = check_minimum_for_value(user_id, conn, CurrencyType::EUR, eur_received_minimum, previous_minimum_values).await;
+            let update = check_minimum_for_value(user_id, 
+                                                 conn, 
+                                                 CurrencyType::EUR, 
+                                                 eur_received_minimum, 
+                                                 previous_minimum_values).await;
             if let Some(update) = update {
                 updates_for_user.push(update);
             }

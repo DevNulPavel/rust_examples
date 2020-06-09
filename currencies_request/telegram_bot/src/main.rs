@@ -1,6 +1,8 @@
 mod constants;
 mod proxy;
 mod currency;
+mod currency_users_storrage;
+mod currency_check_status;
 mod app_context;
 mod bot_context;
 mod database;
@@ -56,8 +58,10 @@ use crate::{
         build_proxy_for_addresses,
         check_all_proxy_addresses_accessible
     },
+    currency_users_storrage::{
+        CurrencyUsersStorrage
+    },
     currency::{
-        CurrencyUsersStorrage,
         check_currencies_update,
         process_currencies_command,
         process_currencies_status
@@ -87,10 +91,10 @@ async fn start_user_monitoring(bot_context: &mut BotContext, message: &Message) 
     // https://doc.rust-lang.org/book/ch18-03-pattern-syntax.html#destructuring-structs
     // Разворачиваем структуру в поля
     let AppContext{
-        db_conn: db,
-        users_for_push: users,
+        db_conn: ref mut db,
+        users_for_push: ref mut users,
         ..
-    } = &mut bot_context.app_context;
+    } = bot_context.app_context; // Либо мы можем сразу сделать все переменные ref mut если взять &mut от контекста
 
     // Добавляем пользователя к мониторингу
     let result = users
@@ -120,10 +124,10 @@ async fn stop_user_monitoring(bot_context: &mut BotContext, message: &Message) -
     // https://doc.rust-lang.org/book/ch18-03-pattern-syntax.html#destructuring-structs
     // Разворачиваем структуру в поля
     let AppContext{
-        db_conn: db,
-        users_for_push: users,
+        db_conn: ref mut db,
+        users_for_push: ref mut users,
         ..
-    } = &mut bot_context.app_context;
+    } = bot_context.app_context; // Либо мы можем сразу сделать все переменные ref mut если взять &mut от контекста
 
     // Добавляем пользователя из монитринга
     let remove_result = users.remove_user(&message.from.id, db)
@@ -213,7 +217,7 @@ async fn process_update(bot_context: &mut BotContext, update: Update){
 }
 
 async fn async_main(){
-    // pretty_env_logger::init_timed();
+    // Включаем вывод логов бота
     std::env::set_var("RUST_LOG", "telegram_bot=trace");
     pretty_env_logger::init();
 
@@ -227,7 +231,7 @@ async fn async_main(){
         // .unwrap();
     }
 
-    // Получаем токен нашего бота
+    // Получаем токен нашего бота из нашего окружения
     let token: String = env::var("TELEGRAM_TOKEN")
         .expect("TELEGRAM_TOKEN not set");
     info!("Token: {}", token);
@@ -280,12 +284,15 @@ async fn async_main(){
             }
         };
         
-        // Создаем прокси
-        let proxy: Box<dyn Connector> = build_proxy_for_addresses(&valid_proxy_addresses);
-
         // Создаем хранилище данных бота
-        let token = app_context.token.clone();
-        let mut bot_context = BotContext::new(app_context, Api::with_connector(token, proxy)); // Подключаемся с использованием прокси
+        let mut bot_context = {
+            // Создаем прокси
+            let proxy: Box<dyn Connector> = build_proxy_for_addresses(&valid_proxy_addresses);
+
+            // Подключаемся с использованием прокси
+            let token = app_context.token.clone();
+            BotContext::new(app_context, Api::with_connector(token, proxy))
+        }; 
             
         // Дергаем новые обновления через long poll метод
         let mut stream: UpdatesStream = bot_context.api.stream();

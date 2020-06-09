@@ -3381,7 +3381,7 @@ dependencies = [
 ]
 
 [[package]]
-name = "test43_amethyst"
+name = "test43_amethyst_pong"
 version = "0.1.0"
 dependencies = [
  "amethyst",

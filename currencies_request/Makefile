@@ -15,7 +15,7 @@ BUILD_CLI_RELEASE:
 	$(BUILD_COMMAND) build --bin currencies_request_cli --release
 
 INSTALL_CLI: BUILD_CLI_RELEASE
-	cp -r ./target/release/currencies_request_cli /usr/local/bin/currencies_request
+	cp -r ./target/release/currencies_request_cli ~/currencies_request
 
 PROFILE_MEMORY_CLI:
 	# Открывать в браузере http://localhost:8080
