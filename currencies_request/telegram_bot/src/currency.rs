@@ -97,7 +97,7 @@ async fn build_minimum_value(conn: &mut SqliteConnection,
 
 async fn process_currency_value(conn: &mut SqliteConnection,
                                 user_id: &UserId, 
-                                previous_value: Option<CurrencyMinimum>, 
+                                previous_value: &Option<CurrencyMinimum>, 
                                 bank_name: &str,
                                 update_time: Option<DateTime<Utc>>,
                                 received_value: &CurrencyValue) ->  Option<CurrencyMinimum> {
@@ -143,13 +143,21 @@ async fn check_minimum_for_value(user_id: &UserId,
     // Если есть предыдущее значение
     let new_minimum = process_currency_value(conn,
                                             user_id,
-                                            previous_minimum,  
+                                            &previous_minimum,  
                                             &received_minimum.bank_name,
                                             received_minimum.update_time,
                                             received_minimum_val).await;
 
     if let Some(new_minimum) = new_minimum{
-        let result = markdown_format_minimum(&new_minimum, received_minimum_val);
+        // Форматируем изменение
+        let result = match previous_minimum{
+            Some(ref prev) => {
+                markdown_format_minimum(&new_minimum, prev)
+            },
+            None => {
+                markdown_format_minimum_for_status(&new_minimum)
+            }
+        };
 
         let old = previous_minimum_values
             .iter_mut()
@@ -313,7 +321,7 @@ fn markdown_format_currency_result(info: &CurrencyResult) -> String{
     bank_text
 }
 
-fn markdown_format_minimum(new_minimum: &CurrencyMinimum, previous_value: &CurrencyValue) -> String{
+fn markdown_format_minimum(new_minimum: &CurrencyMinimum, previous_value: &CurrencyMinimum) -> String{
     let time_str: String = match new_minimum.update_time {
         Some(time) => {
             let local_time = time.with_timezone(&chrono::offset::Local{});
@@ -330,7 +338,7 @@ fn markdown_format_minimum(new_minimum: &CurrencyMinimum, previous_value: &Curre
             time_str,
             new_minimum.cur_type,
             new_minimum.value,
-            previous_value.buy);
+            previous_value.value);
 
     bank_text
 }
