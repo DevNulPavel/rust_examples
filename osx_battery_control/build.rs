@@ -1,14 +1,14 @@
 extern crate bindgen;
 
-use std::env;
-use std::path::PathBuf;
+// use std::env;
+// use std::path::PathBuf;
 
 // Example custom build script.
 fn main() {
     // https://doc.rust-lang.org/cargo/reference/build-scripts.html
     // println!("cargo:rerun-if-changed=smc-command/smc.c");
     println!("cargo:rustc-link-lib=framework=IOKit");
-    println!("cargo:rustc-link-lib=smc");
+    //println!("cargo:rustc-link-lib=smc");
     // println!("cargo:rustc-link-lib=ld");
 
     cc::Build::new()
@@ -25,12 +25,12 @@ fn main() {
         .opt_level(2)
         .debug(true)
         .static_flag(true)
-        .shared_flag(true)
+        .shared_flag(false)
         .compile("smc");
 
     //println!("cargo:rustc-link-lib=bz2");
     
-    println!("cargo:rustc-link-lib=framework=IOKit");
+    //println!("cargo:rustc-link-lib=framework=IOKit");
 
     // let mut headers = vec![];
     // headers.push("IOKit/IOKitLib.h");
@@ -41,7 +41,7 @@ fn main() {
     //     .collect();
 
     // let target = "";
-    let target = std::env::var("TARGET").unwrap();
+    /*let target = std::env::var("TARGET").unwrap();
 
     // The bindgen::Builder is the main entry point
     // to bindgen, and lets you build up options for
@@ -67,5 +67,21 @@ fn main() {
     let out_path = PathBuf::from(env::var("OUT_DIR").unwrap());
     bindings
         .write_to_file(out_path.join("bindings.rs"))
-        .expect("Couldn't write bindings!");
+        .expect("Couldn't write bindings!");*/
+
+
+    cc::Build::new()
+        .file("test/test.c")
+        // .compiler("/usr/bin/gcc")
+        .no_default_flags(true)
+        // .flag("-framework IOKit")
+        //.define("CMD_TOOL_BUILD", None)
+        // .define("CMD_TOOL", None)
+        .warnings(true)
+        .extra_warnings(true)
+        .opt_level(2)
+        .debug(true)
+        .static_flag(true)
+        .shared_flag(false)
+        .compile("testlib");
 }

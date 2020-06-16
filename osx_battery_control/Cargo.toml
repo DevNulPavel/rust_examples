@@ -8,6 +8,9 @@ edition = "2018"
 
 [dependencies]
 # libloading = "0.5"
+libc = "0.2.71"
+mach = "0.3.2"
+IOKit-sys = "0.1.5"
 
 [build-dependencies]
 cc = "1.0.54"
