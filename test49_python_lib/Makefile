@@ -3,7 +3,10 @@ BUILD_RUST_LIB:
 	rm -rf $(shell pwd)/python_script/rust_python_lib.so && \
 	ln -s $(shell pwd)/target/release/librust_python_lib.dylib $(shell pwd)/python_script/rust_python_lib.so
 
-TEST: BUILD_RUST_LIB
+TEST_RUST_LIB:
+	cargo test --lib test49_python_lib
+
+TEST_PYTHON_SCRIPT: BUILD_RUST_LIB
 	cd python_script && \
 	python3 main.py; \
 	cd ../
