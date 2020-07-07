@@ -791,9 +791,3 @@ int main(int argc, char *argv[])
     return 0;
 }
 #endif //#ifdef CMD_TOOL
-
-
-
-void test123(){
-    printf("TEST_TEST\n");
-}

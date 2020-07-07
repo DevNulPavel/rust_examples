@@ -11,22 +11,22 @@ fn main() {
     //println!("cargo:rustc-link-lib=smc");
     // println!("cargo:rustc-link-lib=ld");
 
-    // cc::Build::new()
-    //     .file("smc-command/smc.c")
-    //     // .compiler("/usr/bin/gcc")
-    //     .no_default_flags(true)
-    //     .flag("-mmacosx-version-min=10.4")
-    //     // .flag("-framework IOKit")
-    //     //.define("CMD_TOOL_BUILD", None)
-    //     // .define("CMD_TOOL", None)
-    //     .warnings(true)
-    //     .extra_warnings(true)
-    //     .include("smc-command/")
-    //     .opt_level(2)
-    //     .debug(true)
-    //     .static_flag(true)
-    //     .shared_flag(false)
-    //     .compile("smc");
+    cc::Build::new()
+        .file("smc-command/smc.c")
+        // .compiler("/usr/bin/gcc")
+        .no_default_flags(true)
+        .flag("-mmacosx-version-min=10.4")
+        // .flag("-framework IOKit")
+        //.define("CMD_TOOL_BUILD", None)
+        // .define("CMD_TOOL", None)
+        .warnings(true)
+        .extra_warnings(true)
+        .include("smc-command/")
+        .opt_level(2)
+        .debug(true)
+        .static_flag(true)
+        .shared_flag(false)
+        .compile("smc");
 
     //println!("cargo:rustc-link-lib=bz2");
     
@@ -72,7 +72,11 @@ fn main() {
 
     cc::Build::new()
         .file("test/test.c")
+        // .compiler("/usr/bin/gcc")
         .no_default_flags(true)
+        // .flag("-framework IOKit")
+        //.define("CMD_TOOL_BUILD", None)
+        // .define("CMD_TOOL", None)
         .warnings(true)
         .extra_warnings(true)
         .opt_level(2)
@@ -80,19 +84,4 @@ fn main() {
         .static_flag(true)
         .shared_flag(false)
         .compile("testlib");
-
-    cc::Build::new()
-        .file("smc-command/smc.c")
-        .no_default_flags(true)
-        .flag("-mmacosx-version-min=10.4")
-        //.define("CMD_TOOL_BUILD", None)
-        //.define("CMD_TOOL", None)
-        .warnings(true)
-        .extra_warnings(true)
-        .include("smc-command/")
-        .opt_level(2)
-        .debug(true)
-        .static_flag(true)
-        .shared_flag(false)
-        .compile("smc");
 }
