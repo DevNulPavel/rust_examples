@@ -188,21 +188,37 @@ pub trait MatchEngineFactory {
 pub type SkimItemSender = Sender<Arc<dyn SkimItem>>;
 pub type SkimItemReceiver = Receiver<Arc<dyn SkimItem>>;
 
+// Пустая структурка для имитаци класса
 pub struct Skim {}
 
 impl Skim {
+    /// Запуск в работу c параметрами и каналом поступаемых данных
     pub fn run_with(options: &SkimOptions, source: Option<SkimItemReceiver>) -> Option<SkimOutput> {
+        // Получаем минимальную высоту подсказки
         let min_height = options
             .min_height
             .map(Skim::parse_height_string)
             .expect("min_height should have default values");
+        // ПОлучаем целевую высоту подсказки
         let height = options
             .height
             .map(Skim::parse_height_string)
             .expect("height should have default values");
 
-        let (tx, rx): (EventSender, EventReceiver) = channel();
-        let term = Arc::new(Term::with_options(TermOptions::default().min_height(min_height).height(height)).unwrap());
+        // Создаем канал работы между потоками
+        let (event_tx, event_rx): (EventSender, EventReceiver) = channel();
+
+        // ПОлучаем объект для терминальных подсказок
+        let term = {
+            let term_ops = TermOptions::default()
+                .min_height(min_height)
+                .height(height);
+            let term = Term::with_options(term_ops)
+                .unwrap();
+            Arc::new(term)
+        };
+
+        // Включаем поддержку мыши если можно
         if !options.no_mouse {
             let _ = term.enable_mouse_support();
         }
@@ -213,16 +229,23 @@ impl Skim {
         input.parse_keymaps(&options.bind);
         input.parse_expect_keys(options.expect.as_ref().map(|x| &**x));
 
-        let tx_clone = tx.clone();
+        // Запускаем новый поток, который будет работать с событиями канала
+        let event_tx_clone = event_tx.clone();
         let term_clone = term.clone();
-        let input_thread = thread::spawn(move || loop {
-            if let Ok(key) = term_clone.poll_event() {
-                if key == TermEvent::User1 {
-                    break;
-                }
+        let input_thread = thread::spawn(move || {
+            // Создаем бесконечный цикл обработки данных
+            loop {
+                // Получаем событие
+                if let Ok(key) = term_clone.poll_event() {
+                    // Если мы получили сообщение прерывания User1 - выходим из цикла
+                    if key == TermEvent::User1 {
+                        break;
+                    }
 
-                for ev in input.translate_event(key).into_iter() {
-                    let _ = tx_clone.send(ev);
+                    // Для всех поступивших событий - отправляем их в канал
+                    for ev in input.translate_event(key).into_iter() {
+                        let _ = event_tx_clone.send(ev);
+                    }
                 }
             }
         });
@@ -234,11 +257,19 @@ impl Skim {
 
         //------------------------------------------------------------------------------
         // model + previewer
-        let mut model = Model::new(rx, tx, reader, term.clone(), &options);
+        let mut model = Model::new(event_rx, event_tx, reader, term.clone(), &options);
+        
+        // Результат работы
         let ret = model.start();
+
         let _ = term.send_event(TermEvent::User1); // interrupt the input thread
+
+        // Ждем завершения потока событий
         let _ = input_thread.join();
+        
+        // Паузим работу терминала
         let _ = term.pause();
+
         ret
     }
 

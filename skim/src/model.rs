@@ -87,18 +87,24 @@ pub struct Model {
 
 impl Model {
     pub fn new(rx: EventReceiver, tx: EventSender, reader: Reader, term: Arc<Term>, options: &SkimOptions) -> Self {
+        // ПОлучаем стандартную команду skim в виде "find ." либо из окружения
         let default_command = match env::var("SKIM_DEFAULT_COMMAND").as_ref().map(String::as_ref) {
             Ok("") | Err(_) => "find .".to_owned(),
             Ok(val) => val.to_owned(),
         };
 
+        // Получаем тему оформления из опций
         let theme = Arc::new(ColorTheme::init_from_options(options));
+        
+        // Получаем запрос из опций и заменяем команду на нашу дефолтную
         let query = Query::from_options(&options)
             .replace_base_cmd_if_not_set(&default_command)
             .theme(theme.clone())
             .build();
 
-        let selection = Selection::with_options(options).theme(theme.clone());
+        // Дергаем выборку
+        let selection = Selection::with_options(options)
+            .theme(theme.clone());
         let regex_engine: Rc<dyn MatchEngineFactory> = Rc::new(RegexEngineFactory::new());
         let regex_matcher = Matcher::builder(regex_engine).build();
 
@@ -405,6 +411,7 @@ impl Model {
         self.act_heart_beat(env);
     }
 
+    /// Непосредственно запуск в работу системы
     pub fn start(&mut self) -> Option<SkimOutput> {
         let mut env = ModelEnv {
             cmd: self.query.get_cmd(),
@@ -415,20 +422,28 @@ impl Model {
 
         self.reader_control = Some(self.reader.run(&env.cmd));
 
-        // In the event loop, there might need
+        // Запускаем ивент-луп для работы с событиями. Первое событие - мониторинг активности
         let mut next_event = Some(Event::EvHeartBeat);
         loop {
-            let ev = next_event.take().or_else(|| self.rx.recv().ok())?;
+            // Получаем событие уже имеющееся или из канала событий
+            let ev = next_event
+                .take()
+                .or_else(|| {
+                    self.rx.recv().ok()
+                })?;
 
             debug!("handle event: {:?}", ev);
 
             match ev {
+                // Событие проверки активности
                 Event::EvHeartBeat => {
                     // consume following HeartBeat event
+                    // Добавляем еще событие проверки активности??
                     next_event = self.consume_additional_event(&Event::EvHeartBeat);
                     self.act_heart_beat(&mut env);
                 }
 
+                // Событие отсутствия совпадения
                 Event::EvActIfNonMatched(ref arg_str) => {
                     let matched =
                         self.num_options + self.matcher_control.as_ref().map(|c| c.get_num_matched()).unwrap_or(0);
@@ -438,6 +453,7 @@ impl Model {
                     }
                 }
 
+                // Пустой запрос
                 Event::EvActIfQueryEmpty(ref arg_str) => {
                     if env.query.is_empty() {
                         next_event = parse_action_arg(arg_str);
@@ -445,6 +461,7 @@ impl Model {
                     }
                 }
 
+                // Запрос не пустой
                 Event::EvActIfQueryNotEmpty(ref arg_str) => {
                     if !env.query.is_empty() {
                         next_event = parse_action_arg(arg_str);
@@ -452,14 +469,17 @@ impl Model {
                     }
                 }
 
+                // Отобразить превью
                 Event::EvActTogglePreview => {
                     self.preview_hidden = !self.preview_hidden;
                 }
 
+                // Событие поворота?
                 Event::EvActRotateMode => {
                     self.act_rotate_mode(&mut env);
                 }
 
+                // Принимаем найденные результаты
                 Event::EvActAccept(accept_key) => {
                     if let Some(ctrl) = self.reader_control.take() {
                         ctrl.kill();
@@ -476,6 +496,7 @@ impl Model {
                     });
                 }
 
+                // Прекращаем поиск без вывода результатов
                 Event::EvActAbort => {
                     if let Some(ctrl) = self.reader_control.take() {
                         ctrl.kill();
@@ -486,6 +507,7 @@ impl Model {
                     return None;
                 }
 
+                // Удалить символ
                 Event::EvActDeleteCharEOF => {
                     if env.query.is_empty() {
                         next_event = Some(Event::EvActAbort);
@@ -493,18 +515,22 @@ impl Model {
                     }
                 }
 
+                // Выполнить команду
                 Event::EvActExecute(ref cmd) => {
                     self.act_execute(cmd);
                 }
 
+                // Выполнить тихо команду
                 Event::EvActExecuteSilent(ref cmd) => {
                     self.act_execute_silent(cmd);
                 }
 
+                // Добавить к выделению??
                 Event::EvActAppendAndSelect => {
                     self.act_append_and_select(&mut env);
                 }
 
+                // ??
                 Event::EvInputKey(key) => {
                     // dispatch key(normally the mouse keys) to sub-widgets
                     self.do_with_widget(|root| {

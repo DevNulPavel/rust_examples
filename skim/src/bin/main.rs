@@ -322,7 +322,7 @@ fn real_main() -> Result<i32, std::io::Error> {
     };
 
     //------------------------------------------------------------------------------
-    // Режим фильтрации?
+    // Режим фильтрации? Фильтруем данные входного канала
     if opts.is_present("filter") {
         return filter(&options, rx_item);
     }
@@ -334,7 +334,7 @@ fn real_main() -> Result<i32, std::io::Error> {
         "\n" 
     };
 
-    // Вывод данных
+    // Запускаем в работу и получаем вывод
     let output = match Skim::run_with(&options, rx_item){
         Some(out) => {
             out
