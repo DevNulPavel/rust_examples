@@ -1,0 +1,47 @@
+[package]
+name = "skim"
+version = "0.8.2"
+authors = ["Zhang Jinzhou <lotabout@gmail.com>"]
+description = "Fuzzy Finder in rust!"
+documentation = "https://github.com/lotabout/skim"
+homepage = "https://github.com/lotabout/skim"
+repository = "https://github.com/lotabout/skim"
+readme  = "README.md"
+keywords = ["fuzzy", "menu", "util"]
+license = "MIT"
+edition = "2018"
+
+[lib]
+name = "skim"
+path = "src/lib.rs"
+
+[[bin]]
+name = "sk"
+path = "src/bin/main.rs"
+
+[dependencies]
+nix = "0.14.0"
+regex = "1.1.5"
+lazy_static = "1.3.0"
+shlex = "0.1.1"
+unicode-width = "0.1.4"
+log = "0.4.6"
+env_logger = "0.6.1"
+time = "0.1.38"
+clap = "2.26.2"
+tuikit = "0.3.3"
+vte = "0.3.3"
+fuzzy-matcher = "0.3.5"
+rayon = "1.0.3"
+derive_builder = "0.9"
+bitflags = "1.0.4"
+timer = "0.2.0"
+chrono = "0.4"
+crossbeam = "0.7.3"
+
+[features]
+default = []
+
+[profile.release]
+lto = true
+debug = false
