@@ -1,22 +1,14 @@
-// SPDX-License-Identifier: MIT OR Apache-2.0
-//
-// Copyright (c) 2018-2020 Andre Richter <andre.o.richter@gmail.com>
-
-//! Architectural processor code.
-
-// Assembly counterpart to this file.
+// Подключаем ассемблерный код
 global_asm!(include_str!("cpu.S"));
 
-//--------------------------------------------------------------------------------------------------
-// Public Code
-//--------------------------------------------------------------------------------------------------
-
-/// Pause execution on the core.
+// Функция бесконечного цикла
 #[inline(always)]
 pub fn wait_forever() -> ! {
     unsafe {
+        // Бесконечный цикл
         loop {
             #[rustfmt::skip]
+            // Запускаем функцию wfe
             asm!(
                 "wfe",
                 options(nomem, nostack, preserves_flags)
