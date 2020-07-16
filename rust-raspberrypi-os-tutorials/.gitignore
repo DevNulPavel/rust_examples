@@ -1,0 +1,7 @@
+**/target/*
+**/.gdb_history
+**/kernel8.img
+
+Gemfile.lock
+.bundle
+.vendor

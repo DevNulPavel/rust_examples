@@ -1,0 +1,23 @@
+#!/usr/bin/env ruby
+# frozen_string_literal: true
+
+# SPDX-License-Identifier: MIT OR Apache-2.0
+#
+# Copyright (c) 2018-2020 Andre Richter <andre.o.richter@gmail.com>
+
+require 'rubygems'
+require 'bundler/setup'
+require_relative '../utils/devtool/copyright'
+
+source_files_exts = ['.S', '.rs', '.rb']
+
+staged_files = `git --no-pager diff --name-only --cached --diff-filter=d`.split(/\n/)
+staged_files.select! do |f|
+    next if f.include?('build.rs')
+
+    f.include?('Makefile') ||
+        f.include?('Dockerfile') ||
+        source_files_exts.include?(File.extname(f))
+end
+
+exit(1) unless copyright_check_files(staged_files)

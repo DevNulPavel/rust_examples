@@ -1,0 +1,16 @@
+[package]
+name = "kernel"
+version = "0.1.0"
+authors = ["Andre Richter <andre.o.richter@gmail.com>"]
+edition = "2018"
+
+# The features section is used to select the target board.
+[features]
+default = []
+bsp_rpi3 = ["cortex-a"]
+bsp_rpi4 = ["cortex-a"]
+
+[dependencies]
+
+# Optional dependencies
+cortex-a = { version = "3.0.x", optional = true }

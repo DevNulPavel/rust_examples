@@ -1,0 +1,13 @@
+{
+    "editor.formatOnSave": true,
+    "editor.rulers": [
+        100
+    ],
+    "rust-analyzer.checkOnSave.overrideCommand": [
+        "cargo",
+        "check",
+        "--message-format=json",
+        "--target=aarch64-unknown-none-softfloat",
+        "--features=bsp_rpi3"
+    ]
+}
