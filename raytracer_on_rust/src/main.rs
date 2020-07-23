@@ -2,6 +2,7 @@ mod traits;
 mod structs;
 mod render;
 mod scene;
+mod figures;
 
 use std::{
     path::{

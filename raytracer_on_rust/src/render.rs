@@ -1,22 +1,26 @@
 use image::{
+    Pixel,
+    GenericImage,
     DynamicImage,
+    Rgba
 };
 use crate::{
     traits::{
-        Zero
+        Zero,
+        Normalize,
+        Intersectable
     },
     scene::{
         Scene,
     },
     structs::{
-        Point,
-        Vector3
+        Vector3,
     }
 };
 
 pub struct Ray {
     // Откуда
-    pub origin: Point,
+    pub origin: Vector3,
     // Куда пускаем луч
     pub direction: Vector3,
 }
@@ -24,20 +28,50 @@ pub struct Ray {
 impl Ray {
     // Пускаем луч из координат экрана для сцены
     pub fn create_prime(x: u32, y: u32, scene: &Scene) -> Ray {
-        let sensor_x = ((x as f64 + 0.5) / scene.width as f64) * 2.0 - 1.0;
-        let sensor_y = 1.0 - ((y as f64 + 0.5) / scene.height as f64) * 2.0;
-   
-        let vec3 = Vector3::new(sensor_x, sensor_y, -1.0).normalize();
+        // Расчет угла видимости
+        let fov_adjustment = (scene.fov.to_radians() / 2.0).tan();
 
+        // Расчет соотношения сторон
+        assert!(scene.width > scene.height);
+        let aspect_ratio = (scene.width as f64) / (scene.height as f64);
+
+        // Приводим значения к диапазону от -1.0 к 1.0 как в OpenGL/DirectX/Metal/Vulkan
+        // Направление x - слева направо, y - снизу вверх, z  - от нас
+        let sensor_x = ((((x as f64 + 0.5) / scene.width as f64) * 2.0 - 1.0) * aspect_ratio * fov_adjustment) as f32;
+        let sensor_y = ((1.0 - ((y as f64 + 0.5) / scene.height as f64) * 2.0) * fov_adjustment) as f32;
+   
+        // Создаем направление луча рендеринга в нормализованном виде
+        let dir = Vector3::new(sensor_x, sensor_y, -1.0).normalize();
+
+        // Создаем луч
         Ray {
-            origin: Point::zero(),
-            direction: ,
+            origin: Vector3::zero(),
+            direction: dir,
         }
     }
 }
 
 pub fn render(scene: &Scene) -> DynamicImage {
-    DynamicImage::new_rgb8(scene.width, scene.height)
+    // Создание изображения
+    let mut image = DynamicImage::new_rgb8(scene.width, scene.height);
+    
+    // Создаем базовый цвет
+    let black = Rgba::from_channels(0, 0, 0, 0);
+    
+    // Обходим все строки и столбцы картинки
+    // TODO: Rayon и многопоточность
+    for x in 0..scene.width {
+        for y in 0..scene.height {
+            let ray = Ray::create_prime(x, y, scene);
+
+            if scene.sphere.intersect(&ray) {
+                image.put_pixel(x, y, scene.sphere.color.to_rgba());
+            } else {
+                image.put_pixel(x, y, black);
+            }
+        }
+    }
+    image
 }
 
 /*#[cfg(tests)]

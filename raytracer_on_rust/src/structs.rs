@@ -1,13 +1,24 @@
+use std::{
+    ops::{
+        Sub,
+        Add
+    }
+};
+use image::{
+    Rgba
+};
 use crate::{
     traits::{
+        Length,
         Zero,
-        Normalize
+        Normalize,
+        Dot
     }
 };
 
 //////////////////////////////////////////////////////////////////////
 
-#[derive(Default)]
+/*#[derive(Default)]
 pub struct Point {
     pub x: f32,
     pub y: f32,
@@ -24,10 +35,12 @@ impl Zero for Point {
     }
 }
 
-impl Normalize for Point{
-    fn normalize(&self) -> Self{
-        Point{
-            se
+impl Into<Vector3> for Point{
+    fn into(self) -> Vector3 {
+        Vector3{
+            x: self.x,
+            y: self.y,
+            z: self.z,
         }
     }
 }
@@ -40,11 +53,12 @@ impl Point{
             z
         }
     }
-}
+}*/
+
 
 //////////////////////////////////////////////////////////////////////
 
-#[derive(Default)]
+#[derive(Default, Copy, Clone)]
 pub struct Vector3 {
     pub x: f32,
     pub y: f32,
@@ -58,6 +72,60 @@ impl Zero for Vector3 {
             y: 0.0_f32,
             z: 0.0_f32,
         }   
+    }
+}
+
+impl Length for Vector3{
+    fn length(&self) -> f32 {
+        let length: f32 = (self.x*self.x + self.y * self.y + self.z*self.z).sqrt();
+        length
+    }
+}
+
+impl Normalize for Vector3{
+    fn normalize(&self) -> Self{
+        let length: f32 = self.length();
+        assert!(length != 0.0_f32);
+        Vector3{
+            x: self.x / length,
+            y: self.y / length,
+            z: self.z / length,
+        }
+    }
+}
+
+// TODO: Test
+impl Dot for Vector3{
+    type Operand = Vector3;
+    fn dot(&self, other: &Self::Operand) -> f32 {
+            self.x * other.x + 
+            self.y * other.y +
+            self.z * other.z
+    }
+}
+
+
+// TODO: Tests
+impl Sub for Vector3{
+    type Output = Vector3;
+    fn sub(self, rhs: Self) -> Self::Output {
+        Vector3{
+            x: self.x - rhs.x,
+            y: self.y - rhs.y,
+            z: self.z - rhs.z,
+        }  
+    }
+}
+
+// TODO: Tests
+impl Add for Vector3{
+    type Output = Vector3;
+    fn add(self, rhs: Self) -> Self::Output {
+        Vector3{
+            x: self.x + rhs.x,
+            y: self.y + rhs.y,
+            z: self.z + rhs.z,
+        }  
     }
 }
 
@@ -89,10 +157,11 @@ impl Zero for Color {
     }
 }
 
-//////////////////////////////////////////////////////////////////////
-
-pub struct Sphere {
-    pub center: Point,
-    pub radius: f64,
-    pub color: Color,
+impl Color {
+    pub fn to_rgba(&self) -> Rgba<u8>{
+        let r = (self.red * 255.0) as u8;
+        let g = (self.green * 255.0) as u8;
+        let b = (self.blue * 255.0) as u8;
+        Rgba([r, g, b, 255])
+    }
 }

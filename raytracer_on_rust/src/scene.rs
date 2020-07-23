@@ -1,8 +1,10 @@
 use crate::{
     structs::{
-        Sphere,
-        Point,
+        Vector3,
         Color
+    },
+    figures::{
+        Sphere
     }
 };
 
@@ -19,7 +21,7 @@ pub fn build_scene() -> Scene {
         height: 600,
         fov: 90.0,
         sphere: Sphere {
-            center: Point {
+            center: Vector3 {
                 x: 0.0,
                 y: 0.0,
                 z: -5.0,
