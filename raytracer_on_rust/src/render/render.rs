@@ -8,10 +8,10 @@ use crate::{
     traits::{
         Zero,
         Normalize,
-        Intersectable
     },
     scene::{
         Scene,
+        Intersection
     },
     structs::{
         Vector3,
@@ -64,9 +64,11 @@ pub fn render(scene: &Scene) -> DynamicImage {
         for y in 0..scene.height {
             let ray = Ray::create_prime(x, y, scene);
 
-            if scene.sphere.intersect(&ray) {
-                image.put_pixel(x, y, scene.sphere.color.to_rgba());
-            } else {
+            let intersection: Option<Intersection<'_>> = scene.trace(&ray);
+
+            if let Some(intersection) = intersection{
+                image.put_pixel(x, y, intersection.object.get_pixel_color().to_rgba());
+            }else{
                 image.put_pixel(x, y, black);
             }
         }

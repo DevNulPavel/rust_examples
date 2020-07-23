@@ -1,11 +1,9 @@
 use std::{
     ops::{
         Sub,
-        Add
+        Add,
+        Neg
     }
-};
-use image::{
-    Rgba
 };
 use crate::{
     traits::{
@@ -129,6 +127,18 @@ impl Add for Vector3{
     }
 }
 
+// TODO: Tests
+impl Neg for Vector3{
+    type Output = Vector3;
+    fn neg(self) -> Self::Output {
+        Vector3{
+            x: -self.x,
+            y: -self.y,
+            z: -self.z
+        }
+    }
+}
+
 impl Vector3{
     pub fn new(x: f32, y: f32, z: f32) -> Vector3{
         Vector3{
@@ -136,32 +146,5 @@ impl Vector3{
             y, 
             z
         }
-    }
-}
-
-//////////////////////////////////////////////////////////////////////
-
-pub struct Color {
-    pub red: f32,
-    pub green: f32,
-    pub blue: f32,
-}
-
-impl Zero for Color {
-    fn zero() -> Self {
-        Color{
-            red: 0.0_f32,
-            green: 0.0_f32,
-            blue: 0.0_f32,
-        }   
-    }
-}
-
-impl Color {
-    pub fn to_rgba(&self) -> Rgba<u8>{
-        let r = (self.red * 255.0) as u8;
-        let g = (self.green * 255.0) as u8;
-        let b = (self.blue * 255.0) as u8;
-        Rgba([r, g, b, 255])
     }
 }

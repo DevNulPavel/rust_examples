@@ -18,12 +18,12 @@ use crate::{
     },
     scene::{
         Scene,
-        build_scene,   
+        build_test_scene,
     }
 };
 
 fn main(){
-    let scene: Scene = build_scene();
+    let scene: Scene = build_test_scene();
 
     let img: DynamicImage = render(&scene);
     img.save(Path::new("test.png")).unwrap();

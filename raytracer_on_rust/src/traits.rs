@@ -1,6 +1,10 @@
 use crate::{
     render::{
         Ray
+    },
+    structs::{
+        Color,
+        Vector3
     }
 };
 
@@ -22,5 +26,17 @@ pub trait Dot {
 }
 
 pub trait Intersectable {
-    fn intersect(&self, ray: &Ray) -> bool;
+    fn intersect(&self, ray: &Ray) -> Option<f32>;
+}
+
+pub trait PixelColor{
+    fn get_pixel_color<'a>(&'a self) -> &'a Color;
+}
+
+pub trait Normal {
+    fn normal_at(&self, hit_point: &Vector3) -> Vector3;
+}
+
+pub trait Figure: Intersectable + PixelColor + Normal {
+
 }
