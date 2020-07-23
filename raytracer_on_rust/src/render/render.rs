@@ -7,14 +7,14 @@ use image::{
 use crate::{
     traits::{
         Zero,
-        Normalize,
+        Normalizable
     },
     scene::{
         Scene,
         Intersection
     },
     structs::{
-        Vector3,
+        Vector3
     }
 };
 
@@ -64,11 +64,18 @@ pub fn render(scene: &Scene) -> DynamicImage {
         for y in 0..scene.height {
             let ray = Ray::create_prime(x, y, scene);
 
-            let intersection: Option<Intersection<'_>> = scene.trace(&ray);
+            // Ближайшее пересечение с объектом
+            let intersection: Option<Intersection<'_>> = scene.trace_intersection(&ray);
 
+            // Если нашлось - считаем свет
             if let Some(intersection) = intersection{
-                image.put_pixel(x, y, intersection.object.get_pixel_color().to_rgba());
+                // Расчет цвета в найденном пересечении
+                let result_color = scene.calculate_intersection_color(&intersection);
+
+                // Установка пикселя
+                image.put_pixel(x, y, result_color.to_rgba());
             }else{
+                // Установка пикселя
                 image.put_pixel(x, y, black);
             }
         }

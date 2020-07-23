@@ -2,7 +2,9 @@
 use crate::{
     traits::{
         Figure,
-        Normalize
+        Normalizable,
+        Dotable,
+        Clamp
         // PixelColor
     },
     structs::{
@@ -36,7 +38,7 @@ pub struct Scene {
 }
 
 impl Scene {
-    pub fn trace<'a>(&'a self, ray: &Ray) -> Option<Intersection<'a>> {
+    pub fn trace_intersection<'a>(&'a self, ray: &Ray) -> Option<Intersection<'a>> {
         // Обходим все сферы
         self.figures
             .iter()
@@ -59,8 +61,13 @@ impl Scene {
             }
             // Создаем объект пересечения со ссылкой
             .map(|(d, s)| {
+                // Место, где у нас нашлось пересечение
+                let hit_point = ray.origin + (ray.direction * d);
+
+                // Объект
                 let figure: &'a dyn Figure = s.as_ref();
-                Intersection::new(d, figure)
+
+                Intersection::new(d, hit_point, figure)
             }))
             // Находим среди всех минимум
             .min_by(|i1, i2| {
@@ -69,6 +76,27 @@ impl Scene {
                     .partial_cmp(&i2.distance)
                     .unwrap()
             })
+    }
+
+    // Для найденного пересечения расчитываем цвет пикселя
+    pub fn calculate_intersection_color(&self, intersection: &Intersection) -> Color{
+        // Нормаль в точке пересечения
+        let surface_normal = intersection.get_normal();
+        
+        // Направление к свету
+        let direction_to_light = -self.light.direction;
+        
+        // Вычисляем свет как скалярное произведение (косинус угла между векторами),
+        // чем сонаправленнее, тем сильнее
+        let light_power = (surface_normal.dot(&direction_to_light) as f32) * self.light.intensity;
+
+        // Стандартный цвет объекта
+        let diffuse_color = intersection.object.get_diffuse_color().clone();
+
+        // Финальный цвет
+        let result_color: Color = diffuse_color * light_power;
+        
+        result_color.clamp(0.0_f32, 1.0_f32)
     }
 }
 
@@ -82,12 +110,17 @@ pub fn build_test_scene() -> Scene {
                 y: 0.0,
                 z: -5.0,
             },
-            radius: 1.0,
-            color: Color {
+            radius: 1.5,
+            diffuse_color: Color {
                 red: 0.4,
                 green: 1.0,
                 blue: 0.4,
             },
+            albedo_color: Color {
+                red: 0.4,
+                green: 1.0,
+                blue: 0.4,
+            }
         }),
         // 2
         Box::new(Sphere {
@@ -96,12 +129,17 @@ pub fn build_test_scene() -> Scene {
                 y: 1.0,
                 z: -4.0,
             },
-            radius: 0.5,
-            color: Color {
+            radius: 1.3,
+            diffuse_color: Color {
                 red: 0.0,
                 green: 0.0,
                 blue: 0.9,
             },
+            albedo_color: Color {
+                red: 0.0,
+                green: 0.0,
+                blue: 0.9,
+            }
         }),
         // 3
         Box::new(Plane {
@@ -115,7 +153,12 @@ pub fn build_test_scene() -> Scene {
                 y: -1.0,
                 z: 0.0,
             },
-            color: Color {
+            diffuse_color: Color {
+                red: 1.0,
+                green: 0.0,
+                blue: 0.2,
+            },
+            albedo_color: Color {
                 red: 1.0,
                 green: 0.0,
                 blue: 0.2,
@@ -126,8 +169,8 @@ pub fn build_test_scene() -> Scene {
 
     let light = { 
         let direction = Vector3{
-            x: -2.0,
-            y: 2.0,
+            x: -1.0,
+            y: -2.0,
             z: -1.0
         };
         Light{
@@ -137,7 +180,7 @@ pub fn build_test_scene() -> Scene {
                 green: 1.0,
                 blue: 1.0
             },
-            intensity: 0.6
+            intensity: 0.9
         }
     };
 

@@ -1,12 +1,19 @@
+use std::{
+    ops::{
+        Mul
+    }
+};
 use image::{
     Rgba
 };
 use crate::{
     traits::{
         Zero,
+        Clamp
     }
 };
 
+#[derive(Copy, Clone)]
 pub struct Color {
     pub red: f32,
     pub green: f32,
@@ -20,6 +27,28 @@ impl Zero for Color {
             green: 0.0_f32,
             blue: 0.0_f32,
         }   
+    }
+}
+
+impl Clamp<f32> for Color {
+    fn clamp(self, min: f32, max: f32) -> Color {
+        Color{
+            red: self.red.max(min).min(max),
+            green: self.green.max(min).min(max),
+            blue: self.blue.max(min).min(max)
+        }   
+    }
+}
+
+// TODO: TEST
+impl Mul<f32> for Color{
+    type Output = Color;
+    fn mul(self, rhs: f32) -> Self::Output {
+        Color{
+            red: self.red * rhs,
+            green: self.green * rhs,
+            blue: self.blue * rhs,
+        }
     }
 }
 

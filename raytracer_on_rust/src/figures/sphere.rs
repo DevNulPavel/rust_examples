@@ -1,11 +1,11 @@
 use crate::{
     traits::{
         Intersectable,
-        Dot,
-        PixelColor,
-        Normal,
+        Dotable,
+        Colorable,
+        Normalable,
         Figure,
-        Normalize
+        Normalizable
     },
     structs::{
         Vector3,
@@ -19,12 +19,18 @@ use crate::{
 pub struct Sphere {
     pub center: Vector3,
     pub radius: f32,
-    pub color: Color,
+    pub diffuse_color: Color,
+    pub albedo_color: Color,
 }
 
-impl PixelColor for Sphere {
-    fn get_pixel_color<'a>(&'a self) -> &'a Color{
-        let ref color = self.color;
+impl Colorable for Sphere {
+    fn get_diffuse_color<'a>(&'a self) -> &'a Color{
+        let ref color = self.diffuse_color;
+        color
+    }
+
+    fn get_albedo_color<'a>(&'a self) -> &'a Color{
+        let ref color = self.albedo_color;
         color
     }
 }
@@ -91,7 +97,7 @@ impl Intersectable for Sphere {
     } 
 }
 
-impl Normal for Sphere {
+impl Normalable for Sphere {
     fn normal_at(&self, hit_point: &Vector3) -> Vector3{
         (hit_point.clone() - self.center).normalize()
     }

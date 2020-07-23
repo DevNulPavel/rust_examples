@@ -1,10 +1,10 @@
 use crate::{
     traits::{
         Intersectable,
-        Dot,
-        PixelColor,
+        Dotable,
+        Colorable,
         Figure,
-        Normal
+        Normalable
     },
     structs::{
         Vector3,
@@ -18,12 +18,18 @@ use crate::{
 pub struct Plane {
     pub origin: Vector3,
     pub normal: Vector3,
-    pub color: Color,
+    pub diffuse_color: Color,
+    pub albedo_color: Color,
 }
 
-impl PixelColor for Plane {
-    fn get_pixel_color<'a>(&'a self) -> &'a Color{
-        let ref color = self.color;
+impl Colorable for Plane {
+    fn get_diffuse_color<'a>(&'a self) -> &'a Color{
+        let ref color = self.diffuse_color;
+        color
+    }
+
+    fn get_albedo_color<'a>(&'a self) -> &'a Color{
+        let ref color = self.albedo_color;
         color
     }
 }
@@ -46,7 +52,7 @@ impl Intersectable for Plane {
     } 
 }
 
-impl Normal for Plane {
+impl Normalable for Plane {
     fn normal_at(&self, _: &Vector3) -> Vector3{
         -self.normal
     }

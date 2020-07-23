@@ -2,15 +2,16 @@ use std::{
     ops::{
         Sub,
         Add,
-        Neg
+        Neg,
+        Mul
     }
 };
 use crate::{
     traits::{
         Length,
         Zero,
-        Normalize,
-        Dot
+        Normalizable,
+        Dotable
     }
 };
 
@@ -80,7 +81,7 @@ impl Length for Vector3{
     }
 }
 
-impl Normalize for Vector3{
+impl Normalizable for Vector3{
     fn normalize(&self) -> Self{
         let length: f32 = self.length();
         assert!(length != 0.0_f32);
@@ -93,7 +94,7 @@ impl Normalize for Vector3{
 }
 
 // TODO: Test
-impl Dot for Vector3{
+impl Dotable for Vector3{
     type Operand = Vector3;
     fn dot(&self, other: &Self::Operand) -> f32 {
             self.x * other.x + 
@@ -135,6 +136,30 @@ impl Neg for Vector3{
             x: -self.x,
             y: -self.y,
             z: -self.z
+        }
+    }
+}
+
+// TODO: Tests
+impl Mul<Vector3> for Vector3{
+    type Output = Vector3;
+    fn mul(self, rhs: Vector3) -> Self::Output {
+        Vector3{
+            x: self.x * rhs.x,
+            y: self.y * rhs.y,
+            z: self.z * rhs.z,
+        }
+    }
+}
+
+// TODO: Tests
+impl Mul<f32> for Vector3 {
+    type Output = Vector3;
+    fn mul(self, rhs: f32) -> Self::Output {
+        Vector3{
+            x: self.x * rhs,
+            y: self.y * rhs,
+            z: self.z * rhs,
         }
     }
 }
