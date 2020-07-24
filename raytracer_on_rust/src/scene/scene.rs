@@ -22,7 +22,8 @@ use crate::{
         Light,
         LightDistance,
         DirectionalLight,
-        SphericalLight
+        SphericalLight,
+        LightsContainer
     }
 };
 // Использование соседних файликов через super
@@ -37,8 +38,8 @@ pub struct Scene {
     pub height: u32,
     pub fov: f32,
     pub ambient_light_intensivity: f32,
-    pub lights: Vec<Box<dyn Light>>,
-    pub figures: Vec<Box<dyn Figure>>,
+    pub lights: LightsContainer,
+    pub figures: Vec<Box<dyn Figure>>, // TODO: Заменить на более быстрый контейнер
 }
 
 impl Scene {
@@ -129,7 +130,7 @@ impl Scene {
         // Идем по всем источникам света и получаем суммарный свет
         let directional_light_intensivity: f32 = self.lights
             .iter()
-            .map(|light|{
+            .map(|light: &dyn Light|{
                 // Направление к свету
                 let direction_to_light = light.direction_to_light(&intersection.hit_point);
 
@@ -257,47 +258,51 @@ pub fn build_test_scene() -> Scene {
     ];
 
 
-    let lights: Vec<Box<dyn Light>> = vec![
-        Box::new(DirectionalLight{
-            direction: Vector3{
-                x: 0.0,
-                y: -1.0,
-                z: -1.0
-            }.normalize(),
-            color: Color{
-                red: 1.0,
-                green: 1.0,
-                blue: 1.0
+    let lights: LightsContainer = LightsContainer{
+        directional: vec![
+            DirectionalLight{
+                direction: Vector3{
+                    x: 0.0,
+                    y: -1.0,
+                    z: -1.0
+                }.normalize(),
+                color: Color{
+                    red: 1.0,
+                    green: 1.0,
+                    blue: 1.0
+                },
+                intensity: 0.3
             },
-            intensity: 0.3
-        }),
-        Box::new(DirectionalLight{
-            direction: Vector3{
-                x: 1.0,
-                y: -1.0,
-                z: -1.0
-            }.normalize(),
-            color: Color{
-                red: 1.0,
-                green: 1.0,
-                blue: 1.0
-            },
-            intensity: 0.2
-        }),
-        Box::new(SphericalLight{
-            position: Vector3{
-                x: -1.0,
-                y: 1.0,
-                z: 0.0
-            },
-            color: Color{
-                red: 1.0,
-                green: 1.0,
-                blue: 1.0
-            },
-            intensity: 0.9
-        }),
-    ];
+            DirectionalLight{
+                direction: Vector3{
+                    x: 1.0,
+                    y: -1.0,
+                    z: -1.0
+                }.normalize(),
+                color: Color{
+                    red: 1.0,
+                    green: 1.0,
+                    blue: 1.0
+                },
+                intensity: 0.2
+            }
+        ],
+        spherical: vec![
+            SphericalLight{
+                position: Vector3{
+                    x: -1.0,
+                    y: 1.0,
+                    z: 0.0
+                },
+                color: Color{
+                    red: 1.0,
+                    green: 1.0,
+                    blue: 1.0
+                },
+                intensity: 0.9
+            }
+        ]
+    };
 
     let scene = Scene {
         width: 800,
