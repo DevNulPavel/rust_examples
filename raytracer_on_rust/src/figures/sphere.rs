@@ -1,10 +1,6 @@
 use crate::{
     traits::{
-        Intersectable,
         Dotable,
-        Colorable,
-        Normalable,
-        Figure,
         Normalizable
     },
     structs::{
@@ -13,6 +9,14 @@ use crate::{
     },
     render::{
         Ray
+    }
+};
+use super::{
+    traits::{
+        Intersectable,
+        Colorable,
+        Figure,
+        Normalable
     }
 };
 

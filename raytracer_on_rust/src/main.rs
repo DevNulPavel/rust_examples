@@ -3,6 +3,7 @@ mod structs;
 mod render;
 mod scene;
 mod figures;
+mod light;
 
 use std::{
     path::{

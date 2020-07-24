@@ -1,6 +1,5 @@
 mod intersection;
 mod scene;
-mod light;
 
 // Экспортировать можно с помощью self из текущего модуля
 pub(crate) use self::{

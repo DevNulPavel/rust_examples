@@ -33,12 +33,12 @@ impl Ray {
 
         // Расчет соотношения сторон
         assert!(scene.width > scene.height);
-        let aspect_ratio = (scene.width as f64) / (scene.height as f64);
+        let aspect_ratio = (scene.width as f32) / (scene.height as f32);
 
         // Приводим значения к диапазону от -1.0 к 1.0 как в OpenGL/DirectX/Metal/Vulkan
         // Направление x - слева направо, y - снизу вверх, z  - от нас
-        let sensor_x = ((((x as f64 + 0.5) / scene.width as f64) * 2.0 - 1.0) * aspect_ratio * fov_adjustment) as f32;
-        let sensor_y = ((1.0 - ((y as f64 + 0.5) / scene.height as f64) * 2.0) * fov_adjustment) as f32;
+        let sensor_x = ((((x as f32 + 0.5) / scene.width as f32) * 2.0 - 1.0) * aspect_ratio * fov_adjustment) as f32;
+        let sensor_y = ((1.0 - ((y as f32 + 0.5) / scene.height as f32) * 2.0) * fov_adjustment) as f32;
    
         // Создаем направление луча рендеринга в нормализованном виде
         let dir = Vector3::new(sensor_x, sensor_y, -1.0).normalize();
@@ -65,7 +65,7 @@ pub fn render(scene: &Scene) -> DynamicImage {
             let ray = Ray::create_prime(x, y, scene);
 
             // Ближайшее пересечение с объектом
-            let intersection: Option<Intersection<'_>> = scene.trace_intersection(&ray);
+            let intersection: Option<Intersection<'_>> = scene.trace_nearest_intersection(&ray);
 
             // Если нашлось - считаем свет
             if let Some(intersection) = intersection{

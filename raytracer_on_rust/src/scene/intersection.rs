@@ -1,5 +1,5 @@
 use crate::{
-    traits::{
+    figures::{
         Figure
     },
     structs::{

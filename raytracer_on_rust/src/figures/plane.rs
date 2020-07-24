@@ -1,10 +1,6 @@
 use crate::{
     traits::{
-        Intersectable,
-        Dotable,
-        Colorable,
-        Figure,
-        Normalable
+        Dotable
     },
     structs::{
         Vector3,
@@ -12,6 +8,14 @@ use crate::{
     },
     render::{
         Ray
+    }
+};
+use super::{
+    traits::{
+        Intersectable,
+        Colorable,
+        Figure,
+        Normalable
     }
 };
 
