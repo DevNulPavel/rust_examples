@@ -1,3 +1,8 @@
+use rayon::{
+    prelude::{
+        *
+    }
+};
 use image::{
     Pixel,
     GenericImage,
@@ -51,15 +56,48 @@ impl Ray {
     }
 }
 
+// TODO: Включать или нет многопоточный вариант с помощью фич
 pub fn render(scene: &Scene) -> DynamicImage {
-    // Создание изображения
-    let mut image = DynamicImage::new_rgb8(scene.width, scene.height);
-    
+    // Обходим все строки и столбцы картинки
     // Создаем базовый цвет
     let black = Rgba::from_channels(0, 0, 0, 0);
+
+    /*let mut data = Vec::new();
+    data.resize((scene.width * scene.height) as usize, black);
+    data
+        .par_iter_mut()
+        .enumerate()
+        .for_each(|(index, color)| {
+            let x = index as u32 % scene.width;
+            let y = index as u32 / scene.width;
+            let ray = Ray::create_prime(x, y, scene);
+
+            // Ближайшее пересечение с объектом
+            let intersection: Option<Intersection<'_>> = scene.trace_nearest_intersection(&ray);
+
+            // Если нашлось - считаем свет
+            if let Some(intersection) = intersection{
+                // Расчет цвета в найденном пересечении
+                let result_color = scene.calculate_intersection_color(&intersection);
+
+                // Установка пикселя
+                *color = result_color.to_rgba();
+            }
+        });
     
-    // Обходим все строки и столбцы картинки
-    // TODO: Rayon и многопоточность
+    let mut image = DynamicImage::new_rgb8(scene.width, scene.height);
+    data
+        .into_iter()
+        .enumerate()
+        .for_each(|(index, color)|{
+            let x = index as u32 % scene.width;
+            let y = index as u32 / scene.width;
+            image.put_pixel(x, y, color);
+        });*/
+
+    // Создание изображения
+    let mut image = DynamicImage::new_rgb8(scene.width, scene.height);
+
     for x in 0..scene.width {
         for y in 0..scene.height {
             let ray = Ray::create_prime(x, y, scene);
@@ -80,6 +118,7 @@ pub fn render(scene: &Scene) -> DynamicImage {
             }
         }
     }
+
     image
 }
 
