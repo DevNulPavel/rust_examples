@@ -7,6 +7,9 @@ pub(crate) use self::{
     traits::{
         Figure
     },
+    figures_container::{
+        FiguresContainer
+    },
     sphere::{
         Sphere
     },

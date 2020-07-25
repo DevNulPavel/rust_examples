@@ -4,6 +4,7 @@ mod render;
 mod scene;
 mod figures;
 mod light;
+mod material;
 
 use std::{
     path::{

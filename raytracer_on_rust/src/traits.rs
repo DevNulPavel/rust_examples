@@ -21,3 +21,9 @@ pub trait Dotable {
     type Operand;
     fn dot(&self, other: &Self::Operand) -> f32;
 }
+
+/*pub trait Iterable{
+    type Item;
+    type Out: Iterator<Item=&'a dyn Self::Item>;
+    fn iter<'a>(&'a self) -> Self::Out;
+}*/

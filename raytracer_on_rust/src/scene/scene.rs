@@ -11,6 +11,7 @@ use crate::{
         Color
     },
     figures::{
+        FiguresContainer,
         Figure,
         Sphere,
         Plane
@@ -39,7 +40,7 @@ pub struct Scene {
     pub fov: f32,
     pub ambient_light_intensivity: f32,
     pub lights: LightsContainer,
-    pub figures: Vec<Box<dyn Figure>>, // TODO: Заменить на более быстрый контейнер
+    pub figures: FiguresContainer,
 }
 
 impl Scene {
@@ -71,7 +72,7 @@ impl Scene {
                 let hit_point: Vector3 = ray.origin + (ray.direction * d);
 
                 // Объект
-                let figure: &'a dyn Figure = s.as_ref();
+                let figure: &'a dyn Figure = s;
 
                 Intersection::new(d, hit_point, figure)
             }))
@@ -112,7 +113,7 @@ impl Scene {
                 let hit_point: Vector3 = ray.origin + (ray.direction * d);
 
                 // Объект
-                let figure: &'a dyn Figure = s.as_ref();
+                let figure: &'a dyn Figure = s;
 
                 Intersection::new(d, hit_point, figure)
             }))
@@ -193,69 +194,73 @@ impl Scene {
 
 pub fn build_test_scene() -> Scene {
     // Список сфер
-    let figures: Vec<Box<dyn Figure>> = vec![
+    let figures: FiguresContainer = FiguresContainer{
         // 1
-        Box::new(Sphere {
-            center: Vector3 {
-                x: 0.0,
-                y: 0.0,
-                z: -5.0,
+        spheres: vec![
+            Sphere {
+                center: Vector3 {
+                    x: 0.0,
+                    y: 0.0,
+                    z: -5.0,
+                },
+                radius: 0.8,
+                diffuse_color: Color {
+                    red: 0.4,
+                    green: 1.0,
+                    blue: 0.4,
+                },
+                albedo_color: Color {
+                    red: 0.4,
+                    green: 1.0,
+                    blue: 0.4,
+                }
             },
-            radius: 0.8,
-            diffuse_color: Color {
-                red: 0.4,
-                green: 1.0,
-                blue: 0.4,
-            },
-            albedo_color: Color {
-                red: 0.4,
-                green: 1.0,
-                blue: 0.4,
+            // 2
+            Sphere {
+                center: Vector3 {
+                    x: 1.0,
+                    y: 1.0,
+                    z: -3.0,
+                },
+                radius: 1.0,
+                diffuse_color: Color {
+                    red: 0.0,
+                    green: 0.0,
+                    blue: 0.9,
+                },
+                albedo_color: Color {
+                    red: 0.0,
+                    green: 0.0,
+                    blue: 0.9,
+                }
             }
-        }),
-        // 2
-        Box::new(Sphere {
-            center: Vector3 {
-                x: 1.0,
-                y: 1.0,
-                z: -3.0,
-            },
-            radius: 1.0,
-            diffuse_color: Color {
-                red: 0.0,
-                green: 0.0,
-                blue: 0.9,
-            },
-            albedo_color: Color {
-                red: 0.0,
-                green: 0.0,
-                blue: 0.9,
-            }
-        }),
+        ],
         // 3
-        Box::new(Plane {
-            origin: Vector3 {
-                x: 0.0,
-                y: -2.0,
-                z: -3.0,
-            },
-            normal: Vector3 {
-                x: 0.0,
-                y: -1.0,
-                z: 0.0,
-            },
-            diffuse_color: Color {
-                red: 1.0,
-                green: 0.0,
-                blue: 0.2,
-            },
-            albedo_color: Color {
-                red: 1.0,
-                green: 0.0,
-                blue: 0.2,
-            },
-        }),
-    ];
+        planes: vec![
+            Plane {
+                origin: Vector3 {
+                    x: 0.0,
+                    y: -2.0,
+                    z: -3.0,
+                },
+                normal: Vector3 {
+                    x: 0.0,
+                    y: -1.0,
+                    z: 0.0,
+                },
+                diffuse_color: Color {
+                    red: 1.0,
+                    green: 0.0,
+                    blue: 0.2,
+                },
+                albedo_color: Color {
+                    red: 1.0,
+                    green: 0.0,
+                    blue: 0.2,
+                },
+            }
+        ],
+    };
 
 
     let lights: LightsContainer = LightsContainer{
