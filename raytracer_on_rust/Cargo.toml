@@ -6,6 +6,10 @@ version = "0.1.0"
 authors = ["Pavel Ershov <pershov@game-insight.com>"]
 edition = "2018"
 
+[features]
+default = []        # Дефолтные фичи
+multi_threaded = ["rayon"]  # Фича многопоточности, для которой нужен rayon
+
 [dependencies]
 image = "0.23.7"
-rayon = "1.3.1"
+rayon = { version = "1.3.1", optional = true } # Помечаем как optional, чтобы работала условная компиляция

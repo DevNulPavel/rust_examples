@@ -4,7 +4,7 @@ use crate::{
     }
 };
 
-pub struct Material {
+pub struct _Material {
     pub color: Color,
     pub albedo: f32,
 }

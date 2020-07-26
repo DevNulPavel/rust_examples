@@ -1,3 +1,4 @@
+#[cfg(feature = "multi_threaded")]
 use rayon::{
     prelude::{
         *
@@ -56,13 +57,13 @@ impl Ray {
     }
 }
 
-// TODO: Включать или нет многопоточный вариант с помощью фич
+#[cfg(feature = "multi_threaded")]
 pub fn render(scene: &Scene) -> DynamicImage {
     // Обходим все строки и столбцы картинки
     // Создаем базовый цвет
     let black = Rgba::from_channels(0, 0, 0, 0);
 
-    /*let mut data = Vec::new();
+    let mut data = Vec::new();
     data.resize((scene.width * scene.height) as usize, black);
     data
         .par_iter_mut()
@@ -93,7 +94,16 @@ pub fn render(scene: &Scene) -> DynamicImage {
             let x = index as u32 % scene.width;
             let y = index as u32 / scene.width;
             image.put_pixel(x, y, color);
-        });*/
+        });
+
+    return image;
+}
+
+#[cfg(not(feature = "multi_threaded"))]
+pub fn render(scene: &Scene) -> DynamicImage {
+    // Обходим все строки и столбцы картинки
+    // Создаем базовый цвет
+    let black = Rgba::from_channels(0, 0, 0, 0);
 
     // Создание изображения
     let mut image = DynamicImage::new_rgb8(scene.width, scene.height);
@@ -119,7 +129,7 @@ pub fn render(scene: &Scene) -> DynamicImage {
         }
     }
 
-    image
+    return image;
 }
 
 /*#[cfg(tests)]
