@@ -1,10 +1,12 @@
-use crate::{
-    structs::{
-        Color
+mod traits;
+mod solid_color_material;
+mod texture_material;
+
+pub use self::{
+    traits::{
+        Material
+    },
+    solid_color_material::{
+        SolidColorMaterial
     }
 };
-
-pub struct _Material {
-    pub color: Color,
-    pub albedo: f32,
-}

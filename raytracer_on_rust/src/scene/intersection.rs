@@ -3,7 +3,8 @@ use crate::{
         Figure
     },
     structs::{
-        Vector3
+        Vector3,
+        Color
     }
 };
 
@@ -22,7 +23,13 @@ impl<'a> Intersection<'a> {
         }
     }
 
+    /// Для найденной фигуры и точки пересечения получаем нормаль в этой точке
     pub fn get_normal(&self) -> Vector3{
         self.object.normal_at(&self.hit_point)
+    }
+
+    /// Для найденной фигуры и точки пересечения получаем цвет в этой точке
+    pub fn get_color(&self) -> Color {
+        self.object.color_at(&self.hit_point)
     }
 }

@@ -11,8 +11,7 @@ use crate::{
         Length,
         Zero,
         Normalizable,
-        Dotable,
-        Crossable
+        Dotable
     }
 };
 
@@ -59,130 +58,108 @@ impl Point{
 //////////////////////////////////////////////////////////////////////
 
 #[derive(Default, Copy, Clone)]
-pub struct Vector3 {
+pub struct Vector2 {
     pub x: f32,
-    pub y: f32,
-    pub z: f32,
+    pub y: f32
 }
 
-impl Zero for Vector3 {
+impl Zero for Vector2 {
     fn zero() -> Self {
-        Vector3{
+        Vector2{
             x: 0.0_f32,
-            y: 0.0_f32,
-            z: 0.0_f32,
+            y: 0.0_f32
         }   
     }
 }
 
-impl Length for Vector3{
+impl Length for Vector2{
     fn length(&self) -> f32 {
-        let length: f32 = (self.x*self.x + self.y * self.y + self.z*self.z).sqrt();
+        let length: f32 = (self.x*self.x + self.y * self.y).sqrt();
         length
     }
 }
 
-impl Normalizable for Vector3{
+impl Normalizable for Vector2{
     fn normalize(&self) -> Self{
         let length: f32 = self.length();
         assert!(length != 0.0_f32);
-        Vector3{
+        Vector2{
             x: self.x / length,
-            y: self.y / length,
-            z: self.z / length,
+            y: self.y / length
         }
     }
 }
 
 // TODO: Test
-impl Dotable for Vector3{
-    type Operand = Vector3;
+impl Dotable for Vector2{
+    type Operand = Vector2;
     fn dot(&self, other: &Self::Operand) -> f32 {
-            self.x * other.x 
-            + self.y * other.y 
-            + self.z * other.z
+            self.x * other.x + 
+            self.y * other.y
     }
 }
 
-// TODO: Tests
-impl Crossable for Vector3 {
-    fn cross(&self, other: &Self) -> Self {
-        // Векторное произведение
-        // https://ravesli.com/urok-7-transformatsii-v-opengl/#toc-6
-        Vector3{
-            x: self.y * other.z - self.z * other.y,
-            y: self.z * other.x - self.x * other.z,
-            z: self.x * other.y - self.y * other.x
-        }
-    }
-}
 
 // TODO: Tests
-impl Sub for Vector3{
-    type Output = Vector3;
+impl Sub for Vector2{
+    type Output = Vector2;
     fn sub(self, rhs: Self) -> Self::Output {
-        Vector3{
+        Vector2{
             x: self.x - rhs.x,
-            y: self.y - rhs.y,
-            z: self.z - rhs.z,
+            y: self.y - rhs.y
         }  
     }
 }
 
 // TODO: Tests
-impl Add for Vector3{
-    type Output = Vector3;
+impl Add for Vector2{
+    type Output = Vector2;
     fn add(self, rhs: Self) -> Self::Output {
-        Vector3{
+        Vector2{
             x: self.x + rhs.x,
-            y: self.y + rhs.y,
-            z: self.z + rhs.z,
+            y: self.y + rhs.y
         }  
     }
 }
 
 // TODO: Tests
-impl Neg for Vector3{
-    type Output = Vector3;
+impl Neg for Vector2{
+    type Output = Vector2;
     fn neg(self) -> Self::Output {
-        Vector3{
+        Vector2{
             x: -self.x,
-            y: -self.y,
-            z: -self.z
+            y: -self.y
         }
     }
 }
 
 // TODO: Tests
-impl Mul<Vector3> for Vector3{
-    type Output = Vector3;
-    fn mul(self, rhs: Vector3) -> Self::Output {
-        Vector3{
+impl Mul<Vector2> for Vector2{
+    type Output = Vector2;
+    fn mul(self, rhs: Vector2) -> Self::Output {
+        Vector2{
             x: self.x * rhs.x,
-            y: self.y * rhs.y,
-            z: self.z * rhs.z,
+            y: self.y * rhs.y
         }
     }
 }
 
 // TODO: Tests
-impl Mul<f32> for Vector3 {
-    type Output = Vector3;
+impl Mul<f32> for Vector2 {
+    type Output = Vector2;
     fn mul(self, rhs: f32) -> Self::Output {
-        Vector3{
+        Vector2{
             x: self.x * rhs,
-            y: self.y * rhs,
-            z: self.z * rhs,
+            y: self.y * rhs
         }
     }
 }
 
-impl Vector3{
-    pub fn new(x: f32, y: f32, z: f32) -> Vector3{
-        Vector3{
+impl Vector2{
+    pub fn new(x: f32, y: f32, z: f32) -> Vector2{
+        Vector2{
             x,
-            y, 
-            z
+            y
         }
     }
 }

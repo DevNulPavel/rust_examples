@@ -1,10 +1,16 @@
 use crate::{
     traits::{
-        Dotable
+        Dotable,
+        Crossable,
+        Length
     },
     structs::{
+        Vector2,
         Vector3,
         Color
+    },
+    material::{
+        Material,
     },
     render::{
         Ray
@@ -13,33 +19,57 @@ use crate::{
 use super::{
     traits::{
         Intersectable,
+        Normalable,
+        Texturable,
         Colorable,
-        Figure,
-        Normalable
+        Figure
     }
 };
 
 pub struct Plane {
     pub origin: Vector3,
     pub normal: Vector3,
-    pub diffuse_color: Color,
-    pub albedo_color: Color,
+    pub material: Box<dyn Material> // TODO: Может можно побыстрее
 }
 
-impl Colorable for Plane {
-    fn get_diffuse_color<'a>(&'a self) -> &'a Color{
-        let ref color = self.diffuse_color;
-        color
+impl Texturable for Plane {
+    fn tex_coords_at(&self, hit_point: &Vector3) -> Vector2 {
+        // Сначала находим оси нашей плоскости
+        // https://bheisler.github.io/post/writing-raytracer-in-rust-part-3/
+        let mut x_axis = self.normal.cross(&Vector3 {
+            x: 0.0,
+            y: 0.0,
+            z: 1.0,
+        });
+        if x_axis.length() == 0.0 {
+            x_axis = self.normal.cross(&Vector3 {
+                x: 0.0,
+                y: 1.0,
+                z: 0.0,
+            });
+        }
+        let y_axis = self.normal.cross(&x_axis);
+        // TODO: Разобраться 
+        let hit_vec = *hit_point - self.origin;
+        Vector2 {
+            x: hit_vec.dot(&x_axis),
+            y: hit_vec.dot(&y_axis),
+        }
     }
+}
 
-    fn get_albedo_color<'a>(&'a self) -> &'a Color{
-        let ref color = self.albedo_color;
+impl Colorable for Plane{
+    fn color_at(&self, hit_point: &Vector3) -> Color {
+        let color = self.material.get_color_at_tex_coord(&||{
+            self.tex_coords_at(hit_point)
+        });
         color
     }
 }
 
 // Реализация проверки пересечения с лучем
 impl Intersectable for Plane {
+    // TODO: Разобраться
     // Возвращает расстояние от начала луча до точки пересечения со сферой
     fn intersect(&self, ray: &Ray) -> Option<f32> {
         let normal = &self.normal;

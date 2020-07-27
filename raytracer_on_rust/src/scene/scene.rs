@@ -10,6 +10,9 @@ use crate::{
         Vector3,
         Color
     },
+    material::{
+        Material
+    },
     figures::{
         FiguresContainer,
         Figure,
@@ -182,7 +185,7 @@ impl Scene {
             .min(1.0_f32);
 
         // Стандартный цвет объекта
-        let diffuse_color = intersection.object.get_diffuse_color().clone();
+        let diffuse_color = intersection.get_color();
 
         // Финальный цвет
         let result_color: Color = diffuse_color * directional_light_intensivity;
@@ -204,15 +207,12 @@ pub fn build_test_scene() -> Scene {
                     z: -5.0,
                 },
                 radius: 0.8,
-                diffuse_color: Color {
-                    red: 0.4,
-                    green: 1.0,
-                    blue: 0.4,
-                },
-                albedo_color: Color {
-                    red: 0.4,
-                    green: 1.0,
-                    blue: 0.4,
+                material: Material{
+                    diffuse_color: Color {
+                        red: 0.4,
+                        green: 1.0,
+                        blue: 0.4,
+                    }    
                 }
             },
             // 2
@@ -223,15 +223,12 @@ pub fn build_test_scene() -> Scene {
                     z: -3.0,
                 },
                 radius: 1.0,
-                diffuse_color: Color {
-                    red: 0.0,
-                    green: 0.0,
-                    blue: 0.9,
-                },
-                albedo_color: Color {
-                    red: 0.0,
-                    green: 0.0,
-                    blue: 0.9,
+                material: Material{
+                    diffuse_color: Color {
+                        red: 1.0,
+                        green: 0.1,
+                        blue: 0.3,
+                    }    
                 }
             }
         ],
@@ -248,16 +245,13 @@ pub fn build_test_scene() -> Scene {
                     y: -1.0,
                     z: 0.0,
                 },
-                diffuse_color: Color {
-                    red: 1.0,
-                    green: 0.0,
-                    blue: 0.2,
-                },
-                albedo_color: Color {
-                    red: 1.0,
-                    green: 0.0,
-                    blue: 0.2,
-                },
+                material: Material{
+                    diffuse_color: Color {
+                        red: 0.3,
+                        green: 0.3,
+                        blue: 1.0,
+                    }    
+                }
             }
         ],
     };

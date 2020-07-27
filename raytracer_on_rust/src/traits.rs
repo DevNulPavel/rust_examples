@@ -22,6 +22,10 @@ pub trait Dotable {
     fn dot(&self, other: &Self::Operand) -> f32;
 }
 
+pub trait Crossable {
+    fn cross(&self, other: &Self) -> Self;
+}
+
 /*pub trait Iterable{
     type Item;
     type Out: Iterator<Item=&'a dyn Self::Item>;

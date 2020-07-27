@@ -4,37 +4,54 @@ use crate::{
         Normalizable
     },
     structs::{
+        Vector2,
         Vector3,
         Color
     },
     render::{
         Ray
+    },
+    material::{
+        Material
     }
 };
 use super::{
     traits::{
         Intersectable,
-        Colorable,
         Figure,
-        Normalable
+        Normalable,
+        Texturable,
+        Colorable
     }
 };
 
 pub struct Sphere {
     pub center: Vector3,
     pub radius: f32,
-    pub diffuse_color: Color,
-    pub albedo_color: Color,
+    pub material: Box<dyn Material> // TODO: Может можно побыстрее
 }
 
-impl Colorable for Sphere {
-    fn get_diffuse_color<'a>(&'a self) -> &'a Color{
-        let ref color = self.diffuse_color;
-        color
+impl Texturable for Sphere {
+    fn tex_coords_at(&self, hit_point: &Vector3) -> Vector2 {
+        // Получаем вектор из центра к точке соприкосновения
+        let hit_vec = *hit_point - self.center;
+        // TODO: Расчет
+        // https://bheisler.github.io/post/writing-raytracer-in-rust-part-3/
+        const PI: f32 = std::f32::consts::PI;
+        let x = (1.0_f32 + (hit_vec.z.atan2(hit_vec.x)) / PI) * 0.5_f32;
+        let y = (hit_vec.y / self.radius).acos() / PI;
+        Vector2 {
+            x,
+            y,
+        }
     }
+}
 
-    fn get_albedo_color<'a>(&'a self) -> &'a Color{
-        let ref color = self.albedo_color;
+impl Colorable for Sphere{
+    fn color_at(&self, hit_point: &Vector3) -> Color {
+        let color = self.material.get_color_at_tex_coord(&||{
+            self.tex_coords_at(hit_point)
+        });
         color
     }
 }
