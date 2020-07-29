@@ -12,7 +12,8 @@ use crate::{
         Ray
     },
     material::{
-        Material
+        MaterialsContainer,
+        TexCoordDelegate
     }
 };
 use super::{
@@ -28,7 +29,7 @@ use super::{
 pub struct Sphere {
     pub center: Vector3,
     pub radius: f32,
-    pub material: Box<dyn Material> // TODO: Может можно побыстрее
+    pub material: MaterialsContainer
 }
 
 impl Texturable for Sphere {
@@ -49,9 +50,11 @@ impl Texturable for Sphere {
 
 impl Colorable for Sphere{
     fn color_at(&self, hit_point: &Vector3) -> Color {
-        let color = self.material.get_color_at_tex_coord(&||{
-            self.tex_coords_at(hit_point)
-        });
+        let tex_coord_delegate = TexCoordDelegate{
+            target: self,
+            hit_point: hit_point
+        };
+        let color = self.material.get_material().get_color_at_tex_coord(tex_coord_delegate);
         color
     }
 }

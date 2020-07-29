@@ -1,3 +1,8 @@
+use std::{
+    path::{
+        Path
+    }
+};
 // Использование общих трейтов и классов через crate от корня
 use crate::{
     traits::{
@@ -11,7 +16,9 @@ use crate::{
         Color
     },
     material::{
-        Material
+        MaterialsContainer,
+        SolidColorMaterial,
+        TextureMaterial
     },
     figures::{
         FiguresContainer,
@@ -207,13 +214,13 @@ pub fn build_test_scene() -> Scene {
                     z: -5.0,
                 },
                 radius: 0.8,
-                material: Material{
-                    diffuse_color: Color {
+                material: MaterialsContainer::Solid(SolidColorMaterial{
+                    diffuse_solid_color: Color {
                         red: 0.4,
                         green: 1.0,
                         blue: 0.4,
-                    }    
-                }
+                    }
+                })
             },
             // 2
             Sphere {
@@ -223,13 +230,13 @@ pub fn build_test_scene() -> Scene {
                     z: -3.0,
                 },
                 radius: 1.0,
-                material: Material{
-                    diffuse_color: Color {
+                material: MaterialsContainer::Solid(SolidColorMaterial{
+                    diffuse_solid_color: Color {
                         red: 1.0,
                         green: 0.1,
                         blue: 0.3,
-                    }    
-                }
+                    }
+                })
             }
         ],
         // 3
@@ -245,13 +252,9 @@ pub fn build_test_scene() -> Scene {
                     y: -1.0,
                     z: 0.0,
                 },
-                material: Material{
-                    diffuse_color: Color {
-                        red: 0.3,
-                        green: 0.3,
-                        blue: 1.0,
-                    }    
-                }
+                material: MaterialsContainer::Texture(TextureMaterial{
+                    texture: image::open(Path::new("res/grass.jpg")).unwrap()
+                })
             }
         ],
     };

@@ -5,7 +5,8 @@ mod figures_container;
 
 pub(crate) use self::{
     traits::{
-        Figure
+        Figure,
+        Texturable
     },
     figures_container::{
         FiguresContainer

@@ -156,7 +156,8 @@ impl Mul<f32> for Vector2 {
 }
 
 impl Vector2{
-    pub fn new(x: f32, y: f32, z: f32) -> Vector2{
+    #[allow(unused)]
+    pub fn new(x: f32, y: f32) -> Vector2{
         Vector2{
             x,
             y

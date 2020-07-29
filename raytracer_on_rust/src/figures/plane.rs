@@ -10,7 +10,8 @@ use crate::{
         Color
     },
     material::{
-        Material,
+        MaterialsContainer,
+        TexCoordDelegate
     },
     render::{
         Ray
@@ -29,7 +30,7 @@ use super::{
 pub struct Plane {
     pub origin: Vector3,
     pub normal: Vector3,
-    pub material: Box<dyn Material> // TODO: Может можно побыстрее
+    pub material: MaterialsContainer
 }
 
 impl Texturable for Plane {
@@ -60,9 +61,11 @@ impl Texturable for Plane {
 
 impl Colorable for Plane{
     fn color_at(&self, hit_point: &Vector3) -> Color {
-        let color = self.material.get_color_at_tex_coord(&||{
-            self.tex_coords_at(hit_point)
-        });
+        let tex_coord_delegate = TexCoordDelegate{
+            target: self,
+            hit_point: hit_point
+        };
+        let color = self.material.get_material().get_color_at_tex_coord(tex_coord_delegate);
         color
     }
 }

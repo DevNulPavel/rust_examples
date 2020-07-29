@@ -1,12 +1,14 @@
 use crate::{
     structs::{
-        Color,
-        Vector2
+        Color
     }
 };
 use super::{
     traits::{
         Material
+    },
+    tex_coord_delegate::{
+        TexCoordDelegate
     }
 };
 
@@ -15,7 +17,7 @@ pub struct SolidColorMaterial{
 }
 
 impl Material for SolidColorMaterial {
-    fn get_color_at_tex_coord(&self, _: &dyn FnOnce() -> Vector2) -> Color {
+    fn get_color_at_tex_coord(&self, _: TexCoordDelegate) -> Color {
         return self.diffuse_solid_color;
     }
 }

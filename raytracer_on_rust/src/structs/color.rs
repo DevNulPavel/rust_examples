@@ -4,7 +4,8 @@ use std::{
     }
 };
 use image::{
-    Rgba
+    Rgba,
+    Rgb
 };
 use crate::{
     traits::{
@@ -58,5 +59,25 @@ impl Color {
         let g = (self.green * 255.0) as u8;
         let b = (self.blue * 255.0) as u8;
         Rgba([r, g, b, 255])
+    }
+    pub fn from_rgba(pixel: &Rgba<u8>) -> Color {
+        let r = pixel.0[0] as f32 / 255.0_f32;
+        let g = pixel.0[1] as f32 / 255.0_f32;
+        let b = pixel.0[2] as f32 / 255.0_f32;
+        Color{
+            red: r,
+            green: g,
+            blue: b
+        }
+    }
+    pub fn from_rgb(pixel: &Rgb<u8>) -> Color {
+        let r = pixel.0[0] as f32 / 255.0_f32;
+        let g = pixel.0[1] as f32 / 255.0_f32;
+        let b = pixel.0[2] as f32 / 255.0_f32;
+        Color{
+            red: r,
+            green: g,
+            blue: b
+        }
     }
 }

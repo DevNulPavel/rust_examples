@@ -3,13 +3,15 @@ use image::{
 };
 use crate::{
     structs::{
-        Color,
-        Vector2
+        Color
     }
 };
 use super::{
     traits::{
         Material
+    },
+    tex_coord_delegate::{
+        TexCoordDelegate
     }
 };
 
@@ -29,10 +31,28 @@ pub struct TextureMaterial{
 }
 
 impl Material for TextureMaterial {
-    fn get_color_at_tex_coord(&self, get_tex_coord_delegate: &dyn FnOnce() -> Vector2) -> Color {
-        let tex_coord = get_tex_coord_delegate();
-        let tex_x = wrap(tex_coord.x, self.texture.width());
-        let tex_y = wrap(tex_coord.y, self.texture.height());
-        Color::from_rgba(self.texture.get_pixel(tex_x, tex_y))
+    fn get_color_at_tex_coord(&self, get_tex_coord_delegate: TexCoordDelegate) -> Color {
+        let tex_coord = get_tex_coord_delegate.get_tex_coord();
+    
+        // TODO: Убрать дублирование кода
+        match self.texture {
+            DynamicImage::ImageRgb8(ref texture) => {
+                let tex_x = wrap(tex_coord.x, texture.width());
+                let tex_y = wrap(tex_coord.y, texture.height());
+    
+                let pixel = texture.get_pixel(tex_x, tex_y);
+                Color::from_rgb(pixel)
+            }
+            DynamicImage::ImageRgba8(ref texture) => {
+                let tex_x = wrap(tex_coord.x, texture.width());
+                let tex_y = wrap(tex_coord.y, texture.height());
+    
+                let pixel = texture.get_pixel(tex_x, tex_y);
+                Color::from_rgba(pixel)
+            }
+            _ =>{
+                panic!("Invalid image format")
+            }
+        }
     }
 }
