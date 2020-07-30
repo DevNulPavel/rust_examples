@@ -3,7 +3,8 @@ use image::{
 };
 use crate::{
     structs::{
-        Color
+        Color,
+        Vector2
     }
 };
 use super::{
@@ -26,6 +27,20 @@ fn wrap(val: f32, bound: u32) -> u32 {
     }
 }
 
+// Макрос для устранения дублирования кода
+macro_rules! get_pixel {
+    ($tex_coord:ident, $texture:ident) => {
+        {
+            let tex_x = wrap($tex_coord.x, $texture.width());
+            let tex_y = wrap($tex_coord.y, $texture.height());
+
+            let pixel = $texture.get_pixel(tex_x, tex_y);
+            
+            pixel
+        }
+    };
+}
+
 pub struct TextureMaterial{
     pub texture: DynamicImage
 }
@@ -34,20 +49,13 @@ impl Material for TextureMaterial {
     fn get_color_at_tex_coord(&self, get_tex_coord_delegate: TexCoordDelegate) -> Color {
         let tex_coord = get_tex_coord_delegate.get_tex_coord();
     
-        // TODO: Убрать дублирование кода
         match self.texture {
             DynamicImage::ImageRgb8(ref texture) => {
-                let tex_x = wrap(tex_coord.x, texture.width());
-                let tex_y = wrap(tex_coord.y, texture.height());
-    
-                let pixel = texture.get_pixel(tex_x, tex_y);
+                let pixel = get_pixel!(tex_coord, texture);
                 Color::from_rgb(pixel)
             }
             DynamicImage::ImageRgba8(ref texture) => {
-                let tex_x = wrap(tex_coord.x, texture.width());
-                let tex_y = wrap(tex_coord.y, texture.height());
-    
-                let pixel = texture.get_pixel(tex_x, tex_y);
+                let pixel = get_pixel!(tex_coord, texture);
                 Color::from_rgba(pixel)
             }
             _ =>{

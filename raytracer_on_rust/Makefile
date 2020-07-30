@@ -15,5 +15,8 @@ BENCH_MULTI_THREAD_UNSAFE:
 	cargo build --release --features "multi_threaded allow_unsafe" && \
 	time ./target/release/raytracer_on_rust
 
+UNIT_TEST:
+	cargo test
+
 CLEAN:
 	cargo clean
