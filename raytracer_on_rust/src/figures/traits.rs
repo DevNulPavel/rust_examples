@@ -4,6 +4,9 @@ use crate::{
         Vector3,
         Color
     },
+    material::{
+        Material
+    },
     render::{
         Ray
     }
@@ -23,8 +26,12 @@ pub trait Colorable{
     fn color_at(&self, hit_point: &Vector3) -> Color;
 }
 
+pub trait Materiable{
+    fn get_material<'a>(&'a self) -> &'a dyn Material;
+}
+
 // Описываем обязательные свойства фигуры
-pub trait Figure: Intersectable + Colorable + Normalable {
+pub trait Figure: Intersectable + Colorable + Normalable + Materiable {
 }
 
 ////////////////////////////////////////////////////////////////////////

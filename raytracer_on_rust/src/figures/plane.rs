@@ -10,6 +10,7 @@ use crate::{
         Color
     },
     material::{
+        Material,
         MaterialsContainer,
         TexCoordDelegate
     },
@@ -23,6 +24,7 @@ use super::{
         Normalable,
         Texturable,
         Colorable,
+        Materiable,
         Figure
     }
 };
@@ -92,6 +94,12 @@ impl Intersectable for Plane {
 impl Normalable for Plane {
     fn normal_at(&self, _: &Vector3) -> Vector3{
         -self.normal
+    }
+}
+
+impl Materiable for Plane{
+    fn get_material<'a>(&'a self) -> &'a dyn Material{
+        self.material.get_material()
     }
 }
 

@@ -12,6 +12,7 @@ use crate::{
         Ray
     },
     material::{
+        Material,
         MaterialsContainer,
         TexCoordDelegate
     }
@@ -22,6 +23,7 @@ use super::{
         Figure,
         Normalable,
         Texturable,
+        Materiable,
         Colorable
     }
 };
@@ -124,6 +126,12 @@ impl Intersectable for Sphere {
 impl Normalable for Sphere {
     fn normal_at(&self, hit_point: &Vector3) -> Vector3{
         (hit_point.clone() - self.center).normalize()
+    }
+}
+
+impl Materiable for Sphere{
+    fn get_material<'a>(&'a self) -> &'a dyn Material{
+        self.material.get_material()
     }
 }
 

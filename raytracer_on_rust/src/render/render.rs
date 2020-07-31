@@ -13,7 +13,8 @@ use image::{
 use crate::{
     traits::{
         Zero,
-        Normalizable
+        Normalizable,
+        Dotable,
     },
     scene::{
         Scene,
@@ -53,6 +54,16 @@ impl Ray {
         Ray {
             origin: Vector3::zero(),
             direction: dir,
+        }
+    }
+
+    pub fn create_reflection(origin: Vector3, 
+                             normal: Vector3, 
+                             direction_to_origin: Vector3, 
+                             bias: f32) -> Ray {
+        Ray {
+            origin: origin + (normal * bias),
+            direction: direction_to_origin - (normal * 2.0 * direction_to_origin.dot(&normal)),
         }
     }
 }
@@ -159,7 +170,7 @@ pub fn render(scene: &Scene) -> DynamicImage {
             // Если нашлось - считаем свет
             if let Some(intersection) = intersection{
                 // Расчет цвета в найденном пересечении
-                let result_color = scene.calculate_intersection_color(&intersection);
+                let result_color = scene.calculate_intersection_color(&ray, &intersection);
 
                 // Установка пикселя
                 image.put_pixel(x, y, result_color.to_rgba());

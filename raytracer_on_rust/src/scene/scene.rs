@@ -8,7 +8,8 @@ use crate::{
     traits::{
         Normalizable,
         Dotable,
-        Clamp
+        Clamp,
+        Zero
         // PixelColor
     },
     structs::{
@@ -49,6 +50,8 @@ pub struct Scene {
     pub height: u32,
     pub fov: f32,
     pub ambient_light_intensivity: f32,
+    pub bias: f32,
+    pub max_recursive_level: u32,
     pub lights: LightsContainer,
     pub figures: FiguresContainer,
 }
@@ -131,8 +134,18 @@ impl Scene {
             .next()
     }
 
+    /// Для найденного пересечения расчитываем цвет пикселя
+    pub fn calculate_intersection_color(&self, ray: &Ray, intersection: &Intersection) -> Color{
+        self.calculate_intersection_color_with_level(ray, intersection, 0)
+    }
+
     // Для найденного пересечения расчитываем цвет пикселя
-    pub fn calculate_intersection_color(&self, intersection: &Intersection) -> Color{
+    fn calculate_intersection_color_with_level(&self, ray: &Ray, intersection: &Intersection, cur_level: u32) -> Color{
+        // Если мы дошли до максимума - выходим
+        if cur_level >= self.max_recursive_level {
+            return Color::zero();
+        }
+
         // https://bheisler.github.io/post/writing-raytracer-in-rust-part-2/
 
         // Нормаль в точке пересечения
@@ -148,7 +161,7 @@ impl Scene {
                 // В из найденной точки пересечения снова пускем луч к источнику света
                 let shadow_ray = {
                     // Делаем небольшое смещение от точки пересечения, чтобы не было z-fight
-                    let shadow_ray_offset = surface_normal * 0.000004_f32;
+                    let shadow_ray_offset = surface_normal * self.bias;
                     Ray {
                         origin: intersection.hit_point + shadow_ray_offset,
                         direction: direction_to_light,
@@ -194,6 +207,29 @@ impl Scene {
         // Стандартный цвет объекта
         let diffuse_color = intersection.get_color();
 
+        // TODO: Учитывать затенения в отражениях
+
+        // Луч отражения если надо
+        let diffuse_color = if let Some(reflection_level) = intersection.object.get_material().get_reflection_level(){
+            // TODO: Убрать рекурсию, либо по-максимуму убрать временные переменные дляснижения потребления памяти
+            // Создаем луч отражения из данной точки
+            let reflection_ray = Ray::create_reflection(intersection.hit_point, 
+                                                        surface_normal,
+                                                        ray.direction,
+                                                        self.bias);
+            let reverse_color = diffuse_color * (1.0 - reflection_level);
+
+            let intersection = self.trace_nearest_intersection(&ray);
+            let reflection_color = intersection
+                .map(|i| {
+                    self.calculate_intersection_color_with_level(&ray, &i, cur_level+1)
+                })
+                .unwrap_or(Color::zero());
+            reverse_color + reflection_color
+        }else{
+            diffuse_color
+        };
+
         // Финальный цвет
         let result_color: Color = diffuse_color * directional_light_intensivity;
         
@@ -219,7 +255,8 @@ pub fn build_test_scene() -> Scene {
                         red: 0.4,
                         green: 1.0,
                         blue: 0.4,
-                    }
+                    },
+                    reflection_level: None
                 })
             },
             // 2
@@ -235,7 +272,8 @@ pub fn build_test_scene() -> Scene {
                         red: 1.0,
                         green: 0.1,
                         blue: 0.3,
-                    }
+                    },
+                    reflection_level: None
                 })
             }
         ],
@@ -253,7 +291,8 @@ pub fn build_test_scene() -> Scene {
                     z: 0.0,
                 },
                 material: MaterialsContainer::Texture(TextureMaterial{
-                    texture: image::open(Path::new("res/grass.jpg")).unwrap()
+                    texture: image::open(Path::new("res/grass.jpg")).unwrap(),
+                    reflection_level: None
                 })
             }
         ],
@@ -311,6 +350,8 @@ pub fn build_test_scene() -> Scene {
         height: 600,
         fov: 90.0,
         ambient_light_intensivity: 0.3,
+        bias: 0.000004_f32,
+        max_reflection_depth: 4,
         lights: lights,
         figures,
     };

@@ -3,8 +3,7 @@ use image::{
 };
 use crate::{
     structs::{
-        Color,
-        Vector2
+        Color
     }
 };
 use super::{
@@ -42,7 +41,8 @@ macro_rules! get_pixel {
 }
 
 pub struct TextureMaterial{
-    pub texture: DynamicImage
+    pub texture: DynamicImage,
+    pub reflection_level: Option<f32>
 }
 
 impl Material for TextureMaterial {
@@ -62,5 +62,8 @@ impl Material for TextureMaterial {
                 panic!("Invalid image format")
             }
         }
+    }
+    fn get_reflection_level(&self) -> Option<f32> {
+        self.reflection_level
     }
 }
