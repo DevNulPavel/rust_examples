@@ -3,6 +3,11 @@ use std::{
         Path
     }
 };
+use rand::{
+    prelude::{
+        *
+    }
+};
 // Использование общих трейтов и классов через crate от корня
 use crate::{
     traits::{
@@ -211,11 +216,42 @@ impl Scene {
         // TODO: Учитывать затенения в отражениях
         // TODO: Убрать рекурсию, либо по-максимуму убрать временные переменные для снижения потребления памяти
 
-        // Создаем луч по направлению нормали для получения внешних цветов
-        /*let ambient_ray = Ray{
-            origin: intersection.hit_point + intersection.get_normal() * self.bias,
-            direction: intersection.get_normal()
-        };*/
+        let mut rng = rand::thread_rng();
+
+        // TODO: Работает как-то неправильно
+        // Но данный эффект надо делать с помощью кидания кучи лучей вокруг
+        // Эффект Ambient Occlusion
+        const AMBIEN_ITERATIONS_COUNT: usize = 5;
+        let ambient_color = (0..AMBIEN_ITERATIONS_COUNT)
+            .fold(Color::zero(), |acc, _|{
+                let random_offset = Vector3{
+                    x: rng.gen(),
+                    y: rng.gen(),
+                    z: rng.gen(),
+                }.normalize() * 0.5;
+                let random_direction = (intersection.get_normal() + random_offset).normalize();
+
+                // Создаем луч по направлению нормали для получения внешних цветов
+                let ambient_ray = Ray{
+                    origin: intersection.hit_point + intersection.get_normal() * self.bias,
+                    direction: random_direction
+                };
+
+                // Находим пересечение с объектом для луча отражения
+                let ambient_intersection = self.trace_nearest_intersection(&ambient_ray);
+
+                let tmp_color = match ambient_intersection {
+                    Some(ambient_intersection) => {
+                        let ambient_color = self.calculate_intersection_color_with_level(&ambient_ray, &ambient_intersection, cur_level + 1);
+                        ambient_color * (1.0 / (1.0 + ambient_intersection.distance))
+                    },
+                    None => {
+                        Color::zero()
+                    }
+                };
+
+                acc + tmp_color / (AMBIEN_ITERATIONS_COUNT as f32)
+            });
 
         // Луч отражения если надо
         let reflected_color = if let Some(reflection_level) = intersection.object.get_material().get_reflection_level(){
@@ -246,7 +282,7 @@ impl Scene {
         };
 
         // Финальный цвет
-        let result_color: Color = reflected_color * directional_light_intensivity;
+        let result_color: Color = reflected_color * directional_light_intensivity + ambient_color;
         
         // Ограничим значениями 0 - 1
         result_color.clamp(0.0_f32, 1.0_f32)

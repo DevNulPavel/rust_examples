@@ -1,7 +1,8 @@
 use std::{
     ops::{
         Mul,
-        Add
+        Add,
+        Div
     }
 };
 use image::{
@@ -50,6 +51,18 @@ impl Mul<f32> for Color{
             red: self.red * rhs,
             green: self.green * rhs,
             blue: self.blue * rhs,
+        }
+    }
+}
+
+// TODO: TEST
+impl Div<f32> for Color{
+    type Output = Color;
+    fn div(self, rhs: f32) -> Self::Output {
+        Color{
+            red: self.red / rhs,
+            green: self.green / rhs,
+            blue: self.blue / rhs,
         }
     }
 }
