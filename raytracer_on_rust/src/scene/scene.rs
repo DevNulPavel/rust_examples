@@ -140,6 +140,7 @@ impl Scene {
     }
 
     // Для найденного пересечения расчитываем цвет пикселя
+    // TODO: Use option
     fn calculate_intersection_color_with_level(&self, ray: &Ray, intersection: &Intersection, cur_level: u32) -> Color{
         // Если мы дошли до максимума - выходим
         if cur_level >= self.max_recursive_level {
@@ -208,30 +209,44 @@ impl Scene {
         let diffuse_color = intersection.get_color();
 
         // TODO: Учитывать затенения в отражениях
+        // TODO: Убрать рекурсию, либо по-максимуму убрать временные переменные для снижения потребления памяти
+
+        // Создаем луч по направлению нормали для получения внешних цветов
+        /*let ambient_ray = Ray{
+            origin: intersection.hit_point + intersection.get_normal() * self.bias,
+            direction: intersection.get_normal()
+        };*/
 
         // Луч отражения если надо
-        let diffuse_color = if let Some(reflection_level) = intersection.object.get_material().get_reflection_level(){
-            // TODO: Убрать рекурсию, либо по-максимуму убрать временные переменные дляснижения потребления памяти
+        let reflected_color = if let Some(reflection_level) = intersection.object.get_material().get_reflection_level(){
             // Создаем луч отражения из данной точки
             let reflection_ray = Ray::create_reflection(intersection.hit_point, 
-                                                        surface_normal,
-                                                        ray.direction,
-                                                        self.bias);
-            let reverse_color = diffuse_color * (1.0 - reflection_level);
+                surface_normal,
+                ray.direction,
+                self.bias);
+            
+            // Находим пересечение с объектом для луча отражения
+            let reflection_intersection = self.trace_nearest_intersection(&reflection_ray);
 
-            let intersection = self.trace_nearest_intersection(&ray);
-            let reflection_color = intersection
-                .map(|i| {
-                    self.calculate_intersection_color_with_level(&ray, &i, cur_level+1)
-                })
-                .unwrap_or(Color::zero());
+            let reflection_color = match reflection_intersection {
+                Some(reflection_intersection) => {
+                    self.calculate_intersection_color_with_level(&reflection_ray, &reflection_intersection, cur_level + 1)
+                },
+                None => {
+                    Color::zero()
+                }
+            };
+
+            let reverse_color = diffuse_color * (1.0 - reflection_level);
+            
             reverse_color + reflection_color
         }else{
+            // Учитываем влияние окружающих объектов на текущий
             diffuse_color
         };
 
         // Финальный цвет
-        let result_color: Color = diffuse_color * directional_light_intensivity;
+        let result_color: Color = reflected_color * directional_light_intensivity;
         
         // Ограничим значениями 0 - 1
         result_color.clamp(0.0_f32, 1.0_f32)
@@ -246,7 +261,7 @@ pub fn build_test_scene() -> Scene {
             Sphere {
                 center: Vector3 {
                     x: 0.0,
-                    y: 0.0,
+                    y: -0.6,
                     z: -5.0,
                 },
                 radius: 0.8,
@@ -256,7 +271,7 @@ pub fn build_test_scene() -> Scene {
                         green: 1.0,
                         blue: 0.4,
                     },
-                    reflection_level: None
+                    reflection_level: Some(0.8)
                 })
             },
             // 2
@@ -273,7 +288,7 @@ pub fn build_test_scene() -> Scene {
                         green: 0.1,
                         blue: 0.3,
                     },
-                    reflection_level: None
+                    reflection_level: Some(0.1_f32)
                 })
             }
         ],
@@ -332,8 +347,8 @@ pub fn build_test_scene() -> Scene {
             SphericalLight{
                 position: Vector3{
                     x: -1.0,
-                    y: 1.0,
-                    z: 0.0
+                    y: 0.8,
+                    z: -0.5
                 },
                 color: Color{
                     red: 1.0,
@@ -350,8 +365,8 @@ pub fn build_test_scene() -> Scene {
         height: 600,
         fov: 90.0,
         ambient_light_intensivity: 0.3,
-        bias: 0.000004_f32,
-        max_reflection_depth: 4,
+        bias: 0.000006_f32,
+        max_recursive_level: 4,
         lights: lights,
         figures,
     };
