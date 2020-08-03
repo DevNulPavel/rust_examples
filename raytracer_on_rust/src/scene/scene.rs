@@ -103,6 +103,11 @@ impl Scene {
             })
     }
 
+    /// Для найденного пересечения расчитываем цвет пикселя
+    pub fn calculate_intersection_color(&self, ray: &Ray, intersection: &Intersection) -> Color{
+        self.calculate_intersection_color_with_level(ray, intersection, 0)
+    }
+
     /// Находим пересечение с любым объектом, используется для теней
     fn trace_first_intersection<'a>(&'a self, ray: &Ray) -> Option<Intersection<'a>> {
         // Обходим все сферы
@@ -139,26 +144,10 @@ impl Scene {
             .next()
     }
 
-    /// Для найденного пересечения расчитываем цвет пикселя
-    pub fn calculate_intersection_color(&self, ray: &Ray, intersection: &Intersection) -> Color{
-        self.calculate_intersection_color_with_level(ray, intersection, 0)
-    }
-
-    // Для найденного пересечения расчитываем цвет пикселя
-    // TODO: Use option
-    fn calculate_intersection_color_with_level(&self, ray: &Ray, intersection: &Intersection, cur_level: u32) -> Color{
-        // Если мы дошли до максимума - выходим
-        if cur_level >= self.max_recursive_level {
-            return Color::zero();
-        }
-
-        // https://bheisler.github.io/post/writing-raytracer-in-rust-part-2/
-
-        // Нормаль в точке пересечения
-        let surface_normal = intersection.get_normal();
-        
+    /// Получаем степень освещенности для конкретного пересечения и нормали
+    fn calculate_light_intensivity(&self, intersection: &Intersection, surface_normal: Vector3) -> f32{
         // Идем по всем источникам света и получаем суммарный свет
-        let directional_light_intensivity: f32 = self.lights
+        let light_intensivity: f32 = self.lights
             .iter()
             .map(|light: &dyn Light|{
                 // Направление к свету
@@ -209,18 +198,18 @@ impl Scene {
             })
             .sum::<f32>()
             .min(1.0_f32);
+        
+        light_intensivity
+    }
 
-        // Стандартный цвет объекта
-        let diffuse_color = intersection.get_color();
-
-        // TODO: Учитывать затенения в отражениях
-        // TODO: Убрать рекурсию, либо по-максимуму убрать временные переменные для снижения потребления памяти
-
+    /// Получаем степень влияния окружающих объектов на текущее пересечение
+    fn calculate_ambient_color(&self, intersection: &Intersection, surface_normal: Vector3, cur_level: u32) -> Color {
+        // TODO: Долго ли занимает инициализация данного объекта? Может вынести выше?
         let mut rng = rand::thread_rng();
 
         // TODO: Работает как-то неправильно
         // Но данный эффект надо делать с помощью кидания кучи лучей вокруг
-        // Эффект Ambient Occlusion
+        // Эффект Ambient Occlusion?
         const AMBIEN_ITERATIONS_COUNT: usize = 5;
         let ambient_color = (0..AMBIEN_ITERATIONS_COUNT)
             .fold(Color::zero(), |acc, _|{
@@ -252,7 +241,38 @@ impl Scene {
 
                 acc + tmp_color / (AMBIEN_ITERATIONS_COUNT as f32)
             });
+        
+        ambient_color
+    }
 
+    // Для найденного пересечения расчитываем цвет пикселя
+    // TODO: Use option
+    fn calculate_intersection_color_with_level(&self, ray: &Ray, intersection: &Intersection, cur_level: u32) -> Color{
+        // Если мы дошли до максимума - выходим
+        if cur_level >= self.max_recursive_level {
+            return Color::zero();
+        }
+
+        // https://bheisler.github.io/post/writing-raytracer-in-rust-part-2/
+
+        // Нормаль в точке пересечения
+        let surface_normal = intersection.get_normal();
+        
+        // Получаем степень освещенности для конкретного пересечения и нормали
+        let light_intensivity = self.calculate_light_intensivity(intersection, surface_normal);
+
+        // Стандартный цвет объекта без учета освещения
+        let diffuse_color = intersection.get_color();
+
+        // TODO: Учитывать затенения в отражениях
+        // TODO: Убрать рекурсию, либо по-максимуму убрать временные переменные для снижения потребления памяти
+
+        // TODO: Работает как-то неправильно
+        // Но данный эффект надо делать с помощью кидания кучи лучей вокруг
+        // Эффект Ambient Occlusion?
+        let ambient_color = self.calculate_ambient_color(intersection, surface_normal, cur_level);
+
+        // TODO: вышести в функцию
         // Луч отражения если надо
         let reflected_color = if let Some(reflection_level) = intersection.object.get_material().get_reflection_level(){
             // Создаем луч отражения из данной точки
@@ -282,7 +302,7 @@ impl Scene {
         };
 
         // Финальный цвет
-        let result_color: Color = reflected_color * directional_light_intensivity + ambient_color;
+        let result_color: Color = reflected_color * light_intensivity + ambient_color;
         
         // Ограничим значениями 0 - 1
         result_color.clamp(0.0_f32, 1.0_f32)

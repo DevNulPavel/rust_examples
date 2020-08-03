@@ -4,7 +4,7 @@ TEST:
 	./target/debug/raytracer_on_rust
 
 BENCH_SINGLE_THREAD:
-	cargo build --release && \
+	cargo build --release --features "" && \
 	time ./target/release/raytracer_on_rust
 
 BENCH_MULTI_THREAD:

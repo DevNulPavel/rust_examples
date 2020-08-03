@@ -9,7 +9,7 @@ edition = "2018"
 [features]
 # default = ["multi_threaded", "allow_unsafe"]        # Дефолтные фичи
 # default = ["multi_threaded"]        # Дефолтные фичи
-default = []        # Дефолтные фичи
+# default = []        # Дефолтные фичи
 
 multi_threaded = ["rayon"]  # Фича многопоточности, для которой нужен rayon
 allow_unsafe = []  # Дает ускорение для многопоточного режима но ценой использования unsafe
