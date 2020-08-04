@@ -46,7 +46,10 @@ use crate::{
 // Использование соседних файликов через super
 use super::{
     intersection::{
-        Intersection,
+        Intersection
+    },
+    intersection_full::{
+        IntersectionFull
     }
 };
 
@@ -97,14 +100,14 @@ impl Scene {
             // Находим среди всех минимум
             .min_by(|i1, i2| {
                 // Можно спокойно вызывать unwrap(), так как Nan был отфильтрован выше
-                i1.distance
-                    .partial_cmp(&i2.distance)
+                i1.get_distance()
+                    .partial_cmp(&i2.get_distance())
                     .unwrap()
             })
     }
 
     /// Для найденного пересечения расчитываем цвет пикселя
-    pub fn calculate_intersection_color(&self, ray: &Ray, intersection: &Intersection) -> Color{
+    pub fn calculate_intersection_color(&self, ray: &Ray, intersection: &IntersectionFull) -> Color{
         self.calculate_intersection_color_with_level(ray, intersection, 0)
     }
 
@@ -145,20 +148,20 @@ impl Scene {
     }
 
     /// Получаем степень освещенности для конкретного пересечения и нормали
-    fn calculate_light_intensivity(&self, intersection: &Intersection, surface_normal: Vector3) -> f32{
+    fn calculate_light_intensivity(&self, intersection: &IntersectionFull) -> f32{
         // Идем по всем источникам света и получаем суммарный свет
         let light_intensivity: f32 = self.lights
             .iter()
             .map(|light: &dyn Light|{
                 // Направление к свету
-                let direction_to_light = light.direction_to_light(&intersection.hit_point);
+                let direction_to_light = light.direction_to_light(&intersection.get_hit_point());
 
                 // В из найденной точки пересечения снова пускем луч к источнику света
                 let shadow_ray = {
                     // Делаем небольшое смещение от точки пересечения, чтобы не было z-fight
-                    let shadow_ray_offset = surface_normal * self.bias;
+                    let shadow_ray_offset = *intersection.get_normal() * self.bias;
                     Ray {
-                        origin: intersection.hit_point + shadow_ray_offset,
+                        origin: *intersection.get_hit_point() + shadow_ray_offset,
                         direction: direction_to_light,
                     }
                 };
@@ -168,10 +171,10 @@ impl Scene {
                     Some(shadow_intersection) => {
                         // Если расстояние до источника света меньше, 
                         // чем до ближайшего пересечения луча тени c объектом - значит все ок
-                        let from_shadow_hit_to_light_dist = light.distance_to_point(&intersection.hit_point);
+                        let from_shadow_hit_to_light_dist = light.distance_to_point(intersection.get_hit_point());
                         match from_shadow_hit_to_light_dist {
                             LightDistance::Some(from_light_to_hit_dist) => {
-                                shadow_intersection.distance > from_light_to_hit_dist
+                                shadow_intersection.get_distance() > from_light_to_hit_dist
                             }
                             LightDistance::Infinite => {
                                 false
@@ -185,14 +188,14 @@ impl Scene {
                 
                 // Определяем интенсивность свечения в зависимости от тени
                 let light_intensity = if in_light { 
-                    light.intensivity_for_point(&intersection.hit_point) 
+                    light.intensivity_for_point(&intersection.get_hit_point()) 
                 } else { 
                     return 0.0_f32;
                 };
 
                 // Вычисляем свет как скалярное произведение (косинус угла между векторами),
                 // чем сонаправленнее, тем сильнее
-                let light_power = (surface_normal.dot(&direction_to_light) as f32) * light_intensity;
+                let light_power = (intersection.get_normal().dot(&direction_to_light) as f32) * light_intensity;
 
                 light_power
             })
@@ -203,9 +206,11 @@ impl Scene {
     }
 
     /// Получаем степень влияния окружающих объектов на текущее пересечение
-    fn calculate_ambient_color(&self, intersection: &Intersection, surface_normal: Vector3, cur_level: u32) -> Color {
+    fn calculate_ambient_color(&self, intersection: &IntersectionFull, cur_level: u32) -> Color {
         // TODO: Долго ли занимает инициализация данного объекта? Может вынести выше?
         let mut rng = rand::thread_rng();
+
+        let normal = intersection.get_normal();
 
         // TODO: Работает как-то неправильно
         // Но данный эффект надо делать с помощью кидания кучи лучей вокруг
@@ -218,11 +223,11 @@ impl Scene {
                     y: rng.gen(),
                     z: rng.gen(),
                 }.normalize() * 0.5;
-                let random_direction = (intersection.get_normal() + random_offset).normalize();
+                let random_direction = (*normal + random_offset).normalize();
 
                 // Создаем луч по направлению нормали для получения внешних цветов
                 let ambient_ray = Ray{
-                    origin: intersection.hit_point + intersection.get_normal() * self.bias,
+                    origin: *intersection.get_hit_point() + *normal * self.bias,
                     direction: random_direction
                 };
 
@@ -231,8 +236,9 @@ impl Scene {
 
                 let tmp_color = match ambient_intersection {
                     Some(ambient_intersection) => {
-                        let ambient_color = self.calculate_intersection_color_with_level(&ambient_ray, &ambient_intersection, cur_level + 1);
-                        ambient_color * (1.0 / (1.0 + ambient_intersection.distance))
+                        let full_ambient_intersection: IntersectionFull = ambient_intersection.into();
+                        let ambient_color = self.calculate_intersection_color_with_level(&ambient_ray, &full_ambient_intersection, cur_level + 1);
+                        ambient_color * (1.0 / (1.0 + full_ambient_intersection.get_distance()))
                     },
                     None => {
                         Color::zero()
@@ -245,21 +251,54 @@ impl Scene {
         ambient_color
     }
 
+    // Расчитываем цвет с учетом отражения если есть
+    fn calculate_reflection_color(&self, 
+                                  ray: &Ray, 
+                                  intersection: &IntersectionFull, 
+                                  diffuse_color: &Color, 
+                                  cur_level: u32) -> Option<Color>{
+        // Луч отражения если надо
+        if let Some(reflection_level) = intersection.get_object().get_material().get_reflection_level(){
+            // Создаем луч отражения из данной точки
+            let reflection_ray = Ray::create_reflection(
+                *intersection.get_hit_point(), 
+                *intersection.get_normal(),
+                ray.direction,
+                self.bias);
+            
+            // Находим пересечение с объектом для луча отражения
+            let reflection_intersection = self.trace_nearest_intersection(&reflection_ray);
+
+            let reflection_color = match reflection_intersection {
+                Some(reflection_intersection) => {
+                    let full_reflection_intersection: IntersectionFull = reflection_intersection.into();
+                    self.calculate_intersection_color_with_level(&reflection_ray, &full_reflection_intersection, cur_level + 1)
+                },
+                None => {
+                    Color::zero()
+                }
+            };
+
+            let reverse_color = *diffuse_color * (1.0 - reflection_level);
+            
+            return Some(reverse_color + reflection_color);
+        }else{
+            return None;
+        }
+    }
+
     // Для найденного пересечения расчитываем цвет пикселя
     // TODO: Use option
-    fn calculate_intersection_color_with_level(&self, ray: &Ray, intersection: &Intersection, cur_level: u32) -> Color{
+    fn calculate_intersection_color_with_level(&self, ray: &Ray, intersection: &IntersectionFull, cur_level: u32) -> Color{
         // Если мы дошли до максимума - выходим
         if cur_level >= self.max_recursive_level {
             return Color::zero();
         }
 
         // https://bheisler.github.io/post/writing-raytracer-in-rust-part-2/
-
-        // Нормаль в точке пересечения
-        let surface_normal = intersection.get_normal();
         
         // Получаем степень освещенности для конкретного пересечения и нормали
-        let light_intensivity = self.calculate_light_intensivity(intersection, surface_normal);
+        let light_intensivity = self.calculate_light_intensivity(intersection);
 
         // Стандартный цвет объекта без учета освещения
         let diffuse_color = intersection.get_color();
@@ -270,35 +309,16 @@ impl Scene {
         // TODO: Работает как-то неправильно
         // Но данный эффект надо делать с помощью кидания кучи лучей вокруг
         // Эффект Ambient Occlusion?
-        let ambient_color = self.calculate_ambient_color(intersection, surface_normal, cur_level);
+        let ambient_color = self.calculate_ambient_color(intersection, cur_level);
 
-        // TODO: вышести в функцию
         // Луч отражения если надо
-        let reflected_color = if let Some(reflection_level) = intersection.object.get_material().get_reflection_level(){
-            // Создаем луч отражения из данной точки
-            let reflection_ray = Ray::create_reflection(intersection.hit_point, 
-                surface_normal,
-                ray.direction,
-                self.bias);
-            
-            // Находим пересечение с объектом для луча отражения
-            let reflection_intersection = self.trace_nearest_intersection(&reflection_ray);
-
-            let reflection_color = match reflection_intersection {
-                Some(reflection_intersection) => {
-                    self.calculate_intersection_color_with_level(&reflection_ray, &reflection_intersection, cur_level + 1)
-                },
-                None => {
-                    Color::zero()
-                }
-            };
-
-            let reverse_color = diffuse_color * (1.0 - reflection_level);
-            
-            reverse_color + reflection_color
-        }else{
-            // Учитываем влияние окружающих объектов на текущий
-            diffuse_color
+        let reflected_color = match self.calculate_reflection_color(ray, intersection, &diffuse_color, cur_level){
+            Some(reflected_color) => {
+                reflected_color
+            },
+            None => {
+                *diffuse_color
+            }
         };
 
         // Финальный цвет

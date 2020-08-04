@@ -35,7 +35,7 @@ pub fn render(scene: &Scene) -> DynamicImage {
             // Если нашлось - считаем свет
             if let Some(intersection) = intersection{
                 // Расчет цвета в найденном пересечении
-                let result_color = scene.calculate_intersection_color(&ray, &intersection);
+                let result_color = scene.calculate_intersection_color(&ray, &intersection.into());
 
                 // Установка пикселя
                 image.put_pixel(x, y, result_color.to_rgba());

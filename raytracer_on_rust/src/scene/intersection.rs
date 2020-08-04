@@ -3,15 +3,19 @@ use crate::{
         Figure
     },
     structs::{
-        Vector3,
-        Color
+        Vector3
     }
 };
+// use super::{
+//     intersection_full::{
+//         IntersectionFull
+//     }
+// };
 
 pub struct Intersection<'a> {
-    pub distance: f32,
-    pub hit_point: Vector3,
-    pub object: &'a dyn Figure,
+    distance: f32,
+    hit_point: Vector3,
+    object: &'a dyn Figure
 }
 
 impl<'a> Intersection<'a> {
@@ -23,13 +27,18 @@ impl<'a> Intersection<'a> {
         }
     }
 
-    /// Для найденной фигуры и точки пересечения получаем нормаль в этой точке
-    pub fn get_normal(&self) -> Vector3{
-        self.object.normal_at(&self.hit_point)
+    /// Для найденной фигуры и точки пересечения получаем дистанцию
+    pub fn get_distance(&self) -> f32{
+        self.distance
     }
 
-    /// Для найденной фигуры и точки пересечения получаем цвет в этой точке
-    pub fn get_color(&self) -> Color {
-        self.object.color_at(&self.hit_point)
+    /// Для найденной фигуры и точки пересечения получаем точку пересечения
+    pub fn get_hit_point(&'a self) -> &'a Vector3{
+        &self.hit_point
+    }
+
+    /// Найденная фигура
+    pub fn get_object(&'a self) -> &'a dyn Figure {
+        self.object
     }
 }
