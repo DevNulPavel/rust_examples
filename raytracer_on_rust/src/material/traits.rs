@@ -14,5 +14,5 @@ use super::{
 
 pub trait Material{
     fn get_color_at_tex_coord(&self, get_tex_coord_delegate: TexCoordDelegate) -> Color;
-    fn get_modificator(&self) -> &MaterialModificator; // TODO: Assert
+    fn get_modificator(&self) -> &MaterialModificator;
 }

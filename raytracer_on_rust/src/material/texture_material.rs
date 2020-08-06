@@ -45,7 +45,7 @@ macro_rules! get_pixel {
 
 pub struct TextureMaterial{
     pub texture: DynamicImage,
-    pub material_modificator: MaterialModificator
+    pub modificator: MaterialModificator
 }
 
 impl Material for TextureMaterial {
@@ -68,6 +68,6 @@ impl Material for TextureMaterial {
     }
 
     fn get_modificator(&self) -> &MaterialModificator {
-        &self.material_modificator
+        &self.modificator
     }
 }

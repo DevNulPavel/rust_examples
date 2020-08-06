@@ -16,6 +16,7 @@ use crate::{
         MaterialsContainer,
         SolidColorMaterial,
         TextureMaterial,
+        RefractionInfo,
         MaterialModificator
     },
     figures::{
@@ -54,13 +55,13 @@ pub fn build_test_scene() -> Scene {
                         green: 1.0,
                         blue: 0.4,
                     },
-                    material_modificator: MaterialModificator::Reflection(0.5_f32)
+                    modificator: MaterialModificator::Reflection(0.6)
                 })
             },
             // 2
             Sphere {
                 center: Vector3 {
-                    x: 0.3,
+                    x: 0.5,
                     y: 0.1,
                     z: -1.0,
                 },
@@ -71,10 +72,10 @@ pub fn build_test_scene() -> Scene {
                         green: 0.1,
                         blue: 0.3,
                     },
-                    material_modificator: MaterialModificator::Refraction{
-                        index: 0.99_f32,
-                        transparense_level: 0.99_f32
-                    }
+                    modificator: MaterialModificator::Refraction(RefractionInfo{
+                        index: 0.99,
+                        transparense_level: 0.8
+                    })
                 })
             }
         ],
@@ -93,7 +94,7 @@ pub fn build_test_scene() -> Scene {
                 },
                 material: MaterialsContainer::Texture(TextureMaterial{
                     texture: image::open(Path::new("res/grass.jpg")).unwrap(),
-                    material_modificator: MaterialModificator::None
+                    modificator: MaterialModificator::None
                 })
             }
         ],
@@ -147,8 +148,8 @@ pub fn build_test_scene() -> Scene {
     };
 
     let scene = Scene {
-        width: 800,
-        height: 600,
+        width: 1024,
+        height: 768,
         fov: 90.0,
         ambient_light_intensivity: 0.3,
         bias: 0.000006_f32,

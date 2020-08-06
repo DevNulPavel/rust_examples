@@ -17,6 +17,7 @@ use crate::{
         Color
     },
     material::{
+        RefractionInfo,
         MaterialModificator
     },
     figures::{
@@ -241,86 +242,79 @@ impl Scene {
     }
 
     // Расчитываем цвет с учетом отражения если есть
-    fn calculate_material_modificator_color(&self, 
-                                            ray: &Ray, 
-                                            intersection: &IntersectionFull, 
-                                            diffuse_color: &Color, 
-                                            light_intensivity: f32,
-                                            cur_level: u32) -> Option<Color>{
-        // Отброс по уровню рекурсивности здесь тоже
-        if cur_level > self.max_recursive_level {
-            return None;
-        }
+    fn calculate_reflection_color(&self, 
+                                  reflection_level: f32,
+                                  ray: &Ray, 
+                                  intersection: &IntersectionFull, 
+                                  diffuse_color: &Color, 
+                                  light_intensivity: f32,
+                                  cur_level: u32) -> Color{
+        // Создаем луч отражения из данной точки
+        let reflection_ray = Ray::create_reflection(*intersection.get_hit_point(), 
+                                                    *intersection.get_normal(),
+                                                    ray.direction,
+                                                    self.bias);
+        
+        // Находим пересечение с объектом для луча отражения
+        let reflection_intersection = self.trace_nearest_intersection(&reflection_ray);
 
-        match intersection.get_object().get_material().get_modificator(){
-            // Луч отражения если надо
-            MaterialModificator::Reflection(reflection_level) => {
-                // Создаем луч отражения из данной точки
-                let reflection_ray = Ray::create_reflection(*intersection.get_hit_point(), 
-                                                            *intersection.get_normal(),
-                                                            ray.direction,
-                                                            self.bias);
-                
-                // Находим пересечение с объектом для луча отражения
-                let reflection_intersection = self.trace_nearest_intersection(&reflection_ray);
+        let reflection_color = match reflection_intersection {
+            Some(reflection_intersection) => {
+                let full_reflection_intersection: IntersectionFull = reflection_intersection.into();
+                self.calculate_intersection_color_with_level(&reflection_ray, &full_reflection_intersection, cur_level + 1)
+            },
+            None => {
+                Color::zero()
+            }
+        };
 
-                let reflection_color = match reflection_intersection {
-                    Some(reflection_intersection) => {
-                        let full_reflection_intersection: IntersectionFull = reflection_intersection.into();
-                        self.calculate_intersection_color_with_level(&reflection_ray, &full_reflection_intersection, cur_level + 1)
+        let reverse_color = *diffuse_color * (1.0 - reflection_level);
+        
+        return reverse_color * light_intensivity + reflection_color;
+    }
+
+    // Расчитываем цвет с учетом отражения если есть
+    fn calculate_refraction_color(&self, 
+                                  info: &RefractionInfo,
+                                  ray: &Ray, 
+                                  intersection: &IntersectionFull, 
+                                  diffuse_color: &Color, 
+                                  light_intensivity: f32,
+                                  cur_level: u32) -> Color {
+        
+        let RefractionInfo{index, transparense_level} = info;
+
+        // Создаем луч преломления из данной точки
+        let refraction_ray = Ray::create_refraction(*intersection.get_hit_point(), 
+                                                    *intersection.get_normal(),
+                                                    ray.direction, 
+                                                    *index,
+                                                    self.bias);
+
+        // Находим обратный цвет
+        let reverse_color = *diffuse_color * (1.0 - transparense_level);
+        
+        match refraction_ray{
+            Some(refraction_ray) =>{
+                // Находим пересечение с объектом для луча преломления
+                let refraction_intersection = self.trace_nearest_intersection(&refraction_ray);
+
+                // Находим цвет этого пересечения
+                let refraction_color = match refraction_intersection {
+                    Some(refraction_intersection) => {
+                        let full_refraction_intersection: IntersectionFull = refraction_intersection.into();
+                        self.calculate_intersection_color_with_level(&refraction_ray, &full_refraction_intersection, cur_level + 1)
                     },
                     None => {
                         Color::zero()
                     }
                 };
 
-                let reverse_color = *diffuse_color * (1.0 - reflection_level);
-                
-                return Some((reverse_color + reflection_color) * light_intensivity);
+                // Выдаем результат
+                reverse_color * light_intensivity + refraction_color
             },
-            // Луч преломления если надо
-            MaterialModificator::Refraction{index, transparense_level} => {
-                // Создаем луч преломления из данной точки
-                let refraction_ray = Ray::create_refraction(*intersection.get_hit_point(), 
-                                                            *intersection.get_normal(),
-                                                            ray.direction, 
-                                                            *index,
-                                                            self.bias);
-
-                // Находим обратный цвет
-                let reverse_color = *diffuse_color * light_intensivity * (1.0 - transparense_level);
-                
-                match refraction_ray{
-                    Some(refraction_ray) =>{
-                        // Находим пересечение с объектом для луча преломления
-                        let refraction_intersection = self.trace_nearest_intersection(&refraction_ray);
-
-                        // Находим цвет этого пересечения
-                        let refraction_color = match refraction_intersection {
-                            Some(refraction_intersection) => {
-                                let full_refraction_intersection: IntersectionFull = refraction_intersection.into();
-                                self.calculate_intersection_color_with_level(&refraction_ray, &full_refraction_intersection, cur_level + 1)
-                            },
-                            None => {
-                                Color::zero()
-                            }
-                        };
-
-                        // Выдаем результат
-                        Some(reverse_color + refraction_color)
-                    },
-                    None => {
-                        // TODO: ???
-                        //panic!();
-                        Some(reverse_color)
-                        // Some(*diffuse_color)
-                        // Some(Color::zero())
-                        // None
-                    }
-                }
-            }
-            MaterialModificator::None => {
-                None
+            None => {
+                reverse_color * light_intensivity
             }
         }
     }
@@ -328,6 +322,9 @@ impl Scene {
     // Для найденного пересечения расчитываем цвет пикселя
     // TODO: Use option
     fn calculate_intersection_color_with_level(&self, ray: &Ray, intersection: &IntersectionFull, cur_level: u32) -> Color{
+        // TODO: Учитывать затенения в отражениях
+        // TODO: Убрать рекурсию, либо по-максимуму убрать временные переменные для снижения потребления памяти
+
         // Если мы дошли до максимума - выходим
         if cur_level >= self.max_recursive_level {
             return Color::zero();
@@ -341,27 +338,28 @@ impl Scene {
         // Стандартный цвет объекта без учета освещения
         let diffuse_color = intersection.get_color();
 
-        // TODO: Учитывать затенения в отражениях
-        // TODO: Убрать рекурсию, либо по-максимуму убрать временные переменные для снижения потребления памяти
-
         // TODO: Работает как-то неправильно
-        // Но данный эффект надо делать с помощью кидания кучи лучей вокруг
-        // Эффект Ambient Occlusion?
+        // Но данный эффект надо делать с помощью кидания кучи лучей вокруг? Эффект Ambient Occlusion?
         let ambient_color = self.calculate_ambient_color(intersection, cur_level);
 
-        // Луч отражения если надо
-        let reflected_color = match self.calculate_material_modificator_color(ray, intersection, &diffuse_color, light_intensivity, cur_level){
-            Some(reflected_color) => {
-                reflected_color
+        // Финальный цвет в зависимости от модификатора материала
+        let result_color: Color = match intersection.get_object().get_material().get_modificator() {
+            // Отражение
+            MaterialModificator::Reflection(reflection_level) => {
+                let reflection_color = self.calculate_reflection_color(*reflection_level, ray, intersection, diffuse_color, light_intensivity, cur_level);
+                reflection_color + ambient_color
             },
-            None => {
-                *diffuse_color * light_intensivity
+            // Преломление
+            MaterialModificator::Refraction(refraction_info) => {
+                let refraction_color = self.calculate_refraction_color(refraction_info, ray, intersection, diffuse_color, light_intensivity, cur_level);
+                refraction_color + ambient_color
+            },
+            // Просто цвет
+            MaterialModificator::None => {
+                *diffuse_color * light_intensivity + ambient_color
             }
         };
 
-        // Финальный цвет
-        let result_color: Color = reflected_color + ambient_color;
-        
         // Ограничим значениями 0 - 1
         result_color.clamp(0.0_f32, 1.0_f32)
     }

@@ -17,7 +17,7 @@ use super::{
 
 pub struct SolidColorMaterial{
     pub diffuse_solid_color: Color,
-    pub material_modificator: MaterialModificator
+    pub modificator: MaterialModificator
 }
 
 impl Material for SolidColorMaterial {
@@ -26,6 +26,6 @@ impl Material for SolidColorMaterial {
     }
 
     fn get_modificator(&self) -> &MaterialModificator {
-        &self.material_modificator  
+        &self.modificator
     }
 }
