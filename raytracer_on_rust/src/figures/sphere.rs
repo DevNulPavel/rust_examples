@@ -83,7 +83,7 @@ impl Intersectable for Sphere {
     }*/
 
     // Возвращает расстояние от начала луча до точки пересечения со сферой
-    fn intersect(&self, ray: &Ray) -> Option<f32> {
+    /*fn intersect(&self, ray: &Ray) -> Option<f32> {
         // https://bheisler.github.io/post/writing-raytracer-in-rust-part-2/
         // https://bheisler.github.io/static/intersection-distance.png
 
@@ -120,7 +120,33 @@ impl Intersectable for Sphere {
         };
 
         Some(distance)
-    } 
+    }*/
+
+    // TODO: Исправленный вариант, нужны комменты
+    // https://bheisler.github.io/post/writing-raytracer-in-rust-part-3/
+    fn intersect(&self, ray: &Ray) -> Option<f32> {
+        let l: Vector3 = self.center - ray.origin;
+        let adj = l.dot(&ray.direction);
+        let d2 = l.dot(&l) - (adj * adj);
+        let radius2 = self.radius * self.radius;
+        if d2 > radius2 {
+            return None;
+        }
+        let thc = (radius2 - d2).sqrt();
+        let t0 = adj - thc;
+        let t1 = adj + thc;
+
+        if t0 < 0.0 && t1 < 0.0 {
+            None
+        } else if t0 < 0.0 {
+            Some(t1)
+        } else if t1 < 0.0 {
+            Some(t0)
+        } else {
+            let distance = if t0 < t1 { t0 } else { t1 };
+            Some(distance)
+        }
+    }
 }
 
 impl Normalable for Sphere {

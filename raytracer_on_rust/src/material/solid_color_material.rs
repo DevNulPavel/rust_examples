@@ -9,12 +9,15 @@ use super::{
     },
     tex_coord_delegate::{
         TexCoordDelegate
+    },
+    material_modificator::{
+        MaterialModificator
     }
 };
 
 pub struct SolidColorMaterial{
     pub diffuse_solid_color: Color,
-    pub reflection_level: Option<f32>
+    pub material_modificator: MaterialModificator
 }
 
 impl Material for SolidColorMaterial {
@@ -22,7 +25,7 @@ impl Material for SolidColorMaterial {
         return self.diffuse_solid_color;
     }
 
-    fn get_reflection_level(&self) -> Option<f32> {
-        self.reflection_level
+    fn get_modificator(&self) -> &MaterialModificator {
+        &self.material_modificator  
     }
 }

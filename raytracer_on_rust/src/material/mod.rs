@@ -2,7 +2,9 @@ mod traits;
 mod solid_color_material;
 mod texture_material;
 mod tex_coord_delegate;
+mod material_modificator;
 mod materials_container;
+
 
 pub use self::{
     traits::{
@@ -19,5 +21,8 @@ pub use self::{
     },
     texture_material::{
         TextureMaterial
+    },
+    material_modificator::{
+        MaterialModificator
     }
 };

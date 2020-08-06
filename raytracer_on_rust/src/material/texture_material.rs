@@ -12,6 +12,9 @@ use super::{
     },
     tex_coord_delegate::{
         TexCoordDelegate
+    },
+    material_modificator::{
+        MaterialModificator
     }
 };
 
@@ -42,7 +45,7 @@ macro_rules! get_pixel {
 
 pub struct TextureMaterial{
     pub texture: DynamicImage,
-    pub reflection_level: Option<f32>
+    pub material_modificator: MaterialModificator
 }
 
 impl Material for TextureMaterial {
@@ -63,7 +66,8 @@ impl Material for TextureMaterial {
             }
         }
     }
-    fn get_reflection_level(&self) -> Option<f32> {
-        self.reflection_level
+
+    fn get_modificator(&self) -> &MaterialModificator {
+        &self.material_modificator
     }
 }

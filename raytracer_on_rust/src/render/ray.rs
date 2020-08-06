@@ -50,4 +50,36 @@ impl Ray {
             direction: direction_to_origin - (normal * 2.0 * direction_to_origin.dot(&normal)),
         }
     }
+
+    // TODO: TEST + Remove mut
+    pub fn create_refraction(origin: Vector3,
+                             normal: Vector3,
+                             direction_to_origin: Vector3,
+                             index: f32,
+                             bias: f32) -> Option<Ray> {
+        let mut ref_n = normal;
+        let mut eta_t = index;
+        let mut eta_i = 1.0;
+        let mut i_dot_n = direction_to_origin.dot(&normal);
+        if i_dot_n < 0.0 {
+            //Outside the surface
+            i_dot_n = -i_dot_n;
+        } else {
+            //Inside the surface; invert the normal and swap the indices of refraction
+            ref_n = -normal;
+            eta_t = 1.0;
+            eta_i = index;
+        }
+
+        let eta = eta_i / eta_t;
+        let k = 1.0 - (eta * eta) * (1.0 - i_dot_n * i_dot_n);
+        if k < 0.0 {
+            None
+        } else {
+            Some(Ray {
+                origin: origin + (ref_n * -bias),
+                direction: (direction_to_origin + ref_n * i_dot_n) * eta - ref_n * k.sqrt(),
+            })
+        }
+    }
 }

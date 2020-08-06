@@ -1,4 +1,4 @@
-use std::{
+    use std::{
     path::{
         Path
     }
@@ -24,7 +24,8 @@ use crate::{
     material::{
         MaterialsContainer,
         SolidColorMaterial,
-        TextureMaterial
+        TextureMaterial,
+        MaterialModificator
     },
     figures::{
         FiguresContainer,
@@ -252,38 +253,89 @@ impl Scene {
     }
 
     // Расчитываем цвет с учетом отражения если есть
-    fn calculate_reflection_color(&self, 
-                                  ray: &Ray, 
-                                  intersection: &IntersectionFull, 
-                                  diffuse_color: &Color, 
-                                  cur_level: u32) -> Option<Color>{
-        // Луч отражения если надо
-        if let Some(reflection_level) = intersection.get_object().get_material().get_reflection_level(){
-            // Создаем луч отражения из данной точки
-            let reflection_ray = Ray::create_reflection(
-                *intersection.get_hit_point(), 
-                *intersection.get_normal(),
-                ray.direction,
-                self.bias);
-            
-            // Находим пересечение с объектом для луча отражения
-            let reflection_intersection = self.trace_nearest_intersection(&reflection_ray);
-
-            let reflection_color = match reflection_intersection {
-                Some(reflection_intersection) => {
-                    let full_reflection_intersection: IntersectionFull = reflection_intersection.into();
-                    self.calculate_intersection_color_with_level(&reflection_ray, &full_reflection_intersection, cur_level + 1)
-                },
-                None => {
-                    Color::zero()
-                }
-            };
-
-            let reverse_color = *diffuse_color * (1.0 - reflection_level);
-            
-            return Some(reverse_color + reflection_color);
-        }else{
+    fn calculate_material_modificator_color(&self, 
+                                            ray: &Ray, 
+                                            intersection: &IntersectionFull, 
+                                            diffuse_color: &Color, 
+                                            cur_level: u32) -> Option<Color>{
+        // Отброс по уровню рекурсивности здесь тоже
+        if cur_level > self.max_recursive_level {
             return None;
+        }
+
+        match intersection.get_object().get_material().get_modificator(){
+            // Луч отражения если надо
+            MaterialModificator::Reflection(reflection_level) => {
+                // Создаем луч отражения из данной точки
+                let reflection_ray = Ray::create_reflection(*intersection.get_hit_point(), 
+                                                            *intersection.get_normal(),
+                                                            ray.direction,
+                                                            self.bias);
+                
+                // Находим пересечение с объектом для луча отражения
+                let reflection_intersection = self.trace_nearest_intersection(&reflection_ray);
+
+                let reflection_color = match reflection_intersection {
+                    Some(reflection_intersection) => {
+                        let full_reflection_intersection: IntersectionFull = reflection_intersection.into();
+                        self.calculate_intersection_color_with_level(&reflection_ray, &full_reflection_intersection, cur_level + 1)
+                    },
+                    None => {
+                        Color::zero()
+                    }
+                };
+
+                let reverse_color = *diffuse_color * (1.0 - reflection_level);
+                
+                return Some(reverse_color + reflection_color);
+            },
+            // Луч преломления если надо
+            MaterialModificator::Refraction{index, refraction_level} => {
+                // Создаем луч преломления из данной точки
+                let refraction_ray = Ray::create_refraction(*intersection.get_hit_point(), 
+                                                            *intersection.get_normal(),
+                                                            ray.direction, 
+                                                            *index,
+                                                            self.bias);
+
+                // Находим обратный цвет
+                let reverse_color = *diffuse_color * (1.0 - refraction_level);
+                
+                match refraction_ray{
+                    Some(refraction_ray) =>{
+                        // Находим пересечение с объектом для луча преломления
+                        let refraction_intersection = self.trace_nearest_intersection(&refraction_ray);
+
+                        // Находим цвет этого пересечения
+                        let refraction_color = match refraction_intersection {
+                            Some(reflection_intersection) => {
+                                // TODO: Проверка текущего объекта
+                                if !std::ptr::eq(reflection_intersection.get_object(), intersection.get_object()) {
+                                    let full_refraction_intersection: IntersectionFull = reflection_intersection.into();
+                                    self.calculate_intersection_color_with_level(&refraction_ray, &full_refraction_intersection, cur_level + 1)
+                                }else{
+                                    Color::zero()
+                                }
+                            },
+                            None => {
+                                Color::zero()
+                            }
+                        };
+
+                        // Выдаем результат
+                        Some(reverse_color + refraction_color)
+                    },
+                    None => {
+                        // TODO: ???
+                        //panic!();
+                        Some(reverse_color)
+                        // Some(Color::zero())
+                    }
+                }
+            }
+            MaterialModificator::None => {
+                None
+            }
         }
     }
 
@@ -312,7 +364,7 @@ impl Scene {
         let ambient_color = self.calculate_ambient_color(intersection, cur_level);
 
         // Луч отражения если надо
-        let reflected_color = match self.calculate_reflection_color(ray, intersection, &diffuse_color, cur_level){
+        let reflected_color = match self.calculate_material_modificator_color(ray, intersection, &diffuse_color, cur_level){
             Some(reflected_color) => {
                 reflected_color
             },
@@ -347,24 +399,27 @@ pub fn build_test_scene() -> Scene {
                         green: 1.0,
                         blue: 0.4,
                     },
-                    reflection_level: Some(0.8)
+                    material_modificator: MaterialModificator::Reflection(0.5_f32)
                 })
             },
             // 2
             Sphere {
                 center: Vector3 {
-                    x: 1.0,
-                    y: 1.0,
-                    z: -3.0,
+                    x: 0.0,
+                    y: 0.5,
+                    z: -2.0,
                 },
-                radius: 1.0,
+                radius: 0.7,
                 material: MaterialsContainer::Solid(SolidColorMaterial{
                     diffuse_solid_color: Color {
                         red: 1.0,
                         green: 0.1,
                         blue: 0.3,
                     },
-                    reflection_level: Some(0.1_f32)
+                    material_modificator: MaterialModificator::Refraction{
+                        index: 0.5_f32,
+                        refraction_level: 0.7_f32
+                    }
                 })
             }
         ],
@@ -383,7 +438,7 @@ pub fn build_test_scene() -> Scene {
                 },
                 material: MaterialsContainer::Texture(TextureMaterial{
                     texture: image::open(Path::new("res/grass.jpg")).unwrap(),
-                    reflection_level: None
+                    material_modificator: MaterialModificator::None
                 })
             }
         ],
