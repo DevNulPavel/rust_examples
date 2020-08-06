@@ -125,13 +125,27 @@ impl Intersectable for Sphere {
     // TODO: Исправленный вариант, нужны комменты
     // https://bheisler.github.io/post/writing-raytracer-in-rust-part-3/
     fn intersect(&self, ray: &Ray) -> Option<f32> {
-        let l: Vector3 = self.center - ray.origin;
-        let adj = l.dot(&ray.direction);
-        let d2 = l.dot(&l) - (adj * adj);
+        // https://bheisler.github.io/post/writing-raytracer-in-rust-part-2/
+        // https://bheisler.github.io/static/intersection-distance.png
+
+        // Создаем вектор между начальной точкой луча и центром сферы
+        let ray_origin_to_center: Vector3 = self.center - ray.origin;
+
+        // Используем векторное произведение и луч как гипотенузу для нахождения перпендикуляра, 
+        // который является вектором от центра к лучу рейтрейсинга
+        let adj = ray_origin_to_center.dot(&ray.direction);
+
+        // Находим квадрат длины этого вектора? (Find the length-squared of the opposite side)
+        // Это эквавалентно, но быстрее чем (l.length() * l.length()) - (adj2 * adj2)
+        let d2 = ray_origin_to_center.dot(&ray_origin_to_center) - (adj * adj);
+
+        // Сначала проверяем квадрат радиуса - если меньше, значит вообще нет
         let radius2 = self.radius * self.radius;
         if d2 > radius2 {
             return None;
         }
+
+        // Вычилсляем ближайшее расстояние от начала луча до точки пересечения со сферой
         let thc = (radius2 - d2).sqrt();
         let t0 = adj - thc;
         let t1 = adj + thc;

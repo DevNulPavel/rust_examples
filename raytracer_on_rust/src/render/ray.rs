@@ -82,4 +82,70 @@ impl Ray {
             })
         }
     }
+
+    /*pub fn create_transmission_TEST(normal: Vector3,
+                                    incident: Vector3,
+                                    intersection: Vector3,
+                                    bias: f32,
+                                    index: f32)
+                            -> Option<Ray> {
+        let mut ref_n = normal;
+        let mut eta_t = index;
+        let mut eta_i = 1.0;
+        let mut i_dot_n = incident.dot(&normal);
+        if i_dot_n < 0.0 {
+            //Outside the surface
+            i_dot_n = -i_dot_n;
+        } else {
+            //Inside the surface; invert the normal and swap the indices of refraction
+            ref_n = -normal;
+            eta_i = eta_t;
+            eta_t = 1.0;
+        }
+
+        let eta = eta_i / eta_t;
+        let k = 1.0 - (eta * eta) * (1.0 - i_dot_n * i_dot_n);
+        if k < 0.0 {
+            None
+        } else {
+            Some(Ray {
+                origin: intersection + (ref_n * -bias),
+                direction: (incident + ref_n * i_dot_n) * eta - ref_n * k.sqrt(),
+            })
+        }
+    }*/
+}
+
+#[cfg(test)]
+mod test{
+    use super::*;
+
+    // TODO: Tests
+
+    #[test]
+    fn test_refraction_1(){
+        let origin = Vector3::new(0.0, 0.0, 0.0);
+        let normal = Vector3::new(0.0, 1.0, 0.0).normalize();
+        let direction = Vector3::new(1.0, 1.0, 0.0).normalize();
+        let index = 0.001_f32;
+        let bias = 0.001_f32;
+        let ray = Ray::create_refraction(origin, normal, direction, index, bias).unwrap();
+        assert_eq!(ray.origin, Vector3::new(0.0, 0.0, 0.0));
+        assert_eq!(ray.direction, Vector3::new(0.0, 0.0, 0.0));
+    }
+
+    /*#[test]
+    fn test_refraction_2(){
+        let origin = Vector3::new(0.0, 0.0, 0.0);
+        let normal = Vector3::new(0.0, 1.0, 0.0).normalize();
+        let direction = Vector3::new(1.0, 1.0, 0.0).normalize();
+        // assert_eq!(direction, Vector3::new(0.0, 0.0, 0.0));
+        let index = 0.999_f32;
+        let bias = 0.01_f32;
+        let ray = Ray::create_transmission_TEST(normal, direction, origin, bias, index);
+        assert!(ray.is_some());
+        let ray = ray.unwrap();
+        //assert_eq!(ray.origin, Vector3::new(0.0, 0.0, 0.0));
+        assert_eq!(ray.direction, Vector3::new(0.0, 0.0, 0.0));
+    }*/
 }

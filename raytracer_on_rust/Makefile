@@ -16,6 +16,7 @@ BENCH_MULTI_THREAD_UNSAFE:
 	time ./target/release/raytracer_on_rust
 
 UNIT_TEST:
+	RUST_BACKTRACE=1 \
 	cargo test
 
 CLEAN:

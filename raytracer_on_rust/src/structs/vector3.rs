@@ -58,7 +58,7 @@ impl Point{
 
 //////////////////////////////////////////////////////////////////////
 
-#[derive(Default, Copy, Clone)]
+#[derive(Default, Copy, Clone, Debug)]
 pub struct Vector3 {
     pub x: f32,
     pub y: f32,
@@ -174,6 +174,15 @@ impl Mul<f32> for Vector3 {
             y: self.y * rhs,
             z: self.z * rhs,
         }
+    }
+}
+
+// TODO: Tests
+impl PartialEq for Vector3{
+    fn eq(&self, other: &Vector3) -> bool {
+        self.x == other.x &&
+        self.y == other.y &&
+        self.z == other.z
     }
 }
 

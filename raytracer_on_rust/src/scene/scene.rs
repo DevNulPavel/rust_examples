@@ -1,8 +1,3 @@
-    use std::{
-    path::{
-        Path
-    }
-};
 use rand::{
     prelude::{
         *
@@ -22,16 +17,11 @@ use crate::{
         Color
     },
     material::{
-        MaterialsContainer,
-        SolidColorMaterial,
-        TextureMaterial,
         MaterialModificator
     },
     figures::{
         FiguresContainer,
-        Figure,
-        Sphere,
-        Plane
+        Figure
     },
     render::{
         Ray
@@ -39,8 +29,6 @@ use crate::{
     light::{
         Light,
         LightDistance,
-        DirectionalLight,
-        SphericalLight,
         LightsContainer
     }
 };
@@ -257,6 +245,7 @@ impl Scene {
                                             ray: &Ray, 
                                             intersection: &IntersectionFull, 
                                             diffuse_color: &Color, 
+                                            light_intensivity: f32,
                                             cur_level: u32) -> Option<Color>{
         // Отброс по уровню рекурсивности здесь тоже
         if cur_level > self.max_recursive_level {
@@ -287,10 +276,10 @@ impl Scene {
 
                 let reverse_color = *diffuse_color * (1.0 - reflection_level);
                 
-                return Some(reverse_color + reflection_color);
+                return Some((reverse_color + reflection_color) * light_intensivity);
             },
             // Луч преломления если надо
-            MaterialModificator::Refraction{index, refraction_level} => {
+            MaterialModificator::Refraction{index, transparense_level} => {
                 // Создаем луч преломления из данной точки
                 let refraction_ray = Ray::create_refraction(*intersection.get_hit_point(), 
                                                             *intersection.get_normal(),
@@ -299,7 +288,7 @@ impl Scene {
                                                             self.bias);
 
                 // Находим обратный цвет
-                let reverse_color = *diffuse_color * (1.0 - refraction_level);
+                let reverse_color = *diffuse_color * light_intensivity * (1.0 - transparense_level);
                 
                 match refraction_ray{
                     Some(refraction_ray) =>{
@@ -308,14 +297,9 @@ impl Scene {
 
                         // Находим цвет этого пересечения
                         let refraction_color = match refraction_intersection {
-                            Some(reflection_intersection) => {
-                                // TODO: Проверка текущего объекта
-                                if !std::ptr::eq(reflection_intersection.get_object(), intersection.get_object()) {
-                                    let full_refraction_intersection: IntersectionFull = reflection_intersection.into();
-                                    self.calculate_intersection_color_with_level(&refraction_ray, &full_refraction_intersection, cur_level + 1)
-                                }else{
-                                    Color::zero()
-                                }
+                            Some(refraction_intersection) => {
+                                let full_refraction_intersection: IntersectionFull = refraction_intersection.into();
+                                self.calculate_intersection_color_with_level(&refraction_ray, &full_refraction_intersection, cur_level + 1)
                             },
                             None => {
                                 Color::zero()
@@ -329,7 +313,9 @@ impl Scene {
                         // TODO: ???
                         //panic!();
                         Some(reverse_color)
+                        // Some(*diffuse_color)
                         // Some(Color::zero())
+                        // None
                     }
                 }
             }
@@ -364,143 +350,19 @@ impl Scene {
         let ambient_color = self.calculate_ambient_color(intersection, cur_level);
 
         // Луч отражения если надо
-        let reflected_color = match self.calculate_material_modificator_color(ray, intersection, &diffuse_color, cur_level){
+        let reflected_color = match self.calculate_material_modificator_color(ray, intersection, &diffuse_color, light_intensivity, cur_level){
             Some(reflected_color) => {
                 reflected_color
             },
             None => {
-                *diffuse_color
+                *diffuse_color * light_intensivity
             }
         };
 
         // Финальный цвет
-        let result_color: Color = reflected_color * light_intensivity + ambient_color;
+        let result_color: Color = reflected_color + ambient_color;
         
         // Ограничим значениями 0 - 1
         result_color.clamp(0.0_f32, 1.0_f32)
     }
-}
-
-pub fn build_test_scene() -> Scene {
-    // Список сфер
-    let figures: FiguresContainer = FiguresContainer{
-        // 1
-        spheres: vec![
-            Sphere {
-                center: Vector3 {
-                    x: 0.0,
-                    y: -0.6,
-                    z: -5.0,
-                },
-                radius: 0.8,
-                material: MaterialsContainer::Solid(SolidColorMaterial{
-                    diffuse_solid_color: Color {
-                        red: 0.4,
-                        green: 1.0,
-                        blue: 0.4,
-                    },
-                    material_modificator: MaterialModificator::Reflection(0.5_f32)
-                })
-            },
-            // 2
-            Sphere {
-                center: Vector3 {
-                    x: 0.0,
-                    y: 0.5,
-                    z: -2.0,
-                },
-                radius: 0.7,
-                material: MaterialsContainer::Solid(SolidColorMaterial{
-                    diffuse_solid_color: Color {
-                        red: 1.0,
-                        green: 0.1,
-                        blue: 0.3,
-                    },
-                    material_modificator: MaterialModificator::Refraction{
-                        index: 0.5_f32,
-                        refraction_level: 0.7_f32
-                    }
-                })
-            }
-        ],
-        // 3
-        planes: vec![
-            Plane {
-                origin: Vector3 {
-                    x: 0.0,
-                    y: -2.0,
-                    z: -3.0,
-                },
-                normal: Vector3 {
-                    x: 0.0,
-                    y: -1.0,
-                    z: 0.0,
-                },
-                material: MaterialsContainer::Texture(TextureMaterial{
-                    texture: image::open(Path::new("res/grass.jpg")).unwrap(),
-                    material_modificator: MaterialModificator::None
-                })
-            }
-        ],
-    };
-
-
-    let lights: LightsContainer = LightsContainer{
-        directional: vec![
-            DirectionalLight{
-                direction: Vector3{
-                    x: 0.0,
-                    y: -1.0,
-                    z: -1.0
-                }.normalize(),
-                color: Color{
-                    red: 1.0,
-                    green: 1.0,
-                    blue: 1.0
-                },
-                intensity: 0.3
-            },
-            DirectionalLight{
-                direction: Vector3{
-                    x: 1.0,
-                    y: -1.0,
-                    z: -1.0
-                }.normalize(),
-                color: Color{
-                    red: 1.0,
-                    green: 1.0,
-                    blue: 1.0
-                },
-                intensity: 0.2
-            }
-        ],
-        spherical: vec![
-            SphericalLight{
-                position: Vector3{
-                    x: -1.0,
-                    y: 0.8,
-                    z: -0.5
-                },
-                color: Color{
-                    red: 1.0,
-                    green: 1.0,
-                    blue: 1.0
-                },
-                intensity: 0.9
-            }
-        ]
-    };
-
-    let scene = Scene {
-        width: 800,
-        height: 600,
-        fov: 90.0,
-        ambient_light_intensivity: 0.3,
-        bias: 0.000006_f32,
-        max_recursive_level: 4,
-        lights: lights,
-        figures,
-    };
-    
-    scene
 }
