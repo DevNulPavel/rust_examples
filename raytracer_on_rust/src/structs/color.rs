@@ -56,6 +56,18 @@ impl Mul<f32> for Color{
 }
 
 // TODO: TEST
+impl Mul<Color> for Color{
+    type Output = Color;
+    fn mul(self, rhs: Color) -> Self::Output {
+        Color{
+            red: self.red * rhs.red,
+            green: self.green * rhs.green,
+            blue: self.blue * rhs.blue,
+        }
+    }
+}
+
+// TODO: TEST
 impl Div<f32> for Color{
     type Output = Color;
     fn div(self, rhs: f32) -> Self::Output {

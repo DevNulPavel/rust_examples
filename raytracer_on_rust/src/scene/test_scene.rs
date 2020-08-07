@@ -46,7 +46,7 @@ pub fn build_test_scene() -> Scene {
                 center: Vector3 {
                     x: 0.0,
                     y: -0.6,
-                    z: -5.0,
+                    z: -6.0,
                 },
                 radius: 0.8,
                 material: MaterialsContainer::Solid(SolidColorMaterial{
@@ -61,11 +61,11 @@ pub fn build_test_scene() -> Scene {
             // 2
             Sphere {
                 center: Vector3 {
-                    x: 0.5,
-                    y: 0.1,
-                    z: -1.0,
+                    x: 0.2,
+                    y: 0.2,
+                    z: -2.0,
                 },
-                radius: 0.4,
+                radius: 0.5,
                 material: MaterialsContainer::Solid(SolidColorMaterial{
                     diffuse_solid_color: Color {
                         red: 1.0,
@@ -85,7 +85,7 @@ pub fn build_test_scene() -> Scene {
                 origin: Vector3 {
                     x: 0.0,
                     y: -2.0,
-                    z: -3.0,
+                    z: -4.0,
                 },
                 normal: Vector3 {
                     x: 0.0,

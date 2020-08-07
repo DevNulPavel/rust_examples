@@ -54,6 +54,52 @@ pub struct Scene {
     pub figures: FiguresContainer,
 }
 
+// https://www.scratchapixel.com/lessons/3d-basic-rendering/introduction-to-shading/reflection-refraction-fresnel
+/*
+void fresnel(const Vec3f &I, const Vec3f &N, const float &ior, float &kr) 
+{ 
+    float cosi = clamp(-1, 1, dotProduct(I, N)); 
+    float etai = 1, etat = ior; 
+    if (cosi > 0) { std::swap(etai, etat); } 
+    // Compute sini using Snell's law
+    float sint = etai / etat * sqrtf(std::max(0.f, 1 - cosi * cosi)); 
+    // Total internal reflection
+    if (sint >= 1) { 
+        kr = 1; 
+    } 
+    else { 
+        float cost = sqrtf(std::max(0.f, 1 - sint * sint)); 
+        cosi = fabsf(cosi); 
+        float Rs = ((etat * cosi) - (etai * cost)) / ((etat * cosi) + (etai * cost)); 
+        float Rp = ((etai * cosi) - (etat * cost)) / ((etai * cosi) + (etat * cost)); 
+        kr = (Rs * Rs + Rp * Rp) / 2; 
+    } 
+    // As a consequence of the conservation of energy, transmittance is given by:
+    // kt = 1 - kr;
+} */
+
+fn fresnel(incident: Vector3, normal: Vector3, index: f32) -> f64 {
+    let i_dot_n = incident.dot(&normal).max(-1.0).min(1.0) as f64;
+    let mut eta_i = 1.0;
+    let mut eta_t = index as f64;
+    if i_dot_n > 0.0 {
+        eta_i = eta_t;
+        eta_t = 1.0;
+    }
+
+    let sin_t = (eta_i / eta_t) * (((1.0 - i_dot_n * i_dot_n).max(0.0)).sqrt());
+    if sin_t >= 1.0 {
+        //Total internal reflection
+        return 1.0;
+    } else {
+        let cos_t = (1.0 - sin_t * sin_t).max(0.0).sqrt();
+        let cos_i = i_dot_n.abs();
+        let r_s = ((eta_t * cos_i) - (eta_i * cos_t)) / ((eta_t * cos_i) + (eta_i * cos_t));
+        let r_p = ((eta_i * cos_i) - (eta_t * cos_t)) / ((eta_i * cos_i) + (eta_t * cos_t));
+        return (r_s * r_s + r_p * r_p) / 2.0;
+    }
+}
+
 impl Scene {
     /// Находим пересечение с ближайшим объектом
     pub fn trace_nearest_intersection<'a>(&'a self, ray: &Ray) -> Option<Intersection<'a>> {
@@ -242,13 +288,10 @@ impl Scene {
     }
 
     // Расчитываем цвет с учетом отражения если есть
-    fn calculate_reflection_color(&self, 
-                                  reflection_level: f32,
-                                  ray: &Ray, 
-                                  intersection: &IntersectionFull, 
-                                  diffuse_color: &Color, 
-                                  light_intensivity: f32,
-                                  cur_level: u32) -> Color{
+    fn calculate_reflection_color_without_light(&self, 
+                                                ray: &Ray, 
+                                                intersection: &IntersectionFull, 
+                                                cur_level: u32) -> Color{
         // Создаем луч отражения из данной точки
         let reflection_ray = Ray::create_reflection(*intersection.get_hit_point(), 
                                                     *intersection.get_normal(),
@@ -268,9 +311,65 @@ impl Scene {
             }
         };
 
-        let reverse_color = *diffuse_color * (1.0 - reflection_level);
+        return reflection_color;
+    }
+
+    // Расчитываем цвет с учетом отражения если есть
+    fn calculate_reflection_color(&self, 
+                                  reflection_level: f32,
+                                  ray: &Ray, 
+                                  intersection: &IntersectionFull, 
+                                  diffuse_color: &Color, 
+                                  light_intensivity: f32,
+                                  cur_level: u32) -> Color{
+        // Пробрасываем параметры в функцию проще
+        let reflection_color = self.calculate_reflection_color_without_light(ray, intersection, cur_level) * reflection_level;
+
+        // Обратный диффузный свет с учетом освещения
+        let reverse_color = *diffuse_color * (1.0 - reflection_level) * light_intensivity;
         
-        return reverse_color * light_intensivity + reflection_color;
+        reflection_color + reverse_color
+    }
+
+    fn calculate_refraction_color_without_light(&self, 
+                                                ray: &Ray, 
+                                                intersection: &IntersectionFull, 
+                                                index: f32,
+                                                cur_level: u32) -> Color{
+        // Создаем луч преломления из данной точки
+        let refraction_ray = Ray::create_refraction(*intersection.get_hit_point(), 
+                                                    *intersection.get_normal(),
+                                                    ray.direction, 
+                                                    index,
+                                                    self.bias);
+        match refraction_ray{
+            Some(refraction_ray) =>{
+                // Находим пересечение с объектом для луча преломления
+                let refraction_intersection = self.trace_nearest_intersection(&refraction_ray);
+
+                // Находим цвет этого пересечения
+                let refraction_color = match refraction_intersection {
+                    Some(refraction_intersection) => {
+                        // TODO: ??? По идее, если мы видим сами себя, значит коэффициент Фреснеля слишком мал
+                        //if !std::ptr::eq(refraction_intersection.get_object(), intersection.get_object()){
+                            let full_refraction_intersection: IntersectionFull = refraction_intersection.into();
+                            self.calculate_intersection_color_with_level(&refraction_ray, &full_refraction_intersection, cur_level + 1)
+                        // }else{
+                        //     Color::zero()
+                        // }
+                    },
+                    None => {
+                        Color::zero()
+                    }
+                };
+
+                // Выдаем результат
+                refraction_color
+            },
+            None => {
+                Color::zero()
+            }
+        }           
     }
 
     // Расчитываем цвет с учетом отражения если есть
@@ -282,41 +381,37 @@ impl Scene {
                                   light_intensivity: f32,
                                   cur_level: u32) -> Color {
         
-        let RefractionInfo{index, transparense_level} = info;
+        let RefractionInfo{index, transparense_level} = *info;
 
-        // Создаем луч преломления из данной точки
-        let refraction_ray = Ray::create_refraction(*intersection.get_hit_point(), 
-                                                    *intersection.get_normal(),
-                                                    ray.direction, 
-                                                    *index,
-                                                    self.bias);
+        // TODO: Работает неправильно, жеский переход
+        // Расчет коэффициента Фреснеля
+        let fresnel_value = fresnel(ray.direction.normalize(), 
+                                    (*intersection.get_normal()).normalize(), 
+                                    index) as f32;
+
+        /*return Color{
+            red: fresnel_value,
+            green: fresnel_value,
+            blue: fresnel_value
+        };*/
+
+        // Если он меньше 1, значит мы просвечиваем поверхность
+        let refraction_color = if fresnel_value < 1.0 {
+            self.calculate_refraction_color_without_light(ray, intersection, index, cur_level) // TODO: Нужно ли +1 ?                                                       
+        }else{
+            Color::zero()
+        };
+
+        // Создаем луч отражения из данной точки
+        let reflection_color = self.calculate_reflection_color_without_light(ray, intersection, cur_level); // TODO: Нужно ли +1 ?
+
+        // Получаем смешанный цвет отражения и преломления
+        let refrection_and_refraction_mix: Color = (reflection_color * fresnel_value + refraction_color * (1.0 - fresnel_value)) * transparense_level;
 
         // Находим обратный цвет
-        let reverse_color = *diffuse_color * (1.0 - transparense_level);
-        
-        match refraction_ray{
-            Some(refraction_ray) =>{
-                // Находим пересечение с объектом для луча преломления
-                let refraction_intersection = self.trace_nearest_intersection(&refraction_ray);
+        let reverse_diffuse_color = *diffuse_color * (1.0 - transparense_level) * light_intensivity * fresnel_value;
 
-                // Находим цвет этого пересечения
-                let refraction_color = match refraction_intersection {
-                    Some(refraction_intersection) => {
-                        let full_refraction_intersection: IntersectionFull = refraction_intersection.into();
-                        self.calculate_intersection_color_with_level(&refraction_ray, &full_refraction_intersection, cur_level + 1)
-                    },
-                    None => {
-                        Color::zero()
-                    }
-                };
-
-                // Выдаем результат
-                reverse_color * light_intensivity + refraction_color
-            },
-            None => {
-                reverse_color * light_intensivity
-            }
-        }
+        refrection_and_refraction_mix + reverse_diffuse_color
     }
 
     // Для найденного пересечения расчитываем цвет пикселя
