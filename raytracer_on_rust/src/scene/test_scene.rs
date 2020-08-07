@@ -69,11 +69,11 @@ pub fn build_test_scene() -> Scene {
                 material: MaterialsContainer::Solid(SolidColorMaterial{
                     diffuse_solid_color: Color {
                         red: 1.0,
-                        green: 0.1,
-                        blue: 0.3,
+                        green: 0.8,
+                        blue: 0.8,
                     },
                     modificator: MaterialModificator::Refraction(RefractionInfo{
-                        index: 0.99,
+                        index: 0.97,
                         transparense_level: 0.8
                     })
                 })

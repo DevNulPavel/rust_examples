@@ -80,14 +80,14 @@ void fresnel(const Vec3f &I, const Vec3f &N, const float &ior, float &kr)
 
 fn fresnel(incident: Vector3, normal: Vector3, index: f32) -> f64 {
     let i_dot_n = incident.dot(&normal).max(-1.0).min(1.0) as f64;
-    let mut eta_i = 1.0;
-    let mut eta_t = index as f64;
-    if i_dot_n > 0.0 {
-        eta_i = eta_t;
-        eta_t = 1.0;
-    }
 
-    let sin_t = (eta_i / eta_t) * (((1.0 - i_dot_n * i_dot_n).max(0.0)).sqrt());
+    let (eta_i, eta_t) = if i_dot_n > 0.0 {
+        (index as f64, 1.0)
+    }else{
+        (1.0, index as f64)
+    };
+
+    let sin_t = eta_i / eta_t * (((1.0 - i_dot_n * i_dot_n).max(0.0)).sqrt());
     if sin_t >= 1.0 {
         //Total internal reflection
         return 1.0;
@@ -122,7 +122,7 @@ impl Scene {
                         None
                     }
                 }
-            }
+            })
             // Создаем объект пересечения со ссылкой
             .map(|(d, s)| {
                 // Место, где у нас нашлось пересечение
@@ -132,7 +132,7 @@ impl Scene {
                 let figure: &'a dyn Figure = s;
 
                 Intersection::new(d, hit_point, figure)
-            }))
+            })
             // Находим среди всех минимум
             .min_by(|i1, i2| {
                 // Можно спокойно вызывать unwrap(), так как Nan был отфильтрован выше
@@ -142,13 +142,79 @@ impl Scene {
             })
     }
 
+    /// Находим пересечение c объектами с учетом прозрачности
+    // TODO: Рефакторинг - объединить с методом обычным
+    pub fn trace_shadow_intersection<'a>(&'a self, ray: &Ray) -> Option<(Intersection<'a>, f32)> {
+        // TODO: Сделать как-то красивее, убрав mut
+        let mut total_transparense = 1.0;
+        // Обходим все сферы
+        let res = self.figures
+            .iter()
+            // Фильтруем только найденные пересечения
+            .filter_map(|s| {
+                let found_opt = s.intersect(ray);
+                // На всякий пожарный фильтруем Nan значения
+                match found_opt {
+                    Some(val) =>{
+                        if !val.is_nan(){
+                            Some((val, s))
+                        }else{
+                            None
+                        }
+                    },
+                    None => {
+                        None
+                    }
+                }
+            })
+            // Создаем объект пересечения со ссылкой
+            .map(|(d, s)| {
+                // Место, где у нас нашлось пересечение
+                let hit_point: Vector3 = ray.origin + (ray.direction * d);
+
+                // Объект
+                let figure: &'a dyn Figure = s;
+
+                Intersection::new(d, hit_point, figure)
+            })
+            .inspect(|i|{
+                // Умножаем все прозрачности на пути
+                // TODO: вынести в inspect?
+                match i.get_object().get_material().get_modificator(){
+                    MaterialModificator::Refraction(RefractionInfo{transparense_level, ..}) =>{
+                        total_transparense *= *transparense_level;
+                    },
+                    _ => {
+                        total_transparense *= 0.0;
+                    }
+                }
+            })            
+            // Находим среди всех минимум
+            .min_by(|i1, i2| {
+                // Можно спокойно вызывать unwrap(), так как Nan был отфильтрован выше
+                i1
+                    .get_distance()
+                    .partial_cmp(&i2.get_distance())
+                    .unwrap()
+            });
+
+        match res {
+            Some(intersection) => {
+                Some((intersection, total_transparense))
+            },
+            None => {
+                None
+            }
+        }
+    }
+
     /// Для найденного пересечения расчитываем цвет пикселя
     pub fn calculate_intersection_color(&self, ray: &Ray, intersection: &IntersectionFull) -> Color{
         self.calculate_intersection_color_with_level(ray, intersection, 0)
     }
 
     /// Находим пересечение с любым объектом, используется для теней
-    fn trace_first_intersection<'a>(&'a self, ray: &Ray) -> Option<Intersection<'a>> {
+    /*fn trace_first_intersection<'a>(&'a self, ray: &Ray) -> Option<Intersection<'a>> {
         // Обходим все сферы
         self.figures
             .iter()
@@ -181,7 +247,7 @@ impl Scene {
             }))
             .take(1)
             .next()
-    }
+    }*/
 
     /// Получаем степень освещенности для конкретного пересечения и нормали
     fn calculate_light_intensivity(&self, intersection: &IntersectionFull) -> f32{
@@ -203,35 +269,41 @@ impl Scene {
                 };
 
                 // Нашли пересечение или нет с чем-то для определения тени
-                let in_light: bool = match self.trace_first_intersection(&shadow_ray){
-                    Some(shadow_intersection) => {
+                // TODO: Может быть достаточно использования self.trace_first_intersection(&shadow_ray)
+                // self.trace_nearest_intersection(&shadow_ray)
+                // self.trace_first_intersection(&shadow_ray)
+                // 
+                let (in_light, transparense): (bool, f32) = match self.trace_shadow_intersection(&shadow_ray) {
+                    Some((shadow_intersection, transparense)) => {
                         // Если расстояние до источника света меньше, 
                         // чем до ближайшего пересечения луча тени c объектом - значит все ок
                         let from_shadow_hit_to_light_dist = light.distance_to_point(intersection.get_hit_point());
                         match from_shadow_hit_to_light_dist {
                             LightDistance::Some(from_light_to_hit_dist) => {
-                                shadow_intersection.get_distance() > from_light_to_hit_dist
+                                (shadow_intersection.get_distance() > from_light_to_hit_dist, transparense)
                             }
                             LightDistance::Infinite => {
-                                false
+                                (false, transparense)
                             }
                         }
                     },
                     None => {
-                        true
+                        (true, 1.0)
                     }
                 };
                 
                 // Определяем интенсивность свечения в зависимости от тени
                 let light_intensity = if in_light { 
-                    light.intensivity_for_point(&intersection.get_hit_point()) 
-                } else { 
-                    return 0.0_f32;
+                    light.intensivity_for_point(&intersection.get_hit_point())
+                } else if transparense >= 0.0 {
+                    light.intensivity_for_point(&intersection.get_hit_point())
+                }else{
+                    return 0.0;
                 };
 
                 // Вычисляем свет как скалярное произведение (косинус угла между векторами),
                 // чем сонаправленнее, тем сильнее
-                let light_power = (intersection.get_normal().dot(&direction_to_light) as f32) * light_intensity;
+                let light_power = (intersection.get_normal().dot(&direction_to_light) as f32) * light_intensity * transparense;
 
                 light_power
             })
@@ -406,10 +478,10 @@ impl Scene {
         let reflection_color = self.calculate_reflection_color_without_light(ray, intersection, cur_level); // TODO: Нужно ли +1 ?
 
         // Получаем смешанный цвет отражения и преломления
-        let refrection_and_refraction_mix: Color = (reflection_color * fresnel_value + refraction_color * (1.0 - fresnel_value)) * transparense_level;
+        let refrection_and_refraction_mix: Color = (reflection_color * fresnel_value + refraction_color * (1.0 - fresnel_value)) * transparense_level * (*diffuse_color);
 
         // Находим обратный цвет
-        let reverse_diffuse_color = *diffuse_color * (1.0 - transparense_level) * light_intensivity * fresnel_value;
+        let reverse_diffuse_color = *diffuse_color * (1.0 - transparense_level) * light_intensivity;
 
         refrection_and_refraction_mix + reverse_diffuse_color
     }
