@@ -41,7 +41,7 @@ impl actix::Actor for SumActor {
 // Описываем обработку сообщения SumMessage для нашего актора
 impl actix::Handler<ValuesMessage> for SumActor {
     //type Result = Option<SumResult>;   // Описываем возвращаемое значение для актора
-    type Result = CalcResult;   // Описываем возвращаемое значение для актора, реализовали MessageResponse
+    type Result = Result<CalcResult, ()>;   // Описываем возвращаемое значение для актора, реализовали MessageResponse
 
     // Обработчик поступившего сообщения для актора
     fn handle(&mut self, msg: ValuesMessage, _ctx: &mut Self::Context) -> Self::Result {
@@ -57,6 +57,6 @@ impl actix::Handler<ValuesMessage> for SumActor {
         let sum_value: i32 = msg.x + msg.y;
         
         // Результат
-        Self::Result::new(sum_value, self.messages_processed)
+        Ok(CalcResult::new(sum_value, self.messages_processed))
     }
 }

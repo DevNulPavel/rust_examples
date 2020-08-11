@@ -28,8 +28,7 @@ impl Actor for SubActor {
 
 // Описываем обработку сообщения SumMessage для нашего актора
 impl Handler<ValuesMessage> for SubActor {
-    //type Result = Option<SumResult>;   // Описываем возвращаемое значение для актора
-    type Result = CalcResult;   // Описываем возвращаемое значение для актора, реализовали MessageResponse
+    type Result = Result<CalcResult, ()>;   // Описываем возвращаемое значение для актора, реализовали MessageResponse
 
     // Обработчик поступившего сообщения для актора
     fn handle(&mut self, msg: ValuesMessage, _ctx: &mut Self::Context) -> Self::Result {
@@ -40,6 +39,6 @@ impl Handler<ValuesMessage> for SubActor {
         let sub_value: i32 = msg.x - msg.y;
         
         // Результат
-        Self::Result::new(sub_value, self.messages_processed)
+        Ok(CalcResult::new(sub_value, self.messages_processed))
     }
 }

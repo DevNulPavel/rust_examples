@@ -17,5 +17,5 @@ impl ValuesMessage{
 impl actix::Message for ValuesMessage {
     // описываем тип возвращаемого значения на сообщение
     //type Result = Option<CalcResult>;
-    type Result = CalcResult;
+    type Result = Result<CalcResult, ()>;
 }

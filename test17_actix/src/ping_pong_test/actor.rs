@@ -1,11 +1,12 @@
 use std::{
-    io
+    io,
+    time
 };
-use futures::{
+/*use futures::{
     prelude::{
         *
     }
-};
+};*/
 use actix::{
     prelude::{
         *
@@ -46,9 +47,17 @@ impl Handler<Ping> for PingPongActor {
     type Result = Result<bool, io::Error>;
 
     /// Вызывается для обработке сообщения в потоке актора
-    fn handle(&mut self, _msg: Ping, _ctx: &mut Context<Self>) -> Self::Result {
+    fn handle(&mut self, _msg: Ping, ctx: &mut Context<Self>) -> Self::Result {
         println!("Ping received");
 
+        let _handle = ctx.run_later(time::Duration::from_secs(3), |_actor: &mut Self, ctx: &mut Context<Self>|{
+            println!("Ping received delayed");
+            // Останавливаем актора
+            ctx.stop(); 
+
+            // Останавливаем всю систему
+            System::current().stop();
+        });
         //let _request: Request<PingPongActor, Ping> = _ctx.address().send(Ping{});
         //let request_future: &Future<Output=_> = &request;
         //(request as &Future<Output=_>)

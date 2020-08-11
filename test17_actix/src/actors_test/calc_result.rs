@@ -1,3 +1,11 @@
+use actix::{
+    prelude::{
+        *
+    }
+    /*dev::{
+        MessageResponse
+    }*/
+};
 
 #[derive(Default, Debug)]
 pub struct CalcResult{
@@ -7,14 +15,17 @@ pub struct CalcResult{
 
 impl CalcResult{
     pub fn new(result: i32, operations_count: u32)-> CalcResult{
-        CalcResult{ result, operations_count }
+        CalcResult{ 
+            result, 
+            operations_count 
+        }
     }
 }
 
 // Для того, чтобы не использовать Option или Result в описании типа Result у сообщения
 // и у актора - мы реализуем данный трейт для результата сообщения
 // Для Option/Result - уже реализовано в самой библиотеке
-impl<A, M> actix::dev::MessageResponse<A, M> for CalcResult
+/*impl<A, M> MessageResponse<A, M> for CalcResult
 where
     A: actix::Actor,
     M: actix::Message<Result = CalcResult>
@@ -24,4 +35,4 @@ where
             tx.send(self);
         }
     }
-}
+}*/

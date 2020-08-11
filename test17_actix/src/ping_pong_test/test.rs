@@ -3,12 +3,11 @@ use actix::{
         *
     }
 };
-use futures::{
-    // prelude::{
-    //     *
-    // },
-    FutureExt
-};
+/*use futures::{
+    prelude::{
+        *
+    },
+};*/
 use super::{
     message::{
         Ping
@@ -43,14 +42,17 @@ async fn ping_pong_logic(){
     }
 
     // Останавливаем систему
-    System::current().stop();
+    //System::current().stop();
 }
 
 pub fn test_ping_pong() {
-    let sys = System::new("example");
+    // Создаем систему, она должна жить достаточно долго
+    let sys = System::new("ping_pong_system");
 
     // Закидываем future в реактор
     Arbiter::spawn(ping_pong_logic());
 
-    sys.run().unwrap();
+    // Запускаем систему
+    sys.run()
+        .unwrap();
 }

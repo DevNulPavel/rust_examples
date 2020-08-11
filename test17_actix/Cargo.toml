@@ -8,4 +8,5 @@ edition = "2018"
 
 [dependencies]
 futures = "0.3.5"
+tokio = "0.2.22"
 actix = "0.9.0"

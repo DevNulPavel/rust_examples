@@ -1,5 +1,10 @@
 //use actix::fut::*;
 //use futures::FutureExt; // Для того, чтобы работали методы у future
+use std::{
+    time::{
+        Duration
+    }
+};
 use actix::{
     prelude::{
         *
@@ -23,10 +28,7 @@ use super::{
     }
 };
 
-pub fn test_actor_messages() {
-    // TODO: Нужно ли явно создавать систему?
-    let _sys = System::new("test");
-
+async fn async_variant(){
     // Создаем нашего актора, такой спооб нужен для быстрого создания и запуска потом
     let sum_actor = SumActor::default();
 
@@ -91,90 +93,82 @@ pub fn test_actor_messages() {
     // actix::Arbiter::spawn(async move {
     // actix::spawn(async move {
 
-    // Короткий вариант, совмещающий запуск и обработку
-    actix::run(async move {
-        // Создание future из лямбды
-        {
-            let a = future::lazy(|_| {
-                1 as i32
-            });
-            assert_eq!(a.await, 1);    
-        }
+    // Создание future из лямбды
+    {
+        let a = future::lazy(|_| {
+            1 as i32
+        });
+        assert_eq!(a.await, 1);    
+    }
 
-        /*{
-            let fut = future::maybe_done(async { 5 });
-            assert_eq!(fut.as_mut().take_output(), None);
-            let () = fut.as_mut().await;
-            assert_eq!(fut.as_mut().take_output(), Some(5));
-            assert_eq!(fut.as_mut().take_output(), None);    
-        }*/
+    /*{
+        let fut = future::maybe_done(async { 5 });
+        assert_eq!(fut.as_mut().take_output(), None);
+        let () = fut.as_mut().await;
+        assert_eq!(fut.as_mut().take_output(), Some(5));
+        assert_eq!(fut.as_mut().take_output(), None);    
+    }*/
 
-        // Можем подождать асинхронно
-        actix::clock::delay_for(std::time::Duration::from_millis(2000)).await;
+    // Можем подождать асинхронно
+    actix::clock::delay_for(std::time::Duration::from_millis(2000)).await;
 
-        // Можно создать таймер, который будет срабатывать с определенной периодичностью
-        // Можно таким образом создать бесконечный цикл, который что-то делает
-        {
-            use std::time::Duration;
+    // Можно создать таймер, который будет срабатывать с определенной периодичностью
+    // можно таким образом создать бесконечный цикл, который что-то делает
+    {
+        let start = tokio::time::Instant::now() + Duration::from_millis(50);
+        let mut interval = actix::clock::interval_at(start, Duration::from_millis(10));
 
-            let start = tokio::time::Instant::now() + Duration::from_millis(50);
-            let mut interval = actix::clock::interval_at(start, Duration::from_millis(10));
-
-            for _ in 0..5 {
-                //futures::try_join!(interval.tick());
-                interval
-                    .tick()
-                    .map(|val|{
-                        val
-                    })
-                    .await;
-            }
-        }
-
-        let result: CalcResult = res1.await.unwrap();
-        assert_eq!(result.result, 15);
-        assert_eq!(result.operations_count, 1);
-        println!("{:?}", result);
-
-        let result: CalcResult = res2.await.unwrap();
-        assert_eq!(result.result, 3);
-        assert_eq!(result.operations_count, 4);
-        println!("{:?}", result);
-
-        /*all_results
-            .into_iter()
-            .for_each(|result| {
-                //assert_eq!(result.result, 3);
-                //assert_eq!(result.operations_count, 4);
-                println!("{:?}", result.await);
-            });*/
-
-        for result in all_results.into_iter(){
-            let value = result
-                // map преобразует значения одного типа в значения другого
-                .map(|result|{
-                    if let Ok(valid_value) = result {
-                        return valid_value.result;
-                    }
-                    0_i32
-                })
-                // Запускает по цепочке новые вычисления, должна возвращать новую future
-                .then(|result| {
-                    // Новый async блок, который возвращает future
-                    let new_future = async move {
-                        let temp_result: i32 = result;
-                        temp_result
-                    };
-                    new_future
-                })
+        for _ in 0_i32..5_i32 {
+            interval
+                .tick()
                 .await;
-            println!("{:?}", value);
         }
+    }
 
-        actix::System::current().stop();
-    }).unwrap();
+    let result: CalcResult = res1.await.unwrap().unwrap();
+    assert_eq!(result.result, 15);
+    assert_eq!(result.operations_count, 1);
+    println!("{:?}", result);
 
-    // Запускаем систему и блокируемся тут
-    // sys.run().unwrap();
-    
+    let result: CalcResult = res2.await.unwrap().unwrap();
+    assert_eq!(result.result, 3);
+    assert_eq!(result.operations_count, 4);
+    println!("{:?}", result);
+
+    /*all_results
+        .into_iter()
+        .for_each(|result| {
+            //assert_eq!(result.result, 3);
+            //assert_eq!(result.operations_count, 4);
+            println!("{:?}", result.await);
+        });*/
+
+    for result in all_results.into_iter(){
+        let value = result
+            // map преобразует значения одного типа в значения другого
+            .map(|result|{
+                if let Ok(valid_value) = result {
+                    return valid_value.unwrap().result;
+                }
+                0_i32
+            })
+            // Запускает по цепочке новые вычисления, должна возвращать новую future
+            .then(|result| {
+                // Новый async блок, который возвращает future
+                let new_future = async move {
+                    let temp_result: i32 = result;
+                    temp_result
+                };
+                new_future
+            })
+            .await;
+        println!("{:?}", value);
+    }
+
+    actix::System::current().stop();
+}
+
+pub fn test_actor_messages() {
+    // Короткий вариант, совмещающий запуск и обработку асинхронной задачи
+    actix::run(async_variant()).unwrap();
 }
