@@ -1,5 +1,18 @@
-use crate::value_message::ValuesMessage;
-use crate::calc_result::CalcResult;
+use actix::{
+    prelude::{
+        *
+    }
+};
+use crate::{
+    actors_test::{
+        value_message::{
+            ValuesMessage
+        },
+        calc_result::{
+            CalcResult
+        }
+    }
+};
 
 // Описание нашего актора
 #[derive(Default)]
@@ -8,13 +21,13 @@ pub struct SubActor{
 }
 
 // Реализация трейта актора
-impl actix::Actor for SubActor {
+impl Actor for SubActor {
     // Описываем мнотопоточый контекст актора
-    type Context = actix::SyncContext<Self>;
+    type Context = SyncContext<Self>;
 }
 
 // Описываем обработку сообщения SumMessage для нашего актора
-impl actix::Handler<ValuesMessage> for SubActor {
+impl Handler<ValuesMessage> for SubActor {
     //type Result = Option<SumResult>;   // Описываем возвращаемое значение для актора
     type Result = CalcResult;   // Описываем возвращаемое значение для актора, реализовали MessageResponse
 

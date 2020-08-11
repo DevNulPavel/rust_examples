@@ -1,25 +1,37 @@
 //use actix::fut::*;
 //use futures::FutureExt; // Для того, чтобы работали методы у future
-use actix::prelude::*;
-use futures::prelude::*;
-
-use crate::actors::SummatorActor; // Crate, self или super ???
-use crate::actors::SubActor;
-use super::value_message::ValuesMessage;
-use super::calc_result::CalcResult;
-
-
-/////////////////////////////////////////////
+use actix::{
+    prelude::{
+        *
+    }
+};
+use futures::{
+    prelude::{
+        *
+    }
+};
+use super::{
+    actors::{
+        SumActor,
+        SubActor
+    },
+    value_message::{
+        ValuesMessage
+    },
+    calc_result::{
+        CalcResult
+    }
+};
 
 pub fn test_actor_messages() {
     // TODO: Нужно ли явно создавать систему?
-    let _sys = actix::System::new("test");
+    let _sys = System::new("test");
 
     // Создаем нашего актора, такой спооб нужен для быстрого создания и запуска потом
-    let sum_actor = SummatorActor::default();
+    let sum_actor = SumActor::default();
 
     // Закидываем его в систему c получением канала отправки сообщений
-    let sum_addr: actix::Addr<SummatorActor> = sum_actor.start();
+    let sum_addr: Addr<SumActor> = sum_actor.start();
 
     // Такой способ создания нужен для создания актора с возможностью доступа к контексту
     // до его создания
@@ -84,7 +96,7 @@ pub fn test_actor_messages() {
         // Создание future из лямбды
         {
             let a = future::lazy(|_| {
-                1
+                1 as i32
             });
             assert_eq!(a.await, 1);    
         }

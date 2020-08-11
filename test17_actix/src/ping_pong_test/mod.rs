@@ -1,5 +1,9 @@
 mod message;
 mod actor;
-mod ping_pong;
+mod test;
 
-pub use ping_pong::test_ping_pong;
+pub use self::{
+    test::{
+        test_ping_pong
+    }
+};

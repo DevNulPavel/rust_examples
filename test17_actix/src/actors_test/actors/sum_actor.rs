@@ -1,16 +1,28 @@
-use actix::prelude::*;
-use crate::value_message::ValuesMessage;
-use crate::calc_result::CalcResult;
+use actix::{
+    prelude::{
+        *
+    }
+};
+use crate::{
+    actors_test::{
+        value_message::{
+            ValuesMessage
+        },
+        calc_result::{
+            CalcResult
+        }
+    }
+};
 
 
 // Описание нашего актора
 #[derive(Default)]
-pub struct SummatorActor{
+pub struct SumActor{
     messages_processed: u32 // Контекст актора
 }
 
 // Реализация трейта актора
-impl actix::Actor for SummatorActor {
+impl actix::Actor for SumActor {
     // Описываем однопоточный контекст актора
     type Context = actix::Context<Self>;
 
@@ -27,7 +39,7 @@ impl actix::Actor for SummatorActor {
 }
 
 // Описываем обработку сообщения SumMessage для нашего актора
-impl actix::Handler<ValuesMessage> for SummatorActor {
+impl actix::Handler<ValuesMessage> for SumActor {
     //type Result = Option<SumResult>;   // Описываем возвращаемое значение для актора
     type Result = CalcResult;   // Описываем возвращаемое значение для актора, реализовали MessageResponse
 
