@@ -1,5 +1,4 @@
 use std::{
-    io,
     time
 };
 /*use futures::{
@@ -13,23 +12,49 @@ use actix::{
     }
 };
 use super::{
-    message::{
+    ping_message::{
         Ping
+    },
+    ping_subscribe_message::{
+        PingSubscribe
+    },
+    ping_response::{
+        PingResponse
+    },
+    counter::{
+        CounterIncMessage
     }
 };
 
 // Define actor
 #[derive(Default)]
-pub struct PingPongActor{
+pub struct PingActor{
+    observers: Vec<Recipient<CounterIncMessage>>
+}
+
+impl PingActor {
+    pub fn new() -> PingActor{
+        PingActor{
+            observers: vec![]
+        }
+    }
 }
 
 // Непосредственно реализация нашего актора
-impl Actor for PingPongActor {
+impl Actor for PingActor {
     type Context = Context<Self>;
 
     /// Вызывается когда актор пулится в первый раз
     fn started(&mut self, _ctx: &mut Self::Context) {
        println!("Actor is alive");
+    }
+
+    /// Вызывается перед остановкой
+    fn stopping(&mut self, _: &mut Self::Context) -> Running {
+        // Останавливаем 
+        Running::Stop
+        // Продолжить исполнение
+        //Running::Continue
     }
 
     /// Вызывается после остановки актора.
@@ -41,13 +66,30 @@ impl Actor for PingPongActor {
     }
 }
 
+impl Handler<PingSubscribe> for PingActor{
+    type Result = ();
+
+    /// Вызывается для обработке сообщения в потоке актора
+    fn handle(&mut self, msg: PingSubscribe, ctx: &mut Context<Self>) -> Self::Result {
+        self.observers.push(msg.observer);
+    }
+}
+
 /// Обработчик сообщения Ping
-impl Handler<Ping> for PingPongActor {
-    /// Тип, который возвращается после обработки сообщения
-    type Result = Result<bool, io::Error>;
+impl Handler<Ping> for PingActor {
+    /// Тип, который возвращается после обработки сообщения.
+    /// Точно такое же значение, как у реализации Ping
+    type Result = Option<PingResponse>;
 
     /// Вызывается для обработке сообщения в потоке актора
     fn handle(&mut self, _msg: Ping, ctx: &mut Context<Self>) -> Self::Result {
+        // Оповещаем всех обзерверов об получении пинга
+        self.observers
+            .iter()
+            .for_each(|recepient|{
+                recepient.do_send(CounterIncMessage{}).unwrap();
+            });
+
         println!("Ping received");
 
         let _handle = ctx.run_later(time::Duration::from_secs(3), |_actor: &mut Self, ctx: &mut Context<Self>|{
@@ -62,6 +104,6 @@ impl Handler<Ping> for PingPongActor {
         //let request_future: &Future<Output=_> = &request;
         //(request as &Future<Output=_>)
 
-        Ok(true)
+        Some(PingResponse{})
     }
 }
