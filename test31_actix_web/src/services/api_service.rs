@@ -12,6 +12,7 @@ use actix_web::{
 
 async fn get_status() -> impl Responder{
     HttpResponse::Ok()
+        .content_type("application/text")
         .body("Get status response")
 }
 

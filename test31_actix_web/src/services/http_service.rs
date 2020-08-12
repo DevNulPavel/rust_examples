@@ -6,13 +6,22 @@ use actix_web::{
     Responder,
     HttpRequest,
     get,
-    post
+    //post
+};
+use serde::{
+    Deserialize
 };
 use crate::{
     app_state::{
         AppState
     }
 };
+
+#[derive(Deserialize)]
+struct GetParams{
+    id: u32,
+    name: String
+}
 
 // http://127.0.0.1:8080/123/123/index.html
 // Можно описывать путь с помощью макроса
@@ -23,18 +32,40 @@ async fn index(info: web::Path<(u32, String)>) -> impl Responder {
     text
 }
 
-#[post("/test1")]
-async fn hello1(info: web::Path<(u32, String)>) -> impl Responder {
-    let text = format!("Hello {}! id:{}", info.1, info.0);
+#[get("/test1/{id}/{name}")]
+async fn hello1(req: web::HttpRequest) -> impl Responder {
+    // Получаем id как Option
+    let id = match req.match_info().get("id"){
+        Some(id) => {
+            id
+        },
+        None => {
+            return String::from("id parse failed");
+        }
+    };
+    // Получаем name в виде пустой строки если нету
+    let name = req.match_info().query("name");
+
+    let text = format!("Hello {}! id:{}", name, id);
+    //HttpResponse::with_body(StatusCode::from_u16(200).unwrap(), text)
+    
+    text
+}
+
+// 127.0.0.1:8080/test2/1/qwe
+#[get("/test2/{id}/{name}")]
+async fn hello2(info: web::Path<GetParams>) -> impl Responder {
+    let text = format!("Hello {}! id:{}", info.name, info.id);
     //HttpResponse::with_body(StatusCode::from_u16(200).unwrap(), text)
     text
 }
 
-#[get("/test2")]
-async fn hello2(info: web::Path<(u32, String)>) -> impl Responder {
-    let text = format!("Hello {}! id:{}", info.1, info.0);
-    //HttpResponse::with_body(StatusCode::from_u16(200).unwrap(), text)
-    text
+/// extract form data using serde
+/// this handler gets called only if the content type is *x-www-form-urlencoded*
+/// and the content of the request could be deserialized to a `FormData` struct
+#[get("/test3/{id}/{name}")]
+async fn hello3(form: web::Form<GetParams>) -> impl Responder {
+    format!("Welcome {}!", form.id)
 }
 
 // http://127.0.0.1:8080/qwe
