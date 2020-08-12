@@ -1,13 +1,19 @@
 mod app_state;
 mod server;
 mod services;
+mod middlewares;
 
 use listenfd::{
     ListenFd
 };
 use actix_web::{
+    web,
+    middleware,
     App, 
     HttpServer
+};
+use actix_session::{
+    CookieSession
 };
 // use openssl::ssl::{
 //     SslAcceptor, 
@@ -22,9 +28,19 @@ use crate::{
 
 #[actix_rt::main]
 async fn main() -> std::io::Result<()>{
+    std::env::set_var("RUST_LOG", "actix_server=info,actix_web=info");
+    env_logger::init();
+
     let build_web_application = ||{
         // Создаем непосредственно приложение, конфигурируя его в другом месте
         App::new()
+            .wrap(middleware::Compress::default())
+            .wrap(middleware::Logger::default())
+            .wrap(middlewares::check_login::CheckLogin::default())
+            .wrap(CookieSession::signed(&[0; 32]).secure(false))
+            .default_service(web::route().to(|| { 
+                web::HttpResponse::MethodNotAllowed() 
+            }))
             .configure(configure_server)
     };
 

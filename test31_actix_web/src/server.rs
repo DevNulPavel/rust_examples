@@ -22,10 +22,15 @@ pub fn configure_server(cfg: &mut web::ServiceConfig) {
     let app_data = AppState::new("AppData");
     cfg.data(app_data); 
 
-    // Настраиваем пространство API
-    configure_api_service(cfg);
-
     // Настраиваем пространство от корня
-    configure_http_service(cfg);
-    
+    let http_scope = web::scope("")
+        .configure(configure_http_service);
+
+    // Настраиваем пространство API
+    let api_scope = web::scope("/api")
+        .configure(configure_api_service);
+
+    cfg
+        .service(api_scope)
+        .service(http_scope);
 }

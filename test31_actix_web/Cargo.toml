@@ -9,9 +9,14 @@ edition = "2018"
 [dependencies]
 actix-web = {version = "2.0.0", features = ["rustls"]}
 actix-rt = "1.1.1"
-rustls = "0.16.0"
+actix-service = "1.0.6"
+actix-session = "0.3.0" # TODO: Remove
+actix-identity = "0.2.1"
 tokio = "0.2.13"
+futures = "0.3.4"
+rustls = "0.16.0"
 listenfd = "0.3.3" # Нужен для автоматической перезагрузки сервера
 serde = "1.0.115"
+env_logger = "0.7.1"
 # openssl = { version="0.10" }
 # http = "0.2.0"

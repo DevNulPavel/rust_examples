@@ -17,10 +17,5 @@ async fn get_status() -> impl Responder{
 }
 
 pub fn configure_api_service(cfg: &mut ServiceConfig){
-    // Создаем сервис с префиксом /test
-    // .guard(guard::Get()) // Обрабатываем только get запросы
-    let api_scope = web::scope("/api")
-        .route("/get_status", web::get().to(get_status));
-
-    cfg.service(api_scope);
+    cfg.route("/get_status", web::get().to(get_status));
 }

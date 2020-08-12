@@ -5,8 +5,12 @@ use actix_web::{
     },
     Responder,
     HttpRequest,
+    HttpResponse,
     get,
     //post
+};
+use actix_session::{
+    Session
 };
 use serde::{
     Deserialize
@@ -23,9 +27,9 @@ struct GetParams{
     name: String
 }
 
-// http://127.0.0.1:8080/123/123/index.html
+// http://127.0.0.1:8080/
 // Можно описывать путь с помощью макроса
-#[get("/{id}/{name}/index.html")]
+#[get("/")]
 async fn index(info: web::Path<(u32, String)>) -> impl Responder {
     let text = format!("Hello {}! id:{}", info.1, info.0);
     //HttpResponse::with_body(StatusCode::from_u16(200).unwrap(), text)
@@ -68,7 +72,7 @@ async fn hello3(form: web::Form<GetParams>) -> impl Responder {
     format!("Welcome {}!", form.id)
 }
 
-// http://127.0.0.1:8080/qwe
+// http://127.0.0.1:8080/greet
 async fn greet(req: HttpRequest, data: web::Data<AppState>) -> impl Responder {
     // Все работает на пуле потоков, поэтому остальные запросы смогут отрабатывать нормально
     //std::thread::sleep(std::time::Duration::from_secs(20));
@@ -108,12 +112,41 @@ async fn greet(req: HttpRequest, data: web::Data<AppState>) -> impl Responder {
     format!("Hello {}!", &name)
 }
 
+async fn authorized_handler(session: Session) -> Result<HttpResponse, actix_web::Error> {
+    // access session data
+    if let Some(count) = session.get::<i32>("counter")? {
+        if count < 5{
+            session.set("counter", count + 1)?;
+        }else{
+            session.remove("counter");
+            return Ok(HttpResponse::PermanentRedirect()
+                .reason("Counter greater 5")
+                .body("Counter greater 5, redirect!"));
+        }
+    } else {
+        session.set("counter", 1)?;
+    }
+
+
+    Ok(HttpResponse::Ok().body(format!(
+        "Count is {:?}!",
+        session.get::<i32>("counter")?.unwrap()
+    )))
+}
+
+async fn login() -> impl Responder {
+    "Login page"
+}
+
 pub fn configure_http_service(cfg: &mut ServiceConfig){
     // Создаем сервис с префиксом /test
     // .guard(guard::Get()) // Обрабатываем только get запросы
+
     cfg
         .service(index) // Если обработчик сделан на макросе - тогда можно его использовать как сервис
         .service(hello1)
         .service(hello2)
-        .route("/", web::route().to(greet));
+        .route("/authorized", web::get().to(authorized_handler)) // Внутри создается ресурс и сервис
+        .route("/greet", web::route().to(greet))
+        .route("/login", web::route().to(login)); // Внутри создается ресурс и сервис
 }
