@@ -45,8 +45,10 @@ impl Actor for PingActor {
     type Context = Context<Self>;
 
     /// Вызывается когда актор пулится в первый раз
-    fn started(&mut self, _ctx: &mut Self::Context) {
-       println!("Actor is alive");
+    fn started(&mut self, ctx: &mut Self::Context) {
+        // Можно выставить размер ящика сообщений
+        ctx.set_mailbox_capacity(4);
+        println!("Actor is alive");
     }
 
     /// Вызывается перед остановкой
@@ -70,7 +72,7 @@ impl Handler<PingSubscribe> for PingActor{
     type Result = ();
 
     /// Вызывается для обработке сообщения в потоке актора
-    fn handle(&mut self, msg: PingSubscribe, ctx: &mut Context<Self>) -> Self::Result {
+    fn handle(&mut self, msg: PingSubscribe, _: &mut Context<Self>) -> Self::Result {
         self.observers.push(msg.observer);
     }
 }

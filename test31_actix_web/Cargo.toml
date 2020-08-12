@@ -1,5 +1,5 @@
 [package]
-name = "test17_actix"
+name = "test31_actix"
 version = "0.1.0"
 authors = ["DevNul <devnulpavel@gmail.com>"]
 edition = "2018"
@@ -7,9 +7,10 @@ edition = "2018"
 # See more keys and their definitions at https://doc.rust-lang.org/cargo/reference/manifest.html
 
 [dependencies]
-actix-rt = "1.0.0"
-actix-web = {version = "2.0.0", features = ["openssl"]}
-openssl = "0.10"
+actix-web = {version = "2.0.0", features = ["rustls"]}
+actix-rt = "1.1.1"
+rustls = "0.16.0"
 tokio = "0.2.13"
-http = "0.2.0"
-listenfd = "0.3" # Нужен для автоматической перезагрузки сервера
+listenfd = "0.3.3" # Нужен для автоматической перезагрузки сервера
+# openssl = { version="0.10" }
+# http = "0.2.0"
