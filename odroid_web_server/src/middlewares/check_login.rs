@@ -85,9 +85,13 @@ where
     fn call(&mut self, req: ServiceRequest) -> Self::Future {
         // Нам нужно лижшь подключиться к `start` для этого middleware
 
+        println!("Check path {}", req.path());
+
         let (r, mut pl) = req.into_parts(); 
         let is_logged_in = {
             // https://github.com/actix/actix-web/issues/1499#issuecomment-626967053
+            // https://github.com/actix/actix-web/issues/1517
+            // https://www.reddit.com/r/rust/comments/gvaash/stuck_with_actix_and_supporting_redirect_to_login/fsnke8c/
             match Identity::from_request(&r, &mut pl).into_inner() {
                 Ok(identity) => {
                     println!("Identity exists");

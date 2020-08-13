@@ -5,9 +5,7 @@ use actix_web::{
     },
     Responder,
     //HttpRequest,
-    HttpResponse,
-    get,
-    post    
+    HttpResponse, 
 };
 use actix_identity::{
     Identity
@@ -16,6 +14,11 @@ use serde::{
     Deserialize
 };
 use crate::{
+    middlewares::{
+        check_login::{
+            CheckLogin
+        }
+    },
     constants
 };
 
@@ -26,14 +29,12 @@ struct LoginParams{
     password: String
 }
 
-#[get("/")]
 async fn index_get(id: Identity) -> impl Responder {
     format!("Hello {}", id.identity().unwrap_or_else(|| {
         "Anonymous".to_owned()
     }))
 }
 
-#[get("/login")]
 async fn login_get() -> impl Responder {
     // TODO: Переделать на чтение файла, а лучше на кеширование
     let login_page = include_str!("../../static/login_form.html");
@@ -46,7 +47,6 @@ async fn login_get() -> impl Responder {
     response
 }
 
-#[post("/login")]
 async fn login_post(post_params: web::Form<LoginParams>, id: Identity) -> impl Responder {
     let lowercase_login = post_params.login.to_lowercase();
 
@@ -87,9 +87,13 @@ async fn logout(id: Identity) -> impl Responder {
 
 pub fn configure_http_service(cfg: &mut ServiceConfig){
     cfg
-        .service(index_get)
-        .service(login_get)
-        .service(login_post)
+        .service(web::resource("/")
+                    .wrap(CheckLogin::default())
+                    .route(web::get().to(index_get)))
         .service(web::resource("/logout")
-                    .route(web::route().to(logout)));
+                    .wrap(CheckLogin::default())
+                    .route(web::route().to(logout)))
+        .service(web::resource("/login")
+                    .route(web::get().to(login_get))
+                    .route(web::post().to(login_post)));
 }

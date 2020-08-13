@@ -14,11 +14,6 @@
                 text-align: center;
             }
 
-            /* Базовая настройка формы */
-            .form {
-                width: auto;
-            }
-
             /* Базовая настройка таблицы */
             .table{
                 width: 100%;
@@ -55,10 +50,12 @@
     </head>
     <body>
         <div class="layout">
-            <h3 class="title">Login page</h3>
+            <header>
+                <h3 class="title">Login page</h3>
+            </header>
 
-            <form class="form" action=/login method=POST>
-                <table class=".table">
+            <form action=/login method=POST>
+                <table class="table">
                     <tr>
                         <td class="leftcol">Login:</td>
                         <td class="rightcol"><input name="login" class="input"></td>

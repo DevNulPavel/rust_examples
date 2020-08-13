@@ -42,7 +42,6 @@ async fn main() -> std::io::Result<()>{
 
         App::new()
             .wrap(identity_middleware)
-            //.wrap(middlewares::check_login::CheckLogin::default())
             .wrap(middleware::Logger::default())
             .default_service(web::route().to(|| { 
                 web::HttpResponse::MethodNotAllowed() 
