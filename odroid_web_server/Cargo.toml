@@ -1,0 +1,23 @@
+[package]
+name = "odroid_web_server"
+version = "0.1.0"
+authors = ["DevNul <devnulpavel@gmail.com>"]
+edition = "2018"
+
+# See more keys and their definitions at https://doc.rust-lang.org/cargo/reference/manifest.html
+
+[dependencies]
+actix-web = {version = "2.0.0", features = ["rustls"]}
+actix-rt = "1.1.1"
+actix-service = "1.0.6"
+actix-identity = "0.2.1"
+tokio = "0.2.13"
+futures = "0.3.4"
+rustls = "0.16.0"
+listenfd = "0.3.3" # Нужен для автоматической перезагрузки сервера
+serde = {version = "1.0.115", features = ["derive"]}
+env_logger = "0.7.1"
+md5 = "0.7.0"
+rand = "0.7.3"
+# openssl = { version="0.10" }
+# http = "0.2.0"

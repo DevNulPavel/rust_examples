@@ -1,0 +1,77 @@
+<!doctype html>
+<html>
+    <head>
+        <meta charset=utf-8>
+        <title>Login</title>
+        <style type="text/css">
+            .layout {
+                vertical-align: top;
+                max-width: 600px;
+                width: 100%;
+            }
+            
+            .title {
+                text-align: center;
+            }
+
+            /* Базовая настройка формы */
+            .form {
+                width: auto;
+            }
+
+            /* Базовая настройка таблицы */
+            .table{
+                width: 100%;
+            }
+
+            /* Базовая настройка ячейки */
+            TD {
+                vertical-align: middle; /* Вертикальное выравнивание в ячейках */
+                padding: 5px; /* Поля вокруг ячейки отдельной */
+            }
+            TD.leftcol {
+                width: 100px; /* Ширина левой колонки */
+                background: #ccc; /* Цвет фона левой колонки */
+                border: 1px solid #000; /* Параметры рамки */
+            }
+            TD.rightcol {
+                background: #ccc; /* Цвет фона правой колонки */
+                border: 1px solid #000; /* Параметры рамки */
+            }
+
+            /* Базовая настройка поля ввода */
+            .input {
+                box-sizing: border-box;
+                vertical-align: middle;
+                width: 100%;
+                text-indent: 5px;
+            }
+
+            /* Базовая настройка кнопки */
+            .loginbutton{
+                width: 100%;
+            }
+        </style>
+    </head>
+    <body>
+        <div class="layout">
+            <h3 class="title">Login page</h3>
+
+            <form class="form" action=/login method=POST>
+                <table class=".table">
+                    <tr>
+                        <td class="leftcol">Login:</td>
+                        <td class="rightcol"><input name="login" class="input"></td>
+                    </tr>
+                    <tr>
+                        <td class="leftcol">Password:</td>
+                        <td class="rightcol"><input name="password" class="input" type="password"></td>
+                    </tr>
+                    <tr>
+                        <td class="TD" colspan="2"><button type=submit class="loginbutton">Login</button></td>
+                    </tr>
+                </table>
+            </form>
+        </div>
+    </body>
+</html>
