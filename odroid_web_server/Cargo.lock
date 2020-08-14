@@ -284,6 +284,17 @@ dependencies = [
 ]
 
 [[package]]
+name = "actix-web-middleware-redirect-https"
+version = "1.0.0"
+source = "registry+https://github.com/rust-lang/crates.io-index"
+checksum = "ca94e63640159cfd0ca704768c6267594e692c8c20c149bda877a268eff97ca8"
+dependencies = [
+ "actix-service",
+ "actix-web",
+ "futures",
+]
+
+[[package]]
 name = "addr2line"
 version = "0.13.0"
 source = "registry+https://github.com/rust-lang/crates.io-index"
@@ -1081,6 +1092,7 @@ dependencies = [
  "actix-rt",
  "actix-service",
  "actix-web",
+ "actix-web-middleware-redirect-https",
  "env_logger",
  "futures",
  "listenfd",

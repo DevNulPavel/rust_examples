@@ -86,6 +86,7 @@ async fn logout(id: Identity) -> impl Responder {
 }
 
 pub fn configure_http_service(cfg: &mut ServiceConfig){
+    // TODO: Объединение
     cfg
         .service(web::resource("/")
                     .wrap(CheckLogin::default())

@@ -3,6 +3,14 @@ mod services;
 mod middlewares;
 mod constants;
 
+use std::{
+    fs::{
+        File
+    },
+    io::{
+        BufReader
+    }
+};
 use listenfd::{
     ListenFd
 };
@@ -16,6 +24,19 @@ use actix_identity::{
     CookieIdentityPolicy, 
     IdentityService
 };
+use actix_web_middleware_redirect_https::{
+    RedirectHTTPS
+};
+use rustls::{
+    internal::{
+        pemfile::{
+            certs, 
+            rsa_private_keys
+        }
+    },
+    NoClientAuth, 
+    ServerConfig
+};
 use rand::{
     Rng
 };
@@ -25,12 +46,61 @@ use crate::{
     }
 };
 
+fn build_rustls_config() -> ServerConfig{
+    // https://github.com/actix/examples/tree/master/rustls
+    //
+    // Создание сертификата:
+    //
+    // brew install nss mkcert
+    // mkcert 127.0.0.1
+    // mv 127.0.0.1.pem cert.pem
+    // mv 127.0.0.1-key.pem key.pem
+    // openssl rsa -in key.pem -out key-rsa.pem
+
+    // Создаем конфиг
+    let mut config = ServerConfig::new(NoClientAuth::new());
+
+    // Читаем файл сертификата
+    let cert_chain = {
+        let file = File::open("rustls_certificates/cert.pem")
+            .expect("rustls_certificates/key.pem is not found");
+        let mut reader = BufReader::new(file);
+        certs(&mut reader)
+            .expect("Rustls cectificate read failed")
+    };
+
+    // Читаем файл закрытого ключа
+    let keys = {
+        let file = File::open("rustls_certificates/key-rsa.pem")
+            .expect("rustls_certificates/key.pem is not found");
+        let mut reader = BufReader::new(file);
+        let mut keys = rsa_private_keys(&mut reader)
+            .expect("Rustls private key read failed");
+
+        assert!(keys.len() > 0, "Rustls private keys is empty");                
+
+        keys.remove(0)
+    };
+
+    config
+        .set_single_cert(cert_chain, keys)
+        .expect("Rustls set_single_cert failed");
+
+    config
+}
+
 #[actix_rt::main]
 async fn main() -> std::io::Result<()>{
     std::env::set_var("RUST_LOG", "actix_server=info,actix_web=info");
     env_logger::init();
 
-    let build_web_application = ||{        
+    let build_web_application = ||{
+        // Middleware перекидывания всех запросов в https
+        let redirect_to_https = RedirectHTTPS::with_replacements(&[
+            (":8080".to_owned(), ":8443".to_owned())
+        ]);
+
+        // Настраиваем middleware идентификации пользователя   
         let identity_middleware = {
             let private_key = rand::thread_rng().gen::<[u8; 32]>();
             let policy = CookieIdentityPolicy::new(&private_key)
@@ -41,6 +111,7 @@ async fn main() -> std::io::Result<()>{
         };
 
         App::new()
+            .wrap(redirect_to_https)
             .wrap(identity_middleware)
             .wrap(middleware::Logger::default())
             .default_service(web::route().to(|| { 
@@ -48,6 +119,9 @@ async fn main() -> std::io::Result<()>{
             }))
             .configure(configure_server)
     };
+
+    // Конфигурация rustls
+    let rustls_config = build_rustls_config();
 
     // Создаем слушателя, чтобы просто переподключаться к открытому сокету при быстром рестарте
     let server = match ListenFd::from_env().take_tcp_listener(0)?{
@@ -58,7 +132,10 @@ async fn main() -> std::io::Result<()>{
         },
         None => {
             // Создаем новый сервер
+            // https://127.0.0.1:8443/login
+            // http://127.0.0.1:8080/login
             HttpServer::new(build_web_application)
+                .bind_rustls("127.0.0.1:8443", rustls_config)?
                 .bind("127.0.0.1:8080")?
         }
     };

@@ -11,6 +11,7 @@ actix-web = {version = "2.0.0", features = ["rustls"]}
 actix-rt = "1.1.1"
 actix-service = "1.0.6"
 actix-identity = "0.2.1"
+actix-web-middleware-redirect-https = "1.0.0"
 tokio = "0.2.13"
 futures = "0.3.4"
 rustls = "0.16.0"
