@@ -37,7 +37,7 @@ async fn index_get(id: Identity) -> impl Responder {
 
 async fn login_get() -> impl Responder {
     // TODO: Переделать на чтение файла, а лучше на кеширование
-    let login_page = include_str!("../../static/login_form.html");
+    let login_page = include_str!("../../html/login_form.html");
 
     // Страничка логина
     let response = HttpResponse::Ok()

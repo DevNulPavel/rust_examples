@@ -115,7 +115,10 @@ async fn main() -> std::io::Result<()>{
             .wrap(identity_middleware)
             .wrap(middleware::Logger::default())
             .default_service(web::route().to(|| { 
-                web::HttpResponse::MethodNotAllowed() 
+                // web::HttpResponse::MethodNotAllowed()
+                web::HttpResponse::Found()
+                    .header("location", "/")
+                    .finish()
             }))
             .configure(configure_server)
     };
