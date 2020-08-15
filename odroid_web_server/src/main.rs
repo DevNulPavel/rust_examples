@@ -2,6 +2,7 @@ mod server;
 mod services;
 mod middlewares;
 mod constants;
+mod camera;
 
 use std::{
     fs::{
@@ -124,11 +125,25 @@ async fn main() -> std::io::Result<()>{
             .wrap(middleware::Logger::default())
             .default_service(web::route().to(|| { 
                 // web::HttpResponse::MethodNotAllowed()
+                // web::HttpResponse::NotFound()
                 web::HttpResponse::Found()
                     .header("location", "/")
                     .finish()
             }))
             .configure(configure_server)
+            // TODO: default https://github.com/actix/examples/blob/master/basics/src/main.rs
+            /*.default_service(
+                // 404 for GET request
+                web::resource("")
+                    .route(web::get().to(p404))
+                    // all requests that are not `GET`
+                    .route(
+                        web::route()
+                            .guard(guard::Not(guard::Get()))
+                            .to(HttpResponse::MethodNotAllowed),
+                    ),
+            )*/
+            
     };
 
     // Конфигурация rustls

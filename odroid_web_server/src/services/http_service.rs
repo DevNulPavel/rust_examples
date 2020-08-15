@@ -29,6 +29,10 @@ use crate::{
             CheckLogin
         }
     },
+    camera::{
+        CameraImageError,
+        get_camera_image
+    },
     constants
 };
 
@@ -63,7 +67,7 @@ async fn index_get() -> impl Responder {
 async fn image_from_camera_get() -> impl Responder {
     info!("Image request");
 
-    let data = match fs::read("images/test.jpg") {
+    /*let data = match fs::read("images/test.jpg") {
         Ok(data) => {
             data
         },
@@ -72,16 +76,28 @@ async fn image_from_camera_get() -> impl Responder {
             return HttpResponse::NoContent()
                 .body("No file");
         }
-    };
+    };*/
+    match get_camera_image(){
+        Ok(image) => {
+            // Убрать копирование, сделать move
+            let data = Vec::from(&*image);
 
-    HttpResponse::Ok()
-        .content_type("image/jpeg")
-        .body(data)
+            HttpResponse::Ok()
+                .content_type("image/jpeg")
+                .body(data)
+        },
+        Err(err) => {
+            error!("Camera image error: {:?}", err);
+            HttpResponse::NoContent()
+                .finish()
+        }
+    }
 }
 
 async fn image_get() -> impl Responder {
     info!("Image page get request");
 
+    // TODO: fs::NamedFile https://github.com/actix/examples/blob/master/basics/src/main.rs
     // TODO: Кеширование
     let data = match fs::read("html/image.html") {
         Ok(data) => {
