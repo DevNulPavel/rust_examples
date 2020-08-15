@@ -11,6 +11,11 @@ use std::{
         BufReader
     }
 };
+use log::{
+    debug,
+    info,
+    error
+};
 use listenfd::{
     ListenFd
 };
@@ -91,8 +96,11 @@ fn build_rustls_config() -> ServerConfig{
 
 #[actix_rt::main]
 async fn main() -> std::io::Result<()>{
-    std::env::set_var("RUST_LOG", "actix_server=info,actix_web=info");
+    // https://rust-lang-nursery.github.io/rust-cookbook/development_tools/debugging/config_log.html
+    std::env::set_var("RUST_LOG", "actix_server=info,actix_web=info,odroid_web_server=trace");
     env_logger::init();
+
+    info!("Application setup");
 
     let build_web_application = ||{
         // Middleware перекидывания всех запросов в https

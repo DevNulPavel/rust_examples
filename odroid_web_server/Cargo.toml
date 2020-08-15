@@ -18,6 +18,7 @@ futures = "0.3.4"
 rustls = "0.16.0"
 listenfd = "0.3.3" # Нужен для автоматической перезагрузки сервера
 serde = {version = "1.0.115", features = ["derive"]}
+log = "0.4.11"
 env_logger = "0.7.1"
 md5 = "0.7.0"
 rand = "0.7.3"

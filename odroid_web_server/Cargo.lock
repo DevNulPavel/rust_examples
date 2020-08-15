@@ -1138,6 +1138,7 @@ dependencies = [
  "env_logger",
  "futures",
  "listenfd",
+ "log",
  "md5",
  "rand",
  "rustls",

@@ -1,0 +1,42 @@
+.layout {
+    vertical-align: top;
+    max-width: 600px;
+    width: 100%;
+}
+
+.title {
+    text-align: center;
+}
+
+/* Базовая настройка таблицы */
+.table{
+    width: 100%;
+}
+
+/* Базовая настройка ячейки */
+TD {
+    vertical-align: middle; /* Вертикальное выравнивание в ячейках */
+    padding: 5px; /* Поля вокруг ячейки отдельной */
+}
+TD.leftcol {
+    width: 100px; /* Ширина левой колонки */
+    background: #ccc; /* Цвет фона левой колонки */
+    border: 1px solid #000; /* Параметры рамки */
+}
+TD.rightcol {
+    background: #ccc; /* Цвет фона правой колонки */
+    border: 1px solid #000; /* Параметры рамки */
+}
+
+/* Базовая настройка поля ввода */
+.input {
+    box-sizing: border-box;
+    vertical-align: middle;
+    width: 100%;
+    text-indent: 5px;
+}
+
+/* Базовая настройка кнопки */
+.loginbutton{
+    width: 100%;
+}

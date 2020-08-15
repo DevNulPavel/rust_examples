@@ -85,7 +85,7 @@ where
     fn call(&mut self, req: ServiceRequest) -> Self::Future {
         // Нам нужно лижшь подключиться к `start` для этого middleware
 
-        println!("Check path {}", req.path());
+        // println!("Check path {}", req.path());
 
         let (r, mut pl) = req.into_parts(); 
         let is_logged_in = {
@@ -94,10 +94,10 @@ where
             // https://www.reddit.com/r/rust/comments/gvaash/stuck_with_actix_and_supporting_redirect_to_login/fsnke8c/
             match Identity::from_request(&r, &mut pl).into_inner() {
                 Ok(identity) => {
-                    println!("Identity exists");
+                    // println!("Identity exists");
                     match identity.identity(){
                         Some(user) => {
-                            println!("Identity user {}", user);
+                            // println!("Identity user {}", user);
                             if user == constants::LOGIN{
                                 true
                             }else{
@@ -105,13 +105,13 @@ where
                             }
                         },
                         None => {
-                            println!("Identity user is None");
+                            // println!("Identity user is None");
                             false
                         }
                     }
                 },
                 Err(_) => {
-                    println!("Identity error");
+                    // println!("Identity error");
                     false
                 }
             }
@@ -122,7 +122,7 @@ where
 
         // Если мы залогинены, тогда выполняем запрос как обычно
         if is_logged_in {
-            println!("Is logged in");
+            //println!("Is logged in");
             // Если мы залогинены, тогда не пускаем на страницу логина
             if req.path() == "/login" {
                 // Переходим на главную
@@ -136,7 +136,7 @@ where
                 Either::Left(self.service.call(req))
             }
         } else {
-            println!("Is NOT logged in");
+            //println!("Is NOT logged in");
 
             // Если мы не залогинены, проверяем - может мы уже на странице логина?
             if req.path() == "/login" {

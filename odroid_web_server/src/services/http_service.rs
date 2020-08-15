@@ -1,3 +1,13 @@
+use std::{
+    fs::{
+        self
+    }
+};
+use log::{
+    debug,
+    info,
+    error
+};
 use actix_web::{
     web::{
         self,
@@ -29,25 +39,94 @@ struct LoginParams{
     password: String
 }
 
-async fn index_get(id: Identity) -> impl Responder {
-    format!("Hello {}", id.identity().unwrap_or_else(|| {
-        "Anonymous".to_owned()
-    }))
+async fn index_get() -> impl Responder {
+    info!("Index request");
+
+    // TODO: Кеширование
+    let data = match fs::read("html/index.html") {
+        Ok(data) => {
+            data
+        },
+        Err(err) => {
+            error!("Index file read failed: {}", err);
+            return HttpResponse::NoContent()
+                .body("No file");
+        }
+    };
+
+    // Страничка логина
+    HttpResponse::Ok()
+        .content_type("text/html; charset=utf-8")
+        .body(data)
+}
+
+async fn image_from_camera_get() -> impl Responder {
+    info!("Image request");
+
+    let data = match fs::read("images/test.jpg") {
+        Ok(data) => {
+            data
+        },
+        Err(err) => {
+            error!("Image read failed: {}", err);
+            return HttpResponse::NoContent()
+                .body("No file");
+        }
+    };
+
+    HttpResponse::Ok()
+        .content_type("image/jpeg")
+        .body(data)
+}
+
+async fn image_get() -> impl Responder {
+    info!("Image page get request");
+
+    // TODO: Кеширование
+    let data = match fs::read("html/image.html") {
+        Ok(data) => {
+            data
+        },
+        Err(err) => {
+            error!("Login form read failed: {}", err);
+            return HttpResponse::NoContent()
+                .body("No file");
+        }
+    };
+
+    // Страничка логина
+    HttpResponse::Ok()
+        .content_type("text/html; charset=utf-8")
+        .body(data)
 }
 
 async fn login_get() -> impl Responder {
+    info!("Login page get request");
+
     // TODO: Переделать на чтение файла, а лучше на кеширование
-    let login_page = include_str!("../../html/login_form.html");
+    //let login_page = include_str!("../../html/login_form.html");
+
+    // TODO: Кеширование
+    let data = match fs::read("html/login_form.html") {
+        Ok(data) => {
+            data
+        },
+        Err(err) => {
+            error!("Login form read failed: {}", err);
+            return HttpResponse::NoContent()
+                .body("No file");
+        }
+    };
 
     // Страничка логина
-    let response = HttpResponse::Ok()
+    HttpResponse::Ok()
         .content_type("text/html; charset=utf-8")
-        .body(login_page);
-    
-    response
+        .body(data)
 }
 
 async fn login_post(post_params: web::Form<LoginParams>, id: Identity) -> impl Responder {
+    info!("Login page post request");
+
     let lowercase_login = post_params.login.to_lowercase();
 
     let valid_login = {
@@ -94,6 +173,12 @@ pub fn configure_http_service(cfg: &mut ServiceConfig){
         .service(web::resource("/logout")
                     .wrap(CheckLogin::default())
                     .route(web::route().to(logout)))
+        .service(web::resource("/image_from_camera")
+                    .wrap(CheckLogin::default())
+                    .route(web::get().to(image_from_camera_get)))
+        .service(web::resource("/image")
+                    .wrap(CheckLogin::default())
+                    .route(web::get().to(image_get)))
         .service(web::resource("/login")
                     .route(web::get().to(login_get))
                     .route(web::post().to(login_post)));
