@@ -22,4 +22,6 @@ log = "0.4.11"
 env_logger = "0.7.1"
 md5 = "0.7.0"
 rand = "0.7.3"
-rscam = "0.5.5"
+# rscam = "0.5.5"
+uuid = {version = "0.8.1", features = ["v4"]}
+# dirs = "3.0.1"

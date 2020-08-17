@@ -6,9 +6,11 @@ use std::{
 
 #[derive(Debug)]
 pub enum CameraImageError {
-    DeviceNotFound(io::Error),
-    CameraStartFailed(rscam::Error),
-    CameraCaptureFailed(io::Error)
+    ApplicationNotFound,
+    TempFilePathError,
+    CameraStartFailed,
+    CameraCaptureFailed,
+    TempFileReadError(io::Error),
 }
 
 // TODO:

@@ -4,7 +4,7 @@ use std::{
     }
 };
 use log::{
-    debug,
+    // debug,
     info,
     error
 };
@@ -30,7 +30,6 @@ use crate::{
         }
     },
     camera::{
-        CameraImageError,
         get_camera_image
     },
     constants
@@ -79,12 +78,9 @@ async fn image_from_camera_get() -> impl Responder {
     };*/
     match get_camera_image(){
         Ok(image) => {
-            // Убрать копирование, сделать move
-            let data = Vec::from(&*image);
-
             HttpResponse::Ok()
                 .content_type("image/jpeg")
-                .body(data)
+                .body(image)
         },
         Err(err) => {
             error!("Camera image error: {:?}", err);
