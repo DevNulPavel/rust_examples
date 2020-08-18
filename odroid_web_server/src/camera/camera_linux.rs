@@ -29,46 +29,9 @@ use super::{
 };
 
 
-// sudo aptitude install libv4l-dev
-/*pub fn get_camera_image() -> Result<Vec<u8>, CameraImageError>{
-    // TODO: перебор устройств
-    // TODO: Разрешение
-
-    let mut camera = match rscam::new("/dev/video0"){
-        Ok(camera) => {
-            camera
-        },
-        Err(error) => {
-            return Err(CameraImageError::DeviceNotFound(error))
-        }
-    };
-
-    let config = rscam::Config {
-        interval: (1, 5),           // 5 fps.
-        resolution: (1280, 720),
-        format: b"MJPG",
-        ..Default::default()
-    };
-
-    if let Err(err) = camera.start(&config){
-        return Err(CameraImageError::CameraStartFailed(err));
-    }
-
-    let frame: rscam::Frame = match camera.capture(){
-        Ok(frame) => {
-            frame
-        },
-        Err(err) => {
-            return Err(CameraImageError::CameraCaptureFailed(err));
-        }
-    };
-
-    Ok(frame)
-}*/
-
-// https://doc.rust-lang.org/reference/conditional-compilation.html#the-cfg-attribute
-#[cfg(target_os = "macos")]
 pub fn get_camera_image() -> Result<Vec<u8>, CameraImageError>{
+    // TODO: Запуск без sudo требует добавления в группу: sudo usermod -a -G video devnul
+    // TODO: Выбор устройства видео
     // TODO: Запускать сервер надо только из терминала, так как из VSСode не даются пермишены на доступ к камере
 
     // https://apple.stackexchange.com/questions/326362/how-to-take-photo-using-terminal
@@ -124,12 +87,11 @@ pub fn get_camera_image() -> Result<Vec<u8>, CameraImageError>{
 
     // TODO: Suppress out
     let ffmpeg_spawn = Command::new(ffmpeg_path)
-        .args(&["-f", "avfoundation", 
-                "-video_size", "1280x720", 
-                "-framerate", "30", 
-                "-i", "0", 
-                "-vframes", "1",
-                temporary_file_path_str])
+        .args(&["-f", "video4linux2", 
+            "-framerate", "5", 
+            "-i", "/dev/video0", 
+            "-vframes", "1",
+            temporary_file_path_str])
         .spawn();
     
     let mut ffmpeg_child_process = match ffmpeg_spawn {
