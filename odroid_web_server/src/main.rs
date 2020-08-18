@@ -30,9 +30,9 @@ use actix_identity::{
     CookieIdentityPolicy, 
     IdentityService
 };
-use actix_web_middleware_redirect_https::{
+/*use actix_web_middleware_redirect_https::{
     RedirectHTTPS
-};
+};*/
 use rustls::{
     internal::{
         pemfile::{
@@ -105,9 +105,9 @@ async fn main() -> std::io::Result<()>{
 
     let build_web_application = ||{
         // Middleware перекидывания всех запросов в https
-        let redirect_to_https = RedirectHTTPS::with_replacements(&[
+        /*let redirect_to_https = RedirectHTTPS::with_replacements(&[
             (":8080".to_owned(), ":8443".to_owned())
-        ]);
+        ]);*/
 
         // Настраиваем middleware идентификации пользователя   
         let identity_middleware = {
@@ -120,7 +120,7 @@ async fn main() -> std::io::Result<()>{
         };
 
         App::new()
-            .wrap(redirect_to_https)
+            //.wrap(redirect_to_https)
             .wrap(identity_middleware)
             .wrap(middleware::Logger::default())
             .default_service(web::route().to(|| { 
@@ -161,8 +161,8 @@ async fn main() -> std::io::Result<()>{
             // https://127.0.0.1:8443/login
             // http://127.0.0.1:8080/login
             HttpServer::new(build_web_application)
-                .bind_rustls("127.0.0.1:8443", rustls_config)?
-                .bind("127.0.0.1:8080")?
+                .bind_rustls("0.0.0.0:8443", rustls_config)?
+                .bind("0.0.0.0:8080")?
         }
     };
 
