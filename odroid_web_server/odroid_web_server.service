@@ -1,0 +1,16 @@
+# Content of /etc/systemd/system/odroid_web_server.service
+
+[Unit]
+Description=Odroid web server
+After=network.target
+
+[Service]
+Type=simple
+WorkingDirectory=/home/devnul/projects/Rust_Examples/odroid_web_server/deploy_result
+ExecStart=/home/devnul/projects/Rust_Examples/odroid_web_server/deploy_result/odroid_web_server
+TimeoutStartSec=0
+Restart=on-failure
+RestartSec=30
+
+[Install]
+WantedBy=default.target
