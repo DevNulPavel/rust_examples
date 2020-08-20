@@ -1,4 +1,5 @@
 */target
 /target/
+/deploy_result/
 **/*.rs.bk
 .DS_Store
