@@ -36,6 +36,7 @@ pub fn get_camera_image() -> Result<Vec<u8>, CameraImageError>{
     // TODO: Запуск без sudo требует добавления в группу: sudo usermod -a -G video devnul
     // TODO: Выбор устройства видео
     // TODO: Запускать сервер надо только из терминала, так как из VSСode не даются пермишены на доступ к камере
+    // TODO: FPS как параметр
 
     // https://apple.stackexchange.com/questions/326362/how-to-take-photo-using-terminal
     // ffmpeg -f avfoundation -list_devices true -i ""
@@ -91,7 +92,7 @@ pub fn get_camera_image() -> Result<Vec<u8>, CameraImageError>{
     // TODO: Suppress out
     let ffmpeg_spawn = Command::new(ffmpeg_path)
         .args(&["-f", "video4linux2", 
-            "-framerate", "5", 
+            "-framerate", "30", 
             "-i", "/dev/video0", 
             "-vframes", "1",
             temporary_file_path_str])

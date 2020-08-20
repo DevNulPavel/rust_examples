@@ -34,6 +34,7 @@ use super::{
 pub fn get_camera_image() -> Result<Vec<u8>, CameraImageError>{
     // TODO: Выбор устройства видео
     // TODO: Запускать сервер надо только из терминала, так как из VSСode не даются пермишены на доступ к камере
+    // TODO: FPS как параметр
 
     // https://apple.stackexchange.com/questions/326362/how-to-take-photo-using-terminal
     // ffmpeg -f avfoundation -list_devices true -i ""
