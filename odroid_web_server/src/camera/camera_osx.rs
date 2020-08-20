@@ -15,6 +15,9 @@ use std::{
         Command
     }
 };
+use scopeguard::{
+    defer
+};
 use log::{
     debug,
     error
@@ -117,16 +120,16 @@ pub fn get_camera_image() -> Result<Vec<u8>, CameraImageError>{
         return Err(CameraImageError::CameraCaptureFailed);
     }
 
+    // Файл будет удален после выхода из функции в деструктора
+    defer!{
+        fs::remove_file(&temporary_file_path).ok();
+    }
+
     let temporary_file_data = match fs::read(&temporary_file_path){
         Ok(data) => {
-            // TODO: Defer?
-            fs::remove_file(temporary_file_path).ok();
-
             data
         },
         Err(err) => {
-            fs::remove_file(temporary_file_path).ok();
-
             return Err(CameraImageError::TempFileReadError(err));
         }
     };

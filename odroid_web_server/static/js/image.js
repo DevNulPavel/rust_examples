@@ -26,7 +26,7 @@ async function reloadImage(){
     if (response.ok) {
         let data = await response.blob();
 
-        loadingText.innerHTML = "Loaded";
+        loadingText.innerHTML = "Loading complete";
         
         image.src = URL.createObjectURL(data);
     } else {

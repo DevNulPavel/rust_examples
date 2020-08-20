@@ -1,5 +1,5 @@
 .image{
     top:10px;
-    left:10px;
-    width:400px
+    left:100px;
+    max-width: 640px;
 }
