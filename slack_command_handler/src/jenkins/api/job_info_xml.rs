@@ -57,6 +57,14 @@ pub enum Parameter{
         
         #[serde(rename = "choiceListProvider")]
         choise: Choise,
+    },
+    #[serde(rename = "net.uaznia.lukanus.hudson.plugins.gitparameter.GitParameterDefinition")]
+    Git{
+        name: String,
+        description: String,
+
+        #[serde(rename = "defaultValue")]
+        default_value: String
     }
 }
 

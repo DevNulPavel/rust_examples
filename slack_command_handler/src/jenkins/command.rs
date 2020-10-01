@@ -17,8 +17,7 @@ use log::{
 };
 use super::{
     api::{
-        request_jenkins_jobs_list,
-        request_jenkins_job_info
+        request_jenkins_jobs_list
     }
 };
 use crate::{
@@ -59,17 +58,6 @@ impl fmt::Debug for SlackCommandParameters {
 
 pub async fn jenkins_command_handler(parameters: web::Form<SlackCommandParameters>, app_data: web::Data<ApplicationData>) -> web::HttpResponse {
     debug!("Index parameters: {:?}", parameters);
-
-    match request_jenkins_job_info(&app_data.http_client, 
-                                   &app_data.jenkins_auth,
-                                   "bbd-gplay-prod").await{
-        Ok(_res) => {
-
-        },
-        Err(err) => {
-            error!("Job info request error: {:?}", err);
-        }
-    }
 
     // Получаем список возможных таргетов сборки
     // TODO: может можно избавиться от collect?
@@ -114,8 +102,10 @@ pub async fn jenkins_command_handler(parameters: web::Form<SlackCommandParameter
                 },
                 "blocks": [
                     {
+                        "block_id": "build_target_block_id",
                         "type": "input",
                         "element": {
+                            "action_id": "build_target_action_id",
                             "type": "static_select",
                             "placeholder": {
                                 "type": "plain_text",
@@ -129,18 +119,7 @@ pub async fn jenkins_command_handler(parameters: web::Form<SlackCommandParameter
                             "text": "Target",
                             "emoji": false
                         }
-                    },
-                    {
-                        "type": "input",
-                        "element": {
-                            "type": "plain_text_input"
-                        },
-                        "label": {
-                            "type": "plain_text",
-                            "text": "Git branch",
-                            "emoji": false
-                        }
-                    },             
+                    },         
                     {
                         "type": "section",
                         "block_id": "section-identifier",
@@ -160,7 +139,7 @@ pub async fn jenkins_command_handler(parameters: web::Form<SlackCommandParameter
                 ],
                 "submit": {
                     "type": "plain_text",
-                    "text": "Submit",
+                    "text": "To build properties",
                     "emoji": false
                 },
                 "close": {
@@ -191,7 +170,6 @@ pub async fn jenkins_command_handler(parameters: web::Form<SlackCommandParameter
             //     response_type: "ephemeral",
             //     text: String::from("test")
             // };
-        
             // HttpResponse::Ok()
             //     .json(response)            
         },
