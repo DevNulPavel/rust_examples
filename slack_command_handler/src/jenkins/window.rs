@@ -6,12 +6,12 @@ use std::{
 };
 use log::{
     debug,
-    info,
+    // info,
     error
 };
 use actix_web::{ 
     web,
-    Responder,
+    // Responder,
     HttpResponse
 };
 use serde::{
@@ -77,6 +77,18 @@ pub struct SlackWindowParameters{
 
 fn process_submit_button() -> web::HttpResponse{
     // TODO: Не конвертировать туда-сюда json
+    // let j = r#"
+    //     {
+    //     "id": "demo-deserialize-max",
+    //     "values": [
+    //         256,
+    //         100,
+    //         384,
+    //         314,
+    //         271
+    //     ]
+    //     }
+    // "#;
     let window_update = serde_json::json!(
         {
             "response_action": "update",
@@ -106,10 +118,10 @@ fn process_submit_button() -> web::HttpResponse{
 
 async fn process_payload(payload: SlackWindowParametersPayload, app_data: web::Data<ApplicationData>) -> web::HttpResponse{
     match payload {
-        SlackWindowParametersPayload::Submit{view, ..} => {
+        SlackWindowParametersPayload::Submit{..} => {
             process_submit_button()
         },
-        SlackWindowParametersPayload::Action{trigger_id, view, ..} => {
+        SlackWindowParametersPayload::Action{view, ..} => {
             // Описываем обновление нашего окна
             // https://api.slack.com/surfaces/modals/using#interactions
             let window_update = serde_json::json!(

@@ -1,6 +1,7 @@
 mod window;
 mod command;
 mod api;
+mod auth;
 
 pub use self::{
     command::{
@@ -8,5 +9,8 @@ pub use self::{
     },
     window::{
         jenkins_window_handler
+    },
+    auth::{
+        JenkinsAuth
     }
 };

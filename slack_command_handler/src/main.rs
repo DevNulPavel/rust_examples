@@ -7,16 +7,16 @@ use actix_web::{
     middleware,
     App,
     HttpServer,
-    Responder,
-    HttpResponse
+    // Responder,
+    // HttpResponse
 };
-use serde::{
-    Serialize
-};
+// use serde::{
+//     Serialize
+// };
 use log::{
-    debug,
+    // debug,
     info,
-    error
+    // error
 };
 use listenfd::{
     ListenFd
@@ -26,6 +26,7 @@ use crate::{
         ApplicationData
     },
     jenkins::{
+        JenkinsAuth,
         jenkins_command_handler,
         jenkins_window_handler
     }
@@ -81,8 +82,10 @@ async fn main() -> std::io::Result<()>{
         // Создаем общие данные приложения
         let app_data = ApplicationData{
             slack_api_token,
-            jenkins_user,
-            jenkins_api_token,
+            jenkins_auth: JenkinsAuth{
+                jenkins_user,
+                jenkins_api_token
+            },
             http_client: reqwest::Client::new()
         };
 

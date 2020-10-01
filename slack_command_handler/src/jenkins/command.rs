@@ -3,7 +3,7 @@ use std::{
 };
 use actix_web::{ 
     web,
-    Responder,
+    // Responder,
     HttpResponse
 };
 use serde::{
@@ -12,12 +12,13 @@ use serde::{
 };
 use log::{
     debug,
-    info,
+    // info,
     error
 };
 use super::{
     api::{
-        request_jenkins_jobs_list
+        request_jenkins_jobs_list,
+        request_jenkins_job_info
     }
 };
 use crate::{
@@ -59,16 +60,26 @@ impl fmt::Debug for SlackCommandParameters {
 pub async fn jenkins_command_handler(parameters: web::Form<SlackCommandParameters>, app_data: web::Data<ApplicationData>) -> web::HttpResponse {
     debug!("Index parameters: {:?}", parameters);
 
+    match request_jenkins_job_info(&app_data.http_client, 
+                                   &app_data.jenkins_auth,
+                                   "bbd-gplay-prod").await{
+        Ok(_res) => {
+
+        },
+        Err(err) => {
+            error!("Job info request error: {:?}", err);
+        }
+    }
+
     // Получаем список возможных таргетов сборки
     // TODO: может можно избавиться от collect?
     let jobs = match request_jenkins_jobs_list(&app_data.http_client, 
-                                               &app_data.jenkins_user,
-                                               &app_data.jenkins_api_token).await {
+                                               &app_data.jenkins_auth).await {
         Ok(jobs) => {
             jobs
                 .into_iter()
                 .map(|job|{
-                    debug!("Job info: {:?}", job);
+                    //debug!("Job info: {:?}", job);
                     serde_json::json!(
                         {
                             "text": {
