@@ -114,7 +114,7 @@ async fn main() -> std::io::Result<()>{
             let private_key = rand::thread_rng().gen::<[u8; 32]>();
             let policy = CookieIdentityPolicy::new(&private_key)
                 .name("auth-logic")
-                .max_age(60 * 60 * 24 * 14) // 14 дней максимум
+                .max_age(60 * 60 * 24 * 30) // 30 дней максимум
                 .secure(false);
             IdentityService::new(policy)
         };

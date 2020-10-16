@@ -52,14 +52,13 @@ pub fn get_camera_image() -> Result<Vec<u8>, CameraImageError>{
         match ffmpeg_command {
             Ok(output) => {
                 if output.status.success(){
-                    match std::str::from_utf8(&output.stdout){
-                        Ok(str) => {
+                    std::str::from_utf8(&output.stdout)
+                        .map(|str|{
                             PathBuf::from(str.trim_end())
-                        },
-                        Err(_) => {
-                            return Err(CameraImageError::ApplicationNotFound);        
-                        }
-                    }
+                        })
+                        .map_err(|_|{
+                            CameraImageError::ApplicationNotFound
+                        })?
                 }else{
                     return Err(CameraImageError::ApplicationNotFound);
                 }
