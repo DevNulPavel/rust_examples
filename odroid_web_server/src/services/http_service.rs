@@ -32,6 +32,9 @@ use crate::{
     camera::{
         get_camera_image
     },
+    gpio::{
+        set_light_status
+    },
     constants
 };
 
@@ -110,6 +113,26 @@ async fn image_get() -> impl Responder {
     HttpResponse::Ok()
         .content_type("text/html; charset=utf-8")
         .body(data)
+}
+
+#[derive(Deserialize)]
+struct LightParams{
+    status: bool
+}
+
+async fn light_post(post_params: web::Json<LightParams>) -> impl Responder {
+    info!("Change light mode request");
+    match set_light_status(post_params.status, 0){
+        Ok(_) => {
+            HttpResponse::Ok()
+                .finish()
+        },
+        Err(err) => {
+            error!("Change light mode request failed: {:?}", err);
+            HttpResponse::NoContent()
+                .finish()
+        } 
+    }
 }
 
 async fn login_get() -> impl Responder {
@@ -191,6 +214,9 @@ pub fn configure_http_service(cfg: &mut ServiceConfig){
         .service(web::resource("/image")
                     .wrap(CheckLogin::default())
                     .route(web::get().to(image_get)))
+        .service(web::resource("/light")
+                    .wrap(CheckLogin::default())
+                    .route(web::post().to(light_post)))
         .service(web::resource("/login")
                     .route(web::get().to(login_get))
                     .route(web::post().to(login_post)));
