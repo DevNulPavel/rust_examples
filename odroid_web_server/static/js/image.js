@@ -75,7 +75,7 @@ async function lightOn(){
 async function lightOff(){
     console.log("Light off clicked");
     await postRequest("/light", {
-        status: true
+        status: false
     });
 }
 
