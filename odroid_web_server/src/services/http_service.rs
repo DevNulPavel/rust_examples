@@ -21,7 +21,8 @@ use actix_identity::{
     Identity
 };
 use serde::{
-    Deserialize
+    Deserialize,
+    Serialize
 };
 use crate::{
     middlewares::{
@@ -30,7 +31,8 @@ use crate::{
         }
     },
     camera::{
-        get_camera_image
+        get_camera_image,
+        get_cameras_count
     },
     gpio::{
         set_light_status
@@ -64,6 +66,29 @@ async fn index_get() -> impl Responder {
     HttpResponse::Ok()
         .content_type("text/html; charset=utf-8")
         .body(data)
+}
+
+async fn cameras_count_get() -> impl Responder {
+    info!("Cameras count request");
+
+    #[derive(Serialize)]
+    struct Response{
+        count: usize
+    }
+
+    match get_cameras_count(){
+        Ok(count) => {
+            HttpResponse::Ok()
+                .json(Response{
+                    count
+                })
+        },
+        Err(err) => {
+            error!("Camera count error: {:?}", err);
+            HttpResponse::NoContent()
+                .finish()
+        }
+    }
 }
 
 #[derive(Debug, Deserialize)]
@@ -213,6 +238,9 @@ pub fn configure_http_service(cfg: &mut ServiceConfig){
         .service(web::resource("/logout")
                     .wrap(CheckLogin::default())
                     .route(web::route().to(logout)))
+        .service(web::resource("/cameras_count")
+                    .wrap(CheckLogin::default())
+                    .route(web::get().to(cameras_count_get)))
         .service(web::resource("/image_from_camera")
                     .wrap(CheckLogin::default())
                     .route(web::get().to(image_from_camera_get)))

@@ -27,9 +27,15 @@ use uuid::{
 };
 use super::{
     error::{
-        CameraImageError
+        CameraImageError,
+        CameraCountError
     }
 };
+
+// TODO: Сделать для OSX
+pub fn get_cameras_count() -> Result<usize, CameraCountError>{
+    return Ok(1);
+}
 
 pub fn get_camera_image(_: i8) -> Result<Vec<u8>, CameraImageError>{
     // TODO: Выбор устройства видео
@@ -87,10 +93,10 @@ pub fn get_camera_image(_: i8) -> Result<Vec<u8>, CameraImageError>{
     debug!("FFmpeg path: {:?}, Temp file path: {}", ffmpeg_path, temporary_file_path_str);
 
     // TODO: Suppress out
+    // "-video_size", "1280x720", 
+    // "-framerate", "30", 
     let ffmpeg_spawn = Command::new(ffmpeg_path)
         .args(&["-f", "avfoundation", 
-                "-video_size", "1280x720", 
-                "-framerate", "30", 
                 "-i", "0", 
                 "-vframes", "1",
                 temporary_file_path_str])

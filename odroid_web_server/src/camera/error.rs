@@ -15,6 +15,11 @@ pub enum CameraImageError {
     CameraFileNotFound(String),
 }
 
+#[derive(Debug)]
+pub enum CameraCountError {
+    FilesReadError(io::Error)   
+}
+
 // TODO:
 // impl std::fmt::Display for CameraImageError{
 //     fn display

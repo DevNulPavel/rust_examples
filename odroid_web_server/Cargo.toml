@@ -23,6 +23,8 @@ env_logger = "0.7.1"
 md5 = "0.7.0"
 rand = "0.7.3"
 scopeguard = "1.1.0"
+regex = "1.4.1"
+lazy_static = "1.4.0"
 # rscam = "0.5.5"
 uuid = {version = "0.8.1", features = ["v4"]}
 # dirs = "3.0.1"

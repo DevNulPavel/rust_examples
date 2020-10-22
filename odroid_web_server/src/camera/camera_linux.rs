@@ -25,12 +25,53 @@ use log::{
 use uuid::{
     Uuid
 };
+use regex::{
+    Regex
+};
+use lazy_static::{
+    lazy_static
+};
 use super::{
     error::{
-        CameraImageError
+        CameraImageError,
+        CameraCountError
     }
 };
 
+// TODO: Сделать для OSX
+pub fn get_cameras_count() -> Result<usize, CameraCountError>{
+    lazy_static! {
+        static ref RE: Regex = Regex::new(r"/dev/video[0-9]").unwrap();
+    }
+
+    let count = std::fs::read_dir("/dev")
+        .map_err(|err|{
+            CameraCountError::FilesReadError(err)
+        })?
+        .filter(|file|{
+            //debug!("Test file: {:?}", file);
+            match file{
+                Ok(file) => {
+                    match file.file_name().to_str(){
+                        Some(path) => {
+                            RE.is_match(path)
+                        },
+                        None => {
+                            false
+                        }
+                    }
+                },
+                Err(_) => {
+                    false
+                }
+            }
+        })
+        .count();
+
+    debug!("Cameras count: {}", count);
+
+    Ok(count)
+}
 
 pub fn get_camera_image(camera_index: i8) -> Result<Vec<u8>, CameraImageError>{
     // TODO: Запуск без sudo требует добавления в группу: sudo usermod -a -G video devnul
