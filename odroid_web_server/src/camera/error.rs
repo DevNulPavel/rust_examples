@@ -16,6 +16,7 @@ pub enum CameraImageError {
 }
 
 #[derive(Debug)]
+#[allow(dead_code)]
 pub enum CameraCountError {
     FilesReadError(io::Error)   
 }

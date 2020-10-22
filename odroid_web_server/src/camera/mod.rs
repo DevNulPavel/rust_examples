@@ -3,7 +3,7 @@
 mod error;
 #[cfg(target_os = "macos")] 
 mod camera_osx;
-// #[cfg(target_os = "linux")]
+#[cfg(target_os = "linux")]
 mod camera_linux;
 
 

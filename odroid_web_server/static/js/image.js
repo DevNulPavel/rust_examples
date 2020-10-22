@@ -2,6 +2,7 @@
 
 let imageRequestIsActive = false;
 
+// <img id="image" class="image"></img>
 function blobToImage(blob) {
     return new Promise((resolve) => {
         const url = URL.createObjectURL(blob);
@@ -13,6 +14,7 @@ function blobToImage(blob) {
             resolve(img)
         };
         
+        img.className = "image";
         img.src = url;
     });
 }
@@ -44,8 +46,6 @@ async function reloadImage(){
     if (camerasCountResponse.ok) {
         let camerasCountJson = await camerasCountResponse.json();
 
-        // <img id="image" class="image"></img>
-
         if(camerasCountJson){
             for(let i = 0; i < camerasCountJson.count; i++){
                 // https://learn.javascript.ru/fetch
@@ -74,8 +74,6 @@ async function reloadImage(){
     refreshButton.disabled = false;
     lightOnButton.disabled = false;
     lightOffButton.disabled = false;
-
-
 
     imageRequestIsActive = false;
 }

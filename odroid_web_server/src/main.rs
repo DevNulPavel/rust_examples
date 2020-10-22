@@ -53,7 +53,7 @@ use crate::{
     }
 };
 
-fn build_rustls_config() -> ServerConfig{
+/*fn build_rustls_config() -> ServerConfig{
     // https://github.com/actix/examples/tree/master/rustls
     //
     // Создание сертификата:
@@ -94,7 +94,7 @@ fn build_rustls_config() -> ServerConfig{
         .expect("Rustls set_single_cert failed");
 
     config
-}
+}*/
 
 #[actix_rt::main]
 async fn main() -> std::io::Result<()>{
@@ -148,7 +148,7 @@ async fn main() -> std::io::Result<()>{
     };
 
     // Конфигурация rustls
-    let rustls_config = build_rustls_config();
+    //let rustls_config = build_rustls_config();
 
     // Создаем слушателя, чтобы просто переподключаться к открытому сокету при быстром рестарте
     let server = match ListenFd::from_env().take_tcp_listener(0)?{
@@ -162,7 +162,7 @@ async fn main() -> std::io::Result<()>{
             // https://127.0.0.1:8443/login
             // http://127.0.0.1:8080/login
             HttpServer::new(build_web_application)
-                .bind_rustls("0.0.0.0:8443", rustls_config)?
+                //.bind_rustls("0.0.0.0:8443", rustls_config)?
                 .bind("0.0.0.0:8080")?
         }
     };
