@@ -5,14 +5,14 @@ mod constants;
 mod camera;
 mod gpio;
 
-use std::{
+/*use std::{
     fs::{
         File
     },
     io::{
         BufReader
     }
-};
+};*/
 use log::{
     // debug,
     info,
@@ -34,7 +34,7 @@ use actix_identity::{
 /*use actix_web_middleware_redirect_https::{
     RedirectHTTPS
 };*/
-use rustls::{
+/*use rustls::{
     internal::{
         pemfile::{
             certs, 
@@ -43,7 +43,7 @@ use rustls::{
     },
     NoClientAuth, 
     ServerConfig
-};
+};*/
 use rand::{
     Rng
 };
@@ -96,7 +96,7 @@ use crate::{
     config
 }*/
 
-#[actix_rt::main]
+#[actix_web::main]
 async fn main() -> std::io::Result<()>{
     // https://rust-lang-nursery.github.io/rust-cookbook/development_tools/debugging/config_log.html
     std::env::set_var("RUST_LOG", "actix_server=info,actix_web=info,odroid_web_server=trace");

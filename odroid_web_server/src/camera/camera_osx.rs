@@ -93,10 +93,11 @@ pub fn get_camera_image(_: i8) -> Result<Vec<u8>, CameraImageError>{
     debug!("FFmpeg path: {:?}, Temp file path: {}", ffmpeg_path, temporary_file_path_str);
 
     // TODO: Suppress out
-    // "-video_size", "1280x720", 
-    // "-framerate", "30", 
     let ffmpeg_spawn = Command::new(ffmpeg_path)
         .args(&["-f", "avfoundation", 
+                //"-video_size", "1280x720", 
+                //"-framerate", "30", 
+                "-framerate", "5",
                 "-i", "0", 
                 "-vframes", "1",
                 temporary_file_path_str])
