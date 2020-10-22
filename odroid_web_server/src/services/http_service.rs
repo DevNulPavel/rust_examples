@@ -66,7 +66,12 @@ async fn index_get() -> impl Responder {
         .body(data)
 }
 
-async fn image_from_camera_get() -> impl Responder {
+#[derive(Debug, Deserialize)]
+struct ImageRequestParams{
+    camera_index: i8
+}
+
+async fn image_from_camera_get(params: web::Query<ImageRequestParams>) -> impl Responder {
     info!("Image request");
 
     /*let data = match fs::read("images/test.jpg") {
@@ -79,7 +84,7 @@ async fn image_from_camera_get() -> impl Responder {
                 .body("No file");
         }
     };*/
-    match get_camera_image(){
+    match get_camera_image(params.camera_index){
         Ok(image) => {
             HttpResponse::Ok()
                 .content_type("image/jpeg")

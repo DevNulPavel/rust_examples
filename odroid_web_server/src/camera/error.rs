@@ -5,12 +5,14 @@ use std::{
 };
 
 #[derive(Debug)]
+#[allow(dead_code)]
 pub enum CameraImageError {
     ApplicationNotFound,
     TempFilePathError,
     CameraStartFailed,
     CameraCaptureFailed,
     TempFileReadError(io::Error),
+    CameraFileNotFound(String),
 }
 
 // TODO:

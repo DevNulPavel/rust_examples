@@ -31,7 +31,7 @@ use super::{
     }
 };
 
-pub fn get_camera_image() -> Result<Vec<u8>, CameraImageError>{
+pub fn get_camera_image(_: i8) -> Result<Vec<u8>, CameraImageError>{
     // TODO: Выбор устройства видео
     // TODO: Запускать сервер надо только из терминала, так как из VSСode не даются пермишены на доступ к камере
     // TODO: FPS как параметр

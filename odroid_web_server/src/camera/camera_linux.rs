@@ -32,7 +32,7 @@ use super::{
 };
 
 
-pub fn get_camera_image() -> Result<Vec<u8>, CameraImageError>{
+pub fn get_camera_image(camera_index: i8) -> Result<Vec<u8>, CameraImageError>{
     // TODO: Запуск без sudo требует добавления в группу: sudo usermod -a -G video devnul
     // TODO: Выбор устройства видео
     // TODO: Запускать сервер надо только из терминала, так как из VSСode не даются пермишены на доступ к камере
@@ -89,14 +89,24 @@ pub fn get_camera_image() -> Result<Vec<u8>, CameraImageError>{
 
     debug!("FFmpeg path: {:?}, Temp file path: {}", ffmpeg_path, temporary_file_path_str);
 
+    let image_device_path = format!("/dev/video{}", camera_index);
+    {
+        let path = std::path::Path::new(image_device_path.as_str());
+        if path.exists() == false {
+            return Err(CameraImageError::CameraFileNotFound(image_device_path));
+        }
+    }
+
     // TODO: Suppress out
     let ffmpeg_spawn = Command::new(ffmpeg_path)
         .args(&["-f", "video4linux2", 
-            "-framerate", "30", 
-            "-i", "/dev/video0", 
+            "-framerate", "1", 
+            "-i", image_device_path.as_str(), 
             "-vframes", "1",
             temporary_file_path_str])
         .spawn();
+
+    drop(image_device_path);
     
     let mut ffmpeg_child_process = match ffmpeg_spawn {
         Ok(child) => {

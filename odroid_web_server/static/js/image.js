@@ -23,7 +23,7 @@ async function reloadImage(){
 
     // https://learn.javascript.ru/fetch
 
-    let response = await fetch("/image_from_camera");
+    let response = await fetch("/image_from_camera?camera_index=0");
 
     refreshButton.disabled = false;
     lightOnButton.disabled = false;

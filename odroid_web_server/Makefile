@@ -8,7 +8,7 @@ RUN:
 	cargo run
 
 DEPLOY:
-	cargo build --release && \
+	cargo build --release -j 1 && \
 	rm -rf deploy_result && \
 	mkdir -p deploy_result && \
 	cp target/release/odroid_web_server deploy_result/ && \
