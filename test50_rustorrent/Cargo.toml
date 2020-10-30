@@ -1,0 +1,81 @@
+[package]
+name = "rustorrent"
+version = "0.1.0"
+authors = ["Sebastien Chapuis <sebastien@chapu.is>"]
+edition = "2018"
+license-file = "LICENSE"
+description = "A BitTorrent library implemented in Rust"
+homepage = "https://github.com/sebastiencs/rustorrent"
+documentation = "https://github.com/sebastiencs/rustorrent"
+repository = "https://github.com/sebastiencs/rustorrent"
+
+# # See more keys and their definitions at https://doc.rust-lang.org/cargo/reference/manifest.html
+# [profile.release]
+# debug = true
+
+# # See more keys and their definitions at https://doc.rust-lang.org/cargo/reference/manifest.html
+
+# [profile.bench]
+# debug = true
+
+# [profile.release]
+# debug = true
+
+[[bin]]
+name = "main"
+path = "src/bin/main.rs"
+bench = false
+
+# [lib]
+# bench = false
+
+# [dev-dependencies]
+# criterion = "0.3"
+
+# [[bench]]
+# name = "mempool"
+# harness = false
+
+[dependencies]
+# serde_bencode = "^0.2.0"
+serde = { version = "1.0", features = ["derive"] }
+# serde_derive = "^1.0.0"
+# serde_urlencoded = "0.6"
+serde_bytes = "0.11"
+shared_arena = "0.8"
+itertools = "0.9"
+
+smallvec = { version = "1.4", features = ["serde"] }
+memchr = "2"
+sha1 = { version = "0.6", features = ["std"] }
+url = "2"
+byteorder = "1"
+crossbeam-channel = "0.5"
+#crossbeam-deque = "0.7"
+parking_lot = "0.11"
+#bit_field = "0.10.0"
+hashbrown = { version = "0.9", features = ["serde"] }
+coarsetime = "0.1"
+num_cpus = "1"
+slab = "0.4"
+async-trait = "0.1"
+rand = "0.7"
+ahash = { version = "0.5", default-features = false }
+
+libc = { version = "0.2", default-features = false }
+
+futures =  { version = "0.3", default-features = false }
+#futures = "0.3"
+async-std = { version = "1", features = ["unstable"] }
+# async-std = "1"
+# surf = "1.0.3"
+
+static_assertions = "1"
+
+fixed = { version = "1", default-features = false }
+
+crossbeam-epoch = { version = "0.9", default-features = false }
+
+# TODO: Make it optional
+# packed_simd = { version = "0.3.3" }
+#packed_simd = { version = "0.3.3", features = ["into_bits"] }
