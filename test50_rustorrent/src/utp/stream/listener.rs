@@ -77,11 +77,15 @@ use super::{
 
 const BUFFER_CAPACITY: usize = 1500;
 
+/// Получатели сообщений
 pub struct UtpListener {
     v4: Arc<UdpSocket>,
     v6: Arc<UdpSocket>,
-    /// The hashmap might be modified by different tasks so we wrap it in a RwLock
+
+    /// Мапа может быть модифицирована разными задачами, поэтому она обернута в RwLock
     streams: Arc<RwLock<HashMap<SocketAddr, Sender<UtpEvent>>>>,
+
+    /// Пакеты
     packet_arena: Arc<SharedArena<Packet>>
 }
 
@@ -91,9 +95,15 @@ enum IncomingEvent {
 }
 
 impl UtpListener {
+    /// Создаем новый листенер
     pub async fn new(port: u16) -> Result<Arc<UtpListener>> {
-        use async_std::prelude::*;
+        use async_std::{
+            prelude::{
+                *
+            }
+        };
 
+        // Листенер сокетов
         let v4 = UdpSocket::bind(SocketAddrV4::new(Ipv4Addr::new(0, 0, 0, 0), port));
         let v6 = UdpSocket::bind(SocketAddrV6::new(Ipv6Addr::new(0, 0, 0, 0, 0, 0, 0, 1), port, 0, 0));
 
@@ -120,16 +130,23 @@ impl UtpListener {
         }
     }
 
+    /// Пытаемся приконнектиться к конкретному адресу
     pub async fn connect(&self, sockaddr: SocketAddr) -> Result<UtpStream> {
+        // Получаем сокет, соответствующий типу адреса
         let socket = self.get_matching_socket(&sockaddr);
 
+        // Создаем канал
         let (on_connected, is_connected) = channel(1);
 
         let state = State::with_utp_state(UtpState::MustConnect);
         let state = Arc::new(state);
 
         let (sender, receiver) = channel(10);
+
+        // Создаем менеджер с полученными данными
         let mut manager = UtpManager::new_with_state(socket, sockaddr, receiver, state, self.packet_arena.clone());
+        
+        // Назначаем канал, в который будет отослан флаг после соединения
         manager.set_on_connected(on_connected);
 
         {
@@ -139,8 +156,14 @@ impl UtpListener {
 
         let stream = manager.get_stream();
 
-        task::spawn(async move { manager.start().await });
+        // Запускаем менеджера в работу в отдельной корутине
+        task::spawn(async move { 
+            manager
+                .start()
+                .await
+        });
 
+        // Дожидаемся ответа об успешном подключении и возвращаем стрим для данных
         if let Ok(true) = is_connected.recv().await {
             Ok(stream)
         } else {
@@ -171,6 +194,7 @@ impl UtpListener {
         sender
     }
 
+    // Запуск листенера в работу
     pub fn start(self: Arc<Self>) {
         task::spawn(async move {
             Tick::new(self.streams.clone()).start();
@@ -178,24 +202,37 @@ impl UtpListener {
         });
     }
 
+    // Пуллим данные в буфферы
     async fn poll(&self, buffer_v4: &mut [u8], buffer_v6: &mut [u8]) -> Result<IncomingEvent> {
+        // Создаем вьючи для получения данных из сокетов
         let v4 = self.v4.recv_from(buffer_v4);
         let v6 = self.v6.recv_from(buffer_v6);
+
+        // Пиним к текущему стеку, чтобы никуда не перемещались
         pin_mut!(v4); // Pin on the stack
         pin_mut!(v6); // Pin on the stack
 
         let fun = |cx: &mut Context<'_>| {
             match FutureExt::poll_unpin(&mut v4, cx).map_ok(IncomingEvent::V4) {
-                v @ Poll::Ready(_) => return v,
-                _ => {}
+                // Если пулинг удался - отдаем значение Poll::Ready, а не его содержимое
+                // для этого и нужен символ @, чтобы проверить само значение, затем с ним и работать
+                v @ Poll::Ready(_) => {
+                    return v;
+                },
+                // Иначе ничего не делаем
+                _ => {
+
+                }
             }
 
+            // Пытаемся получить из сокета данные
             match FutureExt::poll_unpin(&mut v6, cx).map_ok(IncomingEvent::V6) {
                 v @ Poll::Ready(_) => v,
                 _ => Poll::Pending
             }
         };
 
+        // Запускаем в работу функцию по пулингу данных из сокетов
         future::poll_fn(fun)
             .await
             .map_err(Into::into)
@@ -213,6 +250,7 @@ impl UtpListener {
         }
     }
 
+    /// Обработка входящих данных
     async fn process_incoming(&self) -> Result<()> {
         use IncomingEvent::*;
 
@@ -220,6 +258,7 @@ impl UtpListener {
         let mut buffer_v6 = [0; BUFFER_CAPACITY];
 
         loop {
+            // Получаем данные
             let (buffer, addr) = match self.poll_event(&mut buffer_v4[..], &mut buffer_v6[..]).await? {
                 V4((size, addr)) => {
                     (&buffer_v4[..size], addr)
@@ -229,12 +268,14 @@ impl UtpListener {
                 },
             };
 
+            // Если размер полученного буффера неверный - начинаем работу цикла заново
             if buffer.len() < HEADER_SIZE || buffer.len() > PACKET_MAX_SIZE {
                 continue;
             }
 
             let timestamp = Timestamp::now();
 
+            // Создаем пакет
             let packet = self.packet_arena.alloc_with(|packet_uninit| {
                 Packet::from_incoming_in_place(packet_uninit, buffer, timestamp)
             });
@@ -252,8 +293,10 @@ impl UtpListener {
                 }
             }
 
+            // Если тип пакета - синхронизацию
             if let Ok(PacketType::Syn) = packet.get_type() {
                 let incoming = UtpEvent::IncomingPacket { packet };
+                // Создаем новое соединение и кидаем туда сообщение с пакетом
                 self.new_connection(addr)
                     .await
                     .send(incoming)

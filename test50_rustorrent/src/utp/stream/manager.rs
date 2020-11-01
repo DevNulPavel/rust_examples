@@ -83,8 +83,12 @@ use super::{
 
 #[derive(Debug)]
 pub struct UtpManager {
+    /// Сокет
     socket: Arc<UdpSocket>,
+
+    /// Канал получения новых событий
     recv: Receiver<UtpEvent>,
+
     /// Do not await while locking the state
     /// The await could block and lead to a deadlock state
     state: Arc<State>,
@@ -122,6 +126,8 @@ pub struct UtpManager {
 impl Drop for UtpManager {
     fn drop(&mut self) {
         println!("DROP UTP MANAGER", );
+        // При вызове уничтожения менеджера мы можем отправить сообщение об успешном
+        // отсоединении
         if let Some(on_connected) = self.on_connected.take() {
             task::spawn(async move {
                 on_connected.send(false).await
@@ -131,22 +137,19 @@ impl Drop for UtpManager {
 }
 
 impl UtpManager {
-    pub fn new(
-        socket: Arc<UdpSocket>,
-        addr: SocketAddr,
-        recv: Receiver<UtpEvent>,
-        packet_arena: Arc<SharedArena<Packet>>
-    ) -> UtpManager {
+    pub fn new(socket: Arc<UdpSocket>, 
+               addr: SocketAddr,
+               recv: Receiver<UtpEvent>,
+               packet_arena: Arc<SharedArena<Packet>>) -> UtpManager {
         Self::new_with_state(socket, addr, recv, Default::default(), packet_arena)
     }
 
-    pub fn new_with_state(
-        socket: Arc<UdpSocket>,
-        addr: SocketAddr,
-        recv: Receiver<UtpEvent>,
-        state: Arc<State>,
-        packet_arena: Arc<SharedArena<Packet>>
-    ) -> UtpManager {
+    pub fn new_with_state(socket: Arc<UdpSocket>,
+                          addr: SocketAddr,
+                          recv: Receiver<UtpEvent>,
+                          state: Arc<State>,
+                          packet_arena: Arc<SharedArena<Packet>>) -> UtpManager {
+
         let (writer, writer_rcv) = channel(10);
         let (writer_user, writer_user_rcv) = channel(10);
 
@@ -194,10 +197,17 @@ impl UtpManager {
         }
     }
 
+    /// Цикл работы с сокетом
     pub async fn start(mut self) -> Result<()> {
+        // Устанавливаем соединение
         self.ensure_connected().await;
+        
+        // Разбираем в цикле входящие события
         while let Ok(incoming) = self.recv.recv().await {
-            self.process_incoming(incoming).await.unwrap();
+            self
+                .process_incoming(incoming)
+                .await
+                .unwrap();
         }
         Ok(())
     }
@@ -214,20 +224,29 @@ impl UtpManager {
         }).await;
     }
 
+    /// Обработка прилетевшего сообщенияы
     async fn process_incoming(&mut self, event: UtpEvent) -> Result<()> {
         match event {
+            // Входящий пакет
             UtpEvent::IncomingPacket { packet } => {
+                // Обрабатываем
                 match self.dispatch(packet).await {
+                    // Если потеря пакеты выявлена
                     Err(UtpError::PacketLost) => {
+                        // Тогда отправляем сообщение о потере пакета
                         self.writer.send(WriterCommand::ResendPacket {
                             only_lost: true
                         }).await;
                     }
-                    Ok(_) => {},
-                    Err(e) => return Err(e)
+                    Ok(_) => {
+                    },
+                    Err(e) => {
+                        return Err(e);
+                    }
                 }
             }
             UtpEvent::Tick => {
+                // Если прошло много времени - обрабатываем таймаут
                 if Instant::now() > self.timeout {
                     self.on_timeout().await?;
                 } else {
@@ -238,14 +257,13 @@ impl UtpManager {
         Ok(())
     }
 
+    /// Обработка таймаута
     async fn on_timeout(&mut self) -> Result<()> {
         use UtpState::*;
 
         let utp_state = self.state.utp_state();
 
-        if (utp_state == SynSent && self.ntimeout >= 3)
-            || self.ntimeout >= 7
-        {
+        if (utp_state == SynSent && self.ntimeout >= 3) || self.ntimeout >= 7 {
             return Err(Error::new(ErrorKind::TimedOut, "utp timed out").into());
         }
 
