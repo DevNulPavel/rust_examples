@@ -1,4 +1,5 @@
 
+// TODO: Переименовать в UtpState
 #[derive(Debug, PartialEq, Eq, Copy, Clone)]
 pub enum State {
     /// Еще не подключен

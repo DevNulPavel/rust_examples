@@ -10,7 +10,7 @@ use rand::{
 
 /// Структура заголовка
 #[derive(Copy, Clone, Debug)]
-pub (super) struct ConnectionId(u16);
+pub struct ConnectionId(u16);
 
 impl From<u16> for ConnectionId {
     fn from(byte: u16) -> ConnectionId {
