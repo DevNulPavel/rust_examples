@@ -1,204 +1,108 @@
 
-use async_std::sync::{Arc, channel, Sender, Receiver, RwLock};
-use async_std::task;
-use async_std::io::{ErrorKind, Error};
-use async_std::net::{SocketAddr, UdpSocket, SocketAddrV4, SocketAddrV6, Ipv4Addr, Ipv6Addr};
-use futures::task::{Context, Poll};
-use futures::{future, pin_mut};
-use futures::future::{FutureExt};
-use hashbrown::HashMap;
-use fixed::types::I48F16;
-
-
-
-
-
-use crate::utils::Map;
-use shared_arena::{ArenaBox, SharedArena};
-
-use super::{
-    delay_history::{
-        DelayHistory,
+use std::{
+    sync::{
+        atomic::{
+            Ordering
+        }
+    }
+};
+use async_std::{
+    sync::{
+        Arc, 
+        RwLock,
+        channel, 
+        Sender, 
+        Receiver
     },
-    sequence_number::{
-        SequenceNumber
+    io::{
+        ErrorKind, 
+        Error
     },
-    UtpError, 
-    Result, 
-    Packet,
-    Timestamp, 
-    PacketType, 
-    ConnectionId, 
-    HEADER_SIZE,
-    SelectiveAckBit, 
-    UDP_IPV4_MTU, UDP_IPV6_MTU, PACKET_MAX_SIZE
+    net::{
+        SocketAddr, 
+        UdpSocket, 
+        SocketAddrV4, 
+        SocketAddrV6, 
+        Ipv4Addr, 
+        Ipv6Addr
+    },
+    task
+};
+use futures::{
+    future::{
+        FutureExt
+    },
+    task::{
+        Context, 
+        Poll
+    },
+    future, 
+    pin_mut
+};
+use hashbrown::{
+    HashMap
+};
+use fixed::{
+    types::{
+        I48F16
+    }
+};
+use shared_arena::{
+    ArenaBox, 
+    SharedArena
+};
+use crate::{
+    utils::{
+        Map
+    },
+    utils::{
+        FromSlice
+    }
+};
+use crate::{
+    cache_line::{
+        CacheAligned
+    },
+    utp::{
+        delay_history::{
+            DelayHistory,
+        },
+        sequence_number::{
+            SequenceNumber
+        },
+        packet::{
+            Packet,
+            PACKET_MAX_SIZE
+        },
+        header::{
+            HEADER_SIZE
+        },
+        tick::{
+            Tick
+        },
+        constants::{
+            UDP_IPV4_MTU, 
+            UDP_IPV6_MTU,
+            MSS,
+            TARGET, 
+            MIN_CWND
+        },
+        UtpError, 
+        Result, 
+        Timestamp, 
+        PacketType, 
+        ConnectionId, 
+        SelectiveAckBit, 
+        
+        State as UtpState   
+    }
 };
 use super::{
-    INIT_CWND, MSS,
-    State as UtpState,
-    TARGET, MIN_CWND
+    state::{
+        State
+    }
 };
-use super::tick::Tick;
-use crate::utils::FromSlice;
 
-use std::sync::atomic::{AtomicU8, AtomicU16, AtomicU32, Ordering};
-use crate::cache_line::CacheAligned;
-
-#[derive(Debug)]
-struct AtomicState {
-    utp_state: CacheAligned<AtomicU8>,
-    recv_id: CacheAligned<AtomicU16>,
-    send_id: CacheAligned<AtomicU16>,
-    ack_number: CacheAligned<AtomicU16>,
-    seq_number: CacheAligned<AtomicU16>,
-    remote_window: CacheAligned<AtomicU32>,
-    cwnd: CacheAligned<AtomicU32>,
-    in_flight: CacheAligned<AtomicU32>,
-}
-
-impl Default for AtomicState {
-    fn default() -> AtomicState {
-        let (recv_id, send_id) = ConnectionId::make_ids();
-
-        AtomicState {
-            utp_state: CacheAligned::new(AtomicU8::new(UtpState::None.into())),
-            recv_id: CacheAligned::new(AtomicU16::new(recv_id.into())),
-            send_id: CacheAligned::new(AtomicU16::new(send_id.into())),
-            ack_number: CacheAligned::new(AtomicU16::new(SequenceNumber::zero().into())),
-            seq_number: CacheAligned::new(AtomicU16::new(SequenceNumber::random().into())),
-            remote_window: CacheAligned::new(AtomicU32::new(INIT_CWND * MSS)),
-            cwnd: CacheAligned::new(AtomicU32::new(INIT_CWND * MSS)),
-            in_flight: CacheAligned::new(AtomicU32::new(0))
-        }
-    }
-}
-
-#[derive(Debug)]
-struct State {
-    atomic: AtomicState,
-
-    /// Packets sent but we didn't receive an ack for them
-    inflight_packets: RwLock<Map<SequenceNumber, ArenaBox<Packet>>>,
-}
-
-impl State {
-    async fn add_packet_inflight(&self, seq_num: SequenceNumber, packet: ArenaBox<Packet>) {
-        let size = packet.size();
-
-        let mut inflight_packets = self.inflight_packets.write().await;
-        inflight_packets.insert(seq_num, packet);
-
-        self.atomic.in_flight.fetch_add(size as u32, Ordering::AcqRel);
-    }
-
-    async fn remove_packets(&self, ack_number: SequenceNumber) -> usize {
-        let mut size = 0;
-        let mut inflight_packets = self.inflight_packets.write().await;
-
-        inflight_packets
-            .retain(|_, p| {
-                !p.is_seq_less_equal(ack_number) || (false, size += p.size()).0
-            });
-
-        self.atomic.in_flight.fetch_sub(size as u32, Ordering::AcqRel);
-        size
-    }
-
-    async fn remove_packet(&self, ack_number: SequenceNumber) -> usize {
-        let mut inflight_packets = self.inflight_packets.write().await;
-
-        let size = inflight_packets.remove(&ack_number)
-                                   .map(|p| p.size())
-                                   .unwrap_or(0);
-
-        self.atomic.in_flight.fetch_sub(size as u32, Ordering::AcqRel);
-        size
-    }
-
-    fn inflight_size(&self) -> usize {
-        self.atomic.in_flight.load(Ordering::Acquire) as usize
-    }
-
-    fn utp_state(&self) -> UtpState {
-        self.atomic.utp_state.load(Ordering::Acquire).into()
-    }
-    fn set_utp_state(&self, state: UtpState) {
-        self.atomic.utp_state.store(state.into(), Ordering::Release)
-    }
-    fn recv_id(&self) -> ConnectionId {
-        self.atomic.recv_id.load(Ordering::Relaxed).into()
-    }
-    fn set_recv_id(&self, recv_id: ConnectionId) {
-        self.atomic.recv_id.store(recv_id.into(), Ordering::Release)
-    }
-    fn send_id(&self) -> ConnectionId {
-        self.atomic.send_id.load(Ordering::Relaxed).into()
-    }
-    fn set_send_id(&self, send_id: ConnectionId) {
-        self.atomic.send_id.store(send_id.into(), Ordering::Release)
-    }
-    fn ack_number(&self) -> SequenceNumber {
-        self.atomic.ack_number.load(Ordering::Acquire).into()
-    }
-    fn set_ack_number(&self, ack_number: SequenceNumber) {
-        self.atomic.ack_number.store(ack_number.into(), Ordering::Release)
-    }
-    fn seq_number(&self) -> SequenceNumber {
-        self.atomic.seq_number.load(Ordering::Acquire).into()
-    }
-    fn set_seq_number(&self, seq_number: SequenceNumber) {
-        self.atomic.seq_number.store(seq_number.into(), Ordering::Release)
-    }
-    /// Increment seq_number and returns its previous value
-    fn increment_seq(&self) -> SequenceNumber {
-        self.atomic.seq_number.fetch_add(1, Ordering::AcqRel).into()
-    }
-    fn remote_window(&self) -> u32 {
-        self.atomic.remote_window.load(Ordering::Acquire)
-    }
-    fn set_remote_window(&self, remote_window: u32) {
-        self.atomic.remote_window.store(remote_window, Ordering::Release)
-    }
-    fn cwnd(&self) -> u32 {
-        self.atomic.cwnd.load(Ordering::Acquire)
-    }
-    fn set_cwnd(&self, cwnd: u32) {
-        self.atomic.cwnd.store(cwnd, Ordering::Release)
-    }
-}
-
-impl State {
-    fn with_utp_state(utp_state: UtpState) -> State {
-        State {
-            atomic: AtomicState {
-                utp_state: CacheAligned::new(AtomicU8::new(utp_state.into())),
-                ..Default::default()
-            },
-            ..Default::default()
-        }
-    }
-}
-
-impl Default for State {
-    fn default() -> State {
-        State {
-            atomic: Default::default(),
-            // delay: Delay::default(),
-            // current_delays: VecDeque::with_capacity(16),
-            // last_rollover: Instant::now(),
-            // congestion_timeout: Duration::from_secs(1),
-            // flight_size: 0,
-            // srtt: 0,
-            // rttvar: 0,
-            inflight_packets: Default::default(),
-            // delay_history: DelayHistory::new(),
-            // ack_duplicate: 0,
-            // last_ack: SequenceNumber::zero(),
-            // lost_packets: VecDeque::with_capacity(100),
-            // nlost: 0,
-        }
-    }
-}
 
 const BUFFER_CAPACITY: usize = 1500;
 

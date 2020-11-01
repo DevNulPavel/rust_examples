@@ -1,7 +1,6 @@
 use std::{
     convert::{
-        TryFrom, 
-        TryInto
+        TryFrom
     }
 };
 use super::{
@@ -34,17 +33,16 @@ pub enum PacketType {
     /// Удаленный хост не имеет какого-то состояния для данного соединения.
     Reset,
 
-    /// Connect SYN. Similar to TCP SYN flag, this packet initiates a
-    /// connection. The sequence number is initialized to 1. The connection
-    /// ID is initialized to a random number. The syn packet is special,
-    /// all subsequent packets sent on this connection (except for re-sends
-    /// of the ST_SYN) are sent with the connection ID + 1. The connection
-    /// ID is what the other end is expected to use in its responses.
-    /// When receiving an ST_SYN, the new socket should be initialized with
-    /// the ID in the packet header. The send ID for the socket should
-    /// be initialized to the ID + 1. The sequence number for the return
-    /// channel is initialized to a random number. The other end expects an
-    /// ST_STATE packet (only an ACK) in response.
+    /// SYN флаг. Поход на TCP SYN флаг, данный пакет инициирует соединение.
+    /// Номер последовательности инициализируется значением 1
+    /// Connection ID инициализируется рандомным значением.
+    /// SYN пакет особенный, все последующие пакеты отправленные данному соединению,
+    /// кроме переотправки ST_SYN, отправляются с connection ID + 1.
+    /// Connection ID - это то, что другая сторона будет использовать в своих ответах.
+    /// При получении ST_SYN новый сокет должен быть инициализирован с ID в хедере пакета.
+    /// Send ID для сокета должен быть инициализирован как ID + 1.
+    /// Номер последовательности для return channel инициализируется рандомным значением.
+    /// Другая сторона ожидает ST_STATE пакет (только ACK) в ответ.
     Syn,
 }
 

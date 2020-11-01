@@ -13,7 +13,7 @@
     any(
         target_arch = "x86",
         target_arch = "powerpc",
-// https://community.arm.com/developer/ip-products/processors/f/cortex-a-forum/13570/cortex-a7-cache-line-size
+        // https://community.arm.com/developer/ip-products/processors/f/cortex-a-forum/13570/cortex-a7-cache-line-size
         target_arch = "armv7",
         target_arch = "armv7r",
     ),
