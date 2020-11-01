@@ -17,9 +17,20 @@ use crate::utils::Map;
 use shared_arena::{ArenaBox, SharedArena};
 
 use super::{
-    UtpError, Result, SequenceNumber, Packet,
-    Timestamp, PacketType, ConnectionId, HEADER_SIZE,
-    SelectiveAckBit, DelayHistory,
+    delay_history::{
+        DelayHistory,
+    },
+    sequence_number::{
+        SequenceNumber
+    },
+    UtpError, 
+    Result, 
+    Packet,
+    Timestamp, 
+    PacketType, 
+    ConnectionId, 
+    HEADER_SIZE,
+    SelectiveAckBit, 
     UDP_IPV4_MTU, UDP_IPV6_MTU, PACKET_MAX_SIZE
 };
 use super::{
