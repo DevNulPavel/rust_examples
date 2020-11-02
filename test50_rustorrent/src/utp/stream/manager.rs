@@ -89,29 +89,43 @@ pub struct UtpManager {
     /// Канал получения новых событий
     recv: Receiver<UtpEvent>,
 
-    /// Do not await while locking the state
-    /// The await could block and lead to a deadlock state
+    /// Не дожидаемся блокирования состояния
+    /// Ожидание может привести к дедлоку состояния
     state: Arc<State>,
+
+    /// Адрес сокета
     addr: SocketAddr,
+
+    /// Канал отправки данных пользователю
     writer_user: Sender<WriterUserCommand>,
+
+    /// Канал отправки данных писателю
     writer: Sender<WriterCommand>,
 
+    /// Пулл пакетов + атомарный счетчик ссылок сверху
     packet_arena: Arc<SharedArena<Packet>>,
 
+    /// Время таймаута
     timeout: Instant,
-    /// Number of consecutive times we've been timeout
-    /// After 3 times we close the socket
+
+    /// Количество последовательных раз, когда произошел таймаут
+    /// После 3х раз мы закрываем сокет
     ntimeout: usize,
 
+    /// Канал для коллбека об успешном подключении
     on_connected: Option<Sender<bool>>,
 
+    /// Количество дубликаций ack??
     ack_duplicate: u8,
+    /// Номер последнего ACK
     last_ack: SequenceNumber,
 
     delay_history: DelayHistory,
 
+    /// Список утерянных пакетов
     tmp_packet_losts: Vec<SequenceNumber>,
 
+    /// Сколько всего потеряли пакетов
     nlost: usize,
 
     slow_start: bool,
@@ -129,6 +143,7 @@ impl Drop for UtpManager {
         // При вызове уничтожения менеджера мы можем отправить сообщение об успешном
         // отсоединении
         if let Some(on_connected) = self.on_connected.take() {
+            // Создаем специально новую корутину, так как эта функция не async
             task::spawn(async move {
                 on_connected.send(false).await
             });
@@ -144,23 +159,31 @@ impl UtpManager {
         Self::new_with_state(socket, addr, recv, Default::default(), packet_arena)
     }
 
+    /// Новый менеджер с конкретным состоянием
     pub fn new_with_state(socket: Arc<UdpSocket>,
                           addr: SocketAddr,
                           recv: Receiver<UtpEvent>,
                           state: Arc<State>,
                           packet_arena: Arc<SharedArena<Packet>>) -> UtpManager {
 
+        // Канал записи команд
         let (writer, writer_rcv) = channel(10);
+        // Канал для пользовательских команд
         let (writer_user, writer_user_rcv) = channel(10);
 
-        let writer_actor = UtpWriter::new(
-            socket.clone(), addr, writer_user_rcv,
-            writer_rcv, Arc::clone(&state), packet_arena.clone()
-        );
+        // Создаем актора записи комманд в сокет
+        let writer_actor = UtpWriter::new(socket.clone(), 
+                                          addr, 
+                                          writer_user_rcv,
+                                          writer_rcv, 
+                                          Arc::clone(&state), 
+                                          packet_arena.clone());
+        // Стартуем его
         task::spawn(async move {
             writer_actor.start().await;
         });
 
+        // Создаем менеджер
         UtpManager {
             socket,
             addr,
@@ -185,10 +208,12 @@ impl UtpManager {
         }
     }
 
+    /// Устанавливаем канал для успешного подключения
     pub fn set_on_connected(&mut self, on_connected: Sender<bool>) {
         self.on_connected = Some(on_connected);
     }
 
+    /// Получаем поток данных для данного менеджера
     pub fn get_stream(&self) -> UtpStream {
         UtpStream {
             // reader_command: self.reader.clone(),
@@ -212,13 +237,17 @@ impl UtpManager {
         Ok(())
     }
 
+    /// Дожидаемся установки соединения
     async fn ensure_connected(&self) {
+        // Получаем состояние
         let state = self.state.utp_state();
 
+        // Если мы уже подключены - выходим
         if state != UtpState::MustConnect {
             return;
         }
 
+        // Отправляем пакет SYN
         self.writer.send(WriterCommand::SendPacket {
             packet_type: PacketType::Syn
         }).await;
@@ -261,19 +290,30 @@ impl UtpManager {
     async fn on_timeout(&mut self) -> Result<()> {
         use UtpState::*;
 
+        // Получаем состояние
         let utp_state = self.state.utp_state();
 
-        if (utp_state == SynSent && self.ntimeout >= 3) || self.ntimeout >= 7 {
+        // Если количество таймаутом больше 3х и режим отправки syn или таймаутов больше 7
+        if ((utp_state == SynSent) && (self.ntimeout >= 3)) || 
+            (self.ntimeout >= 7) {
             return Err(Error::new(ErrorKind::TimedOut, "utp timed out").into());
         }
 
+        // Проверяем какое сейчас состояние
         match utp_state {
+            // Если отправки SYN
             SynSent => {
-                self.writer.send(WriterCommand::SendPacket { packet_type: PacketType::Syn }).await;
+                // Тогда отсылаем SYN
+                self.writer.send(WriterCommand::SendPacket { 
+                    packet_type: PacketType::Syn 
+                }).await;
             }
+            // Если мы уже соединены - тогда отсылаем незавершенные пакеты еще раз
             Connected => {
                 if self.state.inflight_size() > 0 {
-                    self.writer.send(WriterCommand::ResendPacket { only_lost: false }).await;
+                    self.writer.send(WriterCommand::ResendPacket { 
+                        only_lost: false 
+                    }).await;
                 }
             }
             _ => {}
@@ -291,9 +331,11 @@ impl UtpManager {
         Ok(())
     }
 
+    /// Обработка пакета, ArenaBox - значи объект из пула объектов
     async fn dispatch(&mut self, packet: ArenaBox<Packet>) -> Result<()> {
         // println!("DISPATCH HEADER: {:?}", packet.header());
 
+        // Какая была задержка?
         let _delay = packet.received_at().delay(packet.get_timestamp());
         // self.delay = Delay::since(packet.get_timestamp());
 
@@ -302,24 +344,31 @@ impl UtpManager {
         self.ntimeout = 0;
         self.timeout = Instant::now() + Duration::from_millis(self.rto as u64);
 
+        // Проверяем тип пакета и текущее состояние
         match (packet.get_type()?, utp_state) {
+            // Пакет синка, а состояния нету еще
             (PacketType::Syn, UtpState::None) => {
                 //println!("RECEIVED SYN {:?}", self.addr);
                 let connection_id = packet.get_connection_id();
 
+                // Выставляем подключенное состояние
                 self.state.set_utp_state(UtpState::Connected);
+                // Выставляем айдишник отправки и получения (+1)
                 self.state.set_recv_id(connection_id + 1);
                 self.state.set_send_id(connection_id);
+                // Рандомный ноер последовательности
                 self.state.set_seq_number(SequenceNumber::random());
                 self.state.set_ack_number(packet.get_seq_number());
                 self.state.set_remote_window(packet.get_window_size());
 
+                // Отправляем пакет состояния
                 self.writer.send(WriterCommand::SendPacket {
                     packet_type: PacketType::State
                 }).await;
             }
             (PacketType::Syn, _) => {
             }
+            // Если получили пакет состояния
             (PacketType::State, UtpState::SynSent) => {
                 // Related:
                 // https://engineering.bittorrent.com/2015/08/27/drdos-udp-based-protocols-and-bittorrent/
