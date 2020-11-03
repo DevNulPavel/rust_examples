@@ -58,8 +58,8 @@ enum ProcessingMessage<'b>{
     Finished(),
 }
 
-async fn process_sending<'a, 'b>(mut writer: WriteHalf<'a>, 
-                                 semaphoe: &'b Semaphore, 
+async fn process_sending<'a, 'b>(mut tcp_writer: WriteHalf<'a>, 
+                                 semaphore: &'b Semaphore, 
                                  tasks: Arc<Mutex<Receiver<PathBuf>>>,
                                  mut exit_channel: BroadcastReceiver<()>,
                                  sender: UnboundedSender<ProcessingMessage<'b>>){
@@ -70,7 +70,7 @@ async fn process_sending<'a, 'b>(mut writer: WriteHalf<'a>,
                 path
             }else{
                 println!("Empty data from tasks - exit");
-                writer
+                tcp_writer
                     .shutdown()
                     .await
                     .unwrap();
@@ -81,10 +81,10 @@ async fn process_sending<'a, 'b>(mut writer: WriteHalf<'a>,
             }
         };
     
-        let permit = semaphoe.acquire().await;
+        let permit = semaphore.acquire().await;
 
         // Пишем файлик в сокет
-        write_file_to_socket(&mut writer, &file_path)
+        write_file_to_socket(&mut tcp_writer, &file_path)
             .await
             .unwrap();
 
@@ -98,7 +98,7 @@ async fn process_sending<'a, 'b>(mut writer: WriteHalf<'a>,
                 .send(ProcessingMessage::Permit(permit))
                 .unwrap();
         }else{
-            writer.shutdown().await.unwrap();
+            tcp_writer.shutdown().await.unwrap();
             sender
                 .send(ProcessingMessage::Finished())
                 .unwrap();
@@ -146,6 +146,7 @@ async fn process_address(addr: &str,
                          exit_receiver: BroadcastReceiver<()>) {
     // Подключаемся к серверу
     let mut stream: TcpStream = match timeout(Duration::from_secs(CONNECTION_TIMEOUT_IN_SEC), TcpStream::connect(addr)).await{
+        // Успели создать TcpStream
         Ok(stream_res) => {
             match stream_res {
                 Ok(stream) => {
@@ -153,30 +154,46 @@ async fn process_address(addr: &str,
                 },
                 Err(e) => {
                     println!("Connect to address error: {} ({})", addr, e);
-                    connected.send(false).await.unwrap();
+                    // Отправляем ошибку установки соединения
+                    connected
+                        .send(false)
+                        .await
+                        .unwrap();
                     return;
                 }
             }
         },
         Err(e) => {
             println!("Connect timeout to address: {} ({})", addr, e);
-            connected.send(false).await.unwrap();
+            // Отправляем ошибку установки соединения
+            connected
+                .send(false)
+                .await
+                .unwrap();
             return;
         }
     };
 
     println!("Stream created");
 
-    connected.send(true).await.unwrap();
+    // Отправляем подтверждение установки соединения
+    connected
+        .send(true)
+        .await.unwrap();
 
-    let (reader, writer) = stream.split();
+    // Разделяем TCP поток на чтение и запись
+    let (socket_reader, socket_writer) = stream.split();
 
+    // С помощью семафора ограничиваем количество оновременно обрабатываемых файликов
     let semaphore = Semaphore::new(MAX_PROCESSING_FILES_PER_ADDRESS);
-    let (sender, receiver) = unbounded_channel();
 
-    let send_handle = process_sending(writer, &semaphore, tasks, exit_receiver, sender);
-    let receive_handle = process_receiving(reader, receiver);
+    let (result_sender, result_receiver) = unbounded_channel();
 
+    // Содзаем корутины для отправки и получения данных
+    let send_handle = process_sending(socket_writer, &semaphore, tasks, exit_receiver, result_sender);
+    let receive_handle = process_receiving(socket_reader, result_receiver);
+
+    // Блокируемся до тех пор, пока не завершим все
     tokio::join!(send_handle, receive_handle);
 }
 
@@ -195,21 +212,25 @@ async fn main() {
     let (mut tasks_sender, tasks_receiver_raw) = channel(MAX_PROCESSING_FILES_PER_ADDRESS * ADDRESSES.len());
     let tasks_receiver = Arc::new(Mutex::new(tasks_receiver_raw));
 
-    // Переменая установки соединения
-    let (connection_established_sender, mut connection_established_receiver)  = channel(ADDRESSES.len());
+    // Канал успешной установки соединения
+    let (connection_established_sender, mut connection_established_receiver) = channel(ADDRESSES.len());
 
     // Фьючи соединений с адресами, запуск в работу будет ниже при вызове await
     let process_futures_join = {
+        // Создаем фьючи для обработки сокетов
         let connections_iter = ADDRESSES
             .iter()
-            .zip(std::iter::repeat_with(|| {
-                (connection_established_sender.clone(), tasks_receiver.clone(), exit_sender.subscribe())
-            }))
-            .map(move |(addr, (notify, task_receiver, exit_receiver))|{
-                process_address(addr, notify, task_receiver, exit_receiver)
+            .map(|addr|{
+                process_address(addr, 
+                                connection_established_sender.clone(), 
+                                tasks_receiver.clone(), 
+                                exit_sender.subscribe())
             });
 
+        // Создаем общую фьючу для все тасков обработки адресов
         let futures_join = futures::future::join_all(connections_iter);
+        
+        // Запускаем в работу
         let join = tokio::spawn(futures_join);
         
         join
@@ -219,18 +240,18 @@ async fn main() {
     {
         let connected = {
             let mut conn = false;
-            for _ in 0..ADDRESSES.len(){
+            'a: for _ in 0..ADDRESSES.len(){
                 let connect_success = connection_established_receiver.recv().await.unwrap();
                 if connect_success {
                     conn = true;
-                    break;
+                    break 'a;
                 }
             }
             conn
         };
         if connected == false {
             println!("Connection failed");
-            return;
+            std::process::exit(1);
         }
         drop(connection_established_sender);
         drop(connection_established_receiver);
@@ -266,7 +287,9 @@ async fn main() {
         }
     });
 
+    // Ждем завершения работы обработки
     process_futures_join.await.unwrap();
+    // Ждем завершения работы производителя задач
     tasks_join.await.unwrap();
 
     println!("Completed");

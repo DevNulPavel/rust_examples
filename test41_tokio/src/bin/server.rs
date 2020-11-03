@@ -210,9 +210,9 @@ async fn main() {
 
             // Создаем задачу обработки соединения
             let fut = process_connection(sock, 
-                                                  sender, 
-                                              stop_read_sender_server.subscribe(), 
-                                             stop_write_sender_server.subscribe());
+                                         sender, 
+                                         stop_read_sender_server.subscribe(), 
+                                         stop_write_sender_server.subscribe());
             let (complete_sender, complete_receiver) = tokio::sync::oneshot::channel::<()>();
             tokio::spawn(async move {
                 fut.await;
