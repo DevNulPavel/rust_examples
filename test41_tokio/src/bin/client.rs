@@ -140,12 +140,12 @@ async fn process_receiving<'a, 'b>(mut reader: ReadHalf<'a>,
     println!("Receiving exit");
 }
 
-async fn process_address(addr: &str, 
+async fn process_address(addr: String, 
                          mut connected: Sender<bool>,
                          tasks: Arc<Mutex<Receiver<PathBuf>>>, 
-                         exit_receiver: BroadcastReceiver<()>) {
+                         exit_receiver: tokio::sync::broadcast::Receiver<()>) {
     // Подключаемся к серверу
-    let mut stream: TcpStream = match timeout(Duration::from_secs(CONNECTION_TIMEOUT_IN_SEC), TcpStream::connect(addr)).await{
+    let mut stream: TcpStream = match timeout(Duration::from_secs(CONNECTION_TIMEOUT_IN_SEC), TcpStream::connect(addr.as_str())).await{
         // Успели создать TcpStream
         Ok(stream_res) => {
             match stream_res {
@@ -153,7 +153,7 @@ async fn process_address(addr: &str,
                     stream
                 },
                 Err(e) => {
-                    println!("Connect to address error: {} ({})", addr, e);
+                    println!("Connect to address error: {} ({})", addr.as_str(), e);
                     // Отправляем ошибку установки соединения
                     connected
                         .send(false)
@@ -164,7 +164,7 @@ async fn process_address(addr: &str,
             }
         },
         Err(e) => {
-            println!("Connect timeout to address: {} ({})", addr, e);
+            println!("Connect timeout to address: {} ({})", addr.as_str(), e);
             // Отправляем ошибку установки соединения
             connected
                 .send(false)
@@ -197,6 +197,36 @@ async fn process_address(addr: &str,
     tokio::join!(send_handle, receive_handle);
 }
 
+fn create_file_processing(addresses: &[&str], exit_sender: &tokio::sync::broadcast::Sender<()>) -> (tokio::task::JoinHandle<Vec<()>>, Sender<PathBuf>, Receiver<bool>){
+    // Канал отправки задач
+    let (tasks_sender, tasks_receiver_raw) = channel(MAX_PROCESSING_FILES_PER_ADDRESS * addresses.len());
+    let tasks_receiver = Arc::new(Mutex::new(tasks_receiver_raw));
+
+    // Канал успешной установки соединения
+    let (connection_established_sender, connection_established_receiver) = channel(addresses.len());
+
+    // Создаем фьючи для обработки сокетов
+    let connections_iter = addresses
+        .iter()
+        .map(|addr|{
+            addr.to_string()
+        })
+        .map(|addr|{
+            process_address(addr, 
+                            connection_established_sender.clone(), 
+                            tasks_receiver.clone(), 
+                            exit_sender.subscribe())
+        });
+
+    // Создаем общую фьючу для все тасков обработки адресов
+    let futures_join = futures::future::join_all(connections_iter);
+    
+    // Запускаем в работу
+    let join = tokio::spawn(futures_join);
+    
+    (join, tasks_sender, connection_established_receiver)
+}
+
 // Клиент будет однопоточным, чтобы не отжирать бестолку ресурсы
 #[tokio::main(core_threads = 1)]
 async fn main() {
@@ -208,40 +238,19 @@ async fn main() {
     // Канал для выхода из всех обработчиков
     let (exit_sender, _) = broadcast_channel(ADDRESSES.len());
 
-    // Канал отправки задач
-    let (mut tasks_sender, tasks_receiver_raw) = channel(MAX_PROCESSING_FILES_PER_ADDRESS * ADDRESSES.len());
-    let tasks_receiver = Arc::new(Mutex::new(tasks_receiver_raw));
-
-    // Канал успешной установки соединения
-    let (connection_established_sender, mut connection_established_receiver) = channel(ADDRESSES.len());
-
     // Фьючи соединений с адресами, запуск в работу будет ниже при вызове await
-    let process_futures_join = {
-        // Создаем фьючи для обработки сокетов
-        let connections_iter = ADDRESSES
-            .iter()
-            .map(|addr|{
-                process_address(addr, 
-                                connection_established_sender.clone(), 
-                                tasks_receiver.clone(), 
-                                exit_sender.subscribe())
-            });
-
-        // Создаем общую фьючу для все тасков обработки адресов
-        let futures_join = futures::future::join_all(connections_iter);
-        
-        // Запускаем в работу
-        let join = tokio::spawn(futures_join);
-        
-        join
-    };
+    let (process_futures_join, mut tasks_sender, mut connection_established_receiver) = create_file_processing(&ADDRESSES, 
+                                                                                                               &exit_sender);
 
     // Результат установки хоть какого-то соединения, продолжаем работу только если установили соединение
     {
         let connected = {
             let mut conn = false;
             'a: for _ in 0..ADDRESSES.len(){
-                let connect_success = connection_established_receiver.recv().await.unwrap();
+                let connect_success = connection_established_receiver
+                    .recv()
+                    .await
+                    .unwrap();
                 if connect_success {
                     conn = true;
                     break 'a;
@@ -253,7 +262,6 @@ async fn main() {
             println!("Connection failed");
             std::process::exit(1);
         }
-        drop(connection_established_sender);
         drop(connection_established_receiver);
     }
 

@@ -1,9 +1,37 @@
-use std::string::String;
-use std::path::Path;
-use tokio::io::{ AsyncReadExt, AsyncWriteExt };
-use tokio::net::tcp::{ ReadHalf, WriteHalf };
-use serde::{Deserialize, Serialize};
-use crate::types::EmptyResult;
+use std::{
+    string::{
+        String
+    }
+};
+use std::{
+    path::{
+        Path
+    }
+};
+use tokio::{
+    io::{ 
+        AsyncReadExt, 
+        AsyncWriteExt 
+    },
+    fs::{
+        File
+    },
+    net::{
+        tcp::{ 
+            ReadHalf, 
+            WriteHalf 
+        }
+    }
+};
+use serde::{
+    Deserialize, 
+    Serialize
+};
+use crate::{
+    types::{
+        EmptyResult
+    }
+};
 
 #[derive(Deserialize, Serialize, Debug)]
 pub struct FileMeta{
@@ -11,11 +39,16 @@ pub struct FileMeta{
     pub file_name: String,
 }
 
-pub async fn write_file_to_socket<'a>(writer: &mut WriteHalf<'a>, path: &Path) -> EmptyResult {
+/// Записываем файлик в сокет
+pub async fn write_file_to_socket<'a>(tcp_writer: &mut WriteHalf<'a>, 
+                                      path: &Path) -> EmptyResult {
     // Открываем асинхронный файлик
-    let mut file: tokio::fs::File = tokio::fs::File::open(path).await?;
+    let mut file: File = File::open(path)
+        .await?;
     
-    let file_meta = file.metadata().await?;
+    let file_meta = file
+        .metadata()
+        .await?;
     let file_size = file_meta.len() as usize;
 
     let meta = FileMeta{
@@ -24,31 +57,39 @@ pub async fn write_file_to_socket<'a>(writer: &mut WriteHalf<'a>, path: &Path) -
     };
     let meta = serde_json::to_vec(&meta).unwrap();
 
-    writer.write_u16(meta.len() as u16).await?;
-    writer.write_all(&meta).await?;
+    // Пишем размер меты в сокет
+    tcp_writer.write_u16(meta.len() as u16).await?;
+    // Пишем в сокет мету
+    tcp_writer.write_all(&meta).await?;
 
-    tokio::io::copy(&mut file, writer).await?;
+    // Копируем непосредственно данные
+    tokio::io::copy(&mut file, tcp_writer).await?;
 
     Ok(())
 }
 
-pub async fn save_file_from_socket<'a>(reader: &mut ReadHalf<'a>, file_size: usize, path: &Path) -> EmptyResult {
+/// Пишем файлик из сокета на диск
+pub async fn save_file_from_socket<'a>(reader: &mut ReadHalf<'a>, 
+                                       file_size: usize, 
+                                       file_path: &Path) -> EmptyResult {
     if file_size == 0{
-        panic!("File size can't be zero: {:?}", path);
+        panic!("File size can't be zero: {:?}", file_path);
     }
 
     // Создаем папку
-    if !path.exists(){
-        if let Some(folder) = path.parent(){
+    if !file_path.exists(){
+        if let Some(folder) = file_path.parent(){
             if !folder.exists(){
                 tokio::fs::create_dir_all(folder).await?;   
             }
         }
     }
+
     // Создаем асинхронно файлик
-    let mut file: tokio::fs::File = tokio::fs::File::create(path)
+    let mut file: File = File::create(file_path)
         .await?;
     
+    // Создаем буффер для временных данных
     let mut data_buffer: [u8; 1024] = [0; 1024];
     let mut size_left = file_size;
 
@@ -59,13 +100,14 @@ pub async fn save_file_from_socket<'a>(reader: &mut ReadHalf<'a>, file_size: usi
         // Слайс нужного размера
         let buffer_slice = &mut data_buffer[0..read_size];
 
-        // Читаем из файлика
+        // Читаем из файлика точное количество байт
         let read_size_result = match reader.read_exact(buffer_slice).await {
             Ok(read_size) => {
                 read_size
             },
             Err(err) => {
-                tokio::fs::remove_file(path).await?;
+                // Если произошла ошибка, то и файлик завершаем
+                tokio::fs::remove_file(file_path).await?;
                 return Err(err.into());
             }   
         };
@@ -75,9 +117,9 @@ pub async fn save_file_from_socket<'a>(reader: &mut ReadHalf<'a>, file_size: usi
             // Слайс прочитанных данных
             let result_slice = &mut data_buffer[0..read_size_result];
 
-            // Пишем в файлик
+            // Пишем в файлик, либо удаляем если ошибка
             if let Err(e) = file.write_all(result_slice).await {
-                tokio::fs::remove_file(path).await?;
+                tokio::fs::remove_file(file_path).await?;
                 return Err(e.into());
             }
             
