@@ -140,31 +140,41 @@ async fn process_receiving<'a, 'b>(mut reader: ReadHalf<'a>,
     println!("Receiving exit");
 }
 
+
+#[derive(Debug)]
+enum ConnectionError {
+    Timeout(tokio::time::Elapsed),
+    Connection(std::io::Error)
+}
+
+async fn connect_to_addr(addr: &str)->Result<TcpStream, ConnectionError>{
+    // Подключаемся к серверу
+    let timeout_value = Duration::from_secs(CONNECTION_TIMEOUT_IN_SEC);
+    let timeouted_connect = timeout(timeout_value, TcpStream::connect(addr));
+    timeouted_connect
+        .await
+        .map_err(|e|{
+            ConnectionError::Timeout(e)
+        })
+        .and_then(|conn|{
+            conn
+                .map_err(|e|{
+                    ConnectionError::Connection(e)
+                })
+        })
+}
+
 async fn process_address(addr: String, 
                          mut connected: Sender<bool>,
                          tasks: Arc<Mutex<Receiver<PathBuf>>>, 
                          exit_receiver: tokio::sync::broadcast::Receiver<()>) {
     // Подключаемся к серверу
-    let mut stream: TcpStream = match timeout(Duration::from_secs(CONNECTION_TIMEOUT_IN_SEC), TcpStream::connect(addr.as_str())).await{
-        // Успели создать TcpStream
-        Ok(stream_res) => {
-            match stream_res {
-                Ok(stream) => {
-                    stream
-                },
-                Err(e) => {
-                    println!("Connect to address error: {} ({})", addr.as_str(), e);
-                    // Отправляем ошибку установки соединения
-                    connected
-                        .send(false)
-                        .await
-                        .unwrap();
-                    return;
-                }
-            }
+    let mut stream = match connect_to_addr(&addr).await{
+        Ok(stream) => { 
+            stream
         },
         Err(e) => {
-            println!("Connect timeout to address: {} ({})", addr.as_str(), e);
+            println!("Connect timeout to address: {} ({:?})", addr.as_str(), e);
             // Отправляем ошибку установки соединения
             connected
                 .send(false)
@@ -199,8 +209,11 @@ async fn process_address(addr: String,
 
 fn create_file_processing(addresses: &[&str], exit_sender: &tokio::sync::broadcast::Sender<()>) -> (tokio::task::JoinHandle<Vec<()>>, Sender<PathBuf>, Receiver<bool>){
     // Канал отправки задач
-    let (tasks_sender, tasks_receiver_raw) = channel(MAX_PROCESSING_FILES_PER_ADDRESS * addresses.len());
-    let tasks_receiver = Arc::new(Mutex::new(tasks_receiver_raw));
+    let (tasks_sender, tasks_receiver) = {
+        let (tasks_sender, tasks_receiver_raw) = channel(MAX_PROCESSING_FILES_PER_ADDRESS * addresses.len());
+        let tasks_receiver = Arc::new(Mutex::new(tasks_receiver_raw));
+        (tasks_sender, tasks_receiver)
+    };
 
     // Канал успешной установки соединения
     let (connection_established_sender, connection_established_receiver) = channel(addresses.len());
@@ -227,6 +240,21 @@ fn create_file_processing(addresses: &[&str], exit_sender: &tokio::sync::broadca
     (join, tasks_sender, connection_established_receiver)
 }
 
+async fn wait_any_success_connection(connections_count: usize, mut connection_established_receiver: Receiver<bool>) -> bool {
+    let mut conn = false;
+    'a: for _ in 0..connections_count{
+        let connect_success = connection_established_receiver
+            .recv()
+            .await
+            .unwrap();
+        if connect_success {
+            conn = true;
+            break 'a;
+        }
+    }
+    return conn;
+}
+
 // Клиент будет однопоточным, чтобы не отжирать бестолку ресурсы
 #[tokio::main(core_threads = 1)]
 async fn main() {
@@ -239,30 +267,16 @@ async fn main() {
     let (exit_sender, _) = broadcast_channel(ADDRESSES.len());
 
     // Фьючи соединений с адресами, запуск в работу будет ниже при вызове await
-    let (process_futures_join, mut tasks_sender, mut connection_established_receiver) = create_file_processing(&ADDRESSES, 
-                                                                                                               &exit_sender);
+    let (process_futures_join, mut tasks_sender, connection_established_receiver) = create_file_processing(&ADDRESSES, 
+                                                                                                           &exit_sender);
 
     // Результат установки хоть какого-то соединения, продолжаем работу только если установили соединение
     {
-        let connected = {
-            let mut conn = false;
-            'a: for _ in 0..ADDRESSES.len(){
-                let connect_success = connection_established_receiver
-                    .recv()
-                    .await
-                    .unwrap();
-                if connect_success {
-                    conn = true;
-                    break 'a;
-                }
-            }
-            conn
-        };
+        let connected = wait_any_success_connection(ADDRESSES.len(), connection_established_receiver).await;
         if connected == false {
             println!("Connection failed");
             std::process::exit(1);
-        }
-        drop(connection_established_receiver);
+        } 
     }
 
     // Производитель задач
