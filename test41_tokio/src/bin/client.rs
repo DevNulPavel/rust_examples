@@ -252,7 +252,23 @@ async fn wait_any_success_connection(connections_count: usize, mut connection_es
             break 'a;
         }
     }
+
     return conn;
+    /*use futures::{
+        Stream,
+        StreamExt,
+        TryStream,
+        TryStreamExt
+    };
+
+    let val = connection_established_receiver
+        .filter(|status| async move {
+            Ok(*status)
+        })
+        .next()
+        .await;
+
+    true*/
 }
 
 // Клиент будет однопоточным, чтобы не отжирать бестолку ресурсы

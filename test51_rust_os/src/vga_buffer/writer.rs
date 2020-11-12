@@ -4,19 +4,36 @@ use core::{
         Write
     }
 };
+use spin::{
+    Mutex
+};
+use lazy_static::{
+    lazy_static
+};
 use super::{
     color_code::{
         ColorCode
     },
+    color::{
+        Color
+    },
     buffer::{
         Buffer,
-        //BUFFER_HEIGHT,
+        BUFFER_HEIGHT,
         BUFFER_WIDTH
     },
     screen_char::{
         ScreenChar
     }
 };
+
+lazy_static! {
+    pub static ref WRITER: Mutex<Writer> = Mutex::new(Writer {
+        column_position: 0,
+        color_code: ColorCode::new(Color::Yellow, Color::Black),
+        buffer: unsafe { &mut *(0xb8000 as *mut Buffer) },
+    });
+}
 
 pub struct Writer {
     pub(super) column_position: usize,
@@ -57,9 +74,8 @@ impl Writer {
                     self.new_line();
                 }
 
-                // Пока пишем в первуб строку
-                //let row = BUFFER_HEIGHT - 1;
-                let row = 0;
+                // Пока пишем в самую нижнюю строку
+                let row = BUFFER_HEIGHT - 1;
                 // Позиция по горизонтали
                 let col = self.column_position;
 
@@ -79,7 +95,33 @@ impl Writer {
     }
 
     fn new_line(&mut self) {
-        // TODO
+        // Проходим все строки, верхнее число исключается, иначе надо писать ..=
+        for row in 1..BUFFER_HEIGHT {
+            for col in 0..BUFFER_WIDTH {
+                // Записываем в символ предыдущей строки текущий символ
+                let character = self.buffer.chars[row][col].read();
+                self.buffer
+                    .chars[row - 1][col]
+                    .write(character);
+            }
+        }
+        // Чистим самую нижнюю строку
+        self.clear_row(BUFFER_HEIGHT - 1);
+        // Обнуляем позицию в строке на самое начало
+        self.column_position = 0;
+    }
+
+    fn clear_row(&mut self, row: usize) {
+        // Зазовый пустой символ, реализуется трейт Copy, поэтому можем копировать
+        let blank = ScreenChar {
+            ascii_character: b' ',
+            color_code: self.color_code,
+        };
+        for col in 0..BUFFER_WIDTH {
+            self.buffer
+                .chars[row][col]
+                .write(blank);
+        } 
     }
 }
 

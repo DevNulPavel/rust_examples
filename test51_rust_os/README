@@ -1,4 +1,5 @@
 https://os.phil-opp.com/freestanding-rust-binary/
 https://os.phil-opp.com/minimal-rust-kernel/
 https://os.phil-opp.com/vga-text-mode/
-https://os.phil-opp.com/vga-text-mode/#newlines
+https://os.phil-opp.com/vga-text-mode/#hello-world-using-println
+https://doc.rust-lang.org/nightly/rustdoc/the-doc-attribute.html#dochidden
