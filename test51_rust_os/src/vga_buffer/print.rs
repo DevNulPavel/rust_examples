@@ -28,7 +28,8 @@ macro_rules! println {
 
 // Благодаря данному аттрибуту данный метод не будет отображаться в IDE при автокомплите
 // https://doc.rust-lang.org/nightly/rustdoc/the-doc-attribute.html#dochidden
-#[doc(hidden)]
+//#[doc(hidden)]
 pub fn _print(args: fmt::Arguments) {
-    WRITER.lock().write_fmt(args).unwrap();
+    let mut lock = WRITER.lock();
+    lock.write_fmt(args).unwrap();
 }

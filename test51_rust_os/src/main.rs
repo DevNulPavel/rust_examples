@@ -1,7 +1,8 @@
 #![no_std]      // Не используем стандартную библиотеку, а значит никаких стандартных библиотек операционной системы
 #![no_main]     // Отключаем стандартную точку входа main Rust, которая вызывыется из библиотеки crt после инициализации запуска
+#![feature(fmt_as_str)]
 
-mod vga_buffer;
+#[macro_use] mod vga_buffer;
 
 use core::{
     panic::{
@@ -11,7 +12,8 @@ use core::{
 
 // Данная функция будет вызываться в случае паники
 #[panic_handler]
-fn panic(_info: &PanicInfo) -> ! {
+fn panic(info: &PanicInfo) -> ! {
+    println!("{}", info);
     loop {
     }
 }
@@ -38,6 +40,8 @@ pub extern "C" fn _start() -> ! {
         }
     }*/
     vga_buffer::test_print_something();
+    println!("TEST");
+    panic!("Test panic");
 
     loop {
     }
