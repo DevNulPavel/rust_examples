@@ -12,8 +12,12 @@ BUILD_KERNEL:
 	cargo bootimage
 
 RUN_KERNEL: BUILD_KERNEL
-	qemu-system-x86_64 -drive format=raw,file=target/x86_64-build_config/debug/bootimage-rust_os.bin
-	# Альтернативный способ запуска: cargo run, который запускает "bootimage runner" - читать .cargo/
+	# Альтернативный способ запуска:qemu-system-x86_64 -drive format=raw,file=target/x86_64-build_config/debug/bootimage-rust_os.bin
+	# Запускает "bootimage runner" - читать .cargo/
+	cargo run
+
+UNIT_TEST:
+	cargo test
 
 _BUILD_ARM:
 	# rustup target add thumbv7em-none-eabihf
