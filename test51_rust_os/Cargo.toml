@@ -4,6 +4,9 @@ version = "0.1.0"
 authors = ["Pavel Ershov <devnulpavel@gmail.com>"]
 edition = "2018"
 
+[package.metadata.bootimage]
+test-args = ["-device", "isa-debug-exit,iobase=0xf4,iosize=0x04"]
+
 # See more keys and their definitions at https://doc.rust-lang.org/cargo/reference/manifest.html
 
 [profile.dev]
