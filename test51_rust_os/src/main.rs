@@ -1,6 +1,7 @@
 #![no_std]      // Не используем стандартную библиотеку, а значит никаких стандартных библиотек операционной системы
 #![no_main]     // Отключаем стандартную точку входа main Rust, которая вызывыется из библиотеки crt после инициализации запуска
 #![feature(custom_test_frameworks)]
+#![feature(abi_x86_interrupt)]
 #![test_runner(crate::test::test_runner)]
 #![reexport_test_harness_main = "test_main"]
 
@@ -8,7 +9,8 @@
 #[macro_use] mod serial;
 mod qemu;
 mod panic;
-mod test;
+mod interrupts;
+#[cfg(test)] mod test;
 
 
 ////////////////////////////////////////////////////////////////////////
@@ -20,6 +22,11 @@ mod test;
 #[cfg(not(test))] // new attribute
 #[no_mangle]
 pub extern "C" fn _start() -> ! {
+    interrupts::init_idt();
+
+    // invoke a breakpoint exception
+    x86_64::instructions::interrupts::int3(); // new
+    
     println!("TEST TEXT");
     loop {}
 }
@@ -28,6 +35,7 @@ pub extern "C" fn _start() -> ! {
 #[cfg(test)] // new attribute
 #[no_mangle]
 pub extern "C" fn _start() -> ! {
+    interrupts::init_idt();
     test_main();
     loop {}
 }
