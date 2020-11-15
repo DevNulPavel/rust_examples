@@ -25,7 +25,12 @@ pub extern "C" fn _start() -> ! {
     interrupts::init_idt();
 
     // invoke a breakpoint exception
-    x86_64::instructions::interrupts::int3(); // new
+    //x86_64::instructions::interrupts::int3(); // new
+
+    // Вызывает исключение типа page fault
+    unsafe {
+        *(0xdeadbeef as *mut u64) = 42;
+    };
     
     println!("TEST TEXT");
     loop {}
