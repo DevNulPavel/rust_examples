@@ -28,9 +28,17 @@ pub extern "C" fn _start() -> ! {
     //x86_64::instructions::interrupts::int3(); // new
 
     // Вызывает исключение типа page fault
-    unsafe {
+    /*unsafe {
         *(0xdeadbeef as *mut u64) = 42;
-    };
+    };*/
+
+    #[allow(unconditional_recursion)]
+    fn stack_overflow() {
+        stack_overflow(); // for each recursion, the return address is pushed
+    }
+
+    // trigger a stack overflow
+    stack_overflow();
     
     println!("TEST TEXT");
     loop {}

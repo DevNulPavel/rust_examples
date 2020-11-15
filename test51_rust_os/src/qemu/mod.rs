@@ -26,6 +26,7 @@ impl From<QemuExitCode> for u32 {
     }
 }
 
+#[allow(dead_code)]
 pub fn exit_qemu(exit_code: QemuExitCode) {
     unsafe {
         // Создаем новый порт, который мы указали в конфигурировании в Cargo.toml
