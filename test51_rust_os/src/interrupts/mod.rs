@@ -10,7 +10,9 @@ use lazy_static::{
     lazy_static
 };
 use crate::{
-    //print,
+    gdt::{
+        DOUBLE_FAULT_IST_INDEX
+    },
     println
 };
 
@@ -19,13 +21,20 @@ lazy_static! {
     // просто оборачивая все в блок кода
     static ref IDT: InterruptDescriptorTable = {
         let mut idt = InterruptDescriptorTable::new();
-        idt.breakpoint.set_handler_fn(breakpoint_handler);
-        idt.double_fault.set_handler_fn(double_fault_handler);
+        idt
+            .breakpoint
+            .set_handler_fn(breakpoint_handler);
+        unsafe {
+            idt
+                .double_fault
+                .set_handler_fn(double_fault_handler)
+                .set_stack_index(DOUBLE_FAULT_IST_INDEX); // Выставляем отдельный стек для обработчика прерывания
+        }
         idt
     };
 }
 
-pub fn init_idt() {
+pub fn init() {
     IDT.load();
 }
 

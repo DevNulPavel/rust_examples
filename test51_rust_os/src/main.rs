@@ -10,6 +10,7 @@
 mod qemu;
 mod panic;
 mod interrupts;
+mod gdt;
 #[cfg(test)] mod test;
 
 
@@ -22,7 +23,8 @@ mod interrupts;
 #[cfg(not(test))] // new attribute
 #[no_mangle]
 pub extern "C" fn _start() -> ! {
-    interrupts::init_idt();
+    gdt::init();
+    interrupts::init();
 
     // invoke a breakpoint exception
     //x86_64::instructions::interrupts::int3(); // new
@@ -35,6 +37,7 @@ pub extern "C" fn _start() -> ! {
     #[allow(unconditional_recursion)]
     fn stack_overflow() {
         stack_overflow(); // for each recursion, the return address is pushed
+        volatile::Volatile::new(0).read(); // prevent tail recursion optimizations
     }
 
     // trigger a stack overflow
@@ -48,7 +51,8 @@ pub extern "C" fn _start() -> ! {
 #[cfg(test)] // new attribute
 #[no_mangle]
 pub extern "C" fn _start() -> ! {
-    interrupts::init_idt();
+    gdt::init();
+    interrupts::init();
     test_main();
     loop {}
 }
