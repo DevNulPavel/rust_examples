@@ -13,6 +13,13 @@ mod interrupts;
 mod gdt;
 #[cfg(test)] mod test;
 
+use x86_64::{
+    registers::{
+        control::{
+            Cr3
+        }
+    }
+};
 
 ////////////////////////////////////////////////////////////////////////
 
@@ -41,14 +48,22 @@ pub extern "C" fn _start() -> ! {
         *(0xdeadbeef as *mut u64) = 42;
     };*/
 
-    #[allow(unconditional_recursion)]
+    // Вызываем переполнение стека
+    /*#[allow(unconditional_recursion)]
     fn stack_overflow() {
         stack_overflow(); // for each recursion, the return address is pushed
         volatile::Volatile::new(0).read(); // prevent tail recursion optimizations
     }
+    stack_overflow();*/
 
-    // trigger a stack overflow
-    stack_overflow();
+    // Вызываем краш по памяти, прерывание PageFault
+    /*let ptr = 0xdeadbeaf as *mut u32;
+    unsafe { let x = *ptr; } // Читать можно без проблем при этом
+    unsafe { *ptr = 42; }*/
+
+    // Читаем таблицу 4го уровня виртуальной памяти
+    let (level_4_page_table, _) = Cr3::read();
+    println!("Level 4 page table at: {:?}", level_4_page_table.start_address());
     
     println!("TEST TEXT");
     
@@ -61,6 +76,7 @@ pub extern "C" fn _start() -> ! {
 pub extern "C" fn _start() -> ! {
     gdt::init();
     interrupts::init();
+    
     test_main();
     
     hlt_loop();

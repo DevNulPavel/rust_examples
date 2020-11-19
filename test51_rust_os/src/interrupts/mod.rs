@@ -2,7 +2,13 @@ use x86_64::{
     structures::{
         idt::{
             InterruptDescriptorTable,
-            InterruptStackFrame
+            InterruptStackFrame,
+            PageFaultErrorCode
+        }
+    },
+    registers::{
+        control::{
+            Cr2
         }
     }
 };
@@ -19,6 +25,7 @@ use crate::{
     gdt::{
         DOUBLE_FAULT_IST_INDEX
     },
+    hlt_loop,
     println
 };
 
@@ -57,10 +64,13 @@ lazy_static! {
             
         unsafe {
             // Прерывание краша
-            idt
-                .double_fault
+            idt.double_fault
                 .set_handler_fn(double_fault_handler)
                 .set_stack_index(DOUBLE_FAULT_IST_INDEX); // Выставляем отдельный стек для обработчика прерывания
+
+            // Page fault прерывание, когда лезем в чужую область памяти
+            idt.page_fault
+                .set_handler_fn(page_fault_handler); // new
 
             // Прерывание таймера
             idt[InterruptIndex::Timer.as_usize()]
@@ -101,4 +111,17 @@ fn timer_interrupt_handler(_stack_frame: &mut InterruptStackFrame){
         PICS.lock()
             .notify_end_of_interrupt(InterruptIndex::Timer.as_u8());
     }
+}
+
+extern "x86-interrupt" 
+fn page_fault_handler(stack_frame: &mut InterruptStackFrame,
+                      error_code: PageFaultErrorCode) {
+
+    println!("EXCEPTION: PAGE FAULT");
+    // Доступ к виртуальному адресу, который был неверен
+    // адрес лежит в регистре Cr2
+    println!("Accessed Address: {:?}", Cr2::read());
+    println!("Error Code: {:?}", error_code);
+    println!("{:#?}", stack_frame);
+    hlt_loop();
 }
