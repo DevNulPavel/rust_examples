@@ -1,9 +1,6 @@
 use serde::{
     Deserialize
 };
-use serde_json::{
-    Value
-};
 use log::{
     debug,
     // info,
@@ -37,7 +34,7 @@ struct JenkinsJobsResponse{
 pub async fn request_jenkins_jobs_list(client: &reqwest::Client, auth: &JenkinsAuth) -> Result<Vec<JenkinsJob>, reqwest::Error> {
     // https://jenkins.17btest.com/api/json?pretty=true
 
-    // debug!("{} {}", jenkins_user, jenkins_token);
+    debug!("{} {}", auth.jenkins_user, auth.jenkins_api_token);
 
     let response = client
         .get("https://jenkins.17btest.com/api/json")

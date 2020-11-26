@@ -12,6 +12,8 @@ pub use self::{
     // },
     job_info_xml::{
         Parameter,
+        ChoiseInfo,
+        ChoiseList,
         InfoRequestError,
         request_jenkins_job_info
     },

@@ -6,13 +6,8 @@ use actix_web::{
     guard,
     middleware,
     App,
-    HttpServer,
-    // Responder,
-    // HttpResponse
+    HttpServer
 };
-// use serde::{
-//     Serialize
-// };
 use log::{
     // debug,
     info,
@@ -28,7 +23,7 @@ use crate::{
     jenkins::{
         JenkinsAuth,
         jenkins_command_handler,
-        jenkins_window_handler
+        main_build_window_handler
     }
 };
 
@@ -42,8 +37,7 @@ use crate::{
 
 // Настройка путей веб сервера
 fn configure_server(cfg: &mut web::ServiceConfig) {   
-    cfg
-        .service(web::scope("/jenkins")
+    cfg.service(web::scope("/jenkins")
                     .service(web::resource("/command")
                                 .route(web::route()
                                         .guard(guard::Post())
@@ -53,10 +47,10 @@ fn configure_server(cfg: &mut web::ServiceConfig) {
                                 .route(web::route()
                                         .guard(guard::Post())
                                         .guard(guard::Header("Content-type", "application/x-www-form-urlencoded"))
-                                        .to(jenkins_window_handler))));
+                                        .to(main_build_window_handler))));
 }
 
-#[actix_rt::main]
+#[actix_web::main]
 async fn main() -> std::io::Result<()>{
     // Активируем логирование и настраиваем уровни вывода
     // https://rust-lang-nursery.github.io/rust-cookbook/development_tools/debugging/config_log.html
@@ -102,13 +96,15 @@ async fn main() -> std::io::Result<()>{
             info!("Reuse server socket");
             
             // Создаем сервер с уже имеющимся листнером
-            HttpServer::new(build_web_application).listen(listener)?
+            HttpServer::new(build_web_application)
+                .listen(listener)?
         },
         None => {
             info!("New server socket");
 
             // Создаем новый сервер
-            HttpServer::new(build_web_application).bind("0.0.0.0:8888")?
+            HttpServer::new(build_web_application)
+                .bind("0.0.0.0:8888")?
         }
     };
 

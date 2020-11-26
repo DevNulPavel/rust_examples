@@ -1,9 +1,6 @@
 use serde::{
     Deserialize
 };
-use serde_json::{
-    Value
-};
 use log::{
     debug,
     // info,
@@ -24,7 +21,7 @@ pub struct ChoiseList{
 }
 
 #[derive(Deserialize, Debug)]
-pub struct Choise{
+pub struct ChoiseInfo{
     #[serde(rename = "defaultChoice")]
     default_value: String,
 
@@ -56,7 +53,15 @@ pub enum Parameter{
         description: String,
         
         #[serde(rename = "choiceListProvider")]
-        choise: Choise,
+        choise: ChoiseInfo,
+    },
+    #[serde(rename = "hudson.model.ChoiceParameterDefinition")]
+    ChoiceSimple{
+        name: String,
+        description: String,
+        
+        // #[serde(rename = "choiceListProvider")]
+        // choise: Choise,
     },
     #[serde(rename = "net.uaznia.lukanus.hudson.plugins.gitparameter.GitParameterDefinition")]
     Git{
@@ -95,6 +100,7 @@ struct InfoResponse{
 
 ////////////////////////////////////////////////////////////////////////////////
 
+#[allow(dead_code)]
 #[derive(Debug)]
 pub enum InfoRequestError{
     RequestErr(reqwest::Error),

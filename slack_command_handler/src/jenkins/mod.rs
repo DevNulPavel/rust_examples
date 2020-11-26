@@ -8,7 +8,8 @@ pub use self::{
         jenkins_command_handler
     },
     window::{
-        jenkins_window_handler
+        main_build_window_handler,
+        open_main_build_window
     },
     auth::{
         JenkinsAuth

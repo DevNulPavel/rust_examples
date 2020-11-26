@@ -3,7 +3,7 @@ use std::{
 };
 use actix_web::{ 
     web,
-    // Responder,
+    Responder,
     HttpResponse
 };
 use serde::{
@@ -15,9 +15,15 @@ use log::{
     // info,
     error
 };
+use futures::{
+    FutureExt
+};
 use super::{
     api::{
         request_jenkins_jobs_list
+    },
+    window::{
+        open_main_build_window
     }
 };
 use crate::{
@@ -56,127 +62,24 @@ impl fmt::Debug for SlackCommandParameters {
     }
 }
 
-pub async fn jenkins_command_handler(parameters: web::Form<SlackCommandParameters>, app_data: web::Data<ApplicationData>) -> web::HttpResponse {
+pub async fn jenkins_command_handler(parameters: web::Form<SlackCommandParameters>, app_data: web::Data<ApplicationData>) -> HttpResponse {
     debug!("Index parameters: {:?}", parameters);
 
-    // Получаем список возможных таргетов сборки
-    // TODO: может можно избавиться от collect?
-    let jobs = match request_jenkins_jobs_list(&app_data.http_client, 
-                                               &app_data.jenkins_auth).await {
-        Ok(jobs) => {
-            jobs
-                .into_iter()
-                .map(|job|{
-                    //debug!("Job info: {:?}", job);
-                    serde_json::json!(
-                        {
-                            "text": {
-                                "type": "plain_text",
-                                "text": job.name,
-                                "emoji": false
-                            },
-                            "value": job.name
-                        }
-                    )
-                })
-                .collect::<Vec<serde_json::Value>>()
-        },
-        Err(err) => {
-            error!("Jobs request failed: {:?}", err);
-            return HttpResponse::Ok()
-                        .body(format!("{:?}", err));
-        }
-    };
-    
-    // Описываем наше окно
-    let window = serde_json::json!(
-        {
-            "trigger_id": parameters.trigger_id,
-            "view": {
-                "type": "modal",
-                "callback_id": "build_jenkins_id",
-                "title": {
-                    "type": "plain_text",
-                    "text": "Build jenkins target",
-                    "emoji": false
+    // Запрашиваем список джобов
+    request_jenkins_jobs_list(&app_data.http_client, &app_data.jenkins_auth)
+        .then(|res| async {
+            match res {
+                Ok(jobs) => {
+                    // Открываем окно с джобами
+                    open_main_build_window(&app_data, &parameters.trigger_id, jobs)
+                        .await
                 },
-                "blocks": [
-                    {
-                        "block_id": "build_target_block_id",
-                        "type": "input",
-                        "element": {
-                            "action_id": "build_target_action_id",
-                            "type": "static_select",
-                            "placeholder": {
-                                "type": "plain_text",
-                                "text": "Select or type build target",
-                                "emoji": false
-                            },
-                            "options": jobs
-                        },
-                        "label": {
-                            "type": "plain_text",
-                            "text": "Target",
-                            "emoji": false
-                        }
-                    },         
-                    {
-                        "type": "section",
-                        "block_id": "section-identifier",
-                        "text": {
-                            "type": "mrkdwn",
-                            "text": "Test markdown text"
-                        },
-                        "accessory": {
-                            "type": "button",
-                            "action_id": "test_button_id",
-                            "text": {
-                                "type": "plain_text",
-                                "text": "Test button"
-                            }
-                        }
-                    }
-                ],
-                "submit": {
-                    "type": "plain_text",
-                    "text": "To build properties",
-                    "emoji": false
-                },
-                "close": {
-                    "type": "plain_text",
-                    "text": "Cancel",
-                    "emoji": false
+                Err(err) => {
+                    error!("Jobs request failed: {:?}", err);
+                    HttpResponse::Ok()
+                        .body(format!("{:?}", err))
                 }
             }
-        }
-    );
-
-    // Выполняем наш запрос
-    let response = app_data
-        .http_client
-        .post("https://slack.com/api/views.open")
-        .bearer_auth(app_data.slack_api_token.as_str())
-        .header("Content-type", "application/json")
-        .body(serde_json::to_string(&window).unwrap())
-        .send()
-        .await;
-        
-    match response {
-        Ok(res) => {
-            debug!("Window open result: {:?}", res);
-            HttpResponse::Ok()
-                .finish()
-            // let response = SlackCommandResponse{
-            //     response_type: "ephemeral",
-            //     text: String::from("test")
-            // };
-            // HttpResponse::Ok()
-            //     .json(response)            
-        },
-        Err(err) =>{
-            error!("Window open error: {:?}", err);
-            HttpResponse::Ok()
-                .body(format!("{:?}", err))
-        }
-    }
+        })
+        .await
 }
