@@ -1,17 +1,28 @@
 use log::{
+    info,
     debug,
     error
 };
+use futures::{
+    FutureExt
+};
 use actix_web::{ 
+    rt::{
+        spawn
+    },
     web::{
         Form,
         Data
     },
     HttpResponse
 };
+use serde_json::{
+    Value
+};
 use crate::{
     jenkins::{
         api::{
+            request_jenkins_jobs_list,
             JenkinsJob
         }
     },
@@ -26,14 +37,140 @@ use super::{
     parameters::{
         WindowParametersPayload,
         WindowParametersViewInfo,
-        WindowState,
         WindowParameters
+    },
+    view_open_response::{
+        ViewOpenResponse,
+        ViewUpdateResponse,
+        ViewInfo
     }
 };
 
+fn window_json_with_jobs(jobs: Option<Vec<Value>>) -> Value {
+    let options_json = match jobs {
+        Some(array) => {
+            serde_json::json!({
+                "block_id": "build_target_block_id",
+                "type": "input",
+                "element": {
+                    "action_id": "build_target_action_id",
+                    "type": "static_select",
+                    "placeholder": {
+                        "type": "plain_text",
+                        "text": "Select or type build target",
+                        "emoji": false
+                    },
+                    "options": array
+                },
+                "label": {
+                    "type": "plain_text",
+                    "text": "Target",
+                    "emoji": false
+                }
+            })
+        },
+        None => {
+            serde_json::json!({
+                "type": "section",
+                "text": {
+                    "type": "mrkdwn",
+                    "text": "Loading"
+                }
+            })
+        }
+    };
+
+    // Описываем наше окно
+    serde_json::json!({
+        "type": "modal",
+        "callback_id": "build_jenkins_id",
+        "title": {
+            "type": "plain_text",
+            "text": "Build jenkins target",
+            "emoji": false
+        },
+        "blocks": [         
+            options_json
+        ],
+        "submit": {
+            "type": "plain_text",
+            "text": "To build properties",
+            "emoji": false
+        },
+        "close": {
+            "type": "plain_text",
+            "text": "Cancel",
+            "emoji": false
+        }
+    })
+}
 
 /// Обработчик открытия окна Jenkins
-pub async fn open_main_build_window(app_data: &ApplicationData, trigger_id: &str, jobs: Vec<JenkinsJob>) -> HttpResponse {
+pub async fn open_main_build_window(app_data: Data<ApplicationData>, trigger_id: &str) {
+    // Выполняем наш запрос
+    // TODO: Вернуть ошибку
+    info!("Open main window with trigger_id: {}", trigger_id);
+
+    let window_view = window_json_with_jobs(None);
+
+    let window = serde_json::json!({
+        "trigger_id": trigger_id,
+        "view": window_view
+    });
+
+    let response = app_data
+        .http_client
+        .post("https://slack.com/api/views.open")
+        .bearer_auth(app_data.slack_api_token.as_str())
+        .header("Content-type", "application/json")
+        .body(serde_json::to_string(&window).unwrap())
+        .send()
+        .await;
+
+    match response{
+        Ok(res) => {
+            //debug!("Main window open response: {}", res.text().await.unwrap());  
+            match res.json::<ViewOpenResponse>().await {
+                Ok(parsed) => {
+                    debug!("Parsed response: {:?}", parsed);
+
+                    match parsed {
+                        ViewOpenResponse::Ok{view} => {
+                            // Запускаем асинхронный запрос, чтобы моментально ответить
+                            // Иначе долгий запрос отвалится по таймауту
+                            spawn(update_main_window(view, app_data));
+                        },
+                        ViewOpenResponse::Error{error, ..}=>{
+                            error!("Response error: {}", error);
+                        }
+                    }
+                },
+                Err(err) => {
+                    error!("Response parse error: {}", err);
+                }
+            }
+        },
+        Err(err) => {
+            error!("Main window open response: {:?}", err);
+        }
+    } 
+}
+
+async fn update_main_window(view_info: ViewInfo, app_data: Data<ApplicationData>){
+    info!("Main window view update");
+
+    // Запрашиваем список джобов
+    let jobs = match request_jenkins_jobs_list(&app_data.http_client, &app_data.jenkins_auth).await {
+        Ok(jobs) => {
+            jobs
+        },
+        Err(err) => {
+            error!("Jobs request failed: {:?}", err);
+            return;
+            // TODO: Написать ошибочное в ответ
+        }
+    };
+
     // Конвертируем джобы в Json
     let jobs_json = jobs.into_iter()
         .map(|job|{
@@ -51,147 +188,15 @@ pub async fn open_main_build_window(app_data: &ApplicationData, trigger_id: &str
         })
         .collect::<Vec<serde_json::Value>>();
 
-    // Описываем наше окно
-    let window = serde_json::json!(
-        {
-            "trigger_id": trigger_id,
-            "view": {
-                "type": "modal",
-                "callback_id": "build_jenkins_id",
-                "title": {
-                    "type": "plain_text",
-                    "text": "Build jenkins target",
-                    "emoji": false
-                },
-                "blocks": [
-                    {
-                        "block_id": "build_target_block_id",
-                        "type": "input",
-                        "element": {
-                            "action_id": "build_target_action_id",
-                            "type": "static_select",
-                            "placeholder": {
-                                "type": "plain_text",
-                                "text": "Select or type build target",
-                                "emoji": false
-                            },
-                            "options": jobs_json
-                        },
-                        "label": {
-                            "type": "plain_text",
-                            "text": "Target",
-                            "emoji": false
-                        }
-                    },         
-                    /*{
-                        "type": "section",
-                        "block_id": "section-identifier",
-                        "text": {
-                            "type": "mrkdwn",
-                            "text": "Test markdown text"
-                        },
-                        "accessory": {
-                            "type": "button",
-                            "action_id": "test_button_id",
-                            "text": {
-                                "type": "plain_text",
-                                "text": "Test button"
-                            }
-                        }
-                    }*/
-                ],
-                "submit": {
-                    "type": "plain_text",
-                    "text": "To build properties",
-                    "emoji": false
-                },
-                "close": {
-                    "type": "plain_text",
-                    "text": "Cancel",
-                    "emoji": false
-                }
-            }
-        }
-    );
-
-    // Выполняем наш запрос
-    let response = app_data
-        .http_client
-        .post("https://slack.com/api/views.open")
-        .bearer_auth(app_data.slack_api_token.as_str())
-        .header("Content-type", "application/json")
-        .body(serde_json::to_string(&window).unwrap())
-        .send()
-        .await;
-        
-    match response {
-        Ok(res) => {
-            debug!("Window open result: {:?}", res);
-            HttpResponse::Ok()
-                .finish()
-            // let response = SlackCommandResponse{
-            //     response_type: "ephemeral",
-            //     text: String::from("test")
-            // };
-            // HttpResponse::Ok()
-            //     .json(response)            
-        },
-        Err(err) =>{
-            error!("Window open error: {:?}", err);
-            HttpResponse::Ok()
-                .body(format!("{:?}", err))
-        }
-    }
-}
-
-async fn update_main_window(view: WindowParametersViewInfo, app_data: Data<ApplicationData>) -> HttpResponse{
     // Описываем обновление нашего окна
     // https://api.slack.com/surfaces/modals/using#interactions
-    let window_update = serde_json::json!(
-        {
-            "view_id": view.id,
-            "hash": view.hash,
-            "view": {
-                "type": "modal",
-                "callback_id": "view-helpdesk",
-                "title": {
-                    "type": "plain_text",
-                    "text": "Submit an issue"
-                },
-                "submit": {
-                    "type": "plain_text",
-                    "text": "Submit"
-                },
-                "blocks": [
-                    {
-                        "type": "input",
-                        "block_id": "ticket-title",
-                        "label": {
-                            "type": "plain_text",
-                            "text": "Ticket title"
-                        },
-                        "element": {
-                            "type": "plain_text_input",
-                            "action_id": "ticket-title-value"
-                        }
-                    },
-                    {
-                        "type": "input",
-                        "block_id": "ticket-desc",
-                        "label": {
-                            "type": "plain_text",
-                            "text": "Ticket description"
-                        },
-                        "element": {
-                            "type": "plain_text_input",
-                            "multiline": true,
-                            "action_id": "ticket-desc-value"
-                        }
-                    }
-                ]
-            }
-        }
-    );
+    let window_view = window_json_with_jobs(Some(jobs_json));
+
+    let window = serde_json::json!({
+        "view_id": view_info.id,
+        "hash": view_info.hash,
+        "view": window_view
+    });
 
     // Выполняем запрос обновления вьюшки
     let response = app_data
@@ -199,44 +204,55 @@ async fn update_main_window(view: WindowParametersViewInfo, app_data: Data<Appli
         .post("https://slack.com/api/views.update")
         .bearer_auth(app_data.slack_api_token.as_str())
         .header("Content-type", "application/json")
-        .body(serde_json::to_string(&window_update).unwrap())
+        .body(serde_json::to_string(&window).unwrap())
         .send()
-        .await;
-    
-    match response {
+        .await;  
+
+    match response{
         Ok(res) => {
-            debug!("Window modify response: {:?}", res);
-            HttpResponse::Ok()
-                .finish()    
+            //debug!("Main window open response: {}", res.text().await.unwrap());  
+            match res.json::<ViewUpdateResponse>().await {
+                Ok(parsed) => {
+                    debug!("Parsed response: {:?}", parsed);
+
+                    match parsed {
+                        ViewUpdateResponse::Ok{view} => {
+                        },
+                        ViewUpdateResponse::Error{error, ..}=>{
+                            error!("Response error: {}", error);
+                        }
+                    }
+                },
+                Err(err) => {
+                    error!("Response parse error: {}", err);
+                }
+            }
         },
         Err(err) => {
-            error!("Window modify error: {:?}", err);
-            // TODO: Error
-            HttpResponse::Ok()
-                .body(format!("Window modify error: {}", err))
+            error!("Main window open response: {:?}", err);
         }
-    }    
+    } 
 }
 
 /// Обработчик открытия окна Jenkins
-async fn process_main_window_payload(payload: WindowParametersPayload, app_data: Data<ApplicationData>) -> HttpResponse {
+async fn process_main_window_payload(payload: WindowParametersPayload, app_data: Data<ApplicationData>) {
     match payload {
         // Вызывается на нажатие кнопки подтверждения
-        WindowParametersPayload::Submit{view} => {
+        WindowParametersPayload::Submit{view, trigger_id} => {
             debug!("Submit button processing");
 
             // process_submit_button()
 
             // Открываем окно с параметрами сборки
-            open_build_properties_window_by_reponse(view, app_data).await
+            open_build_properties_window_by_reponse(trigger_id, view, app_data).await;
         },
 
         // Вызывается на нажатие разных кнопок в самом меню
         // TODO: Можно делать валидацию ветки здесь
-        WindowParametersPayload::Action{view, ..} => {
+        WindowParametersPayload::Action{..} => {
             debug!("Action processing");
 
-            update_main_window(view, app_data).await
+            //update_main_window(view, app_data).await;
             // push_new_window
         }
     }  
@@ -252,9 +268,13 @@ pub async fn main_build_window_handler(parameters: Form<WindowParameters>, app_d
         Ok(payload) => {
             debug!("Parsed payload: {:?}", payload);
 
-            // Обрабатываем команды окна
+            // Обрабатываем команды окна, запуск происходит асинхронно, 
+            // чтобы максимально быстро ответить серверу
             // https://api.slack.com/surfaces/modals/using#interactions
-            process_main_window_payload(payload, app_data).await
+            spawn(process_main_window_payload(payload, app_data));
+
+            HttpResponse::Ok()
+                .finish()
         },
         Err(err) => {
             error!("Payload parse error: {:?}", err);

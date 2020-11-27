@@ -1,13 +1,8 @@
 mod main_window;
 mod properties_window;
 mod parameters;
+mod view_open_response;
 
-use std::{
-    fmt,
-    collections::{
-        HashMap
-    }
-};
 use log::{
     debug,
     // info,
@@ -18,21 +13,8 @@ use actix_web::{
     // Responder,
     HttpResponse
 };
-use serde::{
-    Serialize,
-    Deserialize
-};
-use serde_json::{
-    Value
-};
 use crate::{
     ApplicationData
-};
-use super::{
-    api::{
-        Parameter, 
-        request_jenkins_job_info
-    }
 };
 
 pub use self::{

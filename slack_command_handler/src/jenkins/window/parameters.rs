@@ -4,25 +4,12 @@ use std::{
         HashMap
     }
 };
-use log::{
-    debug,
-    // info,
-    error
-};
-use actix_web::{ 
-    web,
-    // Responder,
-    HttpResponse
-};
 use serde::{
     Serialize,
     Deserialize
 };
 use serde_json::{
     Value
-};
-use crate::{
-    ApplicationData
 };
 
 #[derive(Deserialize, Serialize, Debug)]
@@ -34,11 +21,11 @@ pub struct WindowState{
 pub struct WindowParametersViewInfo{
     pub id: String,
     pub hash: String,
-    pub state: WindowState
+    pub state: WindowState,
 
     // Прочие поля
-    // #[serde(flatten)]
-    // other: HashMap<String, Value>
+    //#[serde(flatten)]
+    //other: HashMap<String, Value>
 }
 
 // https://serde.rs/enum-representations.html
@@ -48,13 +35,15 @@ pub struct WindowParametersViewInfo{
 pub enum WindowParametersPayload{
     #[serde(rename = "view_submission")]
     Submit{
+        trigger_id: String,
+        //response_url: Option<String>,
         view: WindowParametersViewInfo,
     },
     
     #[serde(rename = "block_actions")]
     Action{
         trigger_id: String,
-        response_url: Option<String>,
+        //response_url: Option<String>,
         view: WindowParametersViewInfo,
         actions: Vec<Value>,
     }
@@ -74,7 +63,6 @@ impl fmt::Debug for WindowParametersPayload {
             .as_str())
     }
 }
-
 
 #[derive(Deserialize, Debug)]
 pub struct WindowParameters{

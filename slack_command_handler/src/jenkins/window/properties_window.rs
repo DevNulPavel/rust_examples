@@ -1,6 +1,6 @@
 use log::{
     debug,
-    // info,
+    info,
     error
 };
 use actix_web::{ 
@@ -53,23 +53,53 @@ fn param_to_json_field(param: Parameter) -> Value {
     // https://api.slack.com/reference/block-kit/block-elements
     // https://app.slack.com/block-kit-builder/
     match param {
-        Parameter::Boolean{name, ..} => {
-            /*serde_json::json!({
-                "type": "actions",
-                "element": {
+        Parameter::Boolean{name, description, default_value} => {
+            let initial_selected_value = if default_value {
+                serde_json::json!([
+                    {
+                        "value": name,
+                        "text": {
+                            "type": "plain_text",
+                            "text": name
+                        }
+                    }
+                ])
+            }else{
+                serde_json::json!([
+                ])
+            };
+
+            serde_json::json!({
+                "type": "section",
+                "text": {
+                    "type": "plain_text",
+                    "text": description
+                },
+                /*"accessory": {
                     "type": "checkboxes",
+                    "action_id": "test_action",
+                    "initial_options": [],
                     "options": [
                         {
+                            "value": "test",
                             "text": {
                                 "type": "plain_text",
-                                "text": name,
-                                "emoji": true
-                            },
-                            "value": "value-0"
+                                "text": "test"
+                            }
                         }
                     ]
+                }*/
+            })
+            /*serde_json::json!({
+                "type": "section",
+                "text": {
+                    "type": "plain_text",
+                    "text": name,
+                    "emoji": true
                 }
             })*/
+        },
+        Parameter::Choice{name, ..} => {
             serde_json::json!({
                 "type": "section",
                 "text": {
@@ -78,17 +108,7 @@ fn param_to_json_field(param: Parameter) -> Value {
                     "emoji": true
                 }
             })
-        },
-        Parameter::Choice{name, ..} => {
             /*serde_json::json!({
-                "type": "section",
-                "text": {
-                    "type": "plain_text",
-                    "text": name,
-                    "emoji": true
-                }
-            })*/
-            serde_json::json!({
                 "type": "section",
                 "text": {
                     "type": "mrkdwn",
@@ -108,7 +128,7 @@ fn param_to_json_field(param: Parameter) -> Value {
                     ],
                     "action_id": "radio_buttons-action"
                 }
-            })
+            })*/
         },
         Parameter::ChoiceSimple{name, ..} => {
             serde_json::json!({
@@ -133,7 +153,7 @@ fn param_to_json_field(param: Parameter) -> Value {
         Parameter::String{name, ..} => {
             serde_json::json!({
                 "type": "input",
-                //"block_id": "input123",
+                //"block_id": name,
                 "label": {
                     "type": "plain_text",
                     "text": name
@@ -152,7 +172,7 @@ fn param_to_json_field(param: Parameter) -> Value {
 }
 
 // https://api.slack.com/surfaces/modals/using
-pub async fn open_build_properties_window_by_reponse(view: WindowParametersViewInfo, app_data: Data<ApplicationData>) -> HttpResponse {
+pub async fn open_build_properties_window_by_reponse(trigger_id: String, view: WindowParametersViewInfo, app_data: Data<ApplicationData>) {
     // https://api.slack.com/surfaces/modals/using#preparing_for_modals
 
     // Получаем из недр Json имя нужного нам таргета сборки
@@ -164,8 +184,7 @@ pub async fn open_build_properties_window_by_reponse(view: WindowParametersViewI
             None =>{
                 // TODO: Error
                 error!("Select target error");
-                return HttpResponse::Ok()
-                    .body(format!("Select target error"))
+                return;
             }
         }        
     };
@@ -178,13 +197,13 @@ pub async fn open_build_properties_window_by_reponse(view: WindowParametersViewI
             parameters
         },
         Err(err) => {
+            // TODO: Error
             error!("Job info request error: {:?}", err);
-            return HttpResponse::Ok()
-                .body(format!("Select target error: {:?}", err));
+            return;
         }
     };
 
-    debug!("Parameters list: {:?}", parameters);
+    //debug!("Parameters list: {:?}", parameters);
 
     // Параметры конвертируем в поля на окне
     let parameter_blocks = parameters
@@ -204,7 +223,7 @@ pub async fn open_build_properties_window_by_reponse(view: WindowParametersViewI
     // "#;
     let new_window = serde_json::json!(
         {
-            "response_action": "push",
+            "trigger_id": trigger_id,
             "view": {
                 "type": "modal",
                 "callback_id": "modal-identifier",
@@ -222,7 +241,7 @@ pub async fn open_build_properties_window_by_reponse(view: WindowParametersViewI
                     "text": "Cancel",
                     "emoji": true
                 },
-                "blocks": parameter_blocks
+                "blocks": []
             }
         }                    
     );
@@ -295,7 +314,26 @@ pub async fn open_build_properties_window_by_reponse(view: WindowParametersViewI
                 ]
         */
 
-    HttpResponse::Ok()
+    // Выполняем наш запрос
+    let response = app_data
+        .http_client
+        .post("https://slack.com/api/views.push")
+        .bearer_auth(app_data.slack_api_token.as_str())
         .header("Content-type", "application/json")
         .body(serde_json::to_string(&new_window).unwrap())
+        .send()
+        .await;
+
+    match response {
+        Ok(resp) => {
+            info!("Build properties window open response: {:?}", resp);
+        },
+        Err(err) => {
+            error!("Build properties window open failed: {}", err);
+        }
+    }
+
+    // HttpResponse::Ok()
+    //     .header("Content-type", "application/json")
+    //     .body(serde_json::to_string(&new_window).unwrap())
 }
