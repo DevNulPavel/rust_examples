@@ -23,6 +23,7 @@ use crate::{
     jenkins::{
         api::{
             request_jenkins_jobs_list,
+            JenkinsJob
         }
     },
     application_data::{
@@ -44,37 +45,59 @@ use super::{
     }
 };
 
-fn window_json_with_jobs(jobs: Option<Vec<Value>>) -> Value {
+
+fn window_json_with_jobs(jobs: Option<Vec<JenkinsJob>>) -> Value {
     let options_json = match jobs {
         Some(array) => {
-            serde_json::json!({
-                "block_id": "build_target_block_id",
-                "type": "input",
-                "element": {
-                    "action_id": "build_target_action_id",
-                    "type": "static_select",
-                    "placeholder": {
-                        "type": "plain_text",
-                        "text": "Select or type build target",
-                        "emoji": false
+            // Конвертируем джобы в Json
+            let jobs_json = array.into_iter()
+                .map(|job|{
+                    //debug!("Job info: {:?}", job);
+                    serde_json::json!(
+                        {
+                            "text": {
+                                "type": "plain_text",
+                                "text": job.name,
+                                "emoji": false
+                            },
+                            "value": job.name
+                        }
+                    )
+                })
+                .collect::<Vec<serde_json::Value>>();
+
+            serde_json::json!([
+                {
+                    "block_id": "build_target_block_id",
+                    "type": "input",
+                    "element": {
+                        "action_id": "build_target_action_id",
+                        "type": "static_select",
+                        "placeholder": {
+                            "type": "plain_text",
+                            "text": "Select or type build target",
+                            "emoji": false
+                        },
+                        "options": jobs_json
                     },
-                    "options": array
-                },
-                "label": {
-                    "type": "plain_text",
-                    "text": "Target",
-                    "emoji": false
+                    "label": {
+                        "type": "plain_text",
+                        "text": "Target",
+                        "emoji": false
+                    }
                 }
-            })
+            ])
         },
         None => {
-            serde_json::json!({
-                "type": "section",
-                "text": {
-                    "type": "mrkdwn",
-                    "text": "Loading"
+            serde_json::json!([
+                {
+                    "type": "section",
+                    "text": {
+                        "type": "mrkdwn",
+                        "text": "Loading"
+                    }
                 }
-            })
+            ])
         }
     };
 
@@ -87,9 +110,7 @@ fn window_json_with_jobs(jobs: Option<Vec<Value>>) -> Value {
             "text": "Build jenkins target",
             "emoji": false
         },
-        "blocks": [         
-            options_json
-        ],
+        "blocks": options_json,
         "submit": {
             "type": "plain_text",
             "text": "To build properties",
@@ -104,7 +125,7 @@ fn window_json_with_jobs(jobs: Option<Vec<Value>>) -> Value {
 }
 
 /// Обработчик открытия окна Jenkins
-pub async fn open_main_build_window(app_data: Data<ApplicationData>, trigger_id: &str) {
+pub async fn open_main_build_window(app_data: Data<ApplicationData>, trigger_id: String) {
     // Выполняем наш запрос
     // TODO: Вернуть ошибку
     info!("Open main window with trigger_id: {}", trigger_id);
@@ -145,7 +166,7 @@ pub async fn open_main_build_window(app_data: Data<ApplicationData>, trigger_id:
         ViewOpenResponse::Ok{view} => {
             // Запускаем асинхронный запрос, чтобы моментально ответить
             // Иначе долгий запрос отвалится по таймауту
-            spawn(update_main_window(view, app_data));
+            update_main_window(view, app_data).await;
         },
         ViewOpenResponse::Error{error, ..}=>{
             error!("Response error: {}", error);
@@ -169,26 +190,9 @@ async fn update_main_window(view_info: ViewInfo, app_data: Data<ApplicationData>
         }
     };
 
-    // Конвертируем джобы в Json
-    let jobs_json = jobs.into_iter()
-        .map(|job|{
-            //debug!("Job info: {:?}", job);
-            serde_json::json!(
-                {
-                    "text": {
-                        "type": "plain_text",
-                        "text": job.name,
-                        "emoji": false
-                    },
-                    "value": job.name
-                }
-            )
-        })
-        .collect::<Vec<serde_json::Value>>();
-
     // Описываем обновление нашего окна
     // https://api.slack.com/surfaces/modals/using#interactions
-    let window_view = window_json_with_jobs(Some(jobs_json));
+    let window_view = window_json_with_jobs(Some(jobs));
 
     let window = serde_json::json!({
         "view_id": view_info.id,
@@ -241,7 +245,7 @@ async fn process_main_window_payload(payload: WindowParametersPayload, app_data:
     match payload {
         // Вызывается на нажатие кнопки подтверждения
         WindowParametersPayload::Submit{view, trigger_id} => {
-            debug!("Submit button processing");
+            debug!("Submit button processing with trigger_id: {}", trigger_id);
 
             // process_submit_button()
 
@@ -268,12 +272,17 @@ pub async fn main_build_window_handler(parameters: Form<WindowParameters>, app_d
     match serde_json::from_str::<WindowParametersPayload>(parameters.payload.as_str()){
         // Распарсили без проблем
         Ok(payload) => {
-            debug!("Parsed payload: {:?}", payload);
+            info!("Parsed payload: {:?}", payload);
 
             // Обрабатываем команды окна, запуск происходит асинхронно, 
             // чтобы максимально быстро ответить серверу
             // https://api.slack.com/surfaces/modals/using#interactions
-            spawn(process_main_window_payload(payload, app_data));
+            spawn(async move {
+                // TODO: Хрень полная, но больше никак не удостовериться, что сервер слака получил ответ обработчика
+                actix_web::rt::time::delay_for(std::time::Duration::from_millis(200)).await;
+
+                process_main_window_payload(payload, app_data).await;
+            });
 
             HttpResponse::Ok()
                 .finish()

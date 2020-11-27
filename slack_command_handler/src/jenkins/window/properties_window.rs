@@ -7,6 +7,9 @@ use actix_web::{
     web::{
         Data
     },
+    rt::{
+        spawn
+    },
     // Responder,
     HttpResponse
 };
@@ -27,68 +30,66 @@ use crate::{
 use super::{
     parameters::{
         WindowParametersViewInfo
+    },
+    view_open_response::{
+        ViewInfo,
+        ViewOpenResponse,
+        ViewUpdateResponse
     }
 };
-
-/// Получаем из вьюшки имя нашего таргета
-fn get_selected_target(view: &WindowParametersViewInfo) -> Option<&str>{
-    view.state.values
-        .get("build_target_block_id")
-        .and_then(|val|{
-            val.get("build_target_action_id")
-        })
-        .and_then(|val|{
-            val.get("selected_option")
-        })
-        .and_then(|val|{
-            val.get("value")
-        })
-        .and_then(|val|{
-            val.as_str()
-        })
-}
 
 fn param_to_json_field(param: Parameter) -> Value {
     // Примеры компонентов
     // https://api.slack.com/reference/block-kit/block-elements
     // https://app.slack.com/block-kit-builder/
     match param {
-        Parameter::Boolean{name, description, default_value} => {
+        Parameter::Boolean{name, default_value, ..} => {
             let initial_selected_value = if default_value {
-                serde_json::json!([
-                    {
-                        "value": name,
-                        "text": {
-                            "type": "plain_text",
-                            "text": name
-                        }
+                serde_json::json!({
+                    "value": "on",
+                    "text": {
+                        "type": "plain_text",
+                        "text": "on"
                     }
-                ])
+                })
             }else{
-                serde_json::json!([
-                ])
+                serde_json::json!({
+                    "value": "off",
+                    "text": {
+                        "type": "plain_text",
+                        "text": "off"
+                    }
+                })
             };
 
             serde_json::json!({
                 "type": "section",
                 "text": {
                     "type": "plain_text",
-                    "text": description
+                    "text": name,
+                    "emoji": true
                 },
-                /*"accessory": {
-                    "type": "checkboxes",
-                    "action_id": "test_action",
-                    "initial_options": [],
+                "accessory": {
+                    "type": "radio_buttons",
+                    "action_id": "this_is_an_action_id",
+                    "initial_option": initial_selected_value,
                     "options": [
                         {
-                            "value": "test",
+                            "value": "on",
                             "text": {
                                 "type": "plain_text",
-                                "text": "test"
+                                "text": "on"
+                            }
+                        },
+                        {
+                            "value": "off",
+                            "text": {
+                                "type": "plain_text",
+                                "text": "off"
                             }
                         }
                     ]
-                }*/
+                }
             })
             /*serde_json::json!({
                 "type": "section",
@@ -160,7 +161,7 @@ fn param_to_json_field(param: Parameter) -> Value {
                 },
                 "element": {
                     "type": "plain_text_input",
-                    "action_id": "plain_input",
+                    "action_id": name,
                     "placeholder": {
                         "type": "plain_text",
                         "text": "Enter some plain text"
@@ -171,16 +172,74 @@ fn param_to_json_field(param: Parameter) -> Value {
     }
 }
 
+fn create_window_view(params: Option<Vec<Parameter>>) -> Value {
+    let blocks = match params {
+        Some(params) => {
+            // Параметры конвертируем в поля на окне
+            params
+                .into_iter()
+                .map(|param|{
+                    param_to_json_field(param)
+                })
+                .collect::<Vec<serde_json::Value>>()
+        },
+        None => {
+            vec!(serde_json::json!({
+                "type": "section",
+                "text": {
+                    "type": "mrkdwn",
+                    "text": "Loading"
+                }
+            }))
+        }
+    };
+
+    serde_json::json!({
+        "type": "modal",
+        "callback_id": "modal-identifier_2",
+        "title": {
+            "type": "plain_text",
+            "text": "Properties window"
+        },
+        "submit": {
+            "type": "plain_text",
+            "text": "Submit",
+            "emoji": true
+        },
+        "close": {
+            "type": "plain_text",
+            "text": "Cancel",
+            "emoji": true
+        },
+        "blocks": blocks
+    })
+}
+
+/// Получаем из вьюшки имя нашего таргета
+fn get_selected_target(view: &WindowParametersViewInfo) -> Option<&str>{
+    view.state.values
+        .get("build_target_block_id")
+        .and_then(|val|{
+            val.get("build_target_action_id")
+        })
+        .and_then(|val|{
+            val.get("selected_option")
+        })
+        .and_then(|val|{
+            val.get("value")
+        })
+        .and_then(|val|{
+            val.as_str()
+        })
+}
+
 // https://api.slack.com/surfaces/modals/using
 pub async fn open_build_properties_window_by_reponse(trigger_id: String, view: WindowParametersViewInfo, app_data: Data<ApplicationData>) {
     // https://api.slack.com/surfaces/modals/using#preparing_for_modals
-
     // Получаем из недр Json имя нужного нам таргета сборки
     let selected_target = {
         match get_selected_target(&view) {
-            Some(target) => {
-                target
-            },
+            Some(target) => target.to_owned(),
             None =>{
                 // TODO: Error
                 error!("Select target error");
@@ -189,10 +248,62 @@ pub async fn open_build_properties_window_by_reponse(trigger_id: String, view: W
         }        
     };
 
+    // TODO: Не конвертировать туда-сюда json
+    // let j = r#""#;
+    let new_window = serde_json::json!({
+        "trigger_id": trigger_id,
+        "view": create_window_view(None)
+    });
+
+    // Выполняем наш запрос
+    let response = app_data
+        .http_client
+        .post("https://slack.com/api/views.open")
+        .bearer_auth(app_data.slack_api_token.as_str())
+        .header("Content-type", "application/json")
+        .body(serde_json::to_string(&new_window).unwrap())
+        .send()
+        .await;
+    
+    // Валидный ли ответ?
+    let response = match response {
+        Ok(res) => res,
+        Err(err) => {
+            error!("Properties window open response error: {:?}", err);
+            return;
+        }
+    };
+
+    // Парсим
+    let parsed = match response.json::<ViewOpenResponse>().await {
+        Ok(parsed) => parsed,
+        Err(err) => {
+            error!("Properties window open response parse error: {}", err);
+            return;
+        }
+    };
+
+    info!("Properties window open response: {:?}", parsed);
+
+    // Обработка результата вьюшки
+    match parsed {
+        ViewOpenResponse::Ok{view} => {
+            // Запускаем асинхронный запрос, чтобы моментально ответить
+            // Иначе долгий запрос отвалится по таймауту
+            update_properties_window(selected_target, view, app_data).await
+        },
+        err @ ViewOpenResponse::Error{..}=>{
+            error!("Properties window open response error: {:?}", err);
+            return;
+        }
+    }
+}
+
+async fn update_properties_window(selected_target: String, view: ViewInfo, app_data: Data<ApplicationData>) {
     // Запрашиваем список параметров данного таргета
     let parameters = match request_jenkins_job_info(&app_data.http_client, 
                                                     &app_data.jenkins_auth,
-                                                    selected_target).await{
+                                                    &selected_target).await{
         Ok(parameters) => {
             parameters
         },
@@ -203,137 +314,51 @@ pub async fn open_build_properties_window_by_reponse(trigger_id: String, view: W
         }
     };
 
-    //debug!("Parameters list: {:?}", parameters);
+    let window_view = create_window_view(Some(parameters));
 
-    // Параметры конвертируем в поля на окне
-    let parameter_blocks = parameters
-        .into_iter()
-        .map(|param|{
-            param_to_json_field(param)
-        })
-        .collect::<Vec<serde_json::Value>>();
+    let window = serde_json::json!({
+        "view_id": view.id,
+        "hash": view.hash,
+        "view": window_view
+    });
 
-    // TODO: Не конвертировать туда-сюда json
-    // let j = r#"
-    //     {
-    //     "id": "demo-deserialize-max",
-    //     "values": [
-    //     ]
-    //     }
-    // "#;
-    let new_window = serde_json::json!(
-        {
-            "trigger_id": trigger_id,
-            "view": {
-                "type": "modal",
-                "callback_id": "modal-identifier",
-                "title": {
-                    "type": "plain_text",
-                    "text": "Updated view"
-                },
-                "submit": {
-                    "type": "plain_text",
-                    "text": "Submit",
-                    "emoji": true
-                },
-                "close": {
-                    "type": "plain_text",
-                    "text": "Cancel",
-                    "emoji": true
-                },
-                "blocks": []
-            }
-        }                    
-    );
-
-    /*[
-                    {
-                        "type": "input",
-                        //"block_id": "input123",
-                        "label": {
-                            "type": "plain_text",
-                            "text": "asd"
-                        },
-                        "element": {
-                            "type": "plain_text_input",
-                            "action_id": "plain_input",
-                            "placeholder": {
-                                "type": "plain_text",
-                                "text": "Enter some plain text"
-                            }
-                        }
-                    },
-                    {
-                        "type": "section",
-                        "text": {
-                          "type": "plain_text",
-                          "text": "Check out these rad radio buttons"
-                        },
-                        "accessory": {
-                            "type": "radio_buttons",
-                            "action_id": "this_is_an_action_id",
-                            "initial_option": {
-                                "value": "A1",
-                                "text": {
-                                    "type": "plain_text",
-                                    "text": "Radio 1"
-                                }
-                            },
-                            "options": [
-                                {
-                                    "value": "A1",
-                                    "text": {
-                                        "type": "plain_text",
-                                        "text": "Radio 1"
-                                    }
-                                },
-                                {
-                                    "value": "A2",
-                                    "text": {
-                                        "type": "plain_text",
-                                        "text": "Radio 2"
-                                    }
-                                }
-                            ]
-                        }
-                    }                    
-                    /*{
-                        "type": "image",
-                        "image_url": "https://api.slack.com/img/blocks/bkb_template_images/plants.png",
-                        "alt_text": "Plants"
-                      },
-                    {
-                        "type": "context",
-                        "elements": [
-                          {
-                            "type": "mrkdwn",
-                            "text": "_Two of the author's cats sit aloof from the austere challenges of modern society_"
-                          }
-                        ]
-                    }*/
-                ]
-        */
-
-    // Выполняем наш запрос
+    // Выполняем запрос обновления вьюшки
     let response = app_data
         .http_client
-        .post("https://slack.com/api/views.push")
+        .post("https://slack.com/api/views.update")
         .bearer_auth(app_data.slack_api_token.as_str())
         .header("Content-type", "application/json")
-        .body(serde_json::to_string(&new_window).unwrap())
+        .body(serde_json::to_string(&window).unwrap())
         .send()
-        .await;
+        .await;  
 
-    match response {
-        Ok(resp) => {
-            info!("Build properties window open response: {:?}", resp);
-        },
+    let response = match response{
+        Ok(res) => res,
         Err(err) => {
-            error!("Build properties window open failed: {}", err);
+            error!("Main window open response: {:?}", err);
+            return;
+        }
+    }; 
+
+    //debug!("Main window open response: {}", res.text().await.unwrap());  
+
+    let parsed = match response.json::<ViewUpdateResponse>().await {
+        Ok(parsed) => parsed,
+        Err(err) => {
+            error!("Response parse error: {}", err);
+            return;
+        }
+    };
+
+    debug!("Parsed response: {:?}", parsed);
+
+    match parsed {
+        ViewUpdateResponse::Ok{view} => {
+            info!("Update success for view_id: {}", view.id);
+        },
+        error @ ViewUpdateResponse::Error{..}=>{
+            error!("Response error: {:?}", error);
         }
     }
-
-    // HttpResponse::Ok()
-    //     .header("Content-type", "application/json")
-    //     .body(serde_json::to_string(&new_window).unwrap())
+    //debug!("Parameters list: {:?}", parameters);
 }

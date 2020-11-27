@@ -37,8 +37,12 @@ pub async fn jenkins_command_handler(parameters: Form<SlackCommandParameters>, a
     debug!("Index parameters: {:?}", parameters);
 
     // Открываем окно с джобами
-    open_main_build_window(app_data, &parameters.trigger_id)
-        .await;
+    spawn(async move {
+        // TODO: Хрень полная, но больше никак не удостовериться, что сервер слака получил ответ обработчика
+        actix_web::rt::time::delay_for(std::time::Duration::from_millis(200)).await;
+
+        open_main_build_window(app_data, parameters.0.trigger_id).await;
+    });
 
     HttpResponse::Ok()
         .finish()
