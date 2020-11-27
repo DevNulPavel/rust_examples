@@ -11,7 +11,7 @@ use actix_web::{
         spawn
     },
     // Responder,
-    HttpResponse
+    // HttpResponse
 };
 use serde_json::{
     Value
@@ -25,16 +25,16 @@ use crate::{
             ChoiseInfo
         }
     },
+    slack::{
+        view::{
+            View
+        }
+    },
     ApplicationData
 };
 use super::{
     parameters::{
         WindowParametersViewInfo
-    },
-    view_open_response::{
-        ViewInfo,
-        ViewOpenResponse,
-        ViewUpdateResponse
     }
 };
 
@@ -255,51 +255,23 @@ pub async fn open_build_properties_window_by_reponse(trigger_id: String, view: W
         "view": create_window_view(None)
     });
 
-    // Выполняем наш запрос
-    let response = app_data
-        .http_client
-        .post("https://slack.com/api/views.open")
-        .bearer_auth(app_data.slack_api_token.as_str())
-        .header("Content-type", "application/json")
-        .body(serde_json::to_string(&new_window).unwrap())
-        .send()
+    let view_open_res = app_data.slack_client
+        .open_view(new_window)
         .await;
-    
-    // Валидный ли ответ?
-    let response = match response {
-        Ok(res) => res,
-        Err(err) => {
-            error!("Properties window open response error: {:?}", err);
-            return;
-        }
-    };
 
-    // Парсим
-    let parsed = match response.json::<ViewOpenResponse>().await {
-        Ok(parsed) => parsed,
-        Err(err) => {
-            error!("Properties window open response parse error: {}", err);
-            return;
-        }
-    };
-
-    info!("Properties window open response: {:?}", parsed);
-
-    // Обработка результата вьюшки
-    match parsed {
-        ViewOpenResponse::Ok{view} => {
+    match view_open_res {
+        Ok(view) => {
             // Запускаем асинхронный запрос, чтобы моментально ответить
             // Иначе долгий запрос отвалится по таймауту
-            update_properties_window(selected_target, view, app_data).await
+            //update_properties_window(selected_target, view, app_data).await
         },
-        err @ ViewOpenResponse::Error{..}=>{
+        Err(err) => {
             error!("Properties window open response error: {:?}", err);
-            return;
         }
     }
 }
 
-async fn update_properties_window(selected_target: String, view: ViewInfo, app_data: Data<ApplicationData>) {
+async fn update_properties_window(selected_target: String, view: View, app_data: Data<ApplicationData>) {
     // Запрашиваем список параметров данного таргета
     let parameters = match request_jenkins_job_info(&app_data.http_client, 
                                                     &app_data.jenkins_auth,
@@ -316,49 +288,15 @@ async fn update_properties_window(selected_target: String, view: ViewInfo, app_d
 
     let window_view = create_window_view(Some(parameters));
 
-    let window = serde_json::json!({
-        "view_id": view.id,
-        "hash": view.hash,
-        "view": window_view
-    });
+    let update_result = view
+        .update_view(window_view)
+        .await;
 
-    // Выполняем запрос обновления вьюшки
-    let response = app_data
-        .http_client
-        .post("https://slack.com/api/views.update")
-        .bearer_auth(app_data.slack_api_token.as_str())
-        .header("Content-type", "application/json")
-        .body(serde_json::to_string(&window).unwrap())
-        .send()
-        .await;  
-
-    let response = match response{
-        Ok(res) => res,
-        Err(err) => {
-            error!("Main window open response: {:?}", err);
-            return;
-        }
-    }; 
-
-    //debug!("Main window open response: {}", res.text().await.unwrap());  
-
-    let parsed = match response.json::<ViewUpdateResponse>().await {
-        Ok(parsed) => parsed,
-        Err(err) => {
-            error!("Response parse error: {}", err);
-            return;
-        }
-    };
-
-    debug!("Parsed response: {:?}", parsed);
-
-    match parsed {
-        ViewUpdateResponse::Ok{view} => {
-            info!("Update success for view_id: {}", view.id);
+    match update_result {
+        Ok(view) => {
         },
-        error @ ViewUpdateResponse::Error{..}=>{
-            error!("Response error: {:?}", error);
+        Err(err) => {
+            error!("Properties window update error: {:?}", err);
         }
     }
-    //debug!("Parameters list: {:?}", parameters);
 }

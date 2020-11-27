@@ -1,7 +1,9 @@
 mod application_data;
 mod jenkins;
+mod slack;
 
-use actix_web::{ 
+use actix_web::{
+    client,
     web,
     guard,
     middleware,
@@ -75,12 +77,13 @@ async fn main() -> std::io::Result<()>{
 
         // Создаем общие данные приложения
         let app_data = ApplicationData{
-            slack_api_token,
+            //slack_api_token: slack_api_token.clone(),
             jenkins_auth: JenkinsAuth{
                 jenkins_user,
                 jenkins_api_token
             },
-            http_client: reqwest::Client::new()
+            http_client: reqwest::Client::default(),
+            slack_client: slack::SlackClient::new(&slack_api_token)
         };
 
         // Создаем приложение

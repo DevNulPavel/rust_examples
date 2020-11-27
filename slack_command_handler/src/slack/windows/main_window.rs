@@ -28,6 +28,16 @@ use crate::{
     },
     application_data::{
         ApplicationData
+    },
+    slack::{
+        view::{
+            View
+        },
+        // view_open_response::{
+        //     ViewOpenResponse,
+        //     ViewUpdateResponse,
+        //     ViewInfo
+        // }
     }
 };
 use super::{
@@ -37,11 +47,6 @@ use super::{
     parameters::{
         WindowParametersPayload,
         WindowParameters
-    },
-    view_open_response::{
-        ViewOpenResponse,
-        ViewUpdateResponse,
-        ViewInfo
     }
 };
 
@@ -137,45 +142,24 @@ pub async fn open_main_build_window(app_data: Data<ApplicationData>, trigger_id:
         "view": window_view
     });
 
-    let response = app_data
-        .http_client
-        .post("https://slack.com/api/views.open")
-        .bearer_auth(app_data.slack_api_token.as_str())
-        .header("Content-type", "application/json")
-        .body(serde_json::to_string(&window).unwrap())
-        .send()
+    let slack_client = &app_data.slack_client;
+    let open_result = slack_client
+        .open_view(window)
         .await;
     
-    let response = match response {
-        Ok(res) => res,
-        Err(err) => {
-            error!("Main window open response error: {:?}", err);
-            return;
-        }
-    };
-
-    let parsed = match response.json::<ViewOpenResponse>().await {
-        Ok(parsed) => parsed,
-        Err(err) => {
-            error!("Response parse error: {}", err);
-            return;
-        }
-    };
-
-    match parsed {
-        ViewOpenResponse::Ok{view} => {
+    match open_result {
+        Ok(view) => {
             // Запускаем асинхронный запрос, чтобы моментально ответить
             // Иначе долгий запрос отвалится по таймауту
             update_main_window(view, app_data).await;
         },
-        ViewOpenResponse::Error{error, ..}=>{
-            error!("Response error: {}", error);
-            return;
+        Err(err) => {
+            error!("Main window open error: {:?}", err);
         }
     }
 }
 
-async fn update_main_window(view_info: ViewInfo, app_data: Data<ApplicationData>){
+async fn update_main_window<'a>(view: View, app_data: Data<ApplicationData>){
     info!("Main window view update");
 
     // Запрашиваем список джобов
@@ -194,74 +178,17 @@ async fn update_main_window(view_info: ViewInfo, app_data: Data<ApplicationData>
     // https://api.slack.com/surfaces/modals/using#interactions
     let window_view = window_json_with_jobs(Some(jobs));
 
-    let window = serde_json::json!({
-        "view_id": view_info.id,
-        "hash": view_info.hash,
-        "view": window_view
-    });
+    let update_result = view
+        .update_view(window_view)
+        .await;
 
-    // Выполняем запрос обновления вьюшки
-    let response = app_data
-        .http_client
-        .post("https://slack.com/api/views.update")
-        .bearer_auth(app_data.slack_api_token.as_str())
-        .header("Content-type", "application/json")
-        .body(serde_json::to_string(&window).unwrap())
-        .send()
-        .await;  
-
-    let response = match response{
-        Ok(res) => res,
-        Err(err) => {
-            error!("Main window open response: {:?}", err);
-            return;
-        }
-    }; 
-
-    //debug!("Main window open response: {}", res.text().await.unwrap());  
-
-    let parsed = match response.json::<ViewUpdateResponse>().await {
-        Ok(parsed) => parsed,
-        Err(err) => {
-            error!("Response parse error: {}", err);
-            return;
-        }
-    };
-
-    debug!("Parsed response: {:?}", parsed);
-
-    match parsed {
-        ViewUpdateResponse::Ok{view} => {
-            info!("Update success for view_id: {}", view.id);
+    match update_result {
+        Ok(view) => {
         },
-        ViewUpdateResponse::Error{error, ..}=>{
-            error!("Response error: {}", error);
+        Err(err) => {
+            error!("Main window update error: {:?}", err);
         }
     }
-}
-
-/// Обработчик открытия окна Jenkins
-async fn process_main_window_payload(payload: WindowParametersPayload, app_data: Data<ApplicationData>) {
-    match payload {
-        // Вызывается на нажатие кнопки подтверждения
-        WindowParametersPayload::Submit{view, trigger_id} => {
-            debug!("Submit button processing with trigger_id: {}", trigger_id);
-
-            // process_submit_button()
-
-            // Открываем окно с параметрами сборки
-            open_build_properties_window_by_reponse(trigger_id, view, app_data).await;
-        },
-
-        // Вызывается на нажатие разных кнопок в самом меню
-        // TODO: Можно делать валидацию ветки здесь
-        WindowParametersPayload::Action{..} => {
-            debug!("Action processing");
-
-            //update_main_window(view, app_data).await;
-            // push_new_window
-        }
-    }  
 }
 
 /// Обработчик открытия окна Jenkins
@@ -281,7 +208,26 @@ pub async fn main_build_window_handler(parameters: Form<WindowParameters>, app_d
                 // TODO: Хрень полная, но больше никак не удостовериться, что сервер слака получил ответ обработчика
                 actix_web::rt::time::delay_for(std::time::Duration::from_millis(200)).await;
 
-                process_main_window_payload(payload, app_data).await;
+                match payload {
+                    // Вызывается на нажатие кнопки подтверждения
+                    WindowParametersPayload::Submit{view, trigger_id} => {
+                        debug!("Submit button processing with trigger_id: {}", trigger_id);
+            
+                        // process_submit_button()
+            
+                        // Открываем окно с параметрами сборки
+                        open_build_properties_window_by_reponse(trigger_id, view, app_data).await;
+                    },
+            
+                    // Вызывается на нажатие разных кнопок в самом меню
+                    // TODO: Можно делать валидацию ветки здесь
+                    WindowParametersPayload::Action{..} => {
+                        debug!("Action processing");
+            
+                        //update_main_window(view, app_data).await;
+                        // push_new_window
+                    }
+                }
             });
 
             HttpResponse::Ok()

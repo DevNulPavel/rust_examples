@@ -21,9 +21,6 @@ use crate::{
         api::{
             request_jenkins_jobs_list
         },
-        window::{
-            open_main_build_window
-        },
     },
     ApplicationData
 };

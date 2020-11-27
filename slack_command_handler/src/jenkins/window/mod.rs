@@ -1,6 +1,3 @@
-mod main_window;
-mod properties_window;
-mod parameters;
 mod view_open_response;
 
 use log::{
@@ -17,16 +14,10 @@ use crate::{
     ApplicationData
 };
 
-pub use self::{
-    main_window::{
-        open_main_build_window,
-        main_build_window_handler
-    }
-};
 
 // https://api.slack.com/reference/interaction-payloads/block-actions
 
-fn process_submit_button() -> web::HttpResponse{
+/*fn process_submit_button() -> web::HttpResponse{
     // TODO: Не конвертировать туда-сюда json
     // let j = r#"
     //     {
@@ -138,5 +129,5 @@ async fn push_new_window(trigger_id: &str, app_data: web::Data<ApplicationData>)
                 .body(format!("Window create error: {}", err))
         }
     }
-}
+}*/
 
