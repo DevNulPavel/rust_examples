@@ -3,9 +3,9 @@ use log::{
     debug,
     error
 };
-use futures::{
-    FutureExt
-};
+// use futures::{
+//     FutureExt
+// };
 use actix_web::{ 
     rt::{
         spawn
@@ -23,7 +23,6 @@ use crate::{
     jenkins::{
         api::{
             request_jenkins_jobs_list,
-            JenkinsJob
         }
     },
     application_data::{
@@ -36,7 +35,6 @@ use super::{
     },
     parameters::{
         WindowParametersPayload,
-        WindowParametersViewInfo,
         WindowParameters
     },
     view_open_response::{
@@ -126,34 +124,34 @@ pub async fn open_main_build_window(app_data: Data<ApplicationData>, trigger_id:
         .body(serde_json::to_string(&window).unwrap())
         .send()
         .await;
-
-    match response{
-        Ok(res) => {
-            //debug!("Main window open response: {}", res.text().await.unwrap());  
-            match res.json::<ViewOpenResponse>().await {
-                Ok(parsed) => {
-                    debug!("Parsed response: {:?}", parsed);
-
-                    match parsed {
-                        ViewOpenResponse::Ok{view} => {
-                            // Запускаем асинхронный запрос, чтобы моментально ответить
-                            // Иначе долгий запрос отвалится по таймауту
-                            spawn(update_main_window(view, app_data));
-                        },
-                        ViewOpenResponse::Error{error, ..}=>{
-                            error!("Response error: {}", error);
-                        }
-                    }
-                },
-                Err(err) => {
-                    error!("Response parse error: {}", err);
-                }
-            }
-        },
+    
+    let response = match response {
+        Ok(res) => res,
         Err(err) => {
-            error!("Main window open response: {:?}", err);
+            error!("Main window open response error: {:?}", err);
+            return;
         }
-    } 
+    };
+
+    let parsed = match response.json::<ViewOpenResponse>().await {
+        Ok(parsed) => parsed,
+        Err(err) => {
+            error!("Response parse error: {}", err);
+            return;
+        }
+    };
+
+    match parsed {
+        ViewOpenResponse::Ok{view} => {
+            // Запускаем асинхронный запрос, чтобы моментально ответить
+            // Иначе долгий запрос отвалится по таймауту
+            spawn(update_main_window(view, app_data));
+        },
+        ViewOpenResponse::Error{error, ..}=>{
+            error!("Response error: {}", error);
+            return;
+        }
+    }
 }
 
 async fn update_main_window(view_info: ViewInfo, app_data: Data<ApplicationData>){
@@ -208,30 +206,34 @@ async fn update_main_window(view_info: ViewInfo, app_data: Data<ApplicationData>
         .send()
         .await;  
 
-    match response{
-        Ok(res) => {
-            //debug!("Main window open response: {}", res.text().await.unwrap());  
-            match res.json::<ViewUpdateResponse>().await {
-                Ok(parsed) => {
-                    debug!("Parsed response: {:?}", parsed);
-
-                    match parsed {
-                        ViewUpdateResponse::Ok{view} => {
-                        },
-                        ViewUpdateResponse::Error{error, ..}=>{
-                            error!("Response error: {}", error);
-                        }
-                    }
-                },
-                Err(err) => {
-                    error!("Response parse error: {}", err);
-                }
-            }
-        },
+    let response = match response{
+        Ok(res) => res,
         Err(err) => {
             error!("Main window open response: {:?}", err);
+            return;
         }
-    } 
+    }; 
+
+    //debug!("Main window open response: {}", res.text().await.unwrap());  
+
+    let parsed = match response.json::<ViewUpdateResponse>().await {
+        Ok(parsed) => parsed,
+        Err(err) => {
+            error!("Response parse error: {}", err);
+            return;
+        }
+    };
+
+    debug!("Parsed response: {:?}", parsed);
+
+    match parsed {
+        ViewUpdateResponse::Ok{view} => {
+            info!("Update success for view_id: {}", view.id);
+        },
+        ViewUpdateResponse::Error{error, ..}=>{
+            error!("Response error: {}", error);
+        }
+    }
 }
 
 /// Обработчик открытия окна Jenkins
