@@ -1,6 +1,5 @@
 mod client;
 mod view;
-mod windows;
 mod error;
 
 pub use self::{
@@ -9,5 +8,9 @@ pub use self::{
     },
     error::{
         SlackViewError
+    },
+    view::{
+        View,
+        ViewInfo
     }
 };

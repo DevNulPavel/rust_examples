@@ -1,3 +1,8 @@
+use std::{
+    collections::{
+        HashMap
+    }
+};
 use actix_web::{
     client::{
         Client
@@ -17,10 +22,15 @@ use super::{
 };
 
 
+// https://api.slack.com/reference/interaction-payloads/views#view_submission
+// https://api.slack.com/reference/surfaces/views
 #[derive(Deserialize, Debug)]
 pub struct ViewInfo{
     id: String,
-    hash: String
+    hash: String,
+    callback_id: Option<String>,
+    private_metadata: Option<String>,
+    state: Option<HashMap<String, Value>>
 }
 
 pub struct View<'a> {

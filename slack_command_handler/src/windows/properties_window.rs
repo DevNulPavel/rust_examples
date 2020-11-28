@@ -18,24 +18,14 @@ use serde_json::{
 };
 use crate::{
     jenkins::{
-        api::{
-            request_jenkins_job_info,
-            Parameter,
-            ChoiseList,
-            ChoiseInfo
-        }
+        JenkinsClient,
+        JenkinsJob,
+        Parameter
     },
     slack::{
-        view::{
-            View
-        }
+        View
     },
     ApplicationData
-};
-use super::{
-    parameters::{
-        WindowParametersViewInfo
-    }
 };
 
 fn param_to_json_field(param: Parameter) -> Value {
@@ -215,8 +205,8 @@ fn create_window_view(params: Option<Vec<Parameter>>) -> Value {
     })
 }
 
-/// Получаем из вьюшки имя нашего таргета
-fn get_selected_target(view: &WindowParametersViewInfo) -> Option<&str>{
+// Получаем из вьюшки имя нашего таргета
+/*fn get_selected_target(view: &WindowParametersViewInfo) -> Option<&str>{
     view.state.values
         .get("build_target_block_id")
         .and_then(|val|{
@@ -231,10 +221,10 @@ fn get_selected_target(view: &WindowParametersViewInfo) -> Option<&str>{
         .and_then(|val|{
             val.as_str()
         })
-}
+}*/
 
 // https://api.slack.com/surfaces/modals/using
-pub async fn open_build_properties_window_by_reponse(trigger_id: String, view: WindowParametersViewInfo, app_data: Data<ApplicationData>) {
+/*pub async fn open_build_properties_window_by_reponse(trigger_id: String, view: WindowParametersViewInfo, app_data: Data<ApplicationData>) {
     // https://api.slack.com/surfaces/modals/using#preparing_for_modals
     // Получаем из недр Json имя нужного нам таргета сборки
     let selected_target = {
@@ -269,9 +259,9 @@ pub async fn open_build_properties_window_by_reponse(trigger_id: String, view: W
             error!("Properties window open response error: {:?}", err);
         }
     }
-}
+}*/
 
-async fn update_properties_window(selected_target: String, view: View, app_data: Data<ApplicationData>) {
+/*async fn update_properties_window(selected_target: String, view: View, app_data: Data<ApplicationData>) {
     // Запрашиваем список параметров данного таргета
     let parameters = match request_jenkins_job_info(&app_data.http_client, 
                                                     &app_data.jenkins_auth,
@@ -299,4 +289,4 @@ async fn update_properties_window(selected_target: String, view: View, app_data:
             error!("Properties window update error: {:?}", err);
         }
     }
-}
+}*/

@@ -28,26 +28,11 @@ use crate::{
         ApplicationData
     },
     slack::{
-        view::{
-            View
-        },
-        // view_open_response::{
-        //     ViewOpenResponse,
-        //     ViewUpdateResponse,
-        //     ViewInfo
-        // }
-    }
-};
-use super::{
-    properties_window::{
-        open_build_properties_window_by_reponse
-    },
-    parameters::{
-        WindowParametersPayload,
-        WindowParameters
+        View
     }
 };
 
+const MAIN_WINDOW_ID: &str = "MAIN_WINDOW_ID";
 
 fn window_json_with_jobs(jobs: Option<Vec<JenkinsJob>>) -> Value {
     let options_json = match jobs {
@@ -107,7 +92,7 @@ fn window_json_with_jobs(jobs: Option<Vec<JenkinsJob>>) -> Value {
     // Описываем наше окно
     serde_json::json!({
         "type": "modal",
-        "callback_id": "build_jenkins_id",
+        "callback_id": MAIN_WINDOW_ID,
         "title": {
             "type": "plain_text",
             "text": "Build jenkins target",
@@ -185,58 +170,6 @@ async fn update_main_window<'a>(view: View<'a>, jenkins: &JenkinsClient){
         },
         Err(err) => {
             error!("Main window update error: {:?}", err);
-        }
-    }
-}
-
-/// Обработчик открытия окна Jenkins
-pub async fn main_build_window_handler(parameters: Form<WindowParameters>, app_data: Data<ApplicationData>) -> HttpResponse {
-    debug!("Jenkins window parameters: {:?}", parameters);
-
-    // Парсим переданные данные
-    match serde_json::from_str::<WindowParametersPayload>(parameters.payload.as_str()){
-        // Распарсили без проблем
-        Ok(payload) => {
-            info!("Parsed payload: {:?}", payload);
-
-            // Обрабатываем команды окна, запуск происходит асинхронно, 
-            // чтобы максимально быстро ответить серверу
-            // https://api.slack.com/surfaces/modals/using#interactions
-            spawn(async move {
-                // TODO: Хрень полная, но больше никак не удостовериться, что сервер слака получил ответ обработчика
-                actix_web::rt::time::delay_for(std::time::Duration::from_millis(200)).await;
-
-                match payload {
-                    // Вызывается на нажатие кнопки подтверждения
-                    WindowParametersPayload::Submit{view, trigger_id} => {
-                        debug!("Submit button processing with trigger_id: {}", trigger_id);
-            
-                        // process_submit_button()
-            
-                        // Открываем окно с параметрами сборки
-                        open_build_properties_window_by_reponse(trigger_id, view, app_data).await;
-                    },
-            
-                    // Вызывается на нажатие разных кнопок в самом меню
-                    // TODO: Можно делать валидацию ветки здесь
-                    WindowParametersPayload::Action{..} => {
-                        debug!("Action processing");
-            
-                        //update_main_window(view, app_data).await;
-                        // push_new_window
-                    }
-                }
-            });
-
-            HttpResponse::Ok()
-                .finish()
-        },
-        Err(err) => {
-            error!("Payload parse error: {:?}", err);
-            
-            // TODO: Error
-            HttpResponse::Ok()
-                .body(format!("Payload parse error: {}", err))
         }
     }
 }

@@ -1,6 +1,8 @@
 mod application_data;
 mod jenkins;
 mod slack;
+mod windows;
+mod handlers;
 
 use actix_web::{
     client,
@@ -22,9 +24,9 @@ use crate::{
     application_data::{
         ApplicationData
     },
-    jenkins::{
+    handlers::{
         jenkins_command_handler,
-        main_build_window_handler
+        window_handler
     }
 };
 
@@ -48,7 +50,7 @@ fn configure_server(cfg: &mut web::ServiceConfig) {
                                 .route(web::route()
                                         .guard(guard::Post())
                                         .guard(guard::Header("Content-type", "application/x-www-form-urlencoded"))
-                                        .to(main_build_window_handler))));
+                                        .to(window_handler))));
 }
 
 #[actix_web::main]
