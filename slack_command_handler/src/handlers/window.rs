@@ -1,4 +1,7 @@
 use std::{
+    sync::{
+        Mutex
+    },
     collections::{
         HashMap
     },
@@ -121,6 +124,15 @@ pub async fn window_handler(parameters: Form<WindowHandlerParameters>, app_data:
                         debug!("Submit button processing with trigger_id: {}", trigger_id);
             
                         // TODO: Найти вьюшку здесь и вызвать обработчик вьюшки
+                        if let Ok(lock) = app_data.active_views.lock(){
+                            if let Some(view) = lock.get(view.get_id()){
+                                view.up
+                            }else{
+                                error!("!!!"); // TODO: ??
+                            }
+                        }else{
+                            error!("!!!"); // TODO: ??
+                        }
 
                         // Открываем окно с параметрами сборки
                         //open_build_properties_window_by_reponse(trigger_id, view, app_data).await;
@@ -128,13 +140,21 @@ pub async fn window_handler(parameters: Form<WindowHandlerParameters>, app_data:
             
                     // Вызывается на нажатие разных кнопок в самом меню
                     // TODO: Можно делать валидацию ветки здесь
-                    WindowParametersPayload::Action{..} => {
+                    WindowParametersPayload::Update{..} => {
                         debug!("Action processing");
             
                         // TODO: Найти вьюшку здесь и вызвать обработчик экшенов
 
                         //update_main_window(view, app_data).await;
                         // push_new_window
+                    },
+
+                    WindowParametersPayload::Close{..} => {
+                        debug!("Action processing");
+                    },
+
+                    WindowParametersPayload::MessageAction{..} => {
+                        debug!("Action processing");
                     }
                 }
             });

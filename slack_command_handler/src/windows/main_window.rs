@@ -28,7 +28,8 @@ use crate::{
         ApplicationData
     },
     slack::{
-        View
+        View,
+        SlackViewError
     }
 };
 
@@ -125,8 +126,8 @@ pub async fn open_main_build_window(app_data: Data<ApplicationData>, trigger_id:
         "view": window_view
     });
 
-    let ApplicationData{slack_client, jenkins_client} = app_data.as_ref();
-    let open_result = slack_client
+    let open_result = app_data
+        .slack_client
         .open_view(window)
         .await;
     
@@ -134,7 +135,7 @@ pub async fn open_main_build_window(app_data: Data<ApplicationData>, trigger_id:
         Ok(view) => {
             // Запускаем асинхронный запрос, чтобы моментально ответить
             // Иначе долгий запрос отвалится по таймауту
-            //update_main_window(view, jenkins_auth).await;
+            update_main_window(view, app_data).await; // TODO: Можно ли опустить await?
         },
         Err(err) => {
             error!("Main window open error: {:?}", err);
@@ -142,16 +143,17 @@ pub async fn open_main_build_window(app_data: Data<ApplicationData>, trigger_id:
     }
 }
 
-async fn update_main_window<'a>(view: View<'a>, jenkins: &JenkinsClient){
+async fn update_main_window(mut view: View, app_data: Data<ApplicationData>) {
     info!("Main window view update");
 
     // Запрашиваем список джобов
-    let jobs = match jenkins.request_jenkins_jobs_list().await {
+    let jobs = match app_data.jenkins_client.request_jenkins_jobs_list().await {
         Ok(jobs) => {
             jobs
         },
         Err(err) => {
             error!("Jobs request failed: {:?}", err);
+            // TODO: Save view
             return;
             // TODO: Написать ошибочное в ответ
         }
@@ -161,15 +163,19 @@ async fn update_main_window<'a>(view: View<'a>, jenkins: &JenkinsClient){
     // https://api.slack.com/surfaces/modals/using#interactions
     let window_view = window_json_with_jobs(Some(jobs));
 
+    // Обновляем вьюшку
     let update_result = view
         .update_view(window_view)
         .await;
-
+    
     match update_result {
-        Ok(view) => {
+        Ok(()) => { 
         },
         Err(err) => {
             error!("Main window update error: {:?}", err);
         }
     }
+
+    // Сохраняем вьюшку для дальшнейшего использования
+    app_data.save_view(view);
 }

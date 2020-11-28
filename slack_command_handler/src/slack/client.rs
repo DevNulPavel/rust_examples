@@ -1,6 +1,15 @@
 // use log::{
     // error
 // };
+use std::{
+    collections::{
+        HashMap
+    },
+    sync::{
+        Mutex,
+        Arc
+    }
+};
 use actix_web::{
     client::{
         Client
@@ -29,22 +38,26 @@ use super::{
 };
 
 pub struct SlackClient{
+    token: String,
     client: Client
 }
 
 impl SlackClient {
-    pub fn new(token: &str) -> SlackClient {
-        let client = Client::builder()
+    fn new_http_client(token: &str) -> Client {
+        Client::builder()
             .bearer_auth(token)
             .header("Content-type", "application/json")
-            .finish();
+            .finish()
+    }
 
+    pub fn new(token: &str) -> SlackClient {
         SlackClient{
-            client
+            token: token.to_owned(),
+            client: SlackClient::new_http_client(token)
         }
     }
 
-    pub async fn open_view<'a>(&'a self, window_json: Value) -> Result<View<'a>, SlackViewError>{
+    pub async fn open_view(&self, window_json: Value) -> Result<View, SlackViewError>{
         // https://serde.rs/enum-representations.html
         // https://api.slack.com/methods/views.open#response
         #[derive(Deserialize, Debug)]
@@ -63,7 +76,7 @@ impl SlackClient {
 
         match response {
             ViewOpenResponse::Ok{view} => {
-                Ok(View::new(&self.client, view))
+                Ok(View::new(&self.token, view))
             },
             ViewOpenResponse::Error(err) => {
                 Err(SlackViewError::OpenError(err))

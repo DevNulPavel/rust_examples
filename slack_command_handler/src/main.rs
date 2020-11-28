@@ -4,9 +4,21 @@ mod slack;
 mod windows;
 mod handlers;
 
+use std::{
+    collections::{
+        HashMap
+    },
+    sync::{
+        Mutex,
+        Arc
+    }
+};
 use actix_web::{
+    web::{
+        self,
+        Data
+    },
     client,
-    web,
     guard,
     middleware,
     App,
@@ -23,6 +35,9 @@ use listenfd::{
 use crate::{
     application_data::{
         ApplicationData
+    },
+    slack::{
+        View
     },
     handlers::{
         jenkins_command_handler,
@@ -62,29 +77,34 @@ async fn main() -> std::io::Result<()>{
 
     info!("Application setup");
 
-    // Создание веб-приложения
-    let build_web_application = || {
-        // Slack api token
-        let slack_api_token = std::env::var("SLACK_API_TOKEN")
-            .expect("SLACK_API_TOKEN environment variable is missing");
+    // Slack api token
+    let slack_api_token = std::env::var("SLACK_API_TOKEN")
+        .expect("SLACK_API_TOKEN environment variable is missing");
 
-        // Jenkins user
-        let jenkins_user = std::env::var("JENKINS_USER")
-            .expect("JENKINS_USER environment variable is missing");
+    // Jenkins user
+    let jenkins_user = std::env::var("JENKINS_USER")
+        .expect("JENKINS_USER environment variable is missing");
 
-        // Jenkins api token
-        let jenkins_api_token = std::env::var("JENKINS_API_TOKEN")
-            .expect("JENKINS_API_TOKEN environment variable is missing");
+    // Jenkins api token
+    let jenkins_api_token = std::env::var("JENKINS_API_TOKEN")
+        .expect("JENKINS_API_TOKEN environment variable is missing");
 
-        // Создаем общие данные приложения
-        let app_data = ApplicationData{
+    // Контейнер для вьюшек, общий для всех инстансов приложения
+    let active_views_container = Arc::new(Mutex::new(HashMap::new()));
+
+    // Создание веб-приложения, таких приложений может быть создано много за раз
+    // Данный коллбек может вызываться несколько раз
+    let web_application_factory = || {
+        // Создаем данные приложения для текущего треда
+        let app_data = Data::new(ApplicationData{
             jenkins_client: jenkins::JenkinsClient::new(&jenkins_user, &jenkins_api_token),
-            slack_client: slack::SlackClient::new(&slack_api_token)
-        };
+            slack_client: slack::SlackClient::new(&slack_api_token),
+            active_views: active_views_container.clone()
+        });
 
         // Создаем приложение
         App::new()
-            .data(app_data)
+            .app_data(app_data)
             .wrap(middleware::Logger::default()) // Включаем логирование запросов с помощью middleware
             .configure(configure_server)
     };
@@ -95,14 +115,14 @@ async fn main() -> std::io::Result<()>{
             info!("Reuse server socket");
             
             // Создаем сервер с уже имеющимся листнером
-            HttpServer::new(build_web_application)
+            HttpServer::new(web_application_factory)
                 .listen(listener)?
         },
         None => {
             info!("New server socket");
 
             // Создаем новый сервер
-            HttpServer::new(build_web_application)
+            HttpServer::new(web_application_factory)
                 .bind("0.0.0.0:8888")?
         }
     };
