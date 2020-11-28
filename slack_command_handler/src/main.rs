@@ -23,7 +23,6 @@ use crate::{
         ApplicationData
     },
     jenkins::{
-        JenkinsAuth,
         jenkins_command_handler,
         main_build_window_handler
     }
@@ -77,12 +76,7 @@ async fn main() -> std::io::Result<()>{
 
         // Создаем общие данные приложения
         let app_data = ApplicationData{
-            //slack_api_token: slack_api_token.clone(),
-            jenkins_auth: JenkinsAuth{
-                jenkins_user,
-                jenkins_api_token
-            },
-            http_client: reqwest::Client::default(),
+            jenkins_client: jenkins::JenkinsClient::new(&jenkins_user, &jenkins_api_token),
             slack_client: slack::SlackClient::new(&slack_api_token)
         };
 

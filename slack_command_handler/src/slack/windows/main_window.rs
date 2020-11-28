@@ -21,10 +21,8 @@ use serde_json::{
 };
 use crate::{
     jenkins::{
-        api::{
-            request_jenkins_jobs_list,
-            JenkinsJob
-        }
+        JenkinsClient,
+        JenkinsJob
     },
     application_data::{
         ApplicationData
@@ -62,10 +60,10 @@ fn window_json_with_jobs(jobs: Option<Vec<JenkinsJob>>) -> Value {
                         {
                             "text": {
                                 "type": "plain_text",
-                                "text": job.name,
+                                "text": job.get_info().name,
                                 "emoji": false
                             },
-                            "value": job.name
+                            "value": job.get_info().name
                         }
                     )
                 })
@@ -142,7 +140,7 @@ pub async fn open_main_build_window(app_data: Data<ApplicationData>, trigger_id:
         "view": window_view
     });
 
-    let slack_client = &app_data.slack_client;
+    let ApplicationData{slack_client, jenkins_client} = app_data.as_ref();
     let open_result = slack_client
         .open_view(window)
         .await;
@@ -151,7 +149,7 @@ pub async fn open_main_build_window(app_data: Data<ApplicationData>, trigger_id:
         Ok(view) => {
             // Запускаем асинхронный запрос, чтобы моментально ответить
             // Иначе долгий запрос отвалится по таймауту
-            update_main_window(view, app_data).await;
+            //update_main_window(view, jenkins_auth).await;
         },
         Err(err) => {
             error!("Main window open error: {:?}", err);
@@ -159,11 +157,11 @@ pub async fn open_main_build_window(app_data: Data<ApplicationData>, trigger_id:
     }
 }
 
-async fn update_main_window<'a>(view: View, app_data: Data<ApplicationData>){
+async fn update_main_window<'a>(view: View<'a>, jenkins: &JenkinsClient){
     info!("Main window view update");
 
     // Запрашиваем список джобов
-    let jobs = match request_jenkins_jobs_list(&app_data.http_client, &app_data.jenkins_auth).await {
+    let jobs = match jenkins.request_jenkins_jobs_list().await {
         Ok(jobs) => {
             jobs
         },

@@ -6,32 +6,50 @@ use actix_web::{
 use serde_json::{
     Value
 };
+use serde::{
+    Deserialize
+};
 use super::{
-    view_open_response::{
-        ViewInfo
-    },
     error::{
-        SlackViewError
-    },
-    view_open_response::{
-        ViewUpdateResponse
+        SlackViewError,
+        ViewUpdateErrorInfo
     }
 };
 
-pub struct View {
-    client: Client,
+
+#[derive(Deserialize, Debug)]
+pub struct ViewInfo{
+    id: String,
+    hash: String
+}
+
+pub struct View<'a> {
+    client: &'a Client,
     info: ViewInfo
 }
 
-impl View {
-    pub fn new(client: Client, info: ViewInfo) -> View{
+impl<'a> View<'a> {
+    pub fn new(client: &'a Client, info: ViewInfo) -> View<'a>{
         View{
             client,
             info
         }
     }
 
-    pub async fn update_view(self, view_json: Value) -> Result<View, SlackViewError>{
+    pub fn get_info(&self) -> &ViewInfo{
+        return &self.info;
+    }
+
+    pub async fn update_view(self, view_json: Value) -> Result<View<'a>, SlackViewError>{
+        // https://serde.rs/enum-representations.html
+        // https://api.slack.com/methods/views.update
+        #[derive(Deserialize, Debug)]
+        #[serde(untagged)]
+        pub enum ViewUpdateResponse{
+            Ok{ view: ViewInfo },
+            Error(ViewUpdateErrorInfo)
+        }
+
         // TODO: Снизить область видимости
         let window = serde_json::json!({
             "view_id": self.info.id,

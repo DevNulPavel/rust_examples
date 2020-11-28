@@ -6,19 +6,24 @@ use actix_web::{
         Client
     }
 };
+use serde::{
+    Deserialize
+};
 use serde_json::{
     Value
 };
 use super::{
     error::{
-        SlackViewError
+        SlackViewError,
+        ViewOpenErrorInfo
     },
-    view_open_response::{
-        ViewOpenResponse,
+    // view_open_response::{
+        // ViewOpenResponse,
         // ViewUpdateResponse,
         // ViewInfo
-    },
+    // },
     view::{
+        ViewInfo,
         View
     }
 };
@@ -39,7 +44,16 @@ impl SlackClient {
         }
     }
 
-    pub async fn open_view<'a>(&'a self, window_json: Value) -> Result<View, SlackViewError>{
+    pub async fn open_view<'a>(&'a self, window_json: Value) -> Result<View<'a>, SlackViewError>{
+        // https://serde.rs/enum-representations.html
+        // https://api.slack.com/methods/views.open#response
+        #[derive(Deserialize, Debug)]
+        #[serde(untagged)]
+        pub enum ViewOpenResponse{
+            Ok{ view: ViewInfo },
+            Error(ViewOpenErrorInfo)
+        }
+
         let response = self.client
             .post("https://slack.com/api/views.open")
             .send_body(serde_json::to_string(&window_json).unwrap())
@@ -49,7 +63,7 @@ impl SlackClient {
 
         match response {
             ViewOpenResponse::Ok{view} => {
-                Ok(View::new(self.client.clone(), view))
+                Ok(View::new(&self.client, view))
             },
             ViewOpenResponse::Error(err) => {
                 Err(SlackViewError::OpenError(err))

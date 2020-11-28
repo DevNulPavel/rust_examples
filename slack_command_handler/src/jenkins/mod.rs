@@ -1,13 +1,20 @@
 mod window;
 mod command;
-pub mod api;
-mod auth;
+
+
+mod client;
+mod job;
+mod job_parameter;
+mod error;
 
 pub use self::{
     command::{
         jenkins_command_handler
     },
-    auth::{
-        JenkinsAuth
+    client::{
+        JenkinsClient
+    },
+    job::{
+        JenkinsJob
     }
 };
