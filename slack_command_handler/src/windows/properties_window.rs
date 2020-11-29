@@ -1,6 +1,6 @@
 use log::{
-    debug,
-    info,
+    // debug,
+    // info,
     error
 };
 use actix_web::{ 
@@ -18,7 +18,7 @@ use serde_json::{
 };
 use crate::{
     jenkins::{
-        JenkinsClient,
+        // JenkinsClient,
         JenkinsJob,
         Parameter
     },
@@ -160,6 +160,26 @@ fn param_to_json_field(param: Parameter) -> Value {
                     }
                 }
             })
+        },
+        Parameter::Labels{name, ..} =>{
+            serde_json::json!({
+                "type": "section",
+                "text": {
+                    "type": "plain_text",
+                    "text": name,
+                    "emoji": true
+                }
+            })
+        }
+        Parameter::Unknown =>{
+            serde_json::json!({
+                "type": "section",
+                "text": {
+                    "type": "plain_text",
+                    "text": "???",
+                    "emoji": true
+                }
+            })
         }
     }
 }
@@ -208,7 +228,6 @@ fn create_window_view(params: Option<Vec<Parameter>>) -> Value {
 }
 
 
-
 // https://api.slack.com/surfaces/modals/using
 pub async fn open_build_properties_window_by_reponse(job: JenkinsJob, trigger_id: String, app_data: Data<ApplicationData>) {
     // TODO: Не конвертировать туда-сюда json
@@ -237,7 +256,8 @@ pub async fn open_build_properties_window_by_reponse(job: JenkinsJob, trigger_id
 ////////////////////////////////////////////////////////////////////////////////
 
 struct PropertiesWindowView {
-    view: View
+    view: View,
+    job: JenkinsJob
 }
 
 impl PropertiesWindowView {
@@ -251,7 +271,11 @@ impl ViewActionHandler for PropertiesWindowView {
     fn get_view(&self) -> &View {
         &self.view
     }
-    fn on_submit(self: Box<Self>, trigger_id: String, app_data: Data<ApplicationData>){
+    fn on_submit(self: Box<Self>, _: String, _: Data<ApplicationData>){
+        spawn(async move {
+            let _result = self.job.start_job().await;
+            // TODO: Ошибка в ответ
+        })
     }
     fn on_update(&self){
     }
@@ -283,7 +307,8 @@ async fn update_properties_window(job: JenkinsJob, mut view: View, app_data: Dat
     match update_result {
         Ok(()) => {
             let view_handler = Box::new(PropertiesWindowView{
-                view
+                view,
+                job
             });
             app_data.push_view_handler(view_handler)
         },

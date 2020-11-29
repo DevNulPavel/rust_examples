@@ -1,4 +1,4 @@
-mod view_open_response;
+/*mod view_open_response;
 
 use log::{
     debug,
@@ -12,7 +12,7 @@ use actix_web::{
 };
 use crate::{
     ApplicationData
-};
+};*/
 
 
 // https://api.slack.com/reference/interaction-payloads/block-actions

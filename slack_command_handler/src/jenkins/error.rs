@@ -16,7 +16,8 @@ pub enum JenkinsError{
     BodyParseError(Error),
     JsonParseError(Error),
     XMLParseError(XMLError),
-    ResponseUtf8ConvertError(Utf8Error)
+    ResponseUtf8ConvertError(Utf8Error),
+    LogicalError(String)
 }
 
 // impl From<SendRequestError> for JenkinsError {

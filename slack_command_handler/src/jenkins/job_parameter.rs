@@ -17,6 +17,7 @@ pub struct ChoiseInfo{
     choice_list: ChoiseList
 }
 
+// https://serde.rs/enum-representations.html
 #[derive(Deserialize, Debug)]
 pub enum Parameter{
     #[serde(rename = "hudson.model.BooleanParameterDefinition")]
@@ -58,5 +59,16 @@ pub enum Parameter{
 
         #[serde(rename = "defaultValue")]
         default_value: String
-    }
+    },
+    #[serde(rename = "org.jvnet.jenkins.plugins.nodelabelparameter.LabelParameterDefinition")]
+    Labels{
+        name: String,
+        description: String,
+
+        #[serde(rename = "defaultValue")]
+        default_value: String
+    },
+
+    #[serde(other)]
+    Unknown
 }

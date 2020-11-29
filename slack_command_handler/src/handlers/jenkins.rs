@@ -82,9 +82,9 @@ pub async fn jenkins_command_handler(parameters: Form<SlackCommandParameters>, a
 
 #[cfg(test)]
 mod tests {
-    use super::{
-        *
-    };
+    // use super::{
+    //     *
+    // };
 
     #[actix_rt::test]
     async fn test_jenkins_command_handler() {

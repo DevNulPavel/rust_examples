@@ -1,4 +1,4 @@
-use std::{
+/*use std::{
     collections::{
         HashMap
     }
@@ -68,4 +68,4 @@ pub enum ViewUpdateResponse{
     // Прочие поля
     // #[serde(flatten)]
     // other: HashMap<String, Value>
-}
+}*/

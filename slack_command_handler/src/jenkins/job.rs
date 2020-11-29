@@ -5,7 +5,8 @@ use reqwest::{
     Client
 };
 use log::{
-    debug
+    debug,
+    info
 };
 use super::{
     error::{
@@ -91,6 +92,8 @@ impl<'a> JenkinsJob {
                     JenkinsError::BodyParseError(err)
                 })?;
             
+            debug!("Job parameters info: {}", xml_data);
+
             let text = std::str::from_utf8(xml_data.as_ref())?;
 
             serde_xml_rs::from_str(text)?
@@ -105,5 +108,46 @@ impl<'a> JenkinsJob {
         debug!("Job info result: {:?}", parameters);
         
         Ok(parameters)
+    }
+
+    pub async fn start_job(&self) -> Result<String, JenkinsError> {
+        // https://jenkins.17btest.com/job/utils-check-free-space/api/
+        // https://jenkins.17btest.com/job/utils-check-free-space/buildWithParameters
+
+        let parameters = serde_json::json!({
+        });
+
+        let job_info_url = format!("https://jenkins.17btest.com/job/{}/buildWithParameters", self.info.name);
+        let response = self.client
+            .post(job_info_url.as_str())
+            .basic_auth(&self.jenkins_user, Some(&self.jenkins_api_token))
+            .form(&parameters)
+            .send()
+            .await
+            .map_err(|err|{
+                JenkinsError::RequestError(err)
+            })?;
+
+        // reqwest::StatusCode::from_u16(201).unwrap()
+        if response.status() != http::StatusCode::CREATED {
+            return Err(JenkinsError::LogicalError(format!("Job {} start failed", self.info.name)));
+        }
+
+        let url = response
+            .headers()
+            .get(http::header::LOCATION)
+            .ok_or_else(||{
+                JenkinsError::LogicalError(format!("Job {} start failed, there is no URL", self.info.name))
+            })?
+            .to_str()
+            .map_err(|_|{
+                JenkinsError::LogicalError(format!("Job {} start failed, URL parse failed", self.info.name))
+            })?
+            .to_owned();
+
+        // https://jenkins.17btest.com/queue/item/23088 + /api/json
+        info!("New job {} started: {}", self.info.name, url); // Check queue
+
+        Ok(url)
     }
 }

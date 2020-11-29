@@ -7,8 +7,8 @@ use super::{
 };
 
 #[actix_rt::test]
-async fn test_jobs_request() {
-    std::env::set_var("RUST_LOG", "actix_server=info,actix_web=info,slack_command_handler=error");
+async fn test_jenkins_jobs() {
+    std::env::set_var("RUST_LOG", "actix_server=info,actix_web=info,slack_command_handler=trace");
     env_logger::init();
 
     // Jenkins user
@@ -32,12 +32,18 @@ async fn test_jobs_request() {
     let found_job = jobs
         .iter()
         .find(|job|{
-            job.get_info().name == "pi2-amazon-prod"
+            job.get_info().name == "utils-check-free-space"
         })
         .unwrap();
 
-    let _found_info = found_job
+    // TODO: ???
+    let _found_parameters = found_job
         .request_jenkins_job_info()
+        .await
+        .unwrap();
+
+    let _job_start_result = found_job
+        .start_job()
         .await
         .unwrap();
 

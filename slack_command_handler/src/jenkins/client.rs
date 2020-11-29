@@ -2,9 +2,9 @@ use reqwest::{
     Client
 };
 use log::{
-    error,
+    // error,
     debug,
-    info
+    // info
 };
 use serde::{
     Deserialize
