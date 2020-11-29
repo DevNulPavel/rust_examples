@@ -2,9 +2,6 @@ use serde::{
     Deserialize
 };
 use actix_web::{
-    client::{
-        ClientBuilder
-    },
     web::{
         Bytes
     }

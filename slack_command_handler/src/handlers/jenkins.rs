@@ -77,3 +77,17 @@ pub async fn jenkins_command_handler(parameters: Form<SlackCommandParameters>, a
     HttpResponse::Ok()
         .finish()
 }
+
+
+
+#[cfg(test)]
+mod tests {
+    use super::{
+        *
+    };
+
+    #[actix_rt::test]
+    async fn test_jenkins_command_handler() {
+        // TODO: Fake request https://actix.rs/docs/testing/
+    }
+}

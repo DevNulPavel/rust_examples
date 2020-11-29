@@ -227,6 +227,8 @@ impl ViewActionHandler for MainWindowView {
     }
     fn on_update(&self){
     }
+    fn on_close(self: Box<Self>, _: String, _: Data<ApplicationData>){
+    }
 }
 
 ////////////////////////////////////////////////////////////////////////////////

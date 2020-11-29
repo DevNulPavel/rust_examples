@@ -60,9 +60,7 @@ pub enum WindowParametersPayload{
     #[serde(rename = "view_closed")]
     Close{
         trigger_id: String,
-        view: ViewInfo,
-        actions: Vec<Value>,
-        //response_url: Option<String>,
+        view: ViewInfo
     },
 
     /// Типа данных для действий при работе непосредственно с окном
@@ -70,9 +68,8 @@ pub enum WindowParametersPayload{
     #[serde(rename = "message_actions")]
     MessageAction{
         trigger_id: String,
-        view: ViewInfo,
-        actions: Vec<Value>,
-        //response_url: Option<String>,
+        user: String,
+        message: String
     }
     
 }
@@ -140,12 +137,21 @@ pub async fn window_handler(parameters: Form<WindowHandlerParameters>, app_data:
                         }
                     },
 
-                    WindowParametersPayload::Close{..} => {
-                        debug!("Action processing");
+                    WindowParametersPayload::Close{view, trigger_id} => {
+                        debug!("Close processing");
+
+                        // Найти вьюшку здесь и вызвать обработчик вьюшки
+                        if let Some(mut view_obj) = app_data.pop_view_handler(view.get_id()){
+                            view_obj.update_info(view);
+
+                            view_obj.on_close(trigger_id, app_data);
+                        }else{
+                            error!("Cannot find view for id: {}", view.get_id());
+                        }
                     },
 
                     WindowParametersPayload::MessageAction{..} => {
-                        debug!("Action processing");
+                        debug!("Message action processing");
                     }
                 }
             });

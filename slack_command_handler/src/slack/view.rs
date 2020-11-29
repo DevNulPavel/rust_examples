@@ -7,9 +7,6 @@ use std::{
 //     async_trait
 // };
 use actix_web::{
-    client::{
-        Client
-    },
     web::{
         Data
     }
@@ -60,6 +57,7 @@ pub trait ViewActionHandler{
     fn get_view(&self) -> &View;
     fn on_submit(self: Box<Self>, trigger_id: String, app_data: Data<ApplicationData>);
     fn on_update(&self);
+    fn on_close(self: Box<Self>, trigger_id: String, app_data: Data<ApplicationData>);
 }
 
 ////////////////////////////////////////////////////////////////

@@ -1,11 +1,6 @@
 // use log::{
     // error
 // };
-use actix_web::{
-    client::{
-        Client
-    }
-};
 use serde::{
     Deserialize
 };
