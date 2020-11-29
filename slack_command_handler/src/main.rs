@@ -5,9 +5,6 @@ mod windows;
 mod handlers;
 
 use std::{
-    collections::{
-        HashMap
-    },
     sync::{
         Mutex,
         Arc
@@ -18,7 +15,6 @@ use actix_web::{
         self,
         Data
     },
-    client,
     guard,
     middleware,
     App,
@@ -34,10 +30,8 @@ use listenfd::{
 };
 use crate::{
     application_data::{
-        ApplicationData
-    },
-    slack::{
-        View
+        ApplicationData,
+        ViewsHandlersMap
     },
     handlers::{
         jenkins_command_handler,
@@ -90,17 +84,17 @@ async fn main() -> std::io::Result<()>{
         .expect("JENKINS_API_TOKEN environment variable is missing");
 
     // Контейнер для вьюшек, общий для всех инстансов приложения
-    let active_views_container = Arc::new(Mutex::new(HashMap::new()));
+    let active_views_container = Arc::new(Mutex::new(ViewsHandlersMap::new()));
 
     // Создание веб-приложения, таких приложений может быть создано много за раз
     // Данный коллбек может вызываться несколько раз
-    let web_application_factory = || {
+    let web_application_factory = move || {
         // Создаем данные приложения для текущего треда
-        let app_data = Data::new(ApplicationData{
-            jenkins_client: jenkins::JenkinsClient::new(&jenkins_user, &jenkins_api_token),
-            slack_client: slack::SlackClient::new(&slack_api_token),
-            active_views: active_views_container.clone()
-        });
+        let app_data = Data::new(ApplicationData::new(
+            slack::SlackClient::new(&slack_api_token),
+            jenkins::JenkinsClient::new(&jenkins_user, &jenkins_api_token),
+            active_views_container.clone()
+        ));
 
         // Создаем приложение
         App::new()

@@ -11,6 +11,7 @@ pub use self::{
     },
     view::{
         View,
-        ViewInfo
+        ViewInfo,
+        ViewActionHandler
     }
 };

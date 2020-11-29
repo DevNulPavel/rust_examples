@@ -3,9 +3,15 @@ use std::{
         HashMap
     }
 };
+use async_trait::{
+    async_trait
+};
 use actix_web::{
     client::{
         Client
+    },
+    web::{
+        Data
     }
 };
 use serde_json::{
@@ -13,6 +19,9 @@ use serde_json::{
 };
 use serde::{
     Deserialize
+};
+use crate::{
+    ApplicationData
 };
 use super::{
     error::{
@@ -38,6 +47,19 @@ impl ViewInfo {
     pub fn get_id(&self) -> &str{
         &self.id
     }
+    pub fn get_state(&self) -> &Option<HashMap<String, Value>>{
+        &self.state
+    }
+}
+
+////////////////////////////////////////////////////////////////
+
+#[async_trait]
+pub trait ViewActionHandler{
+    fn update_info(&mut self, new_info: ViewInfo);
+    fn get_view(&self) -> &View;
+    async fn on_submit(&self, trigger_id: String, app_data: Data<ApplicationData>);
+    async fn on_update(&self);
 }
 
 ////////////////////////////////////////////////////////////////
@@ -45,8 +67,7 @@ impl ViewInfo {
 pub struct View {
     //client: Client, // TODO: так как вьюшки шарятся между потоками, то приходится хранить лишь токен, ибо клиент сделан как Rc
     token: String,
-    info: ViewInfo,
-    submit_action: FnOnce()
+    info: ViewInfo
 }
 
 impl View {
@@ -59,6 +80,10 @@ impl View {
 
     pub fn get_info(&self) -> &ViewInfo{
         return &self.info;
+    }
+
+    pub fn set_info(&mut self, new_info: ViewInfo){
+        self.info = new_info;
     }
 
     pub fn get_id(&self) -> &str{

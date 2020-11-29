@@ -1,27 +1,27 @@
 use log::{
     info,
-    debug,
+    // debug,
     error
 };
-// use futures::{
-//     FutureExt
-// };
+use async_trait::{
+    async_trait
+};
 use actix_web::{ 
-    rt::{
-        spawn
-    },
+    // rt::{
+        // spawn
+    // },
     web::{
-        Form,
+        // Form,
         Data
     },
-    HttpResponse
+    // HttpResponse
 };
 use serde_json::{
     Value
 };
 use crate::{
     jenkins::{
-        JenkinsClient,
+        // JenkinsClient,
         JenkinsJob
     },
     application_data::{
@@ -29,9 +29,17 @@ use crate::{
     },
     slack::{
         View,
-        SlackViewError
+        ViewInfo,
+        ViewActionHandler,
+        // SlackViewError
     }
 };
+use super::{
+    properties_window::{
+        open_build_properties_window_by_reponse
+    }
+};
+
 
 const MAIN_WINDOW_ID: &str = "MAIN_WINDOW_ID";
 
@@ -143,6 +151,68 @@ pub async fn open_main_build_window(app_data: Data<ApplicationData>, trigger_id:
     }
 }
 
+////////////////////////////////////////////////////////////////////////////////
+
+struct MainWindowView {
+    view: View
+}
+
+impl MainWindowView {
+    // Получаем из вьюшки имя нашего таргета
+    fn get_selected_target(&self) -> Option<&str>{
+        let states = self.view
+            .get_info()
+            .get_state();
+            
+        let states = match states{
+            Some(states) => states,
+            None => return None
+        };
+
+        states 
+            .get("build_target_block_id")
+            .and_then(|val|{
+                val.get("build_target_action_id")
+            })
+            .and_then(|val|{
+                val.get("selected_option")
+            })
+            .and_then(|val|{
+                val.get("value")
+            })
+            .and_then(|val|{
+                val.as_str()
+            })
+    }
+}
+
+#[async_trait]
+impl ViewActionHandler for MainWindowView {
+    fn update_info(&mut self, new_info: ViewInfo){
+        self.view.set_info(new_info);
+    }
+    fn get_view(&self) -> &View {
+        &self.view
+    }
+    async fn on_submit(&self, trigger_id: String, app_data: Data<ApplicationData>){
+        // https://api.slack.com/surfaces/modals/using#preparing_for_modals
+        // Получаем из недр Json имя нужного нам таргета сборки
+        let target = match self.get_selected_target(){
+            Some(target) => target,
+            None => {
+                error!("Cannot find build target at main build window");
+                return;
+            }
+        };
+
+        open_build_properties_window_by_reponse(target, trigger_id, app_data).await;
+    }
+    async fn on_update(&self){
+    }
+}
+
+////////////////////////////////////////////////////////////////////////////////
+
 async fn update_main_window(mut view: View, app_data: Data<ApplicationData>) {
     info!("Main window view update");
 
@@ -176,6 +246,10 @@ async fn update_main_window(mut view: View, app_data: Data<ApplicationData>) {
         }
     }
 
+    let view_handler = Box::new(MainWindowView{
+        view
+    });
+
     // Сохраняем вьюшку для дальшнейшего использования
-    app_data.save_view(view);
+    app_data.push_view_handler(view_handler);
 }

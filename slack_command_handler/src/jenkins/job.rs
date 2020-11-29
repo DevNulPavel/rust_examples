@@ -3,7 +3,7 @@ use serde::{
 };
 use actix_web::{
     client::{
-        Client
+        ClientBuilder
     },
     web::{
         Bytes
@@ -28,15 +28,17 @@ pub struct JenkinsJobInfo{
     pub url: String
 }
 
-pub struct JenkinsJob<'a>{
-    client: &'a Client,
+pub struct JenkinsJob{
+    jenkins_user: String,
+    jenkins_api_token: String,
     info: JenkinsJobInfo
 }
 
-impl<'a> JenkinsJob<'a> {
-    pub fn new(client: &'a Client, info: JenkinsJobInfo) -> JenkinsJob {
+impl<'a> JenkinsJob {
+    pub fn new(jenkins_user: &str, jenkins_api_token: &str, info: JenkinsJobInfo) -> JenkinsJob {
         JenkinsJob{
-            client,
+            jenkins_user: jenkins_user.to_owned(),
+            jenkins_api_token: jenkins_api_token.to_owned(),
             info
         }
     }
@@ -74,8 +76,12 @@ impl<'a> JenkinsJob<'a> {
 
         let result: InfoResponse = {
             let mut response = {
+                let client = ClientBuilder::new()
+                    .basic_auth(&self.jenkins_user, Some(&self.jenkins_api_token))
+                    .finish();
+
                 let job_info_url = format!("https://jenkins.17btest.com/job/{}/config.xml", self.info.name);
-                self.client
+                client
                     .get(job_info_url.as_str())
                     .send()
                     .await?

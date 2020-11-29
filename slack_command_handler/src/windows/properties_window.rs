@@ -205,39 +205,10 @@ fn create_window_view(params: Option<Vec<Parameter>>) -> Value {
     })
 }
 
-// Получаем из вьюшки имя нашего таргета
-/*fn get_selected_target(view: &WindowParametersViewInfo) -> Option<&str>{
-    view.state.values
-        .get("build_target_block_id")
-        .and_then(|val|{
-            val.get("build_target_action_id")
-        })
-        .and_then(|val|{
-            val.get("selected_option")
-        })
-        .and_then(|val|{
-            val.get("value")
-        })
-        .and_then(|val|{
-            val.as_str()
-        })
-}*/
+
 
 // https://api.slack.com/surfaces/modals/using
-/*pub async fn open_build_properties_window_by_reponse(trigger_id: String, view: WindowParametersViewInfo, app_data: Data<ApplicationData>) {
-    // https://api.slack.com/surfaces/modals/using#preparing_for_modals
-    // Получаем из недр Json имя нужного нам таргета сборки
-    let selected_target = {
-        match get_selected_target(&view) {
-            Some(target) => target.to_owned(),
-            None =>{
-                // TODO: Error
-                error!("Select target error");
-                return;
-            }
-        }        
-    };
-
+pub async fn open_build_properties_window_by_reponse(selected_target: &str, trigger_id: String, app_data: Data<ApplicationData>) {
     // TODO: Не конвертировать туда-сюда json
     // let j = r#""#;
     let new_window = serde_json::json!({
@@ -259,7 +230,7 @@ fn create_window_view(params: Option<Vec<Parameter>>) -> Value {
             error!("Properties window open response error: {:?}", err);
         }
     }
-}*/
+}
 
 /*async fn update_properties_window(selected_target: String, view: View, app_data: Data<ApplicationData>) {
     // Запрашиваем список параметров данного таргета

@@ -1,15 +1,6 @@
 // use log::{
     // error
 // };
-use std::{
-    collections::{
-        HashMap
-    },
-    sync::{
-        Mutex,
-        Arc
-    }
-};
 use actix_web::{
     client::{
         Client
@@ -38,22 +29,14 @@ use super::{
 };
 
 pub struct SlackClient{
-    token: String,
-    client: Client
+    
+    token: String
 }
 
 impl SlackClient {
-    fn new_http_client(token: &str) -> Client {
-        Client::builder()
-            .bearer_auth(token)
-            .header("Content-type", "application/json")
-            .finish()
-    }
-
     pub fn new(token: &str) -> SlackClient {
         SlackClient{
-            token: token.to_owned(),
-            client: SlackClient::new_http_client(token)
+            token: token.to_owned()
         }
     }
 
@@ -67,7 +50,12 @@ impl SlackClient {
             Error(ViewOpenErrorInfo)
         }
 
-        let response = self.client
+        let client = Client::builder()
+            .bearer_auth(&self.token)
+            .header("Content-type", "application/json")
+            .finish();
+    
+        let response = client
             .post("https://slack.com/api/views.open")
             .send_body(serde_json::to_string(&window_json).unwrap())
             .await?

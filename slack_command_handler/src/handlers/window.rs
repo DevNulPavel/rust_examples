@@ -1,14 +1,3 @@
-use std::{
-    sync::{
-        Mutex
-    },
-    collections::{
-        HashMap
-    },
-    // fmt::{
-    //     self
-    // }
-};
 use serde::{
     Deserialize
 };
@@ -122,31 +111,33 @@ pub async fn window_handler(parameters: Form<WindowHandlerParameters>, app_data:
                     // Вызывается на нажатие кнопки подтверждения
                     WindowParametersPayload::Submit{view, trigger_id, ..} => {
                         debug!("Submit button processing with trigger_id: {}", trigger_id);
-            
-                        // TODO: Найти вьюшку здесь и вызвать обработчик вьюшки
-                        if let Ok(lock) = app_data.active_views.lock(){
-                            if let Some(view) = lock.get(view.get_id()){
-                                view.up
-                            }else{
-                                error!("!!!"); // TODO: ??
-                            }
-                        }else{
-                            error!("!!!"); // TODO: ??
-                        }
 
-                        // Открываем окно с параметрами сборки
-                        //open_build_properties_window_by_reponse(trigger_id, view, app_data).await;
+                        // Найти вьюшку здесь и вызвать обработчик вьюшки
+                        if let Some(mut view_obj) = app_data.pop_view_handler(view.get_id()){
+                            view_obj.update_info(view);
+
+                            view_obj.on_submit(trigger_id, app_data).await;
+                        }else{
+                            error!("Cannot find view for id: {}", view.get_id());
+                        }
                     },
             
                     // Вызывается на нажатие разных кнопок в самом меню
                     // TODO: Можно делать валидацию ветки здесь
-                    WindowParametersPayload::Update{..} => {
+                    WindowParametersPayload::Update{view, ..} => {
                         debug!("Action processing");
             
-                        // TODO: Найти вьюшку здесь и вызвать обработчик экшенов
+                        // Найти вьюшку здесь и вызвать обработчик вьюшки
+                        if let Some(mut view_obj) = app_data.pop_view_handler(view.get_id()){
+                            view_obj.update_info(view);
 
-                        //update_main_window(view, app_data).await;
-                        // push_new_window
+                            view_obj.on_update().await;
+
+                            // Сохраняем для дальнейших обновлений
+                            app_data.push_view_handler(view_obj);
+                        }else{
+                            error!("Cannot find view for id: {}", view.get_id());
+                        }
                     },
 
                     WindowParametersPayload::Close{..} => {
