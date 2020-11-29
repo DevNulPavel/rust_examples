@@ -3,9 +3,9 @@ use std::{
         HashMap
     }
 };
-use async_trait::{
-    async_trait
-};
+// use async_trait::{
+//     async_trait
+// };
 use actix_web::{
     client::{
         Client
@@ -54,12 +54,12 @@ impl ViewInfo {
 
 ////////////////////////////////////////////////////////////////
 
-#[async_trait]
+// #[async_trait]
 pub trait ViewActionHandler{
     fn update_info(&mut self, new_info: ViewInfo);
     fn get_view(&self) -> &View;
-    async fn on_submit(&self, trigger_id: String, app_data: Data<ApplicationData>);
-    async fn on_update(&self);
+    fn on_submit(self: Box<Self>, trigger_id: String, app_data: Data<ApplicationData>);
+    fn on_update(&self);
 }
 
 ////////////////////////////////////////////////////////////////

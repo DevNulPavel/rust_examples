@@ -3,13 +3,13 @@ use log::{
     // debug,
     error
 };
-use async_trait::{
-    async_trait
-};
+// use async_trait::{
+//     async_trait
+// };
 use actix_web::{ 
-    // rt::{
-        // spawn
-    // },
+    rt::{
+        spawn
+    },
     web::{
         // Form,
         Data
@@ -43,7 +43,7 @@ use super::{
 
 const MAIN_WINDOW_ID: &str = "MAIN_WINDOW_ID";
 
-fn window_json_with_jobs(jobs: Option<Vec<JenkinsJob>>) -> Value {
+fn window_json_with_jobs(jobs: Option<&Vec<JenkinsJob>>) -> Value {
     let options_json = match jobs {
         Some(array) => {
             // Конвертируем джобы в Json
@@ -154,12 +154,13 @@ pub async fn open_main_build_window(app_data: Data<ApplicationData>, trigger_id:
 ////////////////////////////////////////////////////////////////////////////////
 
 struct MainWindowView {
-    view: View
+    view: View,
+    jobs: Vec<JenkinsJob>
 }
 
 impl MainWindowView {
     // Получаем из вьюшки имя нашего таргета
-    fn get_selected_target(&self) -> Option<&str>{
+    fn get_selected_target<'a>(&'a self) -> Option<&'a str>{
         let states = self.view
             .get_info()
             .get_state();
@@ -186,7 +187,7 @@ impl MainWindowView {
     }
 }
 
-#[async_trait]
+// #[async_trait]
 impl ViewActionHandler for MainWindowView {
     fn update_info(&mut self, new_info: ViewInfo){
         self.view.set_info(new_info);
@@ -194,20 +195,37 @@ impl ViewActionHandler for MainWindowView {
     fn get_view(&self) -> &View {
         &self.view
     }
-    async fn on_submit(&self, trigger_id: String, app_data: Data<ApplicationData>){
+    fn on_submit(self: Box<Self>, trigger_id: String, app_data: Data<ApplicationData>){
         // https://api.slack.com/surfaces/modals/using#preparing_for_modals
         // Получаем из недр Json имя нужного нам таргета сборки
-        let target = match self.get_selected_target(){
-            Some(target) => target,
+        let target = match self.as_ref().get_selected_target(){
+            Some(target) => target.to_owned(),
             None => {
                 error!("Cannot find build target at main build window");
                 return;
             }
         };
 
-        open_build_properties_window_by_reponse(target, trigger_id, app_data).await;
+        let found_job = self
+            .jobs
+            .into_iter()
+            .find(|job|{
+                job.get_info().name == target
+            });
+
+        let found_job = match found_job {
+            Some(job) => job,
+            None => {
+                error!("Cannot find job object with name {}", target);
+                return;
+            }
+        };
+
+        spawn(async move {
+            open_build_properties_window_by_reponse(found_job, trigger_id, app_data).await;
+        });
     }
-    async fn on_update(&self){
+    fn on_update(&self){
     }
 }
 
@@ -231,7 +249,7 @@ async fn update_main_window(mut view: View, app_data: Data<ApplicationData>) {
 
     // Описываем обновление нашего окна
     // https://api.slack.com/surfaces/modals/using#interactions
-    let window_view = window_json_with_jobs(Some(jobs));
+    let window_view = window_json_with_jobs(Some(&jobs));
 
     // Обновляем вьюшку
     let update_result = view
@@ -240,16 +258,17 @@ async fn update_main_window(mut view: View, app_data: Data<ApplicationData>) {
     
     match update_result {
         Ok(()) => { 
+            let view_handler = Box::new(MainWindowView{
+                jobs,
+                view
+            });
+        
+            // Сохраняем вьюшку для дальшнейшего использования
+            app_data.push_view_handler(view_handler);
+
         },
         Err(err) => {
             error!("Main window update error: {:?}", err);
         }
     }
-
-    let view_handler = Box::new(MainWindowView{
-        view
-    });
-
-    // Сохраняем вьюшку для дальшнейшего использования
-    app_data.push_view_handler(view_handler);
 }

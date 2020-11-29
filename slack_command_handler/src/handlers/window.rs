@@ -116,7 +116,7 @@ pub async fn window_handler(parameters: Form<WindowHandlerParameters>, app_data:
                         if let Some(mut view_obj) = app_data.pop_view_handler(view.get_id()){
                             view_obj.update_info(view);
 
-                            view_obj.on_submit(trigger_id, app_data).await;
+                            view_obj.on_submit(trigger_id, app_data);
                         }else{
                             error!("Cannot find view for id: {}", view.get_id());
                         }
@@ -131,7 +131,7 @@ pub async fn window_handler(parameters: Form<WindowHandlerParameters>, app_data:
                         if let Some(mut view_obj) = app_data.pop_view_handler(view.get_id()){
                             view_obj.update_info(view);
 
-                            view_obj.on_update().await;
+                            view_obj.on_update();
 
                             // Сохраняем для дальнейших обновлений
                             app_data.push_view_handler(view_obj);

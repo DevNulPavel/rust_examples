@@ -23,7 +23,9 @@ use crate::{
         Parameter
     },
     slack::{
-        View
+        View,
+        ViewActionHandler,
+        ViewInfo
     },
     ApplicationData
 };
@@ -208,7 +210,7 @@ fn create_window_view(params: Option<Vec<Parameter>>) -> Value {
 
 
 // https://api.slack.com/surfaces/modals/using
-pub async fn open_build_properties_window_by_reponse(selected_target: &str, trigger_id: String, app_data: Data<ApplicationData>) {
+pub async fn open_build_properties_window_by_reponse(job: JenkinsJob, trigger_id: String, app_data: Data<ApplicationData>) {
     // TODO: Не конвертировать туда-сюда json
     // let j = r#""#;
     let new_window = serde_json::json!({
@@ -224,7 +226,7 @@ pub async fn open_build_properties_window_by_reponse(selected_target: &str, trig
         Ok(view) => {
             // Запускаем асинхронный запрос, чтобы моментально ответить
             // Иначе долгий запрос отвалится по таймауту
-            //update_properties_window(selected_target, view, app_data).await
+            update_properties_window(job, view, app_data).await
         },
         Err(err) => {
             error!("Properties window open response error: {:?}", err);
@@ -232,11 +234,34 @@ pub async fn open_build_properties_window_by_reponse(selected_target: &str, trig
     }
 }
 
-/*async fn update_properties_window(selected_target: String, view: View, app_data: Data<ApplicationData>) {
+////////////////////////////////////////////////////////////////////////////////
+
+struct PropertiesWindowView {
+    view: View
+}
+
+impl PropertiesWindowView {
+}
+
+// #[async_trait]
+impl ViewActionHandler for PropertiesWindowView {
+    fn update_info(&mut self, new_info: ViewInfo){
+        self.view.set_info(new_info);
+    }
+    fn get_view(&self) -> &View {
+        &self.view
+    }
+    fn on_submit(self: Box<Self>, trigger_id: String, app_data: Data<ApplicationData>){
+    }
+    fn on_update(&self){
+    }
+}
+
+////////////////////////////////////////////////////////////////////////////////
+
+async fn update_properties_window(job: JenkinsJob, mut view: View, app_data: Data<ApplicationData>) {
     // Запрашиваем список параметров данного таргета
-    let parameters = match request_jenkins_job_info(&app_data.http_client, 
-                                                    &app_data.jenkins_auth,
-                                                    &selected_target).await{
+    let parameters = match job.request_jenkins_job_info().await{
         Ok(parameters) => {
             parameters
         },
@@ -254,10 +279,15 @@ pub async fn open_build_properties_window_by_reponse(selected_target: &str, trig
         .await;
 
     match update_result {
-        Ok(view) => {
+        Ok(()) => {
+            let view_handler = Box::new(PropertiesWindowView{
+                view
+            });
+            app_data.push_view_handler(view_handler)
         },
         Err(err) => {
             error!("Properties window update error: {:?}", err);
+            return;
         }
     }
-}*/
+}

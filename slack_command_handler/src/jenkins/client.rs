@@ -1,16 +1,7 @@
-// use actix_web::{
-//     client::{
-//         ClientBuilder
-//     }
-// };
-use reqwest::{
-    header::{
-        self,
-        HeaderValue,
-        HeaderMap
-    },
-    Client,
-    ClientBuilder,
+use actix_web::{
+    client::{
+        ClientBuilder
+    }
 };
 // use log::{
 //     error,
@@ -31,26 +22,13 @@ use super::{
 
 
 pub struct JenkinsClient{
-    client: Client,
     jenkins_user: String,
     jenkins_api_token: String
 }
 
 impl JenkinsClient {
     pub fn new(jenkins_user: &str, jenkins_api_token: &str) -> JenkinsClient {
-        let mut headers = HeaderMap::new();
-        headers.insert(
-            header::AUTHORIZATION, 
-            HeaderValue::from_str(format!("Basic {}:{}", jenkins_user, jenkins_api_token).as_str()).unwrap()
-        );
-
-        let client = ClientBuilder::new()
-            .default_headers(headers)
-            .build()
-            .unwrap();
-
         JenkinsClient{
-            client,
             jenkins_user: jenkins_user.to_owned(),
             jenkins_api_token: jenkins_api_token.to_owned()
         }
@@ -68,7 +46,11 @@ impl JenkinsClient {
             jobs: Vec<JenkinsJobInfo>
         }
 
-        let response = self.client
+        let client = ClientBuilder::new()
+            .basic_auth(&self.jenkins_user, Some(&self.jenkins_api_token))
+            .finish();
+
+        let response = client
             .get("https://jenkins.17btest.com/api/json")
             .send()
             .await?
