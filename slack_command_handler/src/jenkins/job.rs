@@ -1,10 +1,8 @@
 use serde::{
     Deserialize
 };
-use actix_web::{
-    web::{
-        Bytes
-    }
+use reqwest::{
+    Client
 };
 use log::{
     debug
@@ -26,14 +24,16 @@ pub struct JenkinsJobInfo{
 }
 
 pub struct JenkinsJob{
+    client: Client,
     jenkins_user: String,
     jenkins_api_token: String,
     info: JenkinsJobInfo
 }
 
 impl<'a> JenkinsJob {
-    pub fn new(jenkins_user: &str, jenkins_api_token: &str, info: JenkinsJobInfo) -> JenkinsJob {
+    pub fn new(client: Client, jenkins_user: &str, jenkins_api_token: &str, info: JenkinsJobInfo) -> JenkinsJob {
         JenkinsJob{
+            client,
             jenkins_user: jenkins_user.to_owned(),
             jenkins_api_token: jenkins_api_token.to_owned(),
             info
@@ -72,21 +72,24 @@ impl<'a> JenkinsJob {
         }
 
         let result: InfoResponse = {
-            let mut response = {
-                let client = ClientBuilder::new()
-                    .basic_auth(&self.jenkins_user, Some(&self.jenkins_api_token))
-                    .finish();
-
+            let response = {
                 let job_info_url = format!("https://jenkins.17btest.com/job/{}/config.xml", self.info.name);
-                client
+                self.client
                     .get(job_info_url.as_str())
+                    .basic_auth(&self.jenkins_user, Some(&self.jenkins_api_token))
                     .send()
-                    .await?
+                    .await
+                    .map_err(|err|{
+                        JenkinsError::RequestError(err)
+                    })?
             };
 
-            let xml_data: Bytes = response
-                .body()
-                .await?;
+            let xml_data = response
+                .text()
+                .await
+                .map_err(|err|{
+                    JenkinsError::BodyParseError(err)
+                })?;
             
             let text = std::str::from_utf8(xml_data.as_ref())?;
 

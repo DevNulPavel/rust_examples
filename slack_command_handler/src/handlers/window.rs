@@ -40,7 +40,7 @@ pub enum WindowParametersPayload{
     #[serde(rename = "view_submission")]
     Submit{
         trigger_id: String,
-        user: String,
+        //user: String,
         view: ViewInfo,
         //response_url: Option<String>,
     },
@@ -68,7 +68,7 @@ pub enum WindowParametersPayload{
     #[serde(rename = "message_actions")]
     MessageAction{
         trigger_id: String,
-        user: String,
+        //user: String,
         message: String
     }
     
@@ -90,6 +90,8 @@ pub struct WindowHandlerParameters{
 /// Обработчик открытия окна Jenkins
 pub async fn window_handler(parameters: Form<WindowHandlerParameters>, app_data: Data<ApplicationData>) -> HttpResponse {
     debug!("Jenkins window parameters: {:?}", parameters);
+
+    //debug!("Jenkins window parameters: {:?}", parameters.payload);
 
     // Парсим переданные данные
     match serde_json::from_str::<WindowParametersPayload>(parameters.payload.as_str()){

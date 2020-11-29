@@ -1,0 +1,45 @@
+
+use reqwest::{
+    Client
+};
+use super::{
+    JenkinsClient
+};
+
+#[actix_rt::test]
+async fn test_jobs_request() {
+    std::env::set_var("RUST_LOG", "actix_server=info,actix_web=info,slack_command_handler=error");
+    env_logger::init();
+
+    // Jenkins user
+    let jenkins_user = std::env::var("JENKINS_USER")
+        .expect("JENKINS_USER environment variable is missing");
+
+    // Jenkins api token
+    let jenkins_api_token = std::env::var("JENKINS_API_TOKEN")
+        .expect("JENKINS_API_TOKEN environment variable is missing");
+
+    // Общий менеджер запросов с пулом соединений
+    // TODO: Configure
+    let request_client = Client::new();
+
+    let client = JenkinsClient::new(request_client, &jenkins_user, &jenkins_api_token);
+
+    let jobs = client.request_jenkins_jobs_list()
+        .await
+        .unwrap();
+
+    let found_job = jobs
+        .iter()
+        .find(|job|{
+            job.get_info().name == "pi2-amazon-prod"
+        })
+        .unwrap();
+
+    let _found_info = found_job
+        .request_jenkins_job_info()
+        .await
+        .unwrap();
+
+    //assert_eq!(found_job.is_some(), true);
+}

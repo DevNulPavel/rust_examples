@@ -3,11 +3,8 @@ use std::{
         HashMap
     }
 };
-use actix_web::{
-    client::{
-        SendRequestError,
-        JsonPayloadError
-    }
+use reqwest::{
+    Error
 };
 use serde::{
     Deserialize
@@ -30,22 +27,22 @@ pub struct ViewUpdateErrorInfo{
 
 #[derive(Debug)]
 pub enum SlackViewError{
-    RequestErr(SendRequestError),
-    JsonParseError(JsonPayloadError),
+    RequestErr(Error),
+    JsonParseError(Error),
     OpenError(ViewOpenErrorInfo),
     UpdateError(ViewUpdateErrorInfo)
 }
 
-impl From<SendRequestError> for SlackViewError {
-    fn from(err: SendRequestError) -> SlackViewError {
-        SlackViewError::RequestErr(err)
-    }
-}
-impl From<JsonPayloadError> for SlackViewError {
-    fn from(err: JsonPayloadError) -> SlackViewError {
-        SlackViewError::JsonParseError(err)
-    }
-}
+// impl From<SendRequestError> for SlackViewError {
+//     fn from(err: SendRequestError) -> SlackViewError {
+//         SlackViewError::RequestErr(err)
+//     }
+// }
+// impl From<JsonPayloadError> for SlackViewError {
+//     fn from(err: JsonPayloadError) -> SlackViewError {
+//         SlackViewError::JsonParseError(err)
+//     }
+// }
 impl From<ViewOpenErrorInfo> for SlackViewError {
     fn from(err: ViewOpenErrorInfo) -> SlackViewError {
         SlackViewError::OpenError(err)

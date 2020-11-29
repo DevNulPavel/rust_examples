@@ -7,6 +7,9 @@ use serde::{
 use serde_json::{
     Value
 };
+use reqwest::{
+    Client
+};
 use super::{
     error::{
         SlackViewError,
@@ -24,13 +27,14 @@ use super::{
 };
 
 pub struct SlackClient{
-    
+    client: Client,
     token: String
 }
 
 impl SlackClient {
-    pub fn new(token: &str) -> SlackClient {
+    pub fn new(client: Client, token: &str) -> SlackClient {
         SlackClient{
+            client: client,
             token: token.to_owned()
         }
     }
@@ -45,21 +49,25 @@ impl SlackClient {
             Error(ViewOpenErrorInfo)
         }
 
-        let client = Client::builder()
+        let response = self.client
+            .post("https://slack.com/api/views.open")
             .bearer_auth(&self.token)
             .header("Content-type", "application/json")
-            .finish();
-    
-        let response = client
-            .post("https://slack.com/api/views.open")
-            .send_body(serde_json::to_string(&window_json).unwrap())
-            .await?
+            .body(serde_json::to_string(&window_json).unwrap())
+            .send()
+            .await
+            .map_err(|err|{
+                SlackViewError::RequestErr(err)
+            })?
             .json::<ViewOpenResponse>()
-            .await?;
+            .await
+            .map_err(|err|{
+                SlackViewError::JsonParseError(err)
+            })?;
 
         match response {
             ViewOpenResponse::Ok{view} => {
-                Ok(View::new(&self.token, view))
+                Ok(View::new(self.client.clone(), &self.token, view))
             },
             ViewOpenResponse::Error(err) => {
                 Err(SlackViewError::OpenError(err))

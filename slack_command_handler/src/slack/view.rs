@@ -11,6 +11,9 @@ use actix_web::{
         Data
     }
 };
+use reqwest::{
+    Client
+};
 use serde_json::{
     Value
 };
@@ -36,7 +39,7 @@ pub struct ViewInfo{
     id: String,
     hash: String,
     callback_id: Option<String>,
-    private_metadata: Option<String>,
+    //private_metadata: Option<String>,
     state: Option<HashMap<String, Value>>
 }
 
@@ -63,14 +66,15 @@ pub trait ViewActionHandler{
 ////////////////////////////////////////////////////////////////
 
 pub struct View {
-    //client: Client, // TODO: так как вьюшки шарятся между потоками, то приходится хранить лишь токен, ибо клиент сделан как Rc
+    client: Client,
     token: String,
     info: ViewInfo
 }
 
 impl View {
-    pub fn new(token: &str, info: ViewInfo) -> View{
+    pub fn new(client: Client, token: &str, info: ViewInfo) -> View{
         View{
+            client,
             token: token.to_owned(),
             info
         }
@@ -89,11 +93,6 @@ impl View {
     }
 
     pub async fn update_view(&mut self, view_json: Value) -> Result<(), SlackViewError>{
-        let client = Client::builder()
-            .bearer_auth(&self.token)
-            .header("Content-type", "application/json")
-            .finish();
-
         // https://serde.rs/enum-representations.html
         // https://api.slack.com/methods/views.update
         #[derive(Deserialize, Debug)]
@@ -110,12 +109,21 @@ impl View {
             "view": view_json
         });
 
-        let response = client
+        let response = self.client
             .post("https://slack.com/api/views.update")
-            .send_body(serde_json::to_string(&window).unwrap())
-            .await?
+            .bearer_auth(&self.token)
+            .header("Content-type", "application/json")
+            .body(serde_json::to_string(&window).unwrap())
+            .send()
+            .await
+            .map_err(|err|{
+                SlackViewError::RequestErr(err)
+            })?
             .json::<ViewUpdateResponse>()
-            .await?;
+            .await
+            .map_err(|err|{
+                SlackViewError::JsonParseError(err)
+            })?;
 
         match response {
             ViewUpdateResponse::Ok{view} => {

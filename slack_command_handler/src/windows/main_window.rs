@@ -1,6 +1,6 @@
 use log::{
     info,
-    // debug,
+    debug,
     error
 };
 // use async_trait::{
@@ -167,11 +167,19 @@ impl MainWindowView {
             
         let states = match states{
             Some(states) => states,
-            None => return None
+            None => {
+                error!("Empty states");
+                return None;
+            }
         };
 
+        debug!("States: {:?}", states);
+
         states 
-            .get("build_target_block_id")
+            .get("values")
+            .and_then(|val|{
+                val.get("build_target_block_id")
+            })
             .and_then(|val|{
                 val.get("build_target_action_id")
             })

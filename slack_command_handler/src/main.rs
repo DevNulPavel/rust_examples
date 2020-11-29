@@ -20,6 +20,9 @@ use actix_web::{
     App,
     HttpServer
 };
+use reqwest::{
+    Client
+};
 use log::{
     // debug,
     info,
@@ -83,6 +86,10 @@ async fn main() -> std::io::Result<()>{
     let jenkins_api_token = std::env::var("JENKINS_API_TOKEN")
         .expect("JENKINS_API_TOKEN environment variable is missing");
 
+    // Общий менеджер запросов с пулом соединений
+    // TODO: Configure
+    let request_client = Client::new();
+
     // Контейнер для вьюшек, общий для всех инстансов приложения
     let active_views_container = Arc::new(Mutex::new(ViewsHandlersMap::new()));
 
@@ -91,8 +98,8 @@ async fn main() -> std::io::Result<()>{
     let web_application_factory = move || {
         // Создаем данные приложения для текущего треда
         let app_data = Data::new(ApplicationData::new(
-            slack::SlackClient::new(&slack_api_token),
-            jenkins::JenkinsClient::new(&jenkins_user, &jenkins_api_token),
+            slack::SlackClient::new(request_client.clone(), &slack_api_token),
+            jenkins::JenkinsClient::new(request_client.clone(), &jenkins_user, &jenkins_api_token),
             active_views_container.clone()
         ));
 
