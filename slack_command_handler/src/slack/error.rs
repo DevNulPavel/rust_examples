@@ -26,11 +26,12 @@ pub struct ViewUpdateErrorInfo{
 }
 
 #[derive(Debug)]
-pub enum SlackViewError{
+pub enum SlackError{
     RequestErr(Error),
     JsonParseError(Error),
-    OpenError(ViewOpenErrorInfo),
-    UpdateError(ViewUpdateErrorInfo)
+    ViewOpenError(ViewOpenErrorInfo),
+    UpdateError(ViewUpdateErrorInfo),
+    Custom(String),
 }
 
 // impl From<SendRequestError> for SlackViewError {
@@ -43,13 +44,13 @@ pub enum SlackViewError{
 //         SlackViewError::JsonParseError(err)
 //     }
 // }
-impl From<ViewOpenErrorInfo> for SlackViewError {
-    fn from(err: ViewOpenErrorInfo) -> SlackViewError {
-        SlackViewError::OpenError(err)
+impl From<ViewOpenErrorInfo> for SlackError {
+    fn from(err: ViewOpenErrorInfo) -> SlackError {
+        SlackError::ViewOpenError(err)
     }
 }
-impl From<ViewUpdateErrorInfo> for SlackViewError {
-    fn from(err: ViewUpdateErrorInfo) -> SlackViewError {
-        SlackViewError::UpdateError(err)
+impl From<ViewUpdateErrorInfo> for SlackError {
+    fn from(err: ViewUpdateErrorInfo) -> SlackError {
+        SlackError::UpdateError(err)
     }
 }

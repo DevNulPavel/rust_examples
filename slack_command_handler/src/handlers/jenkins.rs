@@ -28,16 +28,20 @@ use crate::{
     windows::{
         open_main_build_window
     },
+    session::{
+        CommandSession
+    },
     ApplicationData
 };
-
 
 #[derive(Deserialize)]
 pub struct SlackCommandParameters{
     pub user_id: String,
     pub user_name: String,
+    pub channel_id: Option<String>,
     pub trigger_id: String,
     pub command: String,
+    pub response_url: String,
 
     // pub token: String,
     // pub text: String,
@@ -66,12 +70,19 @@ pub struct SlackCommandParameters{
 pub async fn jenkins_command_handler(parameters: Form<SlackCommandParameters>, app_data: Data<ApplicationData>) -> HttpResponse {
     //debug!("Index parameters: {:?}", parameters);
 
+    let session = CommandSession::new(app_data, 
+                                      parameters.0.user_id,
+                                      parameters.0.user_name,
+                                      //Some(parameters.0.channel_id),
+                                      parameters.0.trigger_id,
+                                      parameters.0.response_url);
+
     // Открываем окно с джобами
     spawn(async move {
         // TODO: Хрень полная, но больше никак не удостовериться, что сервер слака получил ответ обработчика
         actix_web::rt::time::delay_for(std::time::Duration::from_millis(200)).await;
 
-        open_main_build_window(app_data, parameters.0.trigger_id).await;
+        open_main_build_window(session).await;
     });
 
     HttpResponse::Ok()

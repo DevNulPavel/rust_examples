@@ -19,7 +19,6 @@ use crate::{
 
 pub type ViewsHandlersMap = HashMap<String, Box<dyn ViewActionHandler + Send>>;
 
-//#[derive(Clone)]
 pub struct ApplicationData{
     pub slack_client: SlackClient,
     pub jenkins_client: JenkinsClient,

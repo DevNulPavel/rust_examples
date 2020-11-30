@@ -9,30 +9,27 @@ use log::{
 use actix_web::{ 
     rt::{
         spawn
-    },
-    web::{
-        // Form,
-        Data
-    },
-    // HttpResponse
+    }
 };
 use serde_json::{
     Value
 };
 use crate::{
+    session::{
+        CommandSession,
+        WindowSession
+    },
     jenkins::{
         // JenkinsClient,
         JenkinsJob
-    },
-    application_data::{
-        ApplicationData
     },
     slack::{
         View,
         ViewInfo,
         ViewActionHandler,
         // SlackViewError
-    }
+    },
+    slack_response_with_error
 };
 use super::{
     properties_window::{
@@ -122,31 +119,36 @@ fn window_json_with_jobs(jobs: Option<&Vec<JenkinsJob>>) -> Value {
 }
 
 /// Обработчик открытия окна Jenkins
-pub async fn open_main_build_window(app_data: Data<ApplicationData>, trigger_id: String) {
+pub async fn open_main_build_window(session: CommandSession) {
     // Выполняем наш запрос
     // TODO: Вернуть ошибку
-    info!("Open main window with trigger_id: {}", trigger_id);
+    //info!("Open main window with: {:?}", session);
 
     let window_view = window_json_with_jobs(None);
 
     let window = serde_json::json!({
-        "trigger_id": trigger_id,
+        "trigger_id": session.base.trigger_id,
         "view": window_view
     });
 
-    let open_result = app_data
+    let open_result = session
+        .base
+        .app_data
         .slack_client
         .open_view(window)
         .await;
     
     match open_result {
         Ok(view) => {
+            let session = WindowSession::new_with_base(session.base);
+
             // Запускаем асинхронный запрос, чтобы моментально ответить
             // Иначе долгий запрос отвалится по таймауту
-            update_main_window(view, app_data).await; // TODO: Можно ли опустить await?
+            update_main_window(view, session).await; // TODO: Можно ли опустить await?
         },
         Err(err) => {
-            error!("Main window open error: {:?}", err);
+            // Пишем сообщение в ответ в слак
+            slack_response_with_error!(session, format!("Main window open error: {:?}", err));
         }
     }
 }
@@ -203,17 +205,19 @@ impl ViewActionHandler for MainWindowView {
     fn get_view(&self) -> &View {
         &self.view
     }
-    fn on_submit(self: Box<Self>, trigger_id: String, app_data: Data<ApplicationData>){
+    fn on_submit(self: Box<Self>, session: WindowSession){
         // https://api.slack.com/surfaces/modals/using#preparing_for_modals
         // Получаем из недр Json имя нужного нам таргета сборки
         let target = match self.as_ref().get_selected_target(){
             Some(target) => target.to_owned(),
             None => {
-                error!("Cannot find build target at main build window");
+                // Пишем сообщение в ответ в слак
+                slack_response_with_error!(session, "Cannot find build target at main build window".to_owned());
                 return;
             }
         };
 
+        // TODO: Более оптимальный поиск??
         let found_job = self
             .jobs
             .into_iter()
@@ -221,37 +225,39 @@ impl ViewActionHandler for MainWindowView {
                 job.get_info().name == target
             });
 
+        // Разворачиваем результат
         let found_job = match found_job {
             Some(job) => job,
             None => {
-                error!("Cannot find job object with name {}", target);
+                // Пишем сообщение в ответ в слак
+                slack_response_with_error!(session, format!("Cannot find job object with name {}", target));
                 return;
             }
         };
 
         spawn(async move {
-            open_build_properties_window_by_reponse(found_job, trigger_id, app_data).await;
+            open_build_properties_window_by_reponse(found_job, session).await;
         });
     }
     fn on_update(&self){
     }
-    fn on_close(self: Box<Self>, _: String, _: Data<ApplicationData>){
+    fn on_close(self: Box<Self>, _: WindowSession){
     }
 }
 
 ////////////////////////////////////////////////////////////////////////////////
 
-async fn update_main_window(mut view: View, app_data: Data<ApplicationData>) {
+async fn update_main_window(mut view: View, session: WindowSession) {
     info!("Main window view update");
 
     // Запрашиваем список джобов
-    let jobs = match app_data.jenkins_client.request_jenkins_jobs_list().await {
+    let jobs = match session.base.app_data.jenkins_client.request_jenkins_jobs_list().await {
         Ok(jobs) => {
             jobs
         },
         Err(err) => {
-            error!("Jobs request failed: {:?}", err);
-            // TODO: Save view
+            // Пишем сообщение в ответ в слак
+            slack_response_with_error!(session, format!("Jobs request failed: {:?}", err));
             return;
             // TODO: Написать ошибочное в ответ
         }
@@ -274,11 +280,11 @@ async fn update_main_window(mut view: View, app_data: Data<ApplicationData>) {
             });
         
             // Сохраняем вьюшку для дальшнейшего использования
-            app_data.push_view_handler(view_handler);
-
+            session.base.app_data.push_view_handler(view_handler);
         },
         Err(err) => {
-            error!("Main window update error: {:?}", err);
+            // Пишем сообщение в ответ в слак
+            slack_response_with_error!(session, format!("Main window update error: {:?}", err));
         }
     }
 }

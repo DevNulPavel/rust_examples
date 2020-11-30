@@ -1,12 +1,9 @@
-use log::{
-    // debug,
-    // info,
-    error
-};
+// use log::{
+//     // debug,
+//     // info,
+//     // error
+// };
 use actix_web::{ 
-    web::{
-        Data
-    },
     rt::{
         spawn
     },
@@ -17,6 +14,9 @@ use serde_json::{
     Value
 };
 use crate::{
+    session::{
+        WindowSession
+    },
     jenkins::{
         // JenkinsClient,
         JenkinsJob,
@@ -27,7 +27,7 @@ use crate::{
         ViewActionHandler,
         ViewInfo
     },
-    ApplicationData
+    slack_response_with_error
 };
 
 fn param_to_json_field(param: Parameter) -> Value {
@@ -229,15 +229,18 @@ fn create_window_view(params: Option<Vec<Parameter>>) -> Value {
 
 
 // https://api.slack.com/surfaces/modals/using
-pub async fn open_build_properties_window_by_reponse(job: JenkinsJob, trigger_id: String, app_data: Data<ApplicationData>) {
+pub async fn open_build_properties_window_by_reponse(job: JenkinsJob, session: WindowSession) {
     // TODO: Не конвертировать туда-сюда json
     // let j = r#""#;
     let new_window = serde_json::json!({
-        "trigger_id": trigger_id,
+        "trigger_id": session.base.trigger_id,
         "view": create_window_view(None)
     });
 
-    let view_open_res = app_data.slack_client
+    let view_open_res = session
+        .base
+        .app_data
+        .slack_client
         .open_view(new_window)
         .await;
 
@@ -245,10 +248,10 @@ pub async fn open_build_properties_window_by_reponse(job: JenkinsJob, trigger_id
         Ok(view) => {
             // Запускаем асинхронный запрос, чтобы моментально ответить
             // Иначе долгий запрос отвалится по таймауту
-            update_properties_window(job, view, app_data).await
+            update_properties_window(job, view, session).await
         },
         Err(err) => {
-            error!("Properties window open response error: {:?}", err);
+            slack_response_with_error!(session, format!("Properties window open response error: {:?}", err));
         }
     }
 }
@@ -271,29 +274,30 @@ impl ViewActionHandler for PropertiesWindowView {
     fn get_view(&self) -> &View {
         &self.view
     }
-    fn on_submit(self: Box<Self>, _: String, _: Data<ApplicationData>){
+    fn on_submit(self: Box<Self>, session: WindowSession){
         spawn(async move {
-            let _result = self.job.start_job().await;
-            // TODO: Ошибка в ответ
+            let result = self.job.start_job().await;
+            match result {
+                
+            }
         })
     }
     fn on_update(&self){
     }
-    fn on_close(self: Box<Self>, _: String, _: Data<ApplicationData>){
+    fn on_close(self: Box<Self>, _: WindowSession){
     }
 }
 
 ////////////////////////////////////////////////////////////////////////////////
 
-async fn update_properties_window(job: JenkinsJob, mut view: View, app_data: Data<ApplicationData>) {
+async fn update_properties_window(job: JenkinsJob, mut view: View, session: WindowSession) {
     // Запрашиваем список параметров данного таргета
     let parameters = match job.request_jenkins_job_info().await{
         Ok(parameters) => {
             parameters
         },
         Err(err) => {
-            // TODO: Error
-            error!("Job info request error: {:?}", err);
+            slack_response_with_error!(session, format!("Job info request error: {:?}", err));
             return;
         }
     };
@@ -310,10 +314,10 @@ async fn update_properties_window(job: JenkinsJob, mut view: View, app_data: Dat
                 view,
                 job
             });
-            app_data.push_view_handler(view_handler)
+            session.base.app_data.push_view_handler(view_handler)
         },
         Err(err) => {
-            error!("Properties window update error: {:?}", err);
+            slack_response_with_error!(session, format!("Properties window update error: {:?}", err));
             return;
         }
     }

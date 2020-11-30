@@ -81,7 +81,7 @@ impl<'a> JenkinsJob {
                     .send()
                     .await
                     .map_err(|err|{
-                        JenkinsError::RequestError(err)
+                        JenkinsError::RequestError(err, format!("Target config request error: {}", job_info_url))
                     })?
             };
 
@@ -89,7 +89,7 @@ impl<'a> JenkinsJob {
                 .text()
                 .await
                 .map_err(|err|{
-                    JenkinsError::BodyParseError(err)
+                    JenkinsError::BodyParseError(err, format!("Target config parse error"))
                 })?;
             
             debug!("Job parameters info: {}", xml_data);
@@ -117,23 +117,26 @@ impl<'a> JenkinsJob {
         let parameters = serde_json::json!({
         });
 
-        let job_info_url = format!("https://jenkins.17btest.com/job/{}/buildWithParameters", self.info.name);
-        let response = self.client
-            .post(job_info_url.as_str())
-            .basic_auth(&self.jenkins_user, Some(&self.jenkins_api_token))
-            .form(&parameters)
-            .send()
-            .await
-            .map_err(|err|{
-                JenkinsError::RequestError(err)
-            })?;
+        let response = {
+            let job_build_url = format!("https://jenkins.17btest.com/job/{}/buildWithParameters", self.info.name);
+            self.client
+                .post(job_build_url.as_str())
+                .basic_auth(&self.jenkins_user, Some(&self.jenkins_api_token))
+                .form(&parameters)
+                .send()
+                .await
+                .map_err(|err|{
+                    JenkinsError::RequestError(err, format!("Build job with params error: {}", job_build_url))
+                })?
+            };
 
         // reqwest::StatusCode::from_u16(201).unwrap()
         if response.status() != http::StatusCode::CREATED {
             return Err(JenkinsError::LogicalError(format!("Job {} start failed", self.info.name)));
         }
 
-        let url = response
+        // Получаем урл на итем сборки
+        let build_info_url = response
             .headers()
             .get(http::header::LOCATION)
             .ok_or_else(||{
@@ -142,12 +145,38 @@ impl<'a> JenkinsJob {
             .to_str()
             .map_err(|_|{
                 JenkinsError::LogicalError(format!("Job {} start failed, URL parse failed", self.info.name))
-            })?
-            .to_owned();
+            })?;
 
-        // https://jenkins.17btest.com/queue/item/23088 + /api/json
-        info!("New job {} started: {}", self.info.name, url); // Check queue
+        // https://jenkins.17btest.com/queue/item/23115/api/json?pretty=true
+        #[derive(Deserialize, Debug)]
+        struct ItemInfoTask{
+            url: String
+        }
+        #[derive(Deserialize, Debug)]
+        struct ItemInfoResponse{
+            task: ItemInfoTask
+        }
 
-        Ok(url)
+        // Запрос информации о сборке
+        let item_info_response: ItemInfoResponse = {
+            let build_info_url = format!("{}/api/json", build_info_url);
+            self.client
+                .get(build_info_url.as_str())
+                .basic_auth(&self.jenkins_user, Some(&self.jenkins_api_token))
+                .send()
+                .await
+                .map_err(|err|{
+                    JenkinsError::RequestError(err, format!("Job info request error: {}", build_info_url))
+                })?
+                .json::<ItemInfoResponse>()
+                .await
+                .map_err(|err|{
+                    JenkinsError::JsonParseError(err, format!("Job info parse error: {}", build_info_url))
+                })?
+        };
+
+        info!("New job {} started: {}", self.info.name, item_info_response.task.url); // Check queue
+
+        Ok(item_info_response.task.url)
     }
 }

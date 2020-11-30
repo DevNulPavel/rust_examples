@@ -6,11 +6,11 @@ use std::{
 // use async_trait::{
 //     async_trait
 // };
-use actix_web::{
-    web::{
-        Data
-    }
-};
+// use actix_web::{
+//     web::{
+//         Data
+//     }
+// };
 use reqwest::{
     Client
 };
@@ -21,11 +21,14 @@ use serde::{
     Deserialize
 };
 use crate::{
-    ApplicationData
+    session::{
+        WindowSession
+    },
+    // ApplicationData
 };
 use super::{
     error::{
-        SlackViewError,
+        SlackError,
         ViewUpdateErrorInfo
     }
 };
@@ -58,9 +61,9 @@ impl ViewInfo {
 pub trait ViewActionHandler{
     fn update_info(&mut self, new_info: ViewInfo);
     fn get_view(&self) -> &View;
-    fn on_submit(self: Box<Self>, trigger_id: String, app_data: Data<ApplicationData>);
+    fn on_submit(self: Box<Self>, session: WindowSession);
     fn on_update(&self);
-    fn on_close(self: Box<Self>, trigger_id: String, app_data: Data<ApplicationData>);
+    fn on_close(self: Box<Self>, session: WindowSession);
 }
 
 ////////////////////////////////////////////////////////////////
@@ -92,7 +95,7 @@ impl View {
         return self.info.get_id();
     }
 
-    pub async fn update_view(&mut self, view_json: Value) -> Result<(), SlackViewError>{
+    pub async fn update_view(&mut self, view_json: Value) -> Result<(), SlackError>{
         // https://serde.rs/enum-representations.html
         // https://api.slack.com/methods/views.update
         #[derive(Deserialize, Debug)]
@@ -117,12 +120,12 @@ impl View {
             .send()
             .await
             .map_err(|err|{
-                SlackViewError::RequestErr(err)
+                SlackError::RequestErr(err)
             })?
             .json::<ViewUpdateResponse>()
             .await
             .map_err(|err|{
-                SlackViewError::JsonParseError(err)
+                SlackError::JsonParseError(err)
             })?;
 
         match response {
@@ -131,7 +134,7 @@ impl View {
                 Ok(())
             },
             ViewUpdateResponse::Error(err) => {
-                Err(SlackViewError::UpdateError(err))
+                Err(SlackError::UpdateError(err))
             }
         }
     }

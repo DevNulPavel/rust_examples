@@ -75,12 +75,12 @@ impl JenkinsClient {
             .send()
             .await
             .map_err(|err|{
-                JenkinsError::BodyParseError(err)
+                JenkinsError::BodyParseError(err, "Jobs request body parse error".to_owned())
             })?
             .json::<JenkinsJobsResponse>()
             .await
             .map_err(|err|{
-                JenkinsError::JsonParseError(err)
+                JenkinsError::JsonParseError(err, "Jobs request JSON parse error".to_owned())
             })?;
 
         let result: Vec<JenkinsJob> = parsed_response

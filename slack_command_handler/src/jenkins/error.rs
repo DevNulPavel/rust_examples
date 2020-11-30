@@ -12,9 +12,9 @@ use serde_xml_rs::{
 
 #[derive(Debug)]
 pub enum JenkinsError{
-    RequestError(Error),
-    BodyParseError(Error),
-    JsonParseError(Error),
+    RequestError(Error, String),
+    BodyParseError(Error, String),
+    JsonParseError(Error, String),
     XMLParseError(XMLError),
     ResponseUtf8ConvertError(Utf8Error),
     LogicalError(String)

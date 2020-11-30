@@ -27,25 +27,25 @@ async fn test_jenkins_jobs() {
 
     let jobs = client.request_jenkins_jobs_list()
         .await
-        .unwrap();
+        .expect("Jobs list failed");
 
     let found_job = jobs
         .iter()
         .find(|job|{
             job.get_info().name == "utils-check-free-space"
         })
-        .unwrap();
+        .expect("Required job is not found");
 
     // TODO: ???
     let _found_parameters = found_job
         .request_jenkins_job_info()
         .await
-        .unwrap();
+        .expect("Job parameter request error");
 
     let _job_start_result = found_job
         .start_job()
         .await
-        .unwrap();
+        .expect("Job start failed");
 
     //assert_eq!(found_job.is_some(), true);
 }

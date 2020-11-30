@@ -20,6 +20,9 @@ use log::{
     error
 };
 use crate::{
+    session::{
+        WindowSession
+    },
     application_data::{
         ApplicationData
     },
@@ -28,21 +31,26 @@ use crate::{
     }
 };
 
+#[derive(Deserialize)]
+struct UserInfo{
+    id: String,
+    name: String
+}
 
 // https://serde.rs/enum-representations.html
 // https://api.slack.com/reference/interaction-payloads
 // https://api.slack.com/interactivity/handling#payloads
 #[derive(Deserialize)]
 #[serde(tag = "type")]          // Вариант enum будет выбираться по полю type, значения переименовываются
-pub enum WindowParametersPayload{
+enum WindowParametersPayload{
     /// Типа данных при нажатии Sumbit у окошка
     /// https://api.slack.com/reference/interaction-payloads/views#view_submission
     #[serde(rename = "view_submission")]
     Submit{
         trigger_id: String,
-        //user: String,
+        user: UserInfo,
         view: ViewInfo,
-        //response_url: Option<String>,
+        // response_url: String,
     },
     
     /// Типа данных для действий при работе непосредственно с окном
@@ -52,7 +60,7 @@ pub enum WindowParametersPayload{
         trigger_id: String,
         view: ViewInfo,
         actions: Vec<Value>,
-        //response_url: Option<String>,
+        // response_url: Option<String>,
     },
 
     /// Типа данных для действий при работе непосредственно с окном
@@ -60,7 +68,9 @@ pub enum WindowParametersPayload{
     #[serde(rename = "view_closed")]
     Close{
         trigger_id: String,
-        view: ViewInfo
+        user: UserInfo,
+        view: ViewInfo,
+        // response_url: String,
     },
 
     /// Типа данных для действий при работе непосредственно с окном
@@ -69,9 +79,9 @@ pub enum WindowParametersPayload{
     MessageAction{
         trigger_id: String,
         //user: String,
-        message: String
+        message: String,
+        response_url: Option<String>,
     }
-    
 }
 
 /*impl fmt::Debug for WindowParametersPayload {
@@ -108,14 +118,20 @@ pub async fn window_handler(parameters: Form<WindowHandlerParameters>, app_data:
 
                 match payload {
                     // Вызывается на нажатие кнопки подтверждения
-                    WindowParametersPayload::Submit{view, trigger_id, ..} => {
+                    WindowParametersPayload::Submit{view, user, trigger_id} => {
                         debug!("Submit button processing with trigger_id: {}", trigger_id);
 
                         // Найти вьюшку здесь и вызвать обработчик вьюшки
                         if let Some(mut view_obj) = app_data.pop_view_handler(view.get_id()){
+                            // Создание сессии
+                            let session = WindowSession::new(app_data, 
+                                                             user.id,
+                                                             user.name,
+                                                             trigger_id);
+
                             view_obj.update_info(view);
 
-                            view_obj.on_submit(trigger_id, app_data);
+                            view_obj.on_submit(session);
                         }else{
                             error!("Cannot find view for id: {}", view.get_id());
                         }
@@ -139,14 +155,20 @@ pub async fn window_handler(parameters: Form<WindowHandlerParameters>, app_data:
                         }
                     },
 
-                    WindowParametersPayload::Close{view, trigger_id} => {
+                    WindowParametersPayload::Close{user, view, trigger_id} => {
                         debug!("Close processing");
 
                         // Найти вьюшку здесь и вызвать обработчик вьюшки
                         if let Some(mut view_obj) = app_data.pop_view_handler(view.get_id()){
+                            // Создание сессии
+                            let session = WindowSession::new(app_data, 
+                                                             user.id,
+                                                             user.name,
+                                                             trigger_id);
+
                             view_obj.update_info(view);
 
-                            view_obj.on_close(trigger_id, app_data);
+                            view_obj.on_close(session);
                         }else{
                             error!("Cannot find view for id: {}", view.get_id());
                         }

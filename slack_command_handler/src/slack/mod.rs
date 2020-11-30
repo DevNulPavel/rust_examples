@@ -1,13 +1,15 @@
 mod client;
 mod view;
 mod error;
+#[cfg(test)] mod tests;
 
 pub use self::{
     client::{
-        SlackClient
+        SlackClient,
+        SlackMessageTaget
     },
     error::{
-        SlackViewError
+        SlackError
     },
     view::{
         View,

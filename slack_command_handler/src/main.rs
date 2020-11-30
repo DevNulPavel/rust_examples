@@ -3,6 +3,8 @@ mod jenkins;
 mod slack;
 mod windows;
 mod handlers;
+mod session;
+mod helpers;
 
 use std::{
     sync::{
