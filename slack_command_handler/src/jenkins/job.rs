@@ -1,6 +1,9 @@
 use serde::{
     Deserialize
 };
+use serde_json::{
+    Value
+};
 use reqwest::{
     Client
 };
@@ -110,12 +113,10 @@ impl<'a> JenkinsJob {
         Ok(parameters)
     }
 
-    pub async fn start_job(&self) -> Result<String, JenkinsError> {
+    pub async fn start_job(&self, parameters: Value) -> Result<String, JenkinsError> {
         // https://jenkins.17btest.com/job/utils-check-free-space/api/
         // https://jenkins.17btest.com/job/utils-check-free-space/buildWithParameters
-
-        let parameters = serde_json::json!({
-        });
+        // https://coderoad.ru/51508222/%D0%9A%D0%B0%D0%BA%D0%BE%D0%B2-%D1%84%D0%BE%D1%80%D0%BC%D0%B0%D1%82-JSON-%D0%B4%D0%BB%D1%8F-Jenkins-REST-buildWithParameters-%D1%87%D1%82%D0%BE%D0%B1%D1%8B-%D0%BF%D0%B5%D1%80%D0%B5%D0%BE%D0%BF%D1%80%D0%B5%D0%B4%D0%B5%D0%BB%D0%B8%D1%82%D1%8C
 
         let response = {
             let job_build_url = format!("https://jenkins.17btest.com/job/{}/buildWithParameters", self.info.name);
@@ -154,12 +155,16 @@ impl<'a> JenkinsJob {
         }
         #[derive(Deserialize, Debug)]
         struct ItemInfoResponse{
-            task: ItemInfoTask
+            task: ItemInfoTask,
+            executable: Option<ItemInfoTask>,
         }
 
         // Запрос информации о сборке
         let item_info_response: ItemInfoResponse = {
-            let build_info_url = format!("{}/api/json", build_info_url);
+            let build_info_url = format!("{}api/json", build_info_url);
+
+            debug!("Jenkins build task info url: {}", build_info_url);
+
             self.client
                 .get(build_info_url.as_str())
                 .basic_auth(&self.jenkins_user, Some(&self.jenkins_api_token))
@@ -175,8 +180,16 @@ impl<'a> JenkinsJob {
                 })?
         };
 
-        info!("New job {} started: {}", self.info.name, item_info_response.task.url); // Check queue
+        let url = if let Some(info) = item_info_response.executable {
+            info.url
+        }else{
+            item_info_response.task.url
+        };
 
-        Ok(item_info_response.task.url)
+        // TODO: тут можем запустить мониторинг статуса нашей задачи по урлу
+
+        info!("New job {} started: {}", self.info.name, url); // Check queue
+
+        Ok(url)
     }
 }

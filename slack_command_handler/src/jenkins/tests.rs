@@ -42,8 +42,12 @@ async fn test_jenkins_jobs() {
         .await
         .expect("Job parameter request error");
 
+    let parameters = serde_json::json!({
+        "MY_TEST_VARIABLE": "AAAAAAA"
+    });
+
     let _job_start_result = found_job
-        .start_job()
+        .start_job(parameters)
         .await
         .expect("Job start failed");
 

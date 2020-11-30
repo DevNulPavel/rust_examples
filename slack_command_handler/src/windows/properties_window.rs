@@ -20,9 +20,11 @@ use crate::{
     jenkins::{
         // JenkinsClient,
         JenkinsJob,
+        //JenkinsError,
         Parameter
     },
     slack::{
+        SlackMessageTaget,
         View,
         ViewActionHandler,
         ViewInfo
@@ -276,9 +278,29 @@ impl ViewActionHandler for PropertiesWindowView {
     }
     fn on_submit(self: Box<Self>, session: WindowSession){
         spawn(async move {
-            let result = self.job.start_job().await;
-            match result {
-                
+            let result = self.job.start_job(serde_json::json!([])).await;
+            
+            let url = match result {
+                Ok(job_url) => job_url,
+                Err(err) => {
+                    slack_response_with_error!(session, format!("Job start failed: {:?}", err));
+                    return;
+                }
+            };
+
+            let target = SlackMessageTaget::to_user_direct(&session.base.user_id);
+
+            let text = format!("Build url: {}", url);
+
+            let direct_message_result = session
+                .base
+                .app_data
+                .slack_client
+                .send_message(&text, target)
+                .await;
+
+            if let Err(err) = direct_message_result{
+                slack_response_with_error!(session, format!("Direct message with job url failed: {:?}", err));
             }
         })
     }

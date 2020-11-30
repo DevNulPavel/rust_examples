@@ -13,5 +13,8 @@ pub use self::{
     },
     job_parameter::{
         Parameter
+    },
+    error::{
+        JenkinsError
     }
 };
