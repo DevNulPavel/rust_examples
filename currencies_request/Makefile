@@ -85,7 +85,7 @@ BUILD_FOR_PI:
 	# $(BUILD_COMMAND) install cross
 	# OPENSSL_DIR=/Users/devnul/Projects/Rust_Examples/currencies_request/open_ssl_armv6; 
 	# export OPENSSL_LIB_DIR=/Users/devnul/Projects/Rust_Examples/currencies_request/open_ssl_armv6/lib; \
-    # export OPENSSL_INCLUDE_DIR=/Users/devnul/Projects/Rust_Examples/currencies_request/open_ssl_armv6/include;
+	# export OPENSSL_INCLUDE_DIR=/Users/devnul/Projects/Rust_Examples/currencies_request/open_ssl_armv6/include;
 	# export OPENSSL_DIR=/Users/devnul/Projects/Rust_Examples/currencies_request/open_ssl_armv6; \
 	# cross build --release --bin telegram_bot --target arm-unknown-linux-gnueabi;
 
@@ -171,11 +171,11 @@ BUILD_AND_INSTALL_ON_PI: BUILD_FOR_PI
 	#rsync -av bot_start.sh pi@192.168.1.2:/home/pi/bin/
 
 	# export OPENSSL_LIB_DIR=/Users/devnul/Projects/Rust_Examples/currencies_request/open_ssl_armv6; \
-    # export OPENSSL_INCLUDE_DIR=/Users/devnul/Projects/Rust_Examples/currencies_request/open_ssl_armv6/include; \
+	# export OPENSSL_INCLUDE_DIR=/Users/devnul/Projects/Rust_Examples/currencies_request/open_ssl_armv6/include; \
 
 	# rustup target add arm-unknown-linux-gnueabi
 	# ARM_UNKNOWN_LINUX_GNUEABI_OPENSSL_LIB_DIR=/Users/devnul/Projects/Rust_Examples/currencies_request/open_ssl_armv6 \
-    # ARM_UNKNOWN_LINUX_GNUEABI_OPENSSL_INCLUDE_DIR=/Users/devnul/Projects/Rust_Examples/currencies_request/open_ssl_armv6/include \
+	# ARM_UNKNOWN_LINUX_GNUEABI_OPENSSL_INCLUDE_DIR=/Users/devnul/Projects/Rust_Examples/currencies_request/open_ssl_armv6/include \
 	# $(BUILD_COMMAND) build --release --bin telegram_bot --target arm-unknown-linux-gnueabi;
 	# rsync -av target/arm-unknown-linux-gnueabi/release/telegram_bot pi@192.168.1.2:/home/pi/bin/
 
@@ -196,7 +196,7 @@ BUILD_AND_INSTALL_ON_PI: BUILD_FOR_PI
 	# [target.armv7-unknown-linux-c]
 	# linker = "arm-linux-gnueabihf-ld"
 	# ARM_UNKNOWN_LINUX_GNUEABIHF_OPENSSL_LIB_DIR=/Users/devnul/Projects/Rust_Examples/currencies_request/open_ssl_armv6 \
-    # ARM_UNKNOWN_LINUX_GNUEABIHF_OPENSSL_INCLUDE_DIR=/Users/devnul/Projects/Rust_Examples/currencies_request/open_ssl_armv6/include \
+	# ARM_UNKNOWN_LINUX_GNUEABIHF_OPENSSL_INCLUDE_DIR=/Users/devnul/Projects/Rust_Examples/currencies_request/open_ssl_armv6/include \
 	# $(BUILD_COMMAND) build --release --bin telegram_bot --target arm-unknown-linux-gnueabi; \
 	# scp target/arm-unknown-linux-gnueabi/release/telegram_bot ~/bin/telegram_bot
 

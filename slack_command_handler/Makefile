@@ -8,3 +8,17 @@ TEST_SLACK:
 
 TEST_BUILD_EVENTS:
 	cargo test -- handlers::events
+
+BUILD_DOCKER_IMAGE:
+	docker build -t slack_command_handler .
+
+RUN_DOCKER_IMAGE:
+	docker run \
+	-it \
+	--rm \
+	--env-file ~/slack_bot_test_docker.env \
+	-p 8888:8888 \
+	slack_command_handler
+
+PUSH_DOCKER_IMAGE: BUILD_DOCKER_IMAGE
+	docker push devnul/slack_command_handler
