@@ -1,11 +1,15 @@
-mod jenkins;
+mod command;
+mod events;
 mod window;
 
 pub use self::{
-    jenkins::{
-        jenkins_command_handler
+    command::{
+        jenkins_slash_command_handler
+    },
+    events::{
+        jenkins_events_handler
     },
     window::{
-        window_handler
+        jenkins_window_handler
     }
 };

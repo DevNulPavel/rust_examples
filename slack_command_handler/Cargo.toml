@@ -18,7 +18,9 @@ serde-xml-rs = "0.4.0"
 async-trait = "0.1.42"
 reqwest = {version = "0.10.9", features = ["json"]}
 http = "0.2.1"
-sqlx = {version="0.4.1", default-features = false, features=["runtime-actix-native-tls", "sqlite"]}
+regex = "1.4.2"
+lazy_static = "1.4.0"
+#sqlx = {version="0.4.1", default-features = false, features=["runtime-actix-native-tls", "sqlite"]}
 
 [dev-dependencies]
 actix-rt = "1.1.1"

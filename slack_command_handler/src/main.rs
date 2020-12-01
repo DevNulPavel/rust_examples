@@ -2,10 +2,9 @@ mod application_data;
 mod jenkins;
 mod slack;
 mod windows;
-mod handlers;
 mod session;
-mod helpers;
-mod database;
+mod handlers;
+mod events;
 
 use std::{
     sync::{
@@ -40,8 +39,9 @@ use crate::{
         ViewsHandlersMap
     },
     handlers::{
-        jenkins_command_handler,
-        window_handler
+        jenkins_slash_command_handler,
+        jenkins_events_handler,
+        jenkins_window_handler
     }
 };
 
@@ -60,12 +60,16 @@ fn configure_server(cfg: &mut web::ServiceConfig) {
                                 .route(web::route()
                                         .guard(guard::Post())
                                         .guard(guard::Header("Content-type", "application/x-www-form-urlencoded"))
-                                        .to(jenkins_command_handler)))
+                                        .to(jenkins_slash_command_handler)))
+                    .service(web::resource("/events")
+                                .route(web::route()
+                                        .guard(guard::Post())
+                                        .to(jenkins_events_handler)))                                        
                     .service(web::resource("/window")
                                 .route(web::route()
                                         .guard(guard::Post())
                                         .guard(guard::Header("Content-type", "application/x-www-form-urlencoded"))
-                                        .to(window_handler))));
+                                        .to(jenkins_window_handler))));
 }
 
 #[actix_web::main]

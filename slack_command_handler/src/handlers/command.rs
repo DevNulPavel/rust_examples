@@ -67,7 +67,7 @@ pub struct SlackCommandParameters{
     }
 }*/
 
-pub async fn jenkins_command_handler(parameters: Form<SlackCommandParameters>, app_data: Data<ApplicationData>) -> HttpResponse {
+pub async fn jenkins_slash_command_handler(parameters: Form<SlackCommandParameters>, app_data: Data<ApplicationData>) -> HttpResponse {
     //debug!("Index parameters: {:?}", parameters);
 
     let session = CommandSession::new(app_data, 

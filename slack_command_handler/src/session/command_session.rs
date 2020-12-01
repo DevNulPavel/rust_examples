@@ -20,16 +20,16 @@ use crate::{
     }
 };
 use super::{
-    base_session::{
-        BaseSession
-    },
     error_response_trait::{
         ResponseWithError
     }
 };
 
 pub struct CommandSession{
-    pub base: BaseSession,
+    pub app_data: Data<ApplicationData>, 
+    pub user_id: String,
+    pub user_name: String,
+    pub trigger_id: String, 
     pub response_url: String
 }
 
@@ -38,9 +38,12 @@ impl CommandSession {
                user_id: String,
                user_name: String,
                trigger_id: String, 
-                response_url: String) -> CommandSession{
+               response_url: String) -> CommandSession{
         CommandSession{
-            base: BaseSession::new(app_data, user_id, user_name, trigger_id),
+            app_data,
+            user_id,
+            user_name,
+            trigger_id,
             response_url
         }
     }
@@ -54,7 +57,7 @@ impl ResponseWithError for CommandSession{
         // Пишем сообщение в ответ в слак
         spawn(async move{
             let message_type = SlackMessageTaget::with_response_url(&self.response_url);
-            let message_status = self.base.app_data
+            let message_status = self.app_data
                 .slack_client
                 .send_message(&error_text, message_type)
                 .await;

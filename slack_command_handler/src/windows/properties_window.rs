@@ -235,12 +235,11 @@ pub async fn open_build_properties_window_by_reponse(job: JenkinsJob, session: W
     // TODO: Не конвертировать туда-сюда json
     // let j = r#""#;
     let new_window = serde_json::json!({
-        "trigger_id": session.base.trigger_id,
+        "trigger_id": session.trigger_id,
         "view": create_window_view(None)
     });
 
     let view_open_res = session
-        .base
         .app_data
         .slack_client
         .open_view(new_window)
@@ -288,12 +287,11 @@ impl ViewActionHandler for PropertiesWindowView {
                 }
             };
 
-            let target = SlackMessageTaget::to_user_direct(&session.base.user_id);
+            let target = SlackMessageTaget::to_user_direct(&session.user_id);
 
             let text = format!("Build url: {}", url);
 
             let direct_message_result = session
-                .base
                 .app_data
                 .slack_client
                 .send_message(&text, target)
@@ -336,7 +334,7 @@ async fn update_properties_window(job: JenkinsJob, mut view: View, session: Wind
                 view,
                 job
             });
-            session.base.app_data.push_view_handler(view_handler)
+            session.app_data.push_view_handler(view_handler)
         },
         Err(err) => {
             slack_response_with_error!(session, format!("Properties window update error: {:?}", err));

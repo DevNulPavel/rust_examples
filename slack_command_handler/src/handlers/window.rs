@@ -98,7 +98,7 @@ pub struct WindowHandlerParameters{
 }
 
 /// Обработчик открытия окна Jenkins
-pub async fn window_handler(parameters: Form<WindowHandlerParameters>, app_data: Data<ApplicationData>) -> HttpResponse {
+pub async fn jenkins_window_handler(parameters: Form<WindowHandlerParameters>, app_data: Data<ApplicationData>) -> HttpResponse {
     debug!("Jenkins window parameters: {:?}", parameters);
 
     //debug!("Jenkins window parameters: {:?}", parameters.payload);

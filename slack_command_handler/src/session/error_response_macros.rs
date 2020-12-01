@@ -11,3 +11,29 @@ macro_rules! slack_response_with_error{
         $session.slack_response_with_error($error_text);
     }
 }
+
+#[macro_export]
+macro_rules! unwrap_error_with_slack_response_and_return{
+    ($value: expr, $session: expr, $error_format: expr) =>{
+        match $value {
+            Ok(valid_value) => valid_value,
+            Err(err) => {
+                slack_response_with_error!($session, format!($error_format, err));
+                return;
+            }
+        }
+    }
+}
+
+#[macro_export]
+macro_rules! unwrap_option_with_slack_response_and_return{
+    ($value: expr, $session: expr, $error_text: expr) =>{
+        match $value {
+            Some(valid_value) => valid_value,
+            None => {
+                slack_response_with_error!($session, $error_text.to_owned());
+                return;
+            }
+        }
+    }
+}

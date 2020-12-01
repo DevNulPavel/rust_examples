@@ -127,12 +127,11 @@ pub async fn open_main_build_window(session: CommandSession) {
     let window_view = window_json_with_jobs(None);
 
     let window = serde_json::json!({
-        "trigger_id": session.base.trigger_id,
+        "trigger_id": session.trigger_id,
         "view": window_view
     });
 
     let open_result = session
-        .base
         .app_data
         .slack_client
         .open_view(window)
@@ -140,7 +139,10 @@ pub async fn open_main_build_window(session: CommandSession) {
     
     match open_result {
         Ok(view) => {
-            let session = WindowSession::new_with_base(session.base);
+            let session = WindowSession::new(session.app_data, 
+                                             session.user_id, 
+                                             session.user_name, 
+                                             session.trigger_id);
 
             // Запускаем асинхронный запрос, чтобы моментально ответить
             // Иначе долгий запрос отвалится по таймауту
@@ -251,7 +253,7 @@ async fn update_main_window(mut view: View, session: WindowSession) {
     info!("Main window view update");
 
     // Запрашиваем список джобов
-    let jobs = match session.base.app_data.jenkins_client.request_jenkins_jobs_list().await {
+    let jobs = match session.app_data.jenkins_client.request_jenkins_jobs_list().await {
         Ok(jobs) => {
             jobs
         },
@@ -280,7 +282,7 @@ async fn update_main_window(mut view: View, session: WindowSession) {
             });
         
             // Сохраняем вьюшку для дальшнейшего использования
-            session.base.app_data.push_view_handler(view_handler);
+            session.app_data.push_view_handler(view_handler);
         },
         Err(err) => {
             // Пишем сообщение в ответ в слак
