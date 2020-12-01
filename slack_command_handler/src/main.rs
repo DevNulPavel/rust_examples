@@ -5,6 +5,7 @@ mod windows;
 mod handlers;
 mod session;
 mod helpers;
+mod database;
 
 use std::{
     sync::{
