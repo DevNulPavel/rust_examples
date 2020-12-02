@@ -13,6 +13,8 @@ use super::{
     }
 };
 
+pub type JobUrl = String;
+
 pub struct JenkinsJob{
     client: Client,
     jenkins_user: String,
@@ -36,9 +38,9 @@ impl JenkinsJob {
         &self.info_api_url
     }
 
-    pub async fn try_to_get_real_job_url(&mut self) -> Result<&Option<String>, JenkinsError>{
+    pub async fn try_to_get_real_job_url(&mut self) -> Result<Option<JobUrl>, JenkinsError>{
         if self.job_url.is_some(){
-            return Ok(&self.job_url);
+            return Ok(self.job_url.clone());
         }
 
         // https://jenkins.17btest.com/queue/item/23115/api/json?pretty=true
@@ -73,6 +75,6 @@ impl JenkinsJob {
             self.job_url = Some(info.url);
         }
 
-        Ok(&self.job_url)
+        Ok(self.job_url.clone())
     }
 }

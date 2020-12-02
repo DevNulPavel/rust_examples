@@ -68,7 +68,7 @@ pub enum SlackEventParameters{
 }*/
 
 
-pub async fn jenkins_events_handler(parameters: Json<SlackEventParameters>, app_data: Data<ApplicationData>) -> HttpResponse {
+pub async fn slack_events_handler(parameters: Json<SlackEventParameters>, app_data: Data<ApplicationData>) -> HttpResponse {
     // Про ответы на события: https://api.slack.com/events-api#the-events-api__responding-to-events
     match parameters.into_inner() {
         SlackEventParameters::Verify{challenge, ..} => {

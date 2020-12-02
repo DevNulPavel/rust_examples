@@ -9,6 +9,10 @@ pub use self::{
     client::{
         JenkinsClient
     },
+    job::{
+        JobUrl,
+        JenkinsJob
+    },
     target::{
         JenkinsTarget
     },

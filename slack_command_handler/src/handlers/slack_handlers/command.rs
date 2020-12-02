@@ -67,7 +67,7 @@ pub struct SlackCommandParameters{
     }
 }*/
 
-pub async fn jenkins_slash_command_handler(parameters: Form<SlackCommandParameters>, app_data: Data<ApplicationData>) -> HttpResponse {
+pub async fn slack_slash_command_handler(parameters: Form<SlackCommandParameters>, app_data: Data<ApplicationData>) -> HttpResponse {
     //debug!("Index parameters: {:?}", parameters);
 
     let session = CommandSession::new(app_data, 
@@ -87,18 +87,4 @@ pub async fn jenkins_slash_command_handler(parameters: Form<SlackCommandParamete
 
     HttpResponse::Ok()
         .finish()
-}
-
-
-
-#[cfg(test)]
-mod tests {
-    // use super::{
-    //     *
-    // };
-
-    #[actix_rt::test]
-    async fn test_jenkins_command_handler() {
-        // TODO: Fake request https://actix.rs/docs/testing/
-    }
 }

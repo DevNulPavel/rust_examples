@@ -5,6 +5,9 @@ mod event_processing;
 
 pub use self::{
     request_handler::{
-        jenkins_events_handler
+        slack_events_handler
+    },
+    event_processing::{
+        update_message_with_build_result
     }
 };

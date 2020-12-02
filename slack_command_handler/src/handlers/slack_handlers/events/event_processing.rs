@@ -2,6 +2,9 @@ use actix_web::{
     web::{
         Data,
     },
+    rt::{
+        spawn
+    }
 };
 use log::{
     debug,
@@ -13,10 +16,20 @@ use crate::{
         EventSession
     },
     slack::{
-        SlackMessageTaget
+        SlackMessageTaget,
+        Message
     },
     jenkins::{
-        Parameter
+        Parameter,
+        JenkinsJob
+    },
+    response_awaiter_holder::{
+        ResponseAwaiterHolder
+    },
+    handlers::{
+        jenkins_handlers::{
+            BuildFinishedParameters
+        }
     },
     ApplicationData,
     slack_response_with_error,
@@ -32,6 +45,11 @@ use super::{
     }
 };
 
+pub fn update_message_with_build_result(job: JenkinsJob, mut message: Message, params: BuildFinishedParameters){
+    spawn(async move{
+        message.update_text("BUILD COMPLETE TEST").await;
+    });
+}
 
 async fn start_jenkins_job(target: &str, branch: &str, session: EventSession) {
     let targets = session
@@ -91,7 +109,6 @@ async fn start_jenkins_job(target: &str, branch: &str, session: EventSession) {
                                                            session, 
                                                            "Jenkins job start error: {:?}");
 
-    
     // Тестовое сообщение
     let test_message = format!(":zhdun:```Target: {}\nBranch: {}\nTarget: {}```", target, branch, found_target.get_info().url);
     
@@ -132,9 +149,14 @@ async fn start_jenkins_job(target: &str, branch: &str, session: EventSession) {
         match result {
             Some(real_url) => {
                 // Обновляем сообщение
-                let new_text = format!(":jenkins:```Target: {}\nBranch: {}\nJob url: {}```", target, branch, real_url);
+                let new_text = format!(":jenkins:```Target: {}\nBranch: {}\nJob: {}```", target, branch, real_url);
                 let update_result = message.update_text(&new_text).await;
+
                 unwrap_error_with_slack_response_and_return!(update_result, session, "Message update failed: {:?}");
+
+                if let Ok(mut awaiter) = session.app_data.response_awaiter.lock(){
+                    awaiter.provide_job(&real_url, job, message, Box::new(update_message_with_build_result));
+                }
 
                 break;
             },
@@ -143,7 +165,6 @@ async fn start_jenkins_job(target: &str, branch: &str, session: EventSession) {
         }
     }
 }
-
 
 pub async fn process_jenkins_event(event: MessageEvent, app_data: Data<ApplicationData>)  {
     match event {

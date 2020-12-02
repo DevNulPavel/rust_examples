@@ -14,6 +14,9 @@ use crate::{
     slack::{
         SlackClient,
         ViewActionHandler
+    },
+    response_awaiter_holder::{
+        ResponseAwaiterHolder
     }
 };
 
@@ -22,6 +25,7 @@ pub type ViewsHandlersMap = HashMap<String, Box<dyn ViewActionHandler + Send>>;
 pub struct ApplicationData{
     pub slack_client: SlackClient,
     pub jenkins_client: JenkinsClient,
+    pub response_awaiter: Arc<Mutex<ResponseAwaiterHolder>>,
     active_views: Arc<Mutex<ViewsHandlersMap>>
     //active_views: Arc<RwLock<HashMap<String, Box<dyn ViewActionHandler> > >> // TODO: Async Mutex??
     //active_views: Vec< Mutex<Arc<dyn ViewActionHandler>> > // TODO: Async Mutex??
@@ -30,11 +34,13 @@ pub struct ApplicationData{
 impl ApplicationData{
     pub fn new(slack_client: SlackClient, 
                jenkins_client: JenkinsClient, 
+               response_awaiter: Arc<Mutex<ResponseAwaiterHolder>>,
                active_views: Arc<Mutex<ViewsHandlersMap>>) -> ApplicationData {
                    
         ApplicationData{
             slack_client,
             jenkins_client,
+            response_awaiter,
             active_views
         }
     }

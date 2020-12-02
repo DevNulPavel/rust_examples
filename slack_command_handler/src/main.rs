@@ -4,6 +4,7 @@ mod slack;
 mod windows;
 mod session;
 mod handlers;
+mod response_awaiter_holder;
 
 use std::{
     sync::{
@@ -57,9 +58,17 @@ use crate::{
         ViewsHandlersMap
     },
     handlers::{
-        jenkins_slash_command_handler,
-        jenkins_events_handler,
-        jenkins_window_handler
+        slack_handlers::{
+            slack_slash_command_handler,
+            slack_events_handler,
+            slack_window_handler
+        },
+        jenkins_handlers::{
+            jenkins_build_finished_handler
+        }
+    },
+    response_awaiter_holder::{
+        ResponseAwaiterHolder
     }
 };
 
@@ -101,21 +110,27 @@ fn parse_application_arguments() -> clap::ArgMatches<'static> {
 
 // Настройка путей веб сервера
 fn configure_server(cfg: &mut web::ServiceConfig) {
-    cfg.service(web::scope("/jenkins")
+    cfg.service(web::scope("/slack")
                     .service(web::resource("/command")
                                 .route(web::route()
                                         .guard(guard::Post())
                                         .guard(guard::Header("Content-type", "application/x-www-form-urlencoded"))
-                                        .to(jenkins_slash_command_handler)))
+                                        .to(slack_slash_command_handler)))
                     .service(web::resource("/events")
                                 .route(web::route()
                                         .guard(guard::Post())
-                                        .to(jenkins_events_handler)))                                        
+                                        .to(slack_events_handler)))                                        
                     .service(web::resource("/window")
                                 .route(web::route()
                                         .guard(guard::Post())
                                         .guard(guard::Header("Content-type", "application/x-www-form-urlencoded"))
-                                        .to(jenkins_window_handler))));
+                                        .to(slack_window_handler))));
+    cfg.service(web::scope("/jenkins")
+                    .service(web::resource("/build_finished")
+                            .route(web::route()
+                                    .guard(guard::Post())
+                                    .guard(guard::Header("Content-type", "application/x-www-form-urlencoded"))
+                                    .to(jenkins_build_finished_handler))));
 }
 
 #[actix_web::main]
@@ -168,6 +183,8 @@ async fn main() -> std::io::Result<()>{
     // Контейнер для вьюшек, общий для всех инстансов приложения
     let active_views_container = Arc::new(Mutex::new(ViewsHandlersMap::new()));
 
+    let response_awaiter = Arc::new(Mutex::new(ResponseAwaiterHolder::default()));
+
     // Создание веб-приложения, таких приложений может быть создано много за раз
     // Данный коллбек может вызываться несколько раз
     let web_application_factory = move || {
@@ -175,6 +192,7 @@ async fn main() -> std::io::Result<()>{
         let app_data = Data::new(ApplicationData::new(
             slack::SlackClient::new(request_client.clone(), &slack_api_token),
             jenkins::JenkinsClient::new(request_client.clone(), &jenkins_user, &jenkins_api_token),
+            response_awaiter.clone(),
             active_views_container.clone()
         ));
 
