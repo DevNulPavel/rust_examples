@@ -4,12 +4,20 @@ mod slack;
 mod windows;
 mod session;
 mod handlers;
-mod events;
 
 use std::{
     sync::{
         Mutex,
         Arc
+    },
+    path::{
+        Path
+    },
+    fs::{
+        File
+    },
+    io::{
+        BufReader
     }
 };
 use actix_web::{
@@ -21,6 +29,16 @@ use actix_web::{
     middleware,
     App,
     HttpServer
+};
+use rustls::{
+    internal::{
+        pemfile::{
+            certs, 
+            pkcs8_private_keys
+        }
+    },
+    NoClientAuth, 
+    ServerConfig
 };
 use reqwest::{
     Client
@@ -54,7 +72,7 @@ use crate::{
 //////////////////////////////////////////////////////////////////////////////////////////////////////////
 
 // Настройка путей веб сервера
-fn configure_server(cfg: &mut web::ServiceConfig) {   
+fn configure_server(cfg: &mut web::ServiceConfig) {
     cfg.service(web::scope("/jenkins")
                     .service(web::resource("/command")
                                 .route(web::route()
@@ -70,6 +88,47 @@ fn configure_server(cfg: &mut web::ServiceConfig) {
                                         .guard(guard::Post())
                                         .guard(guard::Header("Content-type", "application/x-www-form-urlencoded"))
                                         .to(jenkins_window_handler))));
+}
+
+fn load_https_certificate(certificate_path: &Path, key_path: &Path) -> ServerConfig {
+    // load ssl keys
+    let mut config = ServerConfig::new(NoClientAuth::new());
+    let cert_file = &mut BufReader::new(File::open("cert.pem").unwrap());
+    let key_file = &mut BufReader::new(File::open("key.pem").unwrap());
+    let cert_chain = certs(cert_file).unwrap();
+    let mut keys = pkcs8_private_keys(key_file).unwrap();
+    config.set_single_cert(cert_chain, keys.remove(0)).unwrap();
+
+    config
+}
+
+fn parse_application_arguments(){
+    let matches = clap::App::new("My Super Program")
+        .version("1.0")
+        .author("Kevin K. <kbknapp@gmail.com>")
+        .about("Does awesome things")
+        .arg(clap::Arg::with_name("config")
+            .short("c")
+            .long("config")
+            .value_name("FILE")
+            .help("Sets a custom config file")
+            .takes_value(true))
+        .arg(clap::Arg::with_name("INPUT")
+            .help("Sets the input file to use")
+            .required(true)
+            .index(1))
+        .arg(clap::Arg::with_name("v")
+            .short("v")
+            .multiple(true)
+            .help("Sets the level of verbosity"))
+        .subcommand(clap::SubCommand::with_name("test")
+                    .about("controls testing features")
+                    .version("1.3")
+                    .author("Someone E. <someone_else@other.com>")
+                    .arg(clap::Arg::with_name("debug")
+                        .short("d")
+                        .help("print debug information verbosely")))
+        .get_matches();
 }
 
 #[actix_web::main]
@@ -92,6 +151,10 @@ async fn main() -> std::io::Result<()>{
     // Jenkins api token
     let jenkins_api_token = std::env::var("JENKINS_API_TOKEN")
         .expect("JENKINS_API_TOKEN environment variable is missing");
+
+    // Jenkins api token
+    let http_port: u16 = 8888;
+    let https_port: u16 = 8443;
 
     // Общий менеджер запросов с пулом соединений
     // TODO: Configure
@@ -116,6 +179,7 @@ async fn main() -> std::io::Result<()>{
             .wrap(middleware::Logger::default()) // Включаем логирование запросов с помощью middleware
             .configure(configure_server)
     };
+
 
     // Создаем слушателя, чтобы просто переподключаться к открытому сокету при быстром рестарте
     let server = match ListenFd::from_env().take_tcp_listener(0)? {

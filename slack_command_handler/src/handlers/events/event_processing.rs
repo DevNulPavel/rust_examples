@@ -100,6 +100,9 @@ async fn start_jenkins_job(target: &str, branch: &str, session: EventSession) {
         .send_message(&test_message, SlackMessageTaget::to_channel(&session.channel_id))
         .await
         .ok();
+
+    
+    // TODO: Нужно запустить пулинг для ожидания финальной ссылки, затем обновить сообщение
 }
 
 
@@ -129,7 +132,7 @@ pub async fn process_jenkins_event(event: MessageEvent, app_data: Data<Applicati
         MessageEvent::DirectMessage{channel, text, user} => {
             debug!("Channel message event: channel {}, text {}, user {}", channel, text, user);
             
-            //let session = EventSession::new(app_data, user, channel);
+            // TODO: С помощью сообщений в личку заниматься управлением бота?
         }
     }
 }
