@@ -75,10 +75,10 @@ pub struct View {
 }
 
 impl View {
-    pub fn new(client: Client, token: &str, info: ViewInfo) -> View{
+    pub fn new(client: Client, token: String, info: ViewInfo) -> View{
         View{
             client,
-            token: token.to_owned(),
+            token,
             info
         }
     }

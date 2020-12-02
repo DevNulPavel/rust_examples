@@ -4,8 +4,11 @@ use reqwest::{
 use super::{
     client::{
         SlackClient,
-        SlackMessageTaget
-    }
+        SlackMessageTaget,    
+    }, 
+    // message::{
+    //     Message
+    // }
 };
 
 fn setup_logs() {
@@ -35,20 +38,39 @@ async fn test_direct_message() {
         .expect("Direct message failed");
 
     let formatted_text = format!("*Jenkins bot error:*```{}```", "TEST");
-    client
+    let mut message = client
         .send_message(&formatted_text, SlackMessageTaget::to_user_direct("U0JU3ACSJ"))
         .await
-        .expect("Formatted direct message failed");
+        .expect("Formatted direct message failed")
+        .expect("Direct message - message object does not exist");
 
-    client
+    actix_web::rt::time::delay_for(std::time::Duration::from_secs(2))
+        .await;
+    
+    message
+        .update_text("New text")
+        .await
+        .expect("Direct message update failed");
+
+    let mut message = client
         .send_message("Test message", SlackMessageTaget::to_channel("#mur-test_node_upload"))
         .await
-        .expect("Channel message failed");
+        .expect("Channel message failed")
+        .expect("Channel message - message object does not exist");
 
-    client
+    message
+        .update_text("New text")
+        .await
+        .expect("Channel message update failed");
+
+    let message = client
         .send_message("Test message", SlackMessageTaget::to_channel_ephemeral("#mur-test_node_upload", "U0JU3ACSJ"))
         .await
         .expect("Ephemeral message failed");
+
+    assert_eq!(message.is_none(), true);
+
+    // TODO: RESPONSE URL может фейлиться, не протестировано
 }
 
 /*#[actix_rt::test]

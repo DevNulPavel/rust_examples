@@ -1,9 +1,9 @@
 use serde::{
     Deserialize
 };
-use serde_json::{
-    Value
-};
+// use serde_json::{
+//     Value
+// };
 use actix_web::{
     web::{
         Data,
@@ -57,10 +57,9 @@ enum WindowParametersPayload{
     // https://api.slack.com/reference/interaction-payloads/block-actions
     #[serde(rename = "block_actions")]
     Update{
-        trigger_id: String,
+        // trigger_id: String,
         view: ViewInfo,
-        actions: Vec<Value>,
-        // response_url: Option<String>,
+        // actions: Vec<Value>
     },
 
     /// Типа данных для действий при работе непосредственно с окном
@@ -77,10 +76,9 @@ enum WindowParametersPayload{
     // https://api.slack.com/reference/interaction-payloads/shortcuts#message_actions
     #[serde(rename = "message_actions")]
     MessageAction{
-        trigger_id: String,
-        //user: String,
-        message: String,
-        response_url: Option<String>,
+        //trigger_id: String,
+        //message: String,
+        //response_url: Option<String>,
     }
 }
 

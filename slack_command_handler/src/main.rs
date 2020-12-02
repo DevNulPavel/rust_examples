@@ -10,7 +10,7 @@ use std::{
         Mutex,
         Arc
     },
-    path::{
+    /*path::{
         Path
     },
     fs::{
@@ -18,7 +18,7 @@ use std::{
     },
     io::{
         BufReader
-    }
+    }*/
 };
 use actix_web::{
     web::{
@@ -30,7 +30,7 @@ use actix_web::{
     App,
     HttpServer
 };
-use rustls::{
+/*use rustls::{
     internal::{
         pemfile::{
             certs, 
@@ -39,7 +39,7 @@ use rustls::{
     },
     NoClientAuth, 
     ServerConfig
-};
+};*/
 use reqwest::{
     Client
 };
@@ -71,6 +71,34 @@ use crate::{
 
 //////////////////////////////////////////////////////////////////////////////////////////////////////////
 
+/*fn load_https_certificate(certificate_path: &Path, key_path: &Path) -> ServerConfig {
+    // load ssl keys
+    let mut config = ServerConfig::new(NoClientAuth::new());
+    let cert_file = &mut BufReader::new(File::open("cert.pem").unwrap());
+    let key_file = &mut BufReader::new(File::open("key.pem").unwrap());
+    let cert_chain = certs(cert_file).unwrap();
+    let mut keys = pkcs8_private_keys(key_file).unwrap();
+    config.set_single_cert(cert_chain, keys.remove(0)).unwrap();
+
+    config
+}*/
+
+fn parse_application_arguments() -> clap::ArgMatches<'static> {
+    let matches = clap::App::new("Slack bot")
+        .version("1.0")
+        .author("Pavel Ershov")
+        .about("Slack bot http server")
+        .arg(clap::Arg::with_name("http_port")
+            .short("p")
+            .long("http_port")
+            .value_name("http_port")
+            .help("Sets HTTP port value, 8888 in case of empty")
+            .takes_value(true))
+        .get_matches();
+
+    matches
+}
+
 // Настройка путей веб сервера
 fn configure_server(cfg: &mut web::ServiceConfig) {
     cfg.service(web::scope("/jenkins")
@@ -90,55 +118,18 @@ fn configure_server(cfg: &mut web::ServiceConfig) {
                                         .to(jenkins_window_handler))));
 }
 
-fn load_https_certificate(certificate_path: &Path, key_path: &Path) -> ServerConfig {
-    // load ssl keys
-    let mut config = ServerConfig::new(NoClientAuth::new());
-    let cert_file = &mut BufReader::new(File::open("cert.pem").unwrap());
-    let key_file = &mut BufReader::new(File::open("key.pem").unwrap());
-    let cert_chain = certs(cert_file).unwrap();
-    let mut keys = pkcs8_private_keys(key_file).unwrap();
-    config.set_single_cert(cert_chain, keys.remove(0)).unwrap();
-
-    config
-}
-
-fn parse_application_arguments(){
-    let matches = clap::App::new("My Super Program")
-        .version("1.0")
-        .author("Kevin K. <kbknapp@gmail.com>")
-        .about("Does awesome things")
-        .arg(clap::Arg::with_name("config")
-            .short("c")
-            .long("config")
-            .value_name("FILE")
-            .help("Sets a custom config file")
-            .takes_value(true))
-        .arg(clap::Arg::with_name("INPUT")
-            .help("Sets the input file to use")
-            .required(true)
-            .index(1))
-        .arg(clap::Arg::with_name("v")
-            .short("v")
-            .multiple(true)
-            .help("Sets the level of verbosity"))
-        .subcommand(clap::SubCommand::with_name("test")
-                    .about("controls testing features")
-                    .version("1.3")
-                    .author("Someone E. <someone_else@other.com>")
-                    .arg(clap::Arg::with_name("debug")
-                        .short("d")
-                        .help("print debug information verbosely")))
-        .get_matches();
-}
-
 #[actix_web::main]
 async fn main() -> std::io::Result<()>{
     // Активируем логирование и настраиваем уровни вывода
     // https://rust-lang-nursery.github.io/rust-cookbook/development_tools/debugging/config_log.html
-    std::env::set_var("RUST_LOG", "actix_server=info,actix_web=info,slack_command_handler=trace");
+    if !std::env::var("RUST_LOG").is_ok() {
+        std::env::set_var("RUST_LOG", "actix_server=trace,actix_web=trace,slack_command_handler=trace");
+    }
     env_logger::init();
 
     info!("Application setup");
+
+    const DEFAULT_PORT: u16 = 8888;
 
     // Slack api token
     let slack_api_token = std::env::var("SLACK_API_TOKEN")
@@ -152,13 +143,27 @@ async fn main() -> std::io::Result<()>{
     let jenkins_api_token = std::env::var("JENKINS_API_TOKEN")
         .expect("JENKINS_API_TOKEN environment variable is missing");
 
-    // Jenkins api token
-    let http_port: u16 = 8888;
-    let https_port: u16 = 8443;
+    // Port from environment
+    let http_port = std::env::var("SLACK_BOT_HTTP_PORT")
+        .ok()
+        .and_then(|val|{
+            val.parse::<u16>().ok()
+        })
+        .unwrap_or(DEFAULT_PORT);
+
+    // Парсинг аргументов приложения
+    let arguments = parse_application_arguments();
+
+    // HTTP Port from parameters
+    let http_port: u16 = arguments
+        .value_of("http_port")
+        .and_then(|val|{
+            val.parse::<u16>().ok()
+        })
+        .unwrap_or(http_port);
 
     // Общий менеджер запросов с пулом соединений
-    // TODO: Configure
-    let request_client = Client::new();
+    let request_client = Client::new(); // TODO: Configure
 
     // Контейнер для вьюшек, общий для всех инстансов приложения
     let active_views_container = Arc::new(Mutex::new(ViewsHandlersMap::new()));
@@ -180,7 +185,6 @@ async fn main() -> std::io::Result<()>{
             .configure(configure_server)
     };
 
-
     // Создаем слушателя, чтобы просто переподключаться к открытому сокету при быстром рестарте
     let server = match ListenFd::from_env().take_tcp_listener(0)? {
         Some(listener) => {
@@ -195,7 +199,7 @@ async fn main() -> std::io::Result<()>{
 
             // Создаем новый сервер
             HttpServer::new(web_application_factory)
-                .bind("0.0.0.0:8888")?
+                .bind(format!("0.0.0.0:{}", http_port))?
         }
     };
 

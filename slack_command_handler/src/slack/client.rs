@@ -20,6 +20,10 @@ use super::{
         // ViewUpdateResponse,
         // ViewInfo
     // },
+    message::{
+        MessageInfo,
+        Message
+    },
     view::{
         ViewInfo,
         View
@@ -69,6 +73,7 @@ impl<'a> SlackMessageTaget<'a> {
         }
     }
 
+    #[allow(dead_code)]
     pub fn to_channel_ephemeral(channel_id: &'a str, user_id: &'a str) -> SlackMessageTaget<'a>{
         SlackMessageTaget::Ephemeral{
             channel_id,
@@ -120,7 +125,7 @@ impl SlackClient {
 
         match response {
             ViewOpenResponse::Ok{view} => {
-                Ok(View::new(self.client.clone(), &self.token, view))
+                Ok(View::new(self.client.clone(), self.token.clone(), view))
             },
             ViewOpenResponse::Error(err) => {
                 Err(SlackError::ViewOpenError(err))
@@ -128,7 +133,7 @@ impl SlackClient {
         }
     }
 
-    pub async fn send_message(&self, message: &str, target: SlackMessageTaget<'_>) -> Result<(), SlackError> {
+    pub async fn send_message(&self, message: &str, target: SlackMessageTaget<'_>) -> Result<Option<Message>, SlackError> {
         // https://api.slack.com/messaging/sending
         // https://api.slack.com/methods/chat.postMessage
 
@@ -162,7 +167,12 @@ impl SlackClient {
         enum MessageResponse{
             Ok{
                 ok: bool,
-                //channel: String
+                channel: String,
+                ts: String,
+                message : MessageInfo
+            },
+            OtherOk{
+                ok: bool
             },
             Err{
                 ok: bool,
@@ -189,7 +199,9 @@ impl SlackClient {
             .await
             .map_err(|err|{
                 SlackError::RequestErr(err)
-            })?
+            })?;
+
+        let response = response
             .json::<MessageResponse>()
             .await
             .map_err(|err|{
@@ -197,15 +209,22 @@ impl SlackClient {
             })?;
 
         match response {
-            MessageResponse::Ok{ok} =>{
+            MessageResponse::Ok{ok, channel, ts, message} =>{
                 if ok {
-                    Ok(())
+                    Ok(Some(Message::new(self.client.clone(), self.token.clone(), message, channel, ts)))
                 }else{
-                    Err(SlackError::Custom(format!("Slack response: {}", ok)))
+                    return Err(SlackError::Custom(format!("Slack response: {}", ok)))
+                }
+            },
+            MessageResponse::OtherOk{ok} =>{
+                if ok {
+                    Ok(None)
+                }else{
+                    return Err(SlackError::Custom(format!("Slack response: {}", ok)))
                 }
             },
             MessageResponse::Err{error, ..} => {
-                Err(SlackError::Custom(error))
+                return Err(SlackError::Custom(error))
             }
         }
     }

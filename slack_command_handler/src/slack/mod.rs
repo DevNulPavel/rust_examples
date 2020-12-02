@@ -1,5 +1,6 @@
 mod client;
 mod view;
+mod message;
 mod error;
 #[cfg(test)] mod tests;
 
@@ -15,5 +16,9 @@ pub use self::{
         View,
         ViewInfo,
         ViewActionHandler
+    },
+    message::{
+        MessageInfo,
+        Message
     }
 };
