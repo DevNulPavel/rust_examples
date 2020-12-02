@@ -3,7 +3,7 @@
 FROM rust:1.48 as builder
 WORKDIR /usr/src/slack_command_handler
 COPY . .
-RUN cargo install --path .
+RUN cargo build --release
 
 # Сборка рабочего пакета
 # Test run: docker run -it --rm debian:9-slim
@@ -11,6 +11,6 @@ RUN cargo install --path .
 FROM debian:9-slim
 RUN apt-get update
 COPY --from=builder \
-    /usr/local/cargo/bin/slack_command_handler \
+    /usr/src/slack_command_handler/target/release/slack_command_handler \
     /usr/local/bin/slack_command_handler
 CMD ["slack_command_handler"]

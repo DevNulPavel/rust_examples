@@ -18,27 +18,27 @@ use crate::{
 };
 
 #[derive(Deserialize, Debug)]
-pub struct JenkinsJobParameterDefaultBoolValue{
+pub struct JenkinsTargetParameterDefaultBoolValue{
     pub name: String,
     pub value: bool
 }
 
 #[derive(Deserialize, Debug)]
-pub struct JenkinsJobParameterDefaultStringValue{
+pub struct JenkinsTargetParameterDefaultStringValue{
     pub name: String,
     pub value: String
 }
 
 #[derive(Deserialize, Debug)]
 #[serde(tag = "type")]
-pub enum JenkinsJobParameter{
+pub enum JenkinsTargetParameter{
     #[serde(rename = "BooleanParameterDefinition")]
     Boolean{
         name: String,
         description: String,
     
         #[serde(rename = "defaultParameterValue")]
-        default_value: JenkinsJobParameterDefaultBoolValue
+        default_value: JenkinsTargetParameterDefaultBoolValue
     },
     #[serde(rename = "StringParameterDefinition")]
     String{
@@ -46,7 +46,7 @@ pub enum JenkinsJobParameter{
         description: String,
     
         #[serde(rename = "defaultParameterValue")]
-        default_value: JenkinsJobParameterDefaultStringValue
+        default_value: JenkinsTargetParameterDefaultStringValue
     },
     #[serde(rename = "ExtensibleChoiceParameterDefinition")]
     Choice{
@@ -54,17 +54,17 @@ pub enum JenkinsJobParameter{
         description: String,
     
         #[serde(rename = "defaultParameterValue")]
-        default_value: JenkinsJobParameterDefaultStringValue
+        default_value: JenkinsTargetParameterDefaultStringValue
     }
 }
 
 #[derive(Deserialize, Debug)]
 #[serde(tag = "_class")]
-enum JenkinsJobInfoProperty{
+enum JenkinsTargetInfoProperty{
     #[serde(rename = "hudson.model.ParametersDefinitionProperty")]
     Parameter{
         #[serde(rename = "parameterDefinitions")]
-        parameters: Vec<JenkinsJobParameter>
+        parameters: Vec<JenkinsTargetParameter>
     },
 
     #[serde(rename = "hudson.plugins.jira.JiraProjectProperty")]
@@ -79,8 +79,8 @@ enum JenkinsJobInfoProperty{
 
 
 #[derive(Deserialize, Debug)]
-struct JenkinsJobInfoResponse{
-    property: Vec<JenkinsJobInfoProperty>
+struct JenkinsTargetInfoResponse{
+    property: Vec<JenkinsTargetInfoProperty>
 }
 
 #[derive(Debug)]
@@ -97,7 +97,7 @@ impl From<reqwest::Error> for InfoRequestError {
 }
 
 /// Запрашиваем список возможных
-pub async fn request_jenkins_job_info(client: &reqwest::Client, auth: &JenkinsAuth, job_name: &str) -> Result<Vec<JenkinsJobParameter>, InfoRequestError> {
+pub async fn request_jenkins_job_info(client: &reqwest::Client, auth: &JenkinsAuth, job_name: &str) -> Result<Vec<JenkinsTargetParameter>, InfoRequestError> {
     // https://jenkins.17btest.com/job/bbd-gplay-prod/api/json?pretty=true
 
     // debug!("{} {}", jenkins_user, jenkins_token);
@@ -112,15 +112,15 @@ pub async fn request_jenkins_job_info(client: &reqwest::Client, auth: &JenkinsAu
     };
 
     let result = response
-        .json::<JenkinsJobInfoResponse>()
+        .json::<JenkinsTargetInfoResponse>()
         .await?;
 
-    let parameters: Option<Vec<JenkinsJobParameter>> = result
+    let parameters: Option<Vec<JenkinsTargetParameter>> = result
         .property
         .into_iter()
         .find_map(|property|{
             match property {
-                JenkinsJobInfoProperty::Parameter{parameters} => {
+                JenkinsTargetInfoProperty::Parameter{parameters} => {
                     Some(parameters)
                 },
                 _ => {

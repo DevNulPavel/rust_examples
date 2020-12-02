@@ -1,6 +1,7 @@
 mod client;
+mod target;
+mod target_parameter;
 mod job;
-mod job_parameter;
 mod error;
 #[cfg(test)] mod tests;
 
@@ -8,10 +9,10 @@ pub use self::{
     client::{
         JenkinsClient
     },
-    job::{
-        JenkinsJob
+    target::{
+        JenkinsTarget
     },
-    job_parameter::{
+    target_parameter::{
         Parameter
     },
     error::{

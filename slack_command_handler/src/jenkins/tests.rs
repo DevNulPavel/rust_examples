@@ -1,4 +1,7 @@
 
+use log::{
+    info
+};
 use reqwest::{
     Client
 };
@@ -25,7 +28,8 @@ async fn test_jenkins_jobs() {
 
     let client = JenkinsClient::new(request_client, &jenkins_user, &jenkins_api_token);
 
-    let jobs = client.request_jenkins_jobs_list()
+    let jobs = client
+        .request_jenkins_targets_list()
         .await
         .expect("Jobs list failed");
 
@@ -38,7 +42,7 @@ async fn test_jenkins_jobs() {
 
     // TODO: ???
     let _found_parameters = found_job
-        .request_jenkins_job_info()
+        .request_jenkins_target_info()
         .await
         .expect("Job parameter request error");
 
@@ -46,10 +50,39 @@ async fn test_jenkins_jobs() {
         "MY_TEST_VARIABLE": "AAAAAAA"
     });
 
-    let _job_start_result = found_job
+    let mut job = found_job
         .start_job(parameters)
         .await
         .expect("Job start failed");
 
-    //assert_eq!(found_job.is_some(), true);
+        // Можно запустить пулинг для ожидания финальной ссылки, затем обновить сообщение
+    // Ограничить продолжительность пулинга статуса 30 минутами
+    info!("Job url pooling started for url: {}", job.get_info_api_url());
+    
+    use std::time::{
+        Instant,
+        Duration
+    };
+    let complete_time = Instant::now()
+        .checked_add(Duration::from_secs(60 * 30))
+        .expect("Complete time create failed");
+    while complete_time > std::time::Instant::now() {
+
+        actix_web::rt::time::delay_for(std::time::Duration::from_secs(10)).await;
+
+        let result = job.try_to_get_real_job_url()
+            .await
+            .expect("Real job url request failed");
+
+        match result {
+            Some(real_url) => {
+                info!("Real job url: {}", real_url);
+                return;
+            },
+            None =>{
+            }
+        }
+    }
+
+    panic!("Real job url request failed")
 }

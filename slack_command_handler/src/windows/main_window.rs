@@ -21,7 +21,7 @@ use crate::{
     },
     jenkins::{
         // JenkinsClient,
-        JenkinsJob
+        JenkinsTarget
     },
     slack::{
         View,
@@ -40,7 +40,7 @@ use super::{
 
 const MAIN_WINDOW_ID: &str = "MAIN_WINDOW_ID";
 
-fn window_json_with_jobs(jobs: Option<&Vec<JenkinsJob>>) -> Value {
+fn window_json_with_jobs(jobs: Option<&Vec<JenkinsTarget>>) -> Value {
     let options_json = match jobs {
         Some(array) => {
             // Конвертируем джобы в Json
@@ -159,7 +159,7 @@ pub async fn open_main_build_window(session: CommandSession) {
 
 struct MainWindowView {
     view: View,
-    jobs: Vec<JenkinsJob>
+    jobs: Vec<JenkinsTarget>
 }
 
 impl MainWindowView {
@@ -253,7 +253,7 @@ async fn update_main_window(mut view: View, session: WindowSession) {
     info!("Main window view update");
 
     // Запрашиваем список джобов
-    let jobs = match session.app_data.jenkins_client.request_jenkins_jobs_list().await {
+    let jobs = match session.app_data.jenkins_client.request_jenkins_targets_list().await {
         Ok(jobs) => {
             jobs
         },

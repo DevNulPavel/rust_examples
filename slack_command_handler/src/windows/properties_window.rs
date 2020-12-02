@@ -19,7 +19,7 @@ use crate::{
     },
     jenkins::{
         // JenkinsClient,
-        JenkinsJob,
+        JenkinsTarget,
         //JenkinsError,
         Parameter
     },
@@ -231,7 +231,7 @@ fn create_window_view(params: Option<Vec<Parameter>>) -> Value {
 
 
 // https://api.slack.com/surfaces/modals/using
-pub async fn open_build_properties_window_by_reponse(job: JenkinsJob, session: WindowSession) {
+pub async fn open_build_properties_window_by_reponse(job: JenkinsTarget, session: WindowSession) {
     // TODO: Не конвертировать туда-сюда json
     // let j = r#""#;
     let new_window = serde_json::json!({
@@ -261,7 +261,7 @@ pub async fn open_build_properties_window_by_reponse(job: JenkinsJob, session: W
 
 struct PropertiesWindowView {
     view: View,
-    job: JenkinsJob
+    target: JenkinsTarget
 }
 
 impl PropertiesWindowView {
@@ -277,10 +277,11 @@ impl ViewActionHandler for PropertiesWindowView {
     }
     fn on_submit(self: Box<Self>, session: WindowSession){
         spawn(async move {
-            let result = self.job.start_job(serde_json::json!([])).await;
+            let result = self.target.start_job(serde_json::json!([])).await;
             
-            let url = match result {
-                Ok(job_url) => job_url,
+            // TODO: ?
+            let _job = match result {
+                Ok(job) => job,
                 Err(err) => {
                     slack_response_with_error!(session, format!("Job start failed: {:?}", err));
                     return;
@@ -289,7 +290,7 @@ impl ViewActionHandler for PropertiesWindowView {
 
             let target = SlackMessageTaget::to_user_direct(&session.user_id);
 
-            let text = format!("Build url: {}", url);
+            let text = format!("Build url: {}", self.target.get_info().url);
 
             let direct_message_result = session
                 .app_data
@@ -310,9 +311,9 @@ impl ViewActionHandler for PropertiesWindowView {
 
 ////////////////////////////////////////////////////////////////////////////////
 
-async fn update_properties_window(job: JenkinsJob, mut view: View, session: WindowSession) {
+async fn update_properties_window(target: JenkinsTarget, mut view: View, session: WindowSession) {
     // Запрашиваем список параметров данного таргета
-    let parameters = match job.request_jenkins_job_info().await{
+    let parameters = match target.request_jenkins_target_info().await{
         Ok(parameters) => {
             parameters
         },
@@ -332,7 +333,7 @@ async fn update_properties_window(job: JenkinsJob, mut view: View, session: Wind
         Ok(()) => {
             let view_handler = Box::new(PropertiesWindowView{
                 view,
-                job
+                target
             });
             session.app_data.push_view_handler(view_handler)
         },

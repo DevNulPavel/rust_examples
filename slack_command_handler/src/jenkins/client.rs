@@ -13,9 +13,9 @@ use super::{
     error::{
         JenkinsError
     },
-    job::{
-        JenkinsJobInfo,
-        JenkinsJob
+    target::{
+        JenkinsTargetInfo,
+        JenkinsTarget
     }
 };
 
@@ -36,15 +36,15 @@ impl JenkinsClient {
     }
 
     /// Запрашиваем список возможных таргетов
-    pub async fn request_jenkins_jobs_list<'a>(&'a self) -> Result<Vec<JenkinsJob>, JenkinsError> {
+    pub async fn request_jenkins_targets_list<'a>(&'a self) -> Result<Vec<JenkinsTarget>, JenkinsError> {
         // https://jenkins.17btest.com/api?pretty=true
         // https://jenkins.17btest.com/job/bbd-gplay-prod/api/json?pretty=true
         // https://www.jenkins.io/doc/book/using/remote-access-api/
         // https://jenkins.17btest.com/api/json?pretty=true
 
         #[derive(Deserialize, Debug)]
-        struct JenkinsJobsResponse{
-            jobs: Vec<JenkinsJobInfo>
+        struct JenkinsTargetsResponse{
+            jobs: Vec<JenkinsTargetInfo>
         }
 
         debug!("Jenkins client params: {}, {}", self.jenkins_user, self.jenkins_api_token);
@@ -67,7 +67,7 @@ impl JenkinsClient {
 
         debug!("Jenkins response: {}", body);
 
-        let parsed_response = serde_json::from_str::<JenkinsJobsResponse>(body).unwrap();*/
+        let parsed_response = serde_json::from_str::<JenkinsTargetsResponse>(body).unwrap();*/
 
         let parsed_response = self.client
             .get("https://jenkins.17btest.com/api/json")
@@ -77,17 +77,17 @@ impl JenkinsClient {
             .map_err(|err|{
                 JenkinsError::BodyParseError(err, "Jobs request body parse error".to_owned())
             })?
-            .json::<JenkinsJobsResponse>()
+            .json::<JenkinsTargetsResponse>()
             .await
             .map_err(|err|{
                 JenkinsError::JsonParseError(err, "Jobs request JSON parse error".to_owned())
             })?;
 
-        let result: Vec<JenkinsJob> = parsed_response
+        let result: Vec<JenkinsTarget> = parsed_response
             .jobs
             .into_iter()
             .map(|info|{
-                JenkinsJob::new(self.client.clone(), &self.jenkins_user, &self.jenkins_api_token, info)
+                JenkinsTarget::new(self.client.clone(), &self.jenkins_user, &self.jenkins_api_token, info)
             })
             .collect();
 
