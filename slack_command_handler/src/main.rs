@@ -129,7 +129,6 @@ fn configure_server(cfg: &mut web::ServiceConfig) {
                     .service(web::resource("/build_finished")
                             .route(web::route()
                                     .guard(guard::Post())
-                                    .guard(guard::Header("Content-type", "application/x-www-form-urlencoded"))
                                     .to(jenkins_build_finished_handler))));
 }
 
@@ -183,7 +182,7 @@ async fn main() -> std::io::Result<()>{
     // Контейнер для вьюшек, общий для всех инстансов приложения
     let active_views_container = Arc::new(Mutex::new(ViewsHandlersMap::new()));
 
-    let response_awaiter = Arc::new(Mutex::new(ResponseAwaiterHolder::default()));
+    let response_awaiter = Data::new(Mutex::new(ResponseAwaiterHolder::default()));
 
     // Создание веб-приложения, таких приложений может быть создано много за раз
     // Данный коллбек может вызываться несколько раз
@@ -192,13 +191,13 @@ async fn main() -> std::io::Result<()>{
         let app_data = Data::new(ApplicationData::new(
             slack::SlackClient::new(request_client.clone(), &slack_api_token),
             jenkins::JenkinsClient::new(request_client.clone(), &jenkins_user, &jenkins_api_token),
-            response_awaiter.clone(),
             active_views_container.clone()
         ));
 
         // Создаем приложение
         App::new()
             .app_data(app_data)
+            .app_data(response_awaiter.clone())
             .wrap(middleware::Logger::default()) // Включаем логирование запросов с помощью middleware
             .configure(configure_server)
     };

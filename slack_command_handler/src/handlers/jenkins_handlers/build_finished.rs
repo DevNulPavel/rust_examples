@@ -1,3 +1,11 @@
+use std::{
+    sync::{
+        Mutex
+    }
+};
+use log::{
+    debug
+};
 use serde::{
     Deserialize
 };
@@ -37,7 +45,10 @@ use crate::{
 
 #[derive(Deserialize, Debug)]
 pub struct BuildFinishedParameters{
-    
+    build_number: String,
+    git_commit: Option<String>,
+    git_branch: Option<String>,
+    build_file_link: Option<String>
 }
 
 #[derive(Deserialize, Debug)]
@@ -48,11 +59,12 @@ pub struct BuildFinishedRequest{
     params: BuildFinishedParameters
 }
 
-pub async fn jenkins_build_finished_handler(parameters: Json<BuildFinishedRequest>, app_data: Data<ApplicationData>) -> HttpResponse {
+pub async fn jenkins_build_finished_handler(parameters: Form<BuildFinishedRequest>, app_data: Data<ApplicationData>, awaiter: Data<Mutex<ResponseAwaiterHolder>>) -> HttpResponse {
+    debug!("Jenkins build finished params: {:?}", parameters.0);
 
-    if let Ok(mut awaiter) = app_data.response_awaiter.lock(){
+    if let Ok(mut awaiter) = awaiter.lock(){
         let BuildFinishedRequest{build_job_url, params} = parameters.0;
-        awaiter.provide_build_complete_params(&build_job_url, params, Box::new(update_message_with_build_result));
+        awaiter.provide_build_complete_params(&build_job_url, params, app_data, Box::new(update_message_with_build_result));
     }
 
     HttpResponse::Ok()

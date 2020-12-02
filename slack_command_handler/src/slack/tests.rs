@@ -63,6 +63,12 @@ async fn test_direct_message() {
         .await
         .expect("Channel message update failed");
 
+    client
+        .send_message("Test message", SlackMessageTaget::to_thread("#mur-test_node_upload", message.get_timestamp()))
+        .await
+        .expect("Thread message failed")
+        .expect("Thread message object get failed");
+
     let message = client
         .send_message("Test message", SlackMessageTaget::to_channel_ephemeral("#mur-test_node_upload", "U0JU3ACSJ"))
         .await

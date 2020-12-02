@@ -28,17 +28,20 @@ use super::{
 pub struct EventSession{
     pub app_data: Data<ApplicationData>,
     pub user_id: String,
-    pub channel_id: String
+    pub channel_id: String,
+    pub trigget_message_ts: String,
 }
 
 impl EventSession {
     pub fn new(app_data: Data<ApplicationData>,
                user_id: String,
-               channel_id: String) -> EventSession{
+               channel_id: String,
+               trigget_message_ts: String) -> EventSession{
         EventSession{
             app_data,
             user_id,
-            channel_id
+            channel_id,
+            trigget_message_ts
         }
     }
 }

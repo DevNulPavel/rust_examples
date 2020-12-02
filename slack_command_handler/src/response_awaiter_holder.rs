@@ -3,6 +3,11 @@ use std::{
         HashMap
     }
 };
+use actix_web::{
+    web::{
+        Data
+    }
+};
 use crate::{
     slack::{
         Message
@@ -11,6 +16,9 @@ use crate::{
         JobUrl,
         JenkinsJob
     },
+    application_data::{
+        ApplicationData
+    },
     handlers::{
         jenkins_handlers::{
             BuildFinishedParameters
@@ -18,10 +26,11 @@ use crate::{
     }
 };
 
-type ResponseAwaiterCallback = dyn FnOnce(JenkinsJob, Message, BuildFinishedParameters) + Send;
+type ResponseAwaiterCallback = dyn FnOnce(JenkinsJob, (String, String), Message, BuildFinishedParameters, Data<ApplicationData>) + Send;
 
 struct ResponseAwaiter{
     job: Option<JenkinsJob>,
+    root_message: Option<(String, String)>,
     message: Option<Message>,
     params: Option<BuildFinishedParameters>,
     complete: Box<ResponseAwaiterCallback>
@@ -31,13 +40,17 @@ impl ResponseAwaiter{
     fn new(complete: Box<ResponseAwaiterCallback>) -> ResponseAwaiter {
         ResponseAwaiter{
             job: None,
+            root_message: None,
             message: None,
             params: None,
             complete
         }
     }
     fn is_complete(&self) -> bool{
-        if self.job.is_some() && self.message.is_some() && self.params.is_some(){
+        if self.job.is_some() && 
+            self.message.is_some() && 
+            self.params.is_some() &&
+            self.root_message.is_some() {
             true
         }else{
             false
@@ -52,7 +65,7 @@ pub struct ResponseAwaiterHolder{
 
 // TODO: Fix box
 impl ResponseAwaiterHolder {
-    pub fn provide_build_complete_params(&mut self, url: &JobUrl, params: BuildFinishedParameters, complete: Box<ResponseAwaiterCallback>) {
+    pub fn provide_build_complete_params(&mut self, url: &JobUrl, params: BuildFinishedParameters, app_data: Data<ApplicationData>, complete: Box<ResponseAwaiterCallback>) {
         let entry = self.awaiters
             .entry(url.to_owned());
 
@@ -64,17 +77,19 @@ impl ResponseAwaiterHolder {
 
         if awaiter.is_complete() {
             if let Some(obj) = self.awaiters.remove(url){
-                let ResponseAwaiter{complete, job, message, params}= obj;
+                let ResponseAwaiter{complete, job, root_message, message, params}= obj;
                 complete(
                     job.expect("Job unwrap failed"),
+                    root_message.expect("Message unwrap failed"),
                     message.expect("Message unwrap failed"),
-                    params.expect("Params unwrap failed")
+                    params.expect("Params unwrap failed"),
+                    app_data
                 );
             }
         }
     }
 
-    pub fn provide_job(&mut self, url: &JobUrl, job: JenkinsJob, message: Message, complete: Box<ResponseAwaiterCallback>) {
+    pub fn provide_job(&mut self, url: &JobUrl, job: JenkinsJob, root_message: (String, String), message: Message, app_data: Data<ApplicationData>, complete: Box<ResponseAwaiterCallback>) {
         let entry = self.awaiters
         .entry(url.to_owned());
 
@@ -84,14 +99,17 @@ impl ResponseAwaiterHolder {
 
         awaiter.job = Some(job);
         awaiter.message = Some(message);
+        awaiter.root_message = Some(root_message);
 
         if awaiter.is_complete() {
             if let Some(obj) = self.awaiters.remove(url){
-                let ResponseAwaiter{complete, job, message, params}= obj;
+                let ResponseAwaiter{complete, job, root_message, message, params}= obj;
                 complete(
                     job.expect("Job unwrap failed"),
+                    root_message.expect("Message unwrap failed"),
                     message.expect("Message unwrap failed"),
-                    params.expect("Params unwrap failed")
+                    params.expect("Params unwrap failed"),
+                    app_data
                 );
             }
         }

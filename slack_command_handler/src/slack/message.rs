@@ -52,6 +52,14 @@ impl Message {
         }
     }
 
+    pub fn get_timestamp(&self) -> &String{
+        &self.timestamp
+    }
+
+    pub fn get_channel_id(&self) -> &String{
+        &self.channel_id
+    }
+
     #[allow(dead_code)]
     #[must_use = "futures do nothing unless you `.await` or poll them"]
     pub async fn update_text(&mut self, text: &str) -> Result<(), SlackError> {

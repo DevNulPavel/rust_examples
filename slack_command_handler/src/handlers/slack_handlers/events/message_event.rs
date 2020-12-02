@@ -13,6 +13,7 @@ pub enum MessageEvent{
         user: String,
         channel: String,
         text: String,
+        ts: String,
     },
     
     /// Сообщение в личку

@@ -39,6 +39,11 @@ pub enum SlackMessageTaget<'a>{
     Channel{
         id: &'a str
     },
+    /// Сообщение в тред
+    Thread{
+        id: &'a str,
+        thread_ts: &'a str
+    },
     /// Сообщение в личку
     User{
         user_id: &'a str
@@ -70,6 +75,13 @@ impl<'a> SlackMessageTaget<'a> {
     pub fn to_channel(channel_id: &'a str) -> SlackMessageTaget<'a>{
         SlackMessageTaget::Channel{
             id: channel_id
+        }
+    }
+
+    pub fn to_thread(channel_id: &'a str, thread_timestamp: &'a str) -> SlackMessageTaget<'a>{
+        SlackMessageTaget::Thread{
+            id: channel_id,
+            thread_ts: thread_timestamp
         }
     }
 
@@ -148,10 +160,14 @@ impl SlackClient {
                 },
                 SlackMessageTaget::Ephemeral{channel_id, user_id} => {
                     json["channel"] = serde_json::Value::from(channel_id);
-                    json["user"] = serde_json::Value::from(user_id)
+                    json["user"] = serde_json::Value::from(user_id);
                 },
                 SlackMessageTaget::Channel{id} => {
-                    json["channel"] = serde_json::Value::from(id)
+                    json["channel"] = serde_json::Value::from(id);
+                },
+                SlackMessageTaget::Thread{id, thread_ts} => {
+                    json["channel"] = serde_json::Value::from(id);
+                    json["thread_ts"] = serde_json::Value::from(thread_ts);
                 },
                 SlackMessageTaget::User{user_id} => {
                     json["channel"] = serde_json::Value::from(user_id);
@@ -187,7 +203,9 @@ impl SlackClient {
         let url = match target{
             SlackMessageTaget::ResponseUrl{url} => url,
             SlackMessageTaget::Ephemeral{..} => "https://slack.com/api/chat.postEphemeral",
-            SlackMessageTaget::Channel{..} | SlackMessageTaget::User{..} => "https://slack.com/api/chat.postMessage"
+            SlackMessageTaget::Channel{..} | 
+                SlackMessageTaget::User{..} |
+                SlackMessageTaget::Thread{..} => "https://slack.com/api/chat.postMessage"
         };
 
         let response = self.client

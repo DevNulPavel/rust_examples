@@ -1,3 +1,9 @@
+use std::{
+    sync::{
+        // Arc,
+        Mutex
+    }
+};
 use serde::{
     Deserialize
 };
@@ -17,7 +23,10 @@ use actix_web::{
 //     error
 // };
 use crate::{
-    ApplicationData
+    ApplicationData,
+    response_awaiter_holder::{
+        ResponseAwaiterHolder
+    }
 };
 use super::{
     event_processing::{
@@ -68,7 +77,7 @@ pub enum SlackEventParameters{
 }*/
 
 
-pub async fn slack_events_handler(parameters: Json<SlackEventParameters>, app_data: Data<ApplicationData>) -> HttpResponse {
+pub async fn slack_events_handler(parameters: Json<SlackEventParameters>, app_data: Data<ApplicationData>, awaiter: Data<Mutex<ResponseAwaiterHolder>>) -> HttpResponse {
     // Про ответы на события: https://api.slack.com/events-api#the-events-api__responding-to-events
     match parameters.into_inner() {
         SlackEventParameters::Verify{challenge, ..} => {
@@ -81,7 +90,7 @@ pub async fn slack_events_handler(parameters: Json<SlackEventParameters>, app_da
                 // TODO: Хрень полная, но больше никак не удостовериться, что сервер слака получил ответ обработчика
                 actix_web::rt::time::delay_for(std::time::Duration::from_millis(200)).await;
 
-                process_jenkins_event(event, app_data).await;
+                process_jenkins_event(event, app_data, awaiter).await;
             })
         }
     }

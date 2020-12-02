@@ -1,3 +1,9 @@
+use std::{
+    sync::{
+        // Arc,
+        Mutex
+    }
+};
 use actix_web::{
     web::{
         Data,
@@ -45,13 +51,22 @@ use super::{
     }
 };
 
-pub fn update_message_with_build_result(job: JenkinsJob, mut message: Message, params: BuildFinishedParameters){
+pub fn update_message_with_build_result(job: JenkinsJob, 
+                                        root_message: (String, String), 
+                                        message: Message, 
+                                        params: BuildFinishedParameters, 
+                                        app_data: Data<ApplicationData>){
     spawn(async move{
-        message.update_text("BUILD COMPLETE TEST").await;
+        //message.update_text("BUILD COMPLETE TEST").await.ok();
+        app_data
+            .slack_client
+            .send_message("Build finished", SlackMessageTaget::to_thread(&root_message.0, &root_message.1))
+            .await
+            .ok();
     });
 }
 
-async fn start_jenkins_job(target: &str, branch: &str, session: EventSession) {
+async fn start_jenkins_job(target: &str, branch: &str, session: EventSession, awaiter: Data<Mutex<ResponseAwaiterHolder>>) {
     let targets = session
         .app_data
         .jenkins_client
@@ -116,7 +131,7 @@ async fn start_jenkins_job(target: &str, branch: &str, session: EventSession) {
     let message = session
         .app_data
         .slack_client
-        .send_message(&test_message, SlackMessageTaget::to_channel(&session.channel_id))
+        .send_message(&test_message, SlackMessageTaget::to_thread(&session.channel_id, &session.trigget_message_ts))
         .await;
 
     let message = unwrap_error_with_slack_response_and_return!(message, 
@@ -154,8 +169,8 @@ async fn start_jenkins_job(target: &str, branch: &str, session: EventSession) {
 
                 unwrap_error_with_slack_response_and_return!(update_result, session, "Message update failed: {:?}");
 
-                if let Ok(mut awaiter) = session.app_data.response_awaiter.lock(){
-                    awaiter.provide_job(&real_url, job, message, Box::new(update_message_with_build_result));
+                if let Ok(mut awaiter) = awaiter.lock(){
+                    awaiter.provide_job(&real_url, job, (session.channel_id, session.trigget_message_ts), message, session.app_data, Box::new(update_message_with_build_result));
                 }
 
                 break;
@@ -166,13 +181,13 @@ async fn start_jenkins_job(target: &str, branch: &str, session: EventSession) {
     }
 }
 
-pub async fn process_jenkins_event(event: MessageEvent, app_data: Data<ApplicationData>)  {
+pub async fn process_jenkins_event(event: MessageEvent, app_data: Data<ApplicationData>, awaiter: Data<Mutex<ResponseAwaiterHolder>>)  {
     match event {
-        MessageEvent::AppMention{channel, text, user} => {
+        MessageEvent::AppMention{channel, text, user, ts} => {
             debug!("Channel message event: channel {}, text {}, user {}", channel, text, user);
 
             // Создание сессии
-            let session = EventSession::new(app_data, user, channel);
+            let session = EventSession::new(app_data, user, channel, ts);
 
             // Парсинг параметров билда
             let params = match parse_mention_params(&text){
@@ -187,7 +202,7 @@ pub async fn process_jenkins_event(event: MessageEvent, app_data: Data<Applicati
             };
 
             // Пытаемся стартануть билд
-            start_jenkins_job(params.target_name, params.branch_name, session).await;
+            start_jenkins_job(params.target_name, params.branch_name, session, awaiter).await;
         },
         MessageEvent::DirectMessage{channel, text, user} => {
             debug!("Channel message event: channel {}, text {}, user {}", channel, text, user);
