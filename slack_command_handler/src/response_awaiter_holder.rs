@@ -115,7 +115,7 @@ impl ResponseAwaiterHolder {
     }
 
     fn try_to_update_entry_with_complete<U>(&self, 
-                                            url: &JobUrl, 
+                                            url: JobUrl, 
                                             app_data: Data<ApplicationData>, 
                                             complete: Box<ResponseAwaiterCallback>, 
                                             update: U)
@@ -134,7 +134,7 @@ impl ResponseAwaiterHolder {
 
             if awaiter_entry.is_complete() {
                 // TODO: Оптимизировать
-                if let Some(obj) = awaiter.remove(url){
+                if let Some(obj) = awaiter.remove(&url){
                     let ResponseAwaiter{complete, job, root_message, message, params, ..}= obj;
                     complete(
                         job.expect("Job unwrap failed"),
@@ -148,13 +148,13 @@ impl ResponseAwaiterHolder {
         }
     }
 
-    pub fn provide_build_complete_params(&self, url: &JobUrl, params: BuildFinishedParameters, app_data: Data<ApplicationData>, complete: Box<ResponseAwaiterCallback>) {
+    pub fn provide_build_complete_params(&self, url: JobUrl, params: BuildFinishedParameters, app_data: Data<ApplicationData>, complete: Box<ResponseAwaiterCallback>) {
         self.try_to_update_entry_with_complete(url, app_data, complete, |entry: &mut ResponseAwaiter|{
             entry.params = Some(params);
         });
     }
 
-    pub fn provide_job(&self, url: &JobUrl, job: JenkinsJob, root_message: AppMentionMessageInfo, message: Message, app_data: Data<ApplicationData>, complete: Box<ResponseAwaiterCallback>) {
+    pub fn provide_job(&self, url: JobUrl, job: JenkinsJob, root_message: AppMentionMessageInfo, message: Message, app_data: Data<ApplicationData>, complete: Box<ResponseAwaiterCallback>) {
         self.try_to_update_entry_with_complete(url, app_data, complete, |entry: &mut ResponseAwaiter|{
             entry.job = Some(job);
             entry.message = Some(message);

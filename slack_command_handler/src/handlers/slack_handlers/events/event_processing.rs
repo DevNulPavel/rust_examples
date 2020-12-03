@@ -123,7 +123,8 @@ async fn start_jenkins_job(target: &str, branch: &str, session: EventSession, aw
                                                            "Jenkins job start error: {:?}");
 
     // Тестовое сообщение
-    let test_message = format!(":zhdun:```Target:\n{}\n\nBranch:\n{}\n\nTarget:\n{}```", target, branch, found_target.get_info().url);
+    //let test_message = format!(":zhdun:```Target:\n{}\n\nBranch:\n{}\n\nTarget:\n{}```", target, branch, found_target.get_info().url);
+    let test_message = format!(":zhdun:```{}```", found_target.get_info().url);
     
     // Шлем сообщение
     let message = session
@@ -162,12 +163,13 @@ async fn start_jenkins_job(target: &str, branch: &str, session: EventSession, aw
         match result {
             Some(real_url) => {
                 // Обновляем сообщение
-                let new_text = format!(":jenkins:```Target:\n{}\n\nBranch:\n{}\n\nJob:\n{}```", target, branch, real_url);
+                //let new_text = format!(":jenkins:```Target:\n{}\n\nBranch:\n{}\n\nJob:\n{}```", target, branch, real_url);
+                let new_text = format!(":jenkins:```{}```", real_url);
                 let update_result = message.update_text(&new_text).await;
 
                 unwrap_error_with_slack_response_and_return!(update_result, session, "Message update failed: {:?}");
 
-                awaiter.provide_job(&real_url, job, session.message, message, session.app_data, Box::new(update_message_with_build_result));
+                awaiter.provide_job(real_url, job, session.message, message, session.app_data, Box::new(update_message_with_build_result));
 
                 break;
             },

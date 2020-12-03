@@ -35,6 +35,10 @@ impl JenkinsClient {
         }
     }
 
+    pub fn get_jenkins_user(&self) -> &str {
+        &self.jenkins_user
+    }
+
     /// Запрашиваем список возможных таргетов
     pub async fn request_jenkins_targets_list<'a>(&'a self) -> Result<Vec<JenkinsTarget>, JenkinsError> {
         // https://jenkins.17btest.com/api?pretty=true

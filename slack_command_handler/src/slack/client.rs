@@ -96,6 +96,47 @@ impl<'a> SlackMessageTaget<'a> {
 
 //////////////////////////////////////////////////////////////////////////////////////////
 
+/// Таргет для сообщения в личку
+#[allow(dead_code)]
+pub enum SlackImageTaget<'a>{
+    /// Сообщение в канал, которое видно всем
+    Channel{
+        id: &'a str
+    },
+    /// Сообщение в тред
+    Thread{
+        id: &'a str,
+        thread_ts: &'a str
+    },
+    /// Сообщение в личку
+    User{
+        user_id: &'a str
+    }
+}
+
+impl<'a> SlackImageTaget<'a> {
+    pub fn to_user_direct(user_id: &'a str) -> SlackImageTaget{
+        SlackImageTaget::User{
+            user_id
+        }
+    }
+
+    pub fn to_channel(channel_id: &'a str) -> SlackImageTaget<'a>{
+        SlackImageTaget::Channel{
+            id: channel_id
+        }
+    }
+
+    pub fn to_thread(channel_id: &'a str, thread_timestamp: &'a str) -> SlackImageTaget<'a>{
+        SlackImageTaget::Thread{
+            id: channel_id,
+            thread_ts: thread_timestamp
+        }
+    }
+}
+
+//////////////////////////////////////////////////////////////////////////////////////////
+
 pub struct SlackClient{
     client: Client,
     token: String
@@ -246,5 +287,54 @@ impl SlackClient {
             }
         }
     }
+ 
+    pub async fn send_image(&self, data: Vec<u8>, text: &str, commentary: &str, target: SlackImageTaget<'_>) -> Result<(), SlackError> {
+        // https://api.slack.com/methods/files.upload
+        
+        // File path
+        let new_uuid = uuid::Uuid::new_v4();
+        let filename = format!("{}.png", new_uuid);
     
+        // Есть или нет комментарий?
+        let commentary = match commentary.len() {
+            0 => commentary,
+            _ => text
+        };
+
+        use reqwest::multipart::Part;
+        use reqwest::multipart::Form;
+    
+        let mut form = Form::new()
+            .part("initial_comment", Part::text(commentary.to_owned()))
+            .part("filename", Part::text(filename.to_owned()))
+            .part("file", Part::stream(data).file_name(filename.to_owned()));
+    
+        form = match target {
+            SlackImageTaget::Channel{id} => {
+                form.part("channels", Part::text(id.to_owned()))
+            },
+            SlackImageTaget::Thread{id, thread_ts} => {
+                form
+                    .part("channels", Part::text(id.to_owned()))
+                    .part("thread_ts", Part::text(thread_ts.to_owned()))
+            },
+            SlackImageTaget::User{..} => {
+                // TODO: Открытие канала лички
+                form
+            }
+        }; 
+    
+        self
+            .client
+            .post("https://slack.com/api/files.upload")
+            .bearer_auth(&self.token)
+            .multipart(form)
+            .send()
+            .await
+            .map_err(|err|{
+                SlackError::RequestErr(err)
+            })?;
+
+        Ok(())
+    }
 }

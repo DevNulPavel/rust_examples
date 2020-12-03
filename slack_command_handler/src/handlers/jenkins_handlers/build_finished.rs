@@ -30,26 +30,34 @@ use crate::{
 
 #[derive(Deserialize, Debug)]
 pub struct BuildFinishedParameters{
+    build_job_url: String,
     build_number: String,
+    build_user_id: Option<String>,
     build_user: Option<String>,
     git_commit: Option<String>,
     git_branch: Option<String>,
     build_file_link: Option<String>
 }
 
-#[derive(Deserialize, Debug)]
-pub struct BuildFinishedRequest{
-    build_job_url: String,
-
-    #[serde(flatten)]
-    params: BuildFinishedParameters
-}
-
-pub async fn jenkins_build_finished_handler(parameters: Form<BuildFinishedRequest>, app_data: Data<ApplicationData>, awaiter: Data<ResponseAwaiterHolder>) -> HttpResponse {
+pub async fn jenkins_build_finished_handler(parameters: Form<BuildFinishedParameters>, app_data: Data<ApplicationData>, awaiter: Data<ResponseAwaiterHolder>) -> HttpResponse {
     debug!("Jenkins build finished params: {:?}", parameters.0);
 
-    let BuildFinishedRequest{build_job_url, params} = parameters.0;
-    awaiter.provide_build_complete_params(&build_job_url, params, app_data, Box::new(update_message_with_build_result));
+    // Если у нас есть id пользователя, то мы проверяем кто начал сборку
+    // Если сборка была начата не ботом, то просто пишем сообщение в личку
+    // Если сборка была начата ботом - тогда обрабатываем
+    if let Some(ref user_id) = parameters.0.build_user_id {
+        if user_id == app_data.jenkins_client.get_jenkins_user(){
+            // Начинаем ждать
+            let url = parameters.build_job_url.clone();
+            awaiter.provide_build_complete_params(url, parameters.0, app_data, Box::new(update_message_with_build_result));    
+        }else{
+
+        }
+    }else{
+        // По-умолчанию считаем, что сборка была создана ботом
+        let url = parameters.build_job_url.clone();
+        awaiter.provide_build_complete_params(url, parameters.0, app_data, Box::new(update_message_with_build_result));    
+    }
 
     HttpResponse::Ok()
         .finish()

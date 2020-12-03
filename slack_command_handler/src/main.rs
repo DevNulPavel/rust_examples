@@ -4,6 +4,7 @@ mod slack;
 mod windows;
 mod session;
 mod handlers;
+mod qr;
 mod response_awaiter_holder;
 mod active_views_holder;
 

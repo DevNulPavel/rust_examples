@@ -4,11 +4,18 @@ use reqwest::{
 use super::{
     client::{
         SlackClient,
-        SlackMessageTaget,    
+        SlackMessageTaget,
+        SlackImageTaget
     }, 
     // message::{
     //     Message
     // }
+};
+use crate::{
+    qr::{
+        create_qr_data,
+        QrCodeError
+    }
 };
 
 fn setup_logs() {
@@ -28,7 +35,7 @@ fn build_client() -> SlackClient{
 
 #[actix_rt::test]
 async fn test_direct_message() {
-    setup_logs();
+    //setup_logs();
 
     let client = build_client();
 
@@ -77,6 +84,27 @@ async fn test_direct_message() {
     assert_eq!(message.is_none(), true);
 
     // TODO: RESPONSE URL может фейлиться, не протестировано
+}
+
+
+#[actix_rt::test]
+async fn test_image_upload() {
+    setup_logs();
+
+    let client = build_client();
+
+    let image_data = create_qr_data("This is test text")
+        .expect("Qr code create failed");
+
+    let message = client
+        .send_message("Test message", SlackMessageTaget::to_channel("#mur-test_node_upload"))
+        .await
+        .expect("Channel message failed")
+        .expect("Channel message - message object does not exist");
+
+    client.send_image(image_data, "Test text", "Test commentary", SlackImageTaget::to_thread(message.get_channel_id(), message.get_timestamp()))
+        .await
+        .expect("Image send failed");
 }
 
 /*#[actix_rt::test]
