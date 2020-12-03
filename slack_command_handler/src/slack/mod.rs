@@ -1,6 +1,7 @@
 mod client;
 mod view;
 mod message;
+mod search_by_name;
 mod error;
 #[cfg(test)] mod tests;
 

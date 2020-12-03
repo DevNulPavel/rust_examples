@@ -42,7 +42,10 @@ pub fn send_message_with_build_result_direct_message(params: BuildFinishedParame
     spawn(async move {
         let user_info = match params.user_info{
             Some(info) => info,
-            None => return
+            None => {
+                error!("Empty user info");
+                return;
+            }
         };
 
         let file_info = params
@@ -57,12 +60,27 @@ pub fn send_message_with_build_result_direct_message(params: BuildFinishedParame
                 }
             });
 
+        // Так как идентификаторы слака и дженкинса могут не совпадать, тогда ищем по email и полному имени
+        // Если не нашли, пробуем айдишник, который прислали
+        let user_id = app_data
+            .slack_client
+            .find_user_id(&user_info.build_user_email, &user_info.build_user_name)
+            .await;
+        let user_id = match user_id {
+            Some(user_id) => user_id,
+            None => {
+                error!("User if not found");   
+                user_info.build_user_id
+            }
+        };
+
+
         // Если есть файл, значит грузим на него QR код
         if let Some((image_data, commentary)) = file_info {
             let commentary = format!("Build finished: {}", commentary);
             let result = app_data
                 .slack_client
-                .send_image(image_data, commentary.clone(), SlackImageTarget::to_user_direct(&user_info.build_user_id))
+                .send_image(image_data, commentary.clone(), SlackImageTarget::to_user_direct(&user_id))
                 .await;
             
             if let Err(err) = result {
@@ -70,7 +88,7 @@ pub fn send_message_with_build_result_direct_message(params: BuildFinishedParame
                 let result = app_data
                     .slack_client
                     .send_message(&commentary,
-                                  SlackMessageTaget::to_user_direct(&user_info.build_user_id))
+                                  SlackMessageTaget::to_user_direct(&user_id))
                     .await;
                 if let Err(err) = result {
                     error!("Message send error: {:?}", err);

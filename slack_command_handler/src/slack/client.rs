@@ -1,3 +1,8 @@
+use std::{
+    future::{
+        Future
+    }
+};
 use log::{
     debug
 };
@@ -27,6 +32,9 @@ use super::{
     view::{
         ViewInfo,
         View
+    },
+    search_by_name::{
+        find_user_id_by_name
     }
 };
 
@@ -368,5 +376,70 @@ impl SlackClient {
                 Err(SlackError::Custom(error))
             }
         }
+    }
+
+    async fn find_user_id_by_email(&self, email: &str) -> Option<String> {
+        // Проверяем наличие email
+        if email.is_empty(){
+            return None;
+        }
+    
+        // Выполняем GET запрос
+        let get_parameters = vec![
+            ("token", self.token.to_owned()), 
+            ("email", email.to_owned())
+        ];
+        let response = self.client
+            .get("https://slack.com/api/users.lookupByEmail")
+            .query(&get_parameters)
+            .send()
+            .await
+            .ok()?;
+        //println!("{:?}", response);
+    
+        // Создаем структурки, в которых будут нужные значения
+        #[derive(Deserialize, Debug)]
+        struct UserInfo {
+            id: String,
+        }
+        #[derive(Deserialize, Debug)]
+        struct UserResponse {
+            ok: bool,
+            user: UserInfo,
+        }
+    
+        // Парсим ответ в json
+        let response_json = response
+            .json::<UserResponse>()
+            .await
+            .ok()?;
+        //println!("{:?}", response_json);
+        
+        // Результат, если все ок
+        if response_json.ok {
+            return Some(response_json.user.id);
+        }
+    
+        None
+    }
+
+    // TODO: Djpdhfofnm impl Future<>
+    async fn find_user_id_by_name<'a>(&'a self, user_full_name: &'a str) -> Option<String> {
+        find_user_id_by_name(&self.client, &self.token, user_full_name).await
+    }
+
+    pub async fn find_user_id(&self, user_email: &str, user_name: &str) -> Option<String> {
+        // Ищем id сначала по email, если не вышло - по имени
+    
+        // Сначала ищем пользователя по email
+        let id = match self.find_user_id_by_email(user_email).await {
+            Some(id) => id,
+            None =>{
+                // Если не нашли - ищем по имени
+                return self.find_user_id_by_name(user_name).await;
+            }
+        };
+        //println!("{}", id);
+        Some(id)
     }
 }

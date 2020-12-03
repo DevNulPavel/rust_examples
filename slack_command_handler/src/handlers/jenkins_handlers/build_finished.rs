@@ -36,7 +36,7 @@ pub struct BuildResultFileInfo{
 #[derive(Deserialize, Debug)]
 pub struct BuildResultUserInfo{
     pub build_user_id: String,
-    pub build_user: String,
+    pub build_user_name: String,
     pub build_user_email: String,
 }
 
@@ -75,10 +75,12 @@ pub async fn jenkins_build_finished_handler(parameters: Form<BuildFinishedParame
     // Если сборка была начата ботом - тогда обрабатываем
     if let Some(ref user_info) = parameters.0.user_info {
         if user_info.build_user_id == app_data.jenkins_client.get_jenkins_user(){
+            debug!("Thread response await: {:?}", parameters.0);
             // Начинаем ждать
             let url = parameters.job_info.build_job_url.clone();
             awaiter.provide_build_complete_params(url, parameters.0, app_data, Box::new(send_message_with_build_result_into_thread));    
         }else {
+            debug!("Direct message send: {:?}", parameters.0);
             send_message_with_build_result_direct_message(parameters.0, app_data);
         }
     }else{
