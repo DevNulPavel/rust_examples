@@ -77,7 +77,7 @@ pub fn send_message_with_build_result(params: BuildFinishedParameters,
         // Если есть файл, значит грузим на него QR код
         if let Some((image_data, commentary)) = file_info {
             let commentary = commentary.replace("\\n", "\n");
-            let commentary = format!(":borat:\n```{}```", commentary);
+            let commentary = format!(":borat:\n{}\n```{}```", params.job_info.build_job_url, commentary);
 
             // TODO: Optimize
 
@@ -97,7 +97,7 @@ pub fn send_message_with_build_result(params: BuildFinishedParameters,
                 error!("Image upload error: {:?}", err);
             }
         } else{
-            let commentary = format!(":borat:");
+            let commentary = format!(":borat:\n{}", params.job_info.build_job_url,);
 
             // TODO: Optimize
 

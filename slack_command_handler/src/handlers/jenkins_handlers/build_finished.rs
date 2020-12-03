@@ -55,10 +55,10 @@ pub struct BuildResultGitInfo{
 #[derive(Deserialize, Debug)]
 pub struct BuildFinishedParameters{
     #[serde(flatten)]
-    job_info: BuildResultJobInfo,
+    pub job_info: BuildResultJobInfo,
 
     #[serde(flatten)]
-    git_info: Option<BuildResultGitInfo>,
+    pub git_info: Option<BuildResultGitInfo>,
 
     #[serde(flatten)]
     pub user_info: Option<BuildResultUserInfo>,
