@@ -5,7 +5,7 @@ use super::{
     client::{
         SlackClient,
         SlackMessageTaget,
-        SlackImageTaget
+        SlackImageTarget
     }, 
     // message::{
     //     Message
@@ -13,8 +13,7 @@ use super::{
 };
 use crate::{
     qr::{
-        create_qr_data,
-        QrCodeError
+        create_qr_data
     }
 };
 
@@ -96,34 +95,30 @@ async fn test_image_upload() {
     let image_data = create_qr_data("This is test text")
         .expect("Qr code create failed");
 
+    assert_eq!(image_data.len() > 0, true);
+
+    // Channel
+    client
+        .send_image(image_data.clone(), "Test commentary".to_owned(), SlackImageTarget::to_channel("#mur-test_node_upload"))
+        .await
+        .expect("Image send failed");
+
+
+    // Thread
     let message = client
         .send_message("Test message", SlackMessageTaget::to_channel("#mur-test_node_upload"))
         .await
         .expect("Channel message failed")
         .expect("Channel message - message object does not exist");
 
-    client.send_image(image_data, "Test text", "Test commentary", SlackImageTaget::to_thread(message.get_channel_id(), message.get_timestamp()))
+    client
+        .send_image(image_data.clone(), "Test commentary".to_owned(), SlackImageTarget::to_thread(message.get_channel_id(), message.get_timestamp()))
+        .await
+        .expect("Image send failed");
+
+    // Direct message
+    client
+        .send_image(image_data.clone(), "Test commentary".to_owned(), SlackImageTarget::to_user_direct("U0JU3ACSJ"))
         .await
         .expect("Image send failed");
 }
-
-/*#[actix_rt::test]
-async fn test_open_view() {
-    setup_logs();
-
-    let client = build_client();
-
-    let window_view = {}
-
-    let window = serde_json::json!({
-        "trigger_id": session.base.trigger_id,
-        "view": window_view
-    });
-    
-    let open_result = session
-        .base
-        .app_data
-        .slack_client
-        .open_view(window)
-        .await;
-}*/

@@ -7,7 +7,8 @@ mod error;
 pub use self::{
     client::{
         SlackClient,
-        SlackMessageTaget
+        SlackMessageTaget,
+        SlackImageTarget
     },
     error::{
         SlackError

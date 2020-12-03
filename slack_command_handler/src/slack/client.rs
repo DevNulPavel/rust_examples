@@ -1,6 +1,6 @@
-// use log::{
-    // error
-// };
+use log::{
+    debug
+};
 use serde::{
     Deserialize
 };
@@ -98,7 +98,7 @@ impl<'a> SlackMessageTaget<'a> {
 
 /// Таргет для сообщения в личку
 #[allow(dead_code)]
-pub enum SlackImageTaget<'a>{
+pub enum SlackImageTarget<'a>{
     /// Сообщение в канал, которое видно всем
     Channel{
         id: &'a str
@@ -114,21 +114,21 @@ pub enum SlackImageTaget<'a>{
     }
 }
 
-impl<'a> SlackImageTaget<'a> {
-    pub fn to_user_direct(user_id: &'a str) -> SlackImageTaget{
-        SlackImageTaget::User{
+impl<'a> SlackImageTarget<'a> {
+    pub fn to_user_direct(user_id: &'a str) -> SlackImageTarget{
+        SlackImageTarget::User{
             user_id
         }
     }
 
-    pub fn to_channel(channel_id: &'a str) -> SlackImageTaget<'a>{
-        SlackImageTaget::Channel{
+    pub fn to_channel(channel_id: &'a str) -> SlackImageTarget<'a>{
+        SlackImageTarget::Channel{
             id: channel_id
         }
     }
 
-    pub fn to_thread(channel_id: &'a str, thread_timestamp: &'a str) -> SlackImageTaget<'a>{
-        SlackImageTaget::Thread{
+    pub fn to_thread(channel_id: &'a str, thread_timestamp: &'a str) -> SlackImageTarget<'a>{
+        SlackImageTarget::Thread{
             id: channel_id,
             thread_ts: thread_timestamp
         }
@@ -288,43 +288,58 @@ impl SlackClient {
         }
     }
  
-    pub async fn send_image(&self, data: Vec<u8>, text: &str, commentary: &str, target: SlackImageTaget<'_>) -> Result<(), SlackError> {
+    pub async fn send_image(&self, data: Vec<u8>, commentary: String, target: SlackImageTarget<'_>) -> Result<(), SlackError> {
         // https://api.slack.com/methods/files.upload
         
         // File path
         let new_uuid = uuid::Uuid::new_v4();
         let filename = format!("{}.png", new_uuid);
-    
-        // Есть или нет комментарий?
-        let commentary = match commentary.len() {
-            0 => commentary,
-            _ => text
-        };
 
         use reqwest::multipart::Part;
         use reqwest::multipart::Form;
     
         let mut form = Form::new()
-            .part("initial_comment", Part::text(commentary.to_owned()))
+            .part("initial_comment", Part::text(commentary))
             .part("filename", Part::text(filename.to_owned()))
-            .part("file", Part::stream(data).file_name(filename.to_owned()));
+            .part("file", Part::stream(data).file_name(filename));
     
         form = match target {
-            SlackImageTaget::Channel{id} => {
+            SlackImageTarget::Channel{id} => {
                 form.part("channels", Part::text(id.to_owned()))
             },
-            SlackImageTaget::Thread{id, thread_ts} => {
+            SlackImageTarget::Thread{id, thread_ts} => {
                 form
                     .part("channels", Part::text(id.to_owned()))
                     .part("thread_ts", Part::text(thread_ts.to_owned()))
             },
-            SlackImageTaget::User{..} => {
-                // TODO: Открытие канала лички
-                form
+            SlackImageTarget::User{user_id} => {
+                form.part("channels", Part::text(user_id.to_owned()))
             }
         }; 
     
-        self
+        // https://api.slack.com/methods/files.upload
+        #[derive(Deserialize, Debug)]
+        struct File{
+            id: String,
+            name: String,
+            title: String,
+            user: String,
+            channels: Vec<String>
+        }
+        #[derive(Deserialize, Debug)]
+        #[serde(untagged)]
+        enum Response{
+            Ok{
+                ok: bool,
+                file: File
+            },
+            Error{
+                ok: bool,
+                error: String
+            }
+        }
+
+        let response = self
             .client
             .post("https://slack.com/api/files.upload")
             .bearer_auth(&self.token)
@@ -333,8 +348,25 @@ impl SlackClient {
             .await
             .map_err(|err|{
                 SlackError::RequestErr(err)
+            })?
+            .json::<Response>()
+            .await
+            .map_err(|err|{
+                SlackError::JsonParseError(err)
             })?;
 
-        Ok(())
+        match response{
+            Response::Ok{ok, file} => {
+                if ok {
+                    debug!("File upload result: {:?}", file);
+                    Ok(())
+                }else{
+                    Err(SlackError::Custom("File upload result: false".to_owned()))
+                }
+            },
+            Response::Error{error, ..} => {
+                Err(SlackError::Custom(error))
+            }
+        }
     }
 }

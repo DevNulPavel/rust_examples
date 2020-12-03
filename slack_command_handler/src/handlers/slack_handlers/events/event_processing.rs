@@ -34,6 +34,9 @@ use crate::{
             AppMentionMessageInfo
         }
     },
+    helpers::{
+        send_message_with_build_result_into_thread
+    },
     ApplicationData,
     slack_response_with_error,
     unwrap_error_with_slack_response_and_return,
@@ -47,22 +50,6 @@ use super::{
         parse_mention_params
     }
 };
-
-pub fn update_message_with_build_result(_: JenkinsJob, 
-                                        root_message: AppMentionMessageInfo, 
-                                        _: Message, 
-                                        _: BuildFinishedParameters, 
-                                        app_data: Data<ApplicationData>){
-    spawn(async move{
-        //message.update_text("BUILD COMPLETE TEST").await.ok();
-        let text = format!("<@{}> Build finished", root_message.user);
-        app_data
-            .slack_client
-            .send_message(&text, SlackMessageTaget::to_thread(&root_message.channel, &root_message.ts))
-            .await
-            .ok();
-    });
-}
 
 async fn start_jenkins_job(target: &str, branch: &str, session: EventSession, awaiter: Data<ResponseAwaiterHolder>) {
     let targets = session
@@ -169,7 +156,7 @@ async fn start_jenkins_job(target: &str, branch: &str, session: EventSession, aw
 
                 unwrap_error_with_slack_response_and_return!(update_result, session, "Message update failed: {:?}");
 
-                awaiter.provide_job(real_url, job, session.message, message, session.app_data, Box::new(update_message_with_build_result));
+                awaiter.provide_job(real_url, job, session.message, message, session.app_data, Box::new(send_message_with_build_result_into_thread));
 
                 break;
             },

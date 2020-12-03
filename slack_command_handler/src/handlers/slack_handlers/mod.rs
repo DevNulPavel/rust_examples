@@ -8,8 +8,7 @@ pub use self::{
     },
     events::{
         AppMentionMessageInfo,
-        slack_events_handler,
-        update_message_with_build_result
+        slack_events_handler
     },
     window::{
         slack_window_handler
