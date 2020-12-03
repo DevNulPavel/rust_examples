@@ -37,8 +37,8 @@ use crate::{
 
 // TODO: Рефакторинг, есть дублирующийся код
 
-pub fn send_message_with_build_result_direct_message(params: BuildFinishedParameters,
-                                                     app_data: Data<ApplicationData>) {
+pub fn send_message_with_build_result(params: BuildFinishedParameters,
+                                      app_data: Data<ApplicationData>) {
     spawn(async move {
         let user_info = match params.user_info{
             Some(info) => info,
@@ -76,23 +76,46 @@ pub fn send_message_with_build_result_direct_message(params: BuildFinishedParame
 
         // Если есть файл, значит грузим на него QR код
         if let Some((image_data, commentary)) = file_info {
+            let commentary = commentary.replace("\\n", "\n");
             let commentary = format!(":borat:\n```{}```", commentary);
-            let result = app_data
-                .slack_client
-                .send_image(image_data, commentary.clone(), SlackImageTarget::to_user_direct(&user_id))
-                .await;
+
+            // TODO: Optimize
+
+            if let Some(default_channel) = params.default_channel{
+                if let Err(err) = app_data
+                                    .slack_client
+                                    .send_image(image_data.clone(), commentary.clone(), SlackImageTarget::to_channel(&default_channel))
+                                    .await {
+                        error!("Image upload error: {:?}", err);
+                }
+            }  
             
-            if let Err(err) = result {
+            if let Err(err) = app_data
+                                .slack_client
+                                .send_image(image_data, commentary.clone(), SlackImageTarget::to_user_direct(&user_id))
+                                .await {
                 error!("Image upload error: {:?}", err);
             }
         } else{
             let commentary = format!(":borat:");
-            let result = app_data
-                .slack_client
-                .send_message(&commentary,
-                              SlackMessageTaget::to_user_direct(&user_id))
-                .await;
-            if let Err(err) = result {
+
+            // TODO: Optimize
+
+            if let Some(default_channel) = params.default_channel{
+                if let Err(err) = app_data
+                                    .slack_client
+                                    .send_message(&commentary,
+                                                  SlackMessageTaget::to_channel(&default_channel))
+                                    .await {
+                    error!("Message send error: {:?}", err);
+                }
+            }
+
+            if let Err(err) = app_data
+                                .slack_client
+                                .send_message(&commentary,
+                                            SlackMessageTaget::to_user_direct(&user_id))
+                                .await {
                 error!("Message send error: {:?}", err);
             }
         }
@@ -132,6 +155,7 @@ pub fn send_message_with_build_result_into_thread(job_url: JobUrl,
         // Если есть файл, значит грузим на него QR код
         if let Some((image_data, commentary)) = file_info {
             // Qr код со ссылкой
+            let commentary = commentary.replace("\\n", "\n");
             let commentary = format!("<@{}>\n:borat:\n```{}```", root_message.user, commentary);
             let result = app_data
                 .slack_client

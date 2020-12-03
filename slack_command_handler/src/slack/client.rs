@@ -75,7 +75,6 @@ impl<'a> SlackMessageTaget<'a> {
         }
     }
 
-    #[cfg(test)]
     pub fn to_channel(channel_id: &'a str) -> SlackMessageTaget<'a>{
         SlackMessageTaget::Channel{
             id: channel_id
@@ -125,7 +124,6 @@ impl<'a> SlackImageTarget<'a> {
         }
     }
 
-    #[cfg(test)]
     pub fn to_channel(channel_id: &'a str) -> SlackImageTarget<'a>{
         SlackImageTarget::Channel{
             id: channel_id

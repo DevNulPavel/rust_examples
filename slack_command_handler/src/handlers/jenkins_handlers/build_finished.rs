@@ -22,7 +22,7 @@ use crate::{
     },
     helpers::{
         send_message_with_build_result_into_thread,
-        send_message_with_build_result_direct_message
+        send_message_with_build_result
     },
     ApplicationData
 };
@@ -64,7 +64,9 @@ pub struct BuildFinishedParameters{
     pub user_info: Option<BuildResultUserInfo>,
 
     #[serde(flatten)]
-    pub file_info: Option<BuildResultFileInfo>
+    pub file_info: Option<BuildResultFileInfo>,
+
+    pub default_channel: Option<String>,
 }
 
 pub async fn jenkins_build_finished_handler(parameters: Form<BuildFinishedParameters>, app_data: Data<ApplicationData>, awaiter: Data<ResponseAwaiterHolder>) -> HttpResponse {
@@ -81,7 +83,7 @@ pub async fn jenkins_build_finished_handler(parameters: Form<BuildFinishedParame
             awaiter.provide_build_complete_params(url, parameters.0, app_data, Box::new(send_message_with_build_result_into_thread));    
         }else {
             debug!("Direct message send: {:?}", parameters.0);
-            send_message_with_build_result_direct_message(parameters.0, app_data);
+            send_message_with_build_result(parameters.0, app_data);
         }
     }else{
         // По-умолчанию считаем, что сборка была создана ботом
