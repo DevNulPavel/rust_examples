@@ -1,8 +1,3 @@
-use std::{
-    future::{
-        Future
-    }
-};
 use log::{
     debug
 };
@@ -129,6 +124,7 @@ impl<'a> SlackImageTarget<'a> {
         }
     }
 
+    #[cfg(test)]
     pub fn to_channel(channel_id: &'a str) -> SlackImageTarget<'a>{
         SlackImageTarget::Channel{
             id: channel_id

@@ -42,7 +42,8 @@ use crate::{
     }
 };
 
-type ResponseAwaiterCallback = dyn FnOnce(JenkinsJob, 
+type ResponseAwaiterCallback = dyn FnOnce(JobUrl,
+                                          JenkinsJob, 
                                           AppMentionMessageInfo, 
                                           Message, 
                                           BuildFinishedParameters, 
@@ -59,9 +60,9 @@ struct ResponseAwaiter{
 
 impl ResponseAwaiter{
     fn new(complete: Box<ResponseAwaiterCallback>) -> ResponseAwaiter {
-        // Время жизни объекта - 30 минут
+        // Время жизни объекта - 45 минут
         ResponseAwaiter{
-            destroy_time: Instant::now().checked_add(Duration::from_secs(60 * 30)).unwrap(),
+            destroy_time: Instant::now().checked_add(Duration::from_secs(60 * 45)).unwrap(),
             job: None,
             root_message: None,
             message: None,
@@ -88,6 +89,7 @@ pub struct ResponseAwaiterHolder{
 
 // TODO: Fix box
 impl ResponseAwaiterHolder {
+    /// Создаем потокобезопасный контейнер с запущенной периодической чисткой
     pub fn new() -> Data<Self>{
         let response_awaiter = Data::new(ResponseAwaiterHolder::default());
         ResponseAwaiterHolder::start_periodical_cleanup(response_awaiter.clone());
@@ -98,11 +100,13 @@ impl ResponseAwaiterHolder {
         spawn(async move {
             use actix_web::rt::time::delay_for;
 
+            // Чистку будем делать каждые 2 минуты
             loop {
-                delay_for(Duration::from_secs(30)).await;
+                delay_for(Duration::from_secs(60 * 2)).await;
 
                 let now = Instant::now();
                 if let Ok(mut holder) = self_obj.awaiters.lock(){
+                    // Оставляем только те объекты, которые еще должны жить
                     holder.retain(|_, val|{
                         val.destroy_time > now
                     });
@@ -121,22 +125,34 @@ impl ResponseAwaiterHolder {
                                             update: U)
     where U: FnOnce(&mut ResponseAwaiter) {
 
+        // Блокируемя на объекте
         if let Ok(mut awaiter) = self.awaiters.lock(){
+            // Получаем хранитель из мапы
             let entry = awaiter
                 .entry(url.to_owned());
 
-            let awaiter_entry = entry
+            // Создаем объект
+            let awaiter_obj = entry
                 .or_insert_with(||{
                     ResponseAwaiter::new(Box::new(complete))
                 });
 
-            update(awaiter_entry);
+            // Исполняем внешнее обновление
+            update(awaiter_obj);
 
-            if awaiter_entry.is_complete() {
+            // Если наш объект заполнен
+            if awaiter_obj.is_complete() {
                 // TODO: Оптимизировать
+
+                // Извлекаем объект
                 if let Some(obj) = awaiter.remove(&url){
+
+                    // Разворачиваем объект на содержимое
                     let ResponseAwaiter{complete, job, root_message, message, params, ..}= obj;
+
+                    // Вызываем коллбек с данными
                     complete(
+                        url,
                         job.expect("Job unwrap failed"),
                         root_message.expect("Message unwrap failed"),
                         message.expect("Message unwrap failed"),
@@ -148,13 +164,25 @@ impl ResponseAwaiterHolder {
         }
     }
 
-    pub fn provide_build_complete_params(&self, url: JobUrl, params: BuildFinishedParameters, app_data: Data<ApplicationData>, complete: Box<ResponseAwaiterCallback>) {
+    /// Предоставляем данные от запроса-коллбека
+    pub fn provide_build_complete_params(&self, 
+                                         url: JobUrl, 
+                                         params: BuildFinishedParameters, 
+                                         app_data: Data<ApplicationData>, 
+                                         complete: Box<ResponseAwaiterCallback>) {
         self.try_to_update_entry_with_complete(url, app_data, complete, |entry: &mut ResponseAwaiter|{
             entry.params = Some(params);
         });
     }
 
-    pub fn provide_job(&self, url: JobUrl, job: JenkinsJob, root_message: AppMentionMessageInfo, message: Message, app_data: Data<ApplicationData>, complete: Box<ResponseAwaiterCallback>) {
+    /// Предоставляем данные после получения урла джобы
+    pub fn provide_job(&self, 
+                       url: JobUrl, 
+                       job: JenkinsJob, 
+                       root_message: AppMentionMessageInfo, 
+                       message: Message, 
+                       app_data: Data<ApplicationData>, 
+                       complete: Box<ResponseAwaiterCallback>) {
         self.try_to_update_entry_with_complete(url, app_data, complete, |entry: &mut ResponseAwaiter|{
             entry.job = Some(job);
             entry.message = Some(message);

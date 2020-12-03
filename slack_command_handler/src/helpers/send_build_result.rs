@@ -7,8 +7,8 @@ use actix_web::{
     }
 };
 use log::{
-    debug,
-    info,
+    // debug,
+    // info,
     error
 };
 use crate::{
@@ -21,12 +21,12 @@ use crate::{
         Message
     },
     jenkins::{
-        JenkinsJob
+        JenkinsJob,
+        JobUrl
     },
     handlers::{
         jenkins_handlers::{
-            BuildFinishedParameters,
-            BuildResultUserInfo
+            BuildFinishedParameters
         },
         slack_handlers::{
             AppMentionMessageInfo
@@ -35,7 +35,7 @@ use crate::{
     ApplicationData,
 };
 
-
+// TODO: Рефакторинг, есть дублирующийся код
 
 pub fn send_message_with_build_result_direct_message(params: BuildFinishedParameters,
                                                      app_data: Data<ApplicationData>) {
@@ -74,10 +74,9 @@ pub fn send_message_with_build_result_direct_message(params: BuildFinishedParame
             }
         };
 
-
         // Если есть файл, значит грузим на него QR код
         if let Some((image_data, commentary)) = file_info {
-            let commentary = format!("Build finished: {}", commentary);
+            let commentary = format!(":borat:\n```{}```", commentary);
             let result = app_data
                 .slack_client
                 .send_image(image_data, commentary.clone(), SlackImageTarget::to_user_direct(&user_id))
@@ -85,28 +84,39 @@ pub fn send_message_with_build_result_direct_message(params: BuildFinishedParame
             
             if let Err(err) = result {
                 error!("Image upload error: {:?}", err);
-                let result = app_data
-                    .slack_client
-                    .send_message(&commentary,
-                                  SlackMessageTaget::to_user_direct(&user_id))
-                    .await;
-                if let Err(err) = result {
-                    error!("Message send error: {:?}", err);
-                }
             }
         } else{
-            error!("Missing file link information");
+            let commentary = format!(":borat:");
+            let result = app_data
+                .slack_client
+                .send_message(&commentary,
+                              SlackMessageTaget::to_user_direct(&user_id))
+                .await;
+            if let Err(err) = result {
+                error!("Message send error: {:?}", err);
+            }
         }
     });
 }
 
 
-pub fn send_message_with_build_result_into_thread(_: JenkinsJob, 
-                                                 root_message: AppMentionMessageInfo,
-                                                 _: Message,
-                                                 params: BuildFinishedParameters,
-                                                 app_data: Data<ApplicationData>) {
+pub fn send_message_with_build_result_into_thread(job_url: JobUrl,
+                                                  _: JenkinsJob, 
+                                                  root_message: AppMentionMessageInfo,
+                                                  mut building_message: Message,
+                                                  params: BuildFinishedParameters,
+                                                  app_data: Data<ApplicationData>) {
     spawn(async move {
+        // Обновление сообщения со ссылкой на джобу
+        {
+            let new_text = format!("```{}```", job_url);
+            building_message
+                .update_text(&new_text)
+                .await
+                .ok();
+        }
+
+        // Получаем данные для QR кода
         let file_info = params
             .file_info
             .and_then(|link|{
@@ -121,7 +131,8 @@ pub fn send_message_with_build_result_into_thread(_: JenkinsJob,
 
         // Если есть файл, значит грузим на него QR код
         if let Some((image_data, commentary)) = file_info {
-            let commentary = format!("<@{}> Build finished: {}", root_message.user, commentary);
+            // Qr код со ссылкой
+            let commentary = format!("<@{}>\n:borat:\n```{}```", root_message.user, commentary);
             let result = app_data
                 .slack_client
                 .send_image(image_data, commentary.clone(), SlackImageTarget::to_thread(&root_message.channel, &root_message.ts))
@@ -129,17 +140,18 @@ pub fn send_message_with_build_result_into_thread(_: JenkinsJob,
             
             if let Err(err) = result {
                 error!("Image upload error: {:?}", err);
-                let result = app_data
-                    .slack_client
-                    .send_message(&commentary,
-                                  SlackMessageTaget::to_thread(&root_message.channel, &root_message.ts))
-                    .await;
-                if let Err(err) = result {
-                    error!("Message send error: {:?}", err);
-                }
             }
         }else{
-            error!("Missing file link information");
+            // Просто текст в тред
+            let commentary = format!("<@{}>\n:borat:", root_message.user);
+            let result = app_data
+                .slack_client
+                .send_message(&commentary,
+                              SlackMessageTaget::to_thread(&root_message.channel, &root_message.ts))
+                .await;
+            if let Err(err) = result {
+                error!("Message send error: {:?}", err);
+            }
         }
     });
 }

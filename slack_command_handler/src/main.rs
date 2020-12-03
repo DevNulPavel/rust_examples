@@ -120,6 +120,7 @@ fn configure_server(cfg: &mut web::ServiceConfig) {
                     .service(web::resource("/build_finished")
                             .route(web::route()
                                     .guard(guard::Post())
+                                    .guard(guard::Header("Content-type", "application/x-www-form-urlencoded"))
                                     .to(jenkins_build_finished_handler))));
 }
 

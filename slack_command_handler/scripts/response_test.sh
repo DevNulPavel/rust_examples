@@ -16,8 +16,8 @@ curl \
     --data-urlencode "build_number=$BUILD_NUMBER" \
     --data-urlencode "git_commit=$GIT_COMMIT" \
     --data-urlencode "git_branch=$GIT_BRANCH" \
-    --data-urlencode "build_file_link=Link" \
-    --data-urlencode "build_file_commentary=Commentary" \
+    --data-urlencode "build_file_link=http://devnulpavel.ddns.net:8888" \
+    --data-urlencode "build_file_commentary=http://devnulpavel.ddns.net:8888" \
     --data-urlencode "build_job_url=$BUILD_URL" \
     --data-urlencode "build_user_id=$BUILD_USER_ID" \
     --data-urlencode "build_user_name=$BUILD_USER" \
