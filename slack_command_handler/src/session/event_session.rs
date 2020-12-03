@@ -55,7 +55,7 @@ impl ResponseWithError for EventSession{
             let formatted_text = format!("```{}```", error_text);
 
             //let message_type = SlackMessageTaget::to_channel_ephemeral(&self.channel_id, &self.user_id);
-            let message_type = SlackMessageTaget::to_channel(&self.message.channel);
+            let message_type = SlackMessageTaget::to_thread(&self.message.channel, &self.message.ts);
 
             let message_status = self.app_data
                 .slack_client

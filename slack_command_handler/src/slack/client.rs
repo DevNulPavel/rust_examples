@@ -75,6 +75,7 @@ impl<'a> SlackMessageTaget<'a> {
         }
     }
 
+    #[cfg(test)]
     pub fn to_channel(channel_id: &'a str) -> SlackMessageTaget<'a>{
         SlackMessageTaget::Channel{
             id: channel_id

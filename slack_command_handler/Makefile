@@ -24,7 +24,7 @@ RUN_DOCKER_IMAGE_INTERACTIVE:
 	docker run -it --rm --env-file ~/slack_bot_test_docker.env --network host --name slack_command_handler devnul/slack_command_handler
 
 RUN_DOCKER_IMAGE_DAEMON:
-	docker run -d --rm --env-file ~/slack_bot_test_docker.env --network host --name slack_command_handler devnul/slack_command_handler
+	docker run -d  --rm --env-file ~/slack_bot_test_docker.env --network host --restart unless-stopped --name slack_command_handler devnul/slack_command_handler
 
 PUSH_DOCKER_IMAGE: BUILD_DOCKER_IMAGE
 	docker push devnul/slack_command_handler
