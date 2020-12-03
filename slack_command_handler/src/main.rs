@@ -5,22 +5,9 @@ mod windows;
 mod session;
 mod handlers;
 mod response_awaiter_holder;
+mod active_views_holder;
 
-use std::{
-    sync::{
-        Mutex,
-        Arc
-    },
-    /*path::{
-        Path
-    },
-    fs::{
-        File
-    },
-    io::{
-        BufReader
-    }*/
-};
+
 use actix_web::{
     web::{
         self,
@@ -54,8 +41,7 @@ use listenfd::{
 };
 use crate::{
     application_data::{
-        ApplicationData,
-        ViewsHandlersMap
+        ApplicationData
     },
     handlers::{
         slack_handlers::{
@@ -66,6 +52,9 @@ use crate::{
         jenkins_handlers::{
             jenkins_build_finished_handler
         }
+    },
+    active_views_holder::{
+        ViewsHandlersHolder
     },
     response_awaiter_holder::{
         ResponseAwaiterHolder
@@ -180,9 +169,10 @@ async fn main() -> std::io::Result<()>{
     let request_client = Client::new(); // TODO: Configure
 
     // Контейнер для вьюшек, общий для всех инстансов приложения
-    let active_views_container = Arc::new(Mutex::new(ViewsHandlersMap::new()));
+    let active_views_container = Data::new(ViewsHandlersHolder::default());
 
-    let response_awaiter = Data::new(Mutex::new(ResponseAwaiterHolder::default()));
+    // Специальный контейнер, который позволяет дождаться прихода ответа
+    let response_awaiter = ResponseAwaiterHolder::new();
 
     // Создание веб-приложения, таких приложений может быть создано много за раз
     // Данный коллбек может вызываться несколько раз
@@ -190,13 +180,13 @@ async fn main() -> std::io::Result<()>{
         // Создаем данные приложения для текущего треда
         let app_data = Data::new(ApplicationData::new(
             slack::SlackClient::new(request_client.clone(), &slack_api_token),
-            jenkins::JenkinsClient::new(request_client.clone(), &jenkins_user, &jenkins_api_token),
-            active_views_container.clone()
+            jenkins::JenkinsClient::new(request_client.clone(), &jenkins_user, &jenkins_api_token)
         ));
 
         // Создаем приложение
         App::new()
             .app_data(app_data)
+            .app_data(active_views_container.clone())
             .app_data(response_awaiter.clone())
             .wrap(middleware::Logger::default()) // Включаем логирование запросов с помощью middleware
             .configure(configure_server)

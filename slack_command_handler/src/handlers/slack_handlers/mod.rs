@@ -7,6 +7,7 @@ pub use self::{
         slack_slash_command_handler
     },
     events::{
+        AppMentionMessageInfo,
         slack_events_handler,
         update_message_with_build_result
     },

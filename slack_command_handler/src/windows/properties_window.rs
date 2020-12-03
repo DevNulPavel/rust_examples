@@ -335,7 +335,7 @@ async fn update_properties_window(target: JenkinsTarget, mut view: View, session
                 view,
                 target
             });
-            session.app_data.push_view_handler(view_handler)
+            session.views_holder.push_view_handler(view_handler)
         },
         Err(err) => {
             slack_response_with_error!(session, format!("Properties window update error: {:?}", err));

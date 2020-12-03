@@ -31,7 +31,12 @@ use crate::{
     session::{
         CommandSession
     },
-    ApplicationData
+    application_data::{
+        ApplicationData
+    },
+    active_views_holder::{
+        ViewsHandlersHolder
+    }
 };
 
 #[derive(Deserialize)]
@@ -67,10 +72,13 @@ pub struct SlackCommandParameters{
     }
 }*/
 
-pub async fn slack_slash_command_handler(parameters: Form<SlackCommandParameters>, app_data: Data<ApplicationData>) -> HttpResponse {
+pub async fn slack_slash_command_handler(parameters: Form<SlackCommandParameters>, 
+                                         app_data: Data<ApplicationData>, 
+                                         views_holder: Data<ViewsHandlersHolder>) -> HttpResponse {
     //debug!("Index parameters: {:?}", parameters);
 
     let session = CommandSession::new(app_data, 
+                                      views_holder,
                                       parameters.0.user_id,
                                       parameters.0.user_name,
                                       //Some(parameters.0.channel_id),

@@ -1,11 +1,24 @@
 use std::{
     collections::{
         HashMap
+    },
+    sync::{
+        Mutex
+    },
+    time::{
+        Instant,
+        Duration
     }
+};
+use log::{
+    error
 };
 use actix_web::{
     web::{
         Data
+    },
+    rt::{
+        spawn
     }
 };
 use crate::{
@@ -20,17 +33,25 @@ use crate::{
         ApplicationData
     },
     handlers::{
+        slack_handlers::{
+            AppMentionMessageInfo
+        },
         jenkins_handlers::{
             BuildFinishedParameters
         }
     }
 };
 
-type ResponseAwaiterCallback = dyn FnOnce(JenkinsJob, (String, String), Message, BuildFinishedParameters, Data<ApplicationData>) + Send;
+type ResponseAwaiterCallback = dyn FnOnce(JenkinsJob, 
+                                          AppMentionMessageInfo, 
+                                          Message, 
+                                          BuildFinishedParameters, 
+                                          Data<ApplicationData>) + Send;
 
 struct ResponseAwaiter{
+    destroy_time: Instant,
     job: Option<JenkinsJob>,
-    root_message: Option<(String, String)>,
+    root_message: Option<AppMentionMessageInfo>,
     message: Option<Message>,
     params: Option<BuildFinishedParameters>,
     complete: Box<ResponseAwaiterCallback>
@@ -38,7 +59,9 @@ struct ResponseAwaiter{
 
 impl ResponseAwaiter{
     fn new(complete: Box<ResponseAwaiterCallback>) -> ResponseAwaiter {
+        // Время жизни объекта - 30 минут
         ResponseAwaiter{
+            destroy_time: Instant::now().checked_add(Duration::from_secs(60 * 30)).unwrap(),
             job: None,
             root_message: None,
             message: None,
@@ -60,58 +83,82 @@ impl ResponseAwaiter{
 
 #[derive(Default)]
 pub struct ResponseAwaiterHolder{
-    awaiters: HashMap<JobUrl, ResponseAwaiter>,
+    awaiters: Mutex<HashMap<JobUrl, ResponseAwaiter>>,
 }
 
 // TODO: Fix box
 impl ResponseAwaiterHolder {
-    pub fn provide_build_complete_params(&mut self, url: &JobUrl, params: BuildFinishedParameters, app_data: Data<ApplicationData>, complete: Box<ResponseAwaiterCallback>) {
-        let entry = self.awaiters
-            .entry(url.to_owned());
+    pub fn new() -> Data<Self>{
+        let response_awaiter = Data::new(ResponseAwaiterHolder::default());
+        ResponseAwaiterHolder::start_periodical_cleanup(response_awaiter.clone());
+        response_awaiter
+    }
 
-        let awaiter = entry.or_insert_with(||{
-                ResponseAwaiter::new(Box::new(complete))
-            });
+    fn start_periodical_cleanup(self_obj: Data<Self>){
+        spawn(async move {
+            use actix_web::rt::time::delay_for;
 
-        awaiter.params = Some(params);
+            loop {
+                delay_for(Duration::from_secs(30)).await;
 
-        if awaiter.is_complete() {
-            if let Some(obj) = self.awaiters.remove(url){
-                let ResponseAwaiter{complete, job, root_message, message, params}= obj;
-                complete(
-                    job.expect("Job unwrap failed"),
-                    root_message.expect("Message unwrap failed"),
-                    message.expect("Message unwrap failed"),
-                    params.expect("Params unwrap failed"),
-                    app_data
-                );
+                let now = Instant::now();
+                if let Ok(mut holder) = self_obj.awaiters.lock(){
+                    holder.retain(|_, val|{
+                        val.destroy_time > now
+                    });
+                }else{
+                    error!("Response awaiter lock failed");
+                    break;
+                }
+            }
+        });
+    }
+
+    fn try_to_update_entry_with_complete<U>(&self, 
+                                            url: &JobUrl, 
+                                            app_data: Data<ApplicationData>, 
+                                            complete: Box<ResponseAwaiterCallback>, 
+                                            update: U)
+    where U: FnOnce(&mut ResponseAwaiter) {
+
+        if let Ok(mut awaiter) = self.awaiters.lock(){
+            let entry = awaiter
+                .entry(url.to_owned());
+
+            let awaiter_entry = entry
+                .or_insert_with(||{
+                    ResponseAwaiter::new(Box::new(complete))
+                });
+
+            update(awaiter_entry);
+
+            if awaiter_entry.is_complete() {
+                // TODO: Оптимизировать
+                if let Some(obj) = awaiter.remove(url){
+                    let ResponseAwaiter{complete, job, root_message, message, params, ..}= obj;
+                    complete(
+                        job.expect("Job unwrap failed"),
+                        root_message.expect("Message unwrap failed"),
+                        message.expect("Message unwrap failed"),
+                        params.expect("Params unwrap failed"),
+                        app_data
+                    );
+                }
             }
         }
     }
 
-    pub fn provide_job(&mut self, url: &JobUrl, job: JenkinsJob, root_message: (String, String), message: Message, app_data: Data<ApplicationData>, complete: Box<ResponseAwaiterCallback>) {
-        let entry = self.awaiters
-        .entry(url.to_owned());
+    pub fn provide_build_complete_params(&self, url: &JobUrl, params: BuildFinishedParameters, app_data: Data<ApplicationData>, complete: Box<ResponseAwaiterCallback>) {
+        self.try_to_update_entry_with_complete(url, app_data, complete, |entry: &mut ResponseAwaiter|{
+            entry.params = Some(params);
+        });
+    }
 
-        let awaiter = entry.or_insert_with(||{
-                ResponseAwaiter::new(Box::new(complete))
-            });
-
-        awaiter.job = Some(job);
-        awaiter.message = Some(message);
-        awaiter.root_message = Some(root_message);
-
-        if awaiter.is_complete() {
-            if let Some(obj) = self.awaiters.remove(url){
-                let ResponseAwaiter{complete, job, root_message, message, params}= obj;
-                complete(
-                    job.expect("Job unwrap failed"),
-                    root_message.expect("Message unwrap failed"),
-                    message.expect("Message unwrap failed"),
-                    params.expect("Params unwrap failed"),
-                    app_data
-                );
-            }
-        }
+    pub fn provide_job(&self, url: &JobUrl, job: JenkinsJob, root_message: AppMentionMessageInfo, message: Message, app_data: Data<ApplicationData>, complete: Box<ResponseAwaiterCallback>) {
+        self.try_to_update_entry_with_complete(url, app_data, complete, |entry: &mut ResponseAwaiter|{
+            entry.job = Some(job);
+            entry.message = Some(message);
+            entry.root_message = Some(root_message);    
+        });
     }
 }

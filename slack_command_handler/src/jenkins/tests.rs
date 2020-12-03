@@ -36,7 +36,7 @@ async fn test_jenkins_jobs() {
     let found_job = jobs
         .iter()
         .find(|job|{
-            job.get_info().name == "utils-check-free-space"
+            job.get_info().name == "slack_bot_test_target"
         })
         .expect("Required job is not found");
 

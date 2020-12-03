@@ -26,6 +26,9 @@ use crate::{
     application_data::{
         ApplicationData
     },
+    active_views_holder::{
+        ViewsHandlersHolder
+    },
     slack::{
         ViewInfo
     }
@@ -96,7 +99,7 @@ pub struct WindowHandlerParameters{
 }
 
 /// Обработчик открытия окна Jenkins
-pub async fn slack_window_handler(parameters: Form<WindowHandlerParameters>, app_data: Data<ApplicationData>) -> HttpResponse {
+pub async fn slack_window_handler(parameters: Form<WindowHandlerParameters>, app_data: Data<ApplicationData>, views_holder: Data<ViewsHandlersHolder>) -> HttpResponse {
     debug!("Jenkins window parameters: {:?}", parameters);
 
     //debug!("Jenkins window parameters: {:?}", parameters.payload);
@@ -120,9 +123,10 @@ pub async fn slack_window_handler(parameters: Form<WindowHandlerParameters>, app
                         debug!("Submit button processing with trigger_id: {}", trigger_id);
 
                         // Найти вьюшку здесь и вызвать обработчик вьюшки
-                        if let Some(mut view_obj) = app_data.pop_view_handler(view.get_id()){
+                        if let Some(mut view_obj) = views_holder.pop_view_handler(view.get_id()){
                             // Создание сессии
                             let session = WindowSession::new(app_data, 
+                                                             views_holder,
                                                              user.id,
                                                              user.name,
                                                              trigger_id);
@@ -141,13 +145,13 @@ pub async fn slack_window_handler(parameters: Form<WindowHandlerParameters>, app
                         debug!("Action processing");
             
                         // Найти вьюшку здесь и вызвать обработчик вьюшки
-                        if let Some(mut view_obj) = app_data.pop_view_handler(view.get_id()){
+                        if let Some(mut view_obj) = views_holder.pop_view_handler(view.get_id()){
                             view_obj.update_info(view);
 
                             view_obj.on_update();
 
                             // Сохраняем для дальнейших обновлений
-                            app_data.push_view_handler(view_obj);
+                            views_holder.push_view_handler(view_obj);
                         }else{
                             error!("Cannot find view for id: {}", view.get_id());
                         }
@@ -157,9 +161,10 @@ pub async fn slack_window_handler(parameters: Form<WindowHandlerParameters>, app
                         debug!("Close processing");
 
                         // Найти вьюшку здесь и вызвать обработчик вьюшки
-                        if let Some(mut view_obj) = app_data.pop_view_handler(view.get_id()){
+                        if let Some(mut view_obj) = views_holder.pop_view_handler(view.get_id()){
                             // Создание сессии
-                            let session = WindowSession::new(app_data, 
+                            let session = WindowSession::new(app_data,
+                                                             views_holder, 
                                                              user.id,
                                                              user.name,
                                                              trigger_id);

@@ -12,6 +12,11 @@ use actix_web::{
     }
 };
 use crate::{
+    handlers::{
+        slack_handlers::{
+            AppMentionMessageInfo
+        }
+    },
     application_data::{
         ApplicationData
     },
@@ -27,21 +32,15 @@ use super::{
 
 pub struct EventSession{
     pub app_data: Data<ApplicationData>,
-    pub user_id: String,
-    pub channel_id: String,
-    pub trigget_message_ts: String,
+    pub message: AppMentionMessageInfo
 }
 
 impl EventSession {
     pub fn new(app_data: Data<ApplicationData>,
-               user_id: String,
-               channel_id: String,
-               trigget_message_ts: String) -> EventSession{
+               message: AppMentionMessageInfo) -> EventSession{
         EventSession{
             app_data,
-            user_id,
-            channel_id,
-            trigget_message_ts
+            message
         }
     }
 }
@@ -56,7 +55,7 @@ impl ResponseWithError for EventSession{
             let formatted_text = format!("```{}```", error_text);
 
             //let message_type = SlackMessageTaget::to_channel_ephemeral(&self.channel_id, &self.user_id);
-            let message_type = SlackMessageTaget::to_channel(&self.channel_id);
+            let message_type = SlackMessageTaget::to_channel(&self.message.channel);
 
             let message_status = self.app_data
                 .slack_client

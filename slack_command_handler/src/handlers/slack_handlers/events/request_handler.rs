@@ -1,9 +1,3 @@
-use std::{
-    sync::{
-        // Arc,
-        Mutex
-    }
-};
 use serde::{
     Deserialize
 };
@@ -38,13 +32,13 @@ use super::{
 };
 
 
-#[derive(Deserialize, Debug)]
+/*#[derive(Deserialize, Debug)]
 pub struct AuthInformation {
     enterprise_id: String,
     team_id: String,
     user_id: String,
     is_bot: bool
-}
+}*/
 
 // https://api.slack.com/events-api
 // https://api.slack.com/apps/A01BSSSHB36/event-subscriptions?
@@ -77,7 +71,7 @@ pub enum SlackEventParameters{
 }*/
 
 
-pub async fn slack_events_handler(parameters: Json<SlackEventParameters>, app_data: Data<ApplicationData>, awaiter: Data<Mutex<ResponseAwaiterHolder>>) -> HttpResponse {
+pub async fn slack_events_handler(parameters: Json<SlackEventParameters>, app_data: Data<ApplicationData>, awaiter: Data<ResponseAwaiterHolder>) -> HttpResponse {
     // Про ответы на события: https://api.slack.com/events-api#the-events-api__responding-to-events
     match parameters.into_inner() {
         SlackEventParameters::Verify{challenge, ..} => {

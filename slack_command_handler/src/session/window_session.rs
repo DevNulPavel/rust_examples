@@ -15,6 +15,9 @@ use crate::{
     application_data::{
         ApplicationData
     },
+    active_views_holder::{
+        ViewsHandlersHolder
+    },
     slack::{
         SlackMessageTaget
     }
@@ -27,6 +30,7 @@ use super::{
 
 pub struct WindowSession{
     pub app_data: Data<ApplicationData>, 
+    pub views_holder: Data<ViewsHandlersHolder>, 
     pub user_id: String,
     pub user_name: String,
     pub trigger_id: String
@@ -34,11 +38,13 @@ pub struct WindowSession{
 
 impl WindowSession {
     pub fn new(app_data: Data<ApplicationData>,
+               views_holder: Data<ViewsHandlersHolder>,
                user_id: String,
                user_name: String,
                trigger_id: String) -> WindowSession{
         WindowSession{
             app_data, 
+            views_holder,
             user_id, 
             user_name, 
             trigger_id

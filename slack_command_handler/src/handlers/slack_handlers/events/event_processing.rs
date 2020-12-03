@@ -1,9 +1,3 @@
-use std::{
-    sync::{
-        // Arc,
-        Mutex
-    }
-};
 use actix_web::{
     web::{
         Data,
@@ -35,6 +29,9 @@ use crate::{
     handlers::{
         jenkins_handlers::{
             BuildFinishedParameters
+        },
+        slack_handlers::{
+            AppMentionMessageInfo
         }
     },
     ApplicationData,
@@ -51,22 +48,23 @@ use super::{
     }
 };
 
-pub fn update_message_with_build_result(job: JenkinsJob, 
-                                        root_message: (String, String), 
-                                        message: Message, 
-                                        params: BuildFinishedParameters, 
+pub fn update_message_with_build_result(_: JenkinsJob, 
+                                        root_message: AppMentionMessageInfo, 
+                                        _: Message, 
+                                        _: BuildFinishedParameters, 
                                         app_data: Data<ApplicationData>){
     spawn(async move{
         //message.update_text("BUILD COMPLETE TEST").await.ok();
+        let text = format!("<@{}> Build finished", root_message.user);
         app_data
             .slack_client
-            .send_message("Build finished", SlackMessageTaget::to_thread(&root_message.0, &root_message.1))
+            .send_message(&text, SlackMessageTaget::to_thread(&root_message.channel, &root_message.ts))
             .await
             .ok();
     });
 }
 
-async fn start_jenkins_job(target: &str, branch: &str, session: EventSession, awaiter: Data<Mutex<ResponseAwaiterHolder>>) {
+async fn start_jenkins_job(target: &str, branch: &str, session: EventSession, awaiter: Data<ResponseAwaiterHolder>) {
     let targets = session
         .app_data
         .jenkins_client
@@ -125,13 +123,13 @@ async fn start_jenkins_job(target: &str, branch: &str, session: EventSession, aw
                                                            "Jenkins job start error: {:?}");
 
     // Тестовое сообщение
-    let test_message = format!(":zhdun:```Target: {}\nBranch: {}\nTarget: {}```", target, branch, found_target.get_info().url);
+    let test_message = format!(":zhdun:```Target:\n{}\n\nBranch:\n{}\n\nTarget:\n{}```", target, branch, found_target.get_info().url);
     
     // Шлем сообщение
     let message = session
         .app_data
         .slack_client
-        .send_message(&test_message, SlackMessageTaget::to_thread(&session.channel_id, &session.trigget_message_ts))
+        .send_message(&test_message, SlackMessageTaget::to_thread(&session.message.channel, &session.message.ts))
         .await;
 
     let message = unwrap_error_with_slack_response_and_return!(message, 
@@ -164,14 +162,12 @@ async fn start_jenkins_job(target: &str, branch: &str, session: EventSession, aw
         match result {
             Some(real_url) => {
                 // Обновляем сообщение
-                let new_text = format!(":jenkins:```Target: {}\nBranch: {}\nJob: {}```", target, branch, real_url);
+                let new_text = format!(":jenkins:```Target:\n{}\n\nBranch:\n{}\n\nJob:\n{}```", target, branch, real_url);
                 let update_result = message.update_text(&new_text).await;
 
                 unwrap_error_with_slack_response_and_return!(update_result, session, "Message update failed: {:?}");
 
-                if let Ok(mut awaiter) = awaiter.lock(){
-                    awaiter.provide_job(&real_url, job, (session.channel_id, session.trigget_message_ts), message, session.app_data, Box::new(update_message_with_build_result));
-                }
+                awaiter.provide_job(&real_url, job, session.message, message, session.app_data, Box::new(update_message_with_build_result));
 
                 break;
             },
@@ -181,15 +177,16 @@ async fn start_jenkins_job(target: &str, branch: &str, session: EventSession, aw
     }
 }
 
-pub async fn process_jenkins_event(event: MessageEvent, app_data: Data<ApplicationData>, awaiter: Data<Mutex<ResponseAwaiterHolder>>)  {
+pub async fn process_jenkins_event(event: MessageEvent, app_data: Data<ApplicationData>, awaiter: Data<ResponseAwaiterHolder>)  {
     match event {
-        MessageEvent::AppMention{channel, text, user, ts} => {
-            debug!("Channel message event: channel {}, text {}, user {}", channel, text, user);
+        MessageEvent::AppMention(message) => {
+            debug!("Channel message event: {:?}", message);
 
             // Создание сессии
-            let session = EventSession::new(app_data, user, channel, ts);
+            let session = EventSession::new(app_data, message);
 
             // Парсинг параметров билда
+            let text = session.message.text.clone();
             let params = match parse_mention_params(&text){
                 Some(params) => params,
                 None => {

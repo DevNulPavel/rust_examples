@@ -140,6 +140,7 @@ pub async fn open_main_build_window(session: CommandSession) {
     match open_result {
         Ok(view) => {
             let session = WindowSession::new(session.app_data, 
+                                             session.views_holder,
                                              session.user_id, 
                                              session.user_name, 
                                              session.trigger_id);
@@ -282,7 +283,7 @@ async fn update_main_window(mut view: View, session: WindowSession) {
             });
         
             // Сохраняем вьюшку для дальшнейшего использования
-            session.app_data.push_view_handler(view_handler);
+            session.views_holder.push_view_handler(view_handler);
         },
         Err(err) => {
             // Пишем сообщение в ответ в слак
