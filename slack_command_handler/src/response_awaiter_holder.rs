@@ -42,12 +42,18 @@ use crate::{
     }
 };
 
-type ResponseAwaiterCallback = dyn FnOnce(JobUrl,
-                                          JenkinsJob, 
-                                          AppMentionMessageInfo, 
-                                          Message, 
-                                          BuildFinishedParameters, 
-                                          Data<ApplicationData>) + Send;
+pub struct ResponseAwaiterCallbackData{
+    pub url: JobUrl,
+    pub job: JenkinsJob, 
+    pub root_trigger_message: AppMentionMessageInfo, 
+    pub build_message: Message, 
+    pub finished_params: BuildFinishedParameters, 
+    pub app_data: Data<ApplicationData>
+}
+
+type ResponseAwaiterCallback = dyn FnOnce(ResponseAwaiterCallbackData) + Send;
+
+/////////////////////////////////////////////////////////////////////////////////////////////////////////
 
 struct ResponseAwaiter{
     destroy_time: Instant,
@@ -61,8 +67,12 @@ struct ResponseAwaiter{
 impl ResponseAwaiter{
     fn new(complete: Box<ResponseAwaiterCallback>) -> ResponseAwaiter {
         // Время жизни объекта - 45 минут
+        let destroy_time = Instant::now()
+            .checked_add(Duration::from_secs(60 * 45))
+            .expect("Awaiter destroy time failed");
+
         ResponseAwaiter{
-            destroy_time: Instant::now().checked_add(Duration::from_secs(60 * 45)).unwrap(),
+            destroy_time,
             job: None,
             root_message: None,
             message: None,
@@ -80,14 +90,18 @@ impl ResponseAwaiter{
             false
         }
     }
+    fn is_alive(&self, now: Instant) -> bool{
+        self.destroy_time > now
+    }
 }
+
+/////////////////////////////////////////////////////////////////////////////////////////////////////////
 
 #[derive(Default)]
 pub struct ResponseAwaiterHolder{
     awaiters: Mutex<HashMap<JobUrl, ResponseAwaiter>>,
 }
 
-// TODO: Fix box
 impl ResponseAwaiterHolder {
     /// Создаем потокобезопасный контейнер с запущенной периодической чисткой
     pub fn new() -> Data<Self>{
@@ -108,7 +122,7 @@ impl ResponseAwaiterHolder {
                 if let Ok(mut holder) = self_obj.awaiters.lock(){
                     // Оставляем только те объекты, которые еще должны жить
                     holder.retain(|_, val|{
-                        val.destroy_time > now
+                        val.is_alive(now)
                     });
                 }else{
                     error!("Response awaiter lock failed");
@@ -142,8 +156,6 @@ impl ResponseAwaiterHolder {
 
             // Если наш объект заполнен
             if awaiter_obj.is_complete() {
-                // TODO: Оптимизировать
-
                 // Извлекаем объект
                 if let Some(obj) = awaiter.remove(&url){
 
@@ -151,14 +163,15 @@ impl ResponseAwaiterHolder {
                     let ResponseAwaiter{complete, job, root_message, message, params, ..}= obj;
 
                     // Вызываем коллбек с данными
-                    complete(
+                    let data = ResponseAwaiterCallbackData{
                         url,
-                        job.expect("Job unwrap failed"),
-                        root_message.expect("Message unwrap failed"),
-                        message.expect("Message unwrap failed"),
-                        params.expect("Params unwrap failed"),
+                        job: job.expect("Job unwrap failed"),
+                        root_trigger_message: root_message.expect("Message unwrap failed"),
+                        build_message: message.expect("Message unwrap failed"),
+                        finished_params: params.expect("Params unwrap failed"),
                         app_data
-                    );
+                    };
+                    complete(data);
                 }
             }
         }
@@ -190,3 +203,5 @@ impl ResponseAwaiterHolder {
         });
     }
 }
+
+////////////////////////////////////////////////////////////////////////////////////////////////////////////////////////

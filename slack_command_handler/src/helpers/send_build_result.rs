@@ -17,20 +17,15 @@ use crate::{
     },
     slack::{
         SlackMessageTaget,
-        SlackImageTarget,
-        Message
-    },
-    jenkins::{
-        JenkinsJob,
-        JobUrl
+        SlackImageTarget
     },
     handlers::{
         jenkins_handlers::{
             BuildFinishedParameters
-        },
-        slack_handlers::{
-            AppMentionMessageInfo
         }
+    },
+    response_awaiter_holder::{
+        ResponseAwaiterCallbackData
     },
     ApplicationData,
 };
@@ -123,24 +118,20 @@ pub fn send_message_with_build_result(params: BuildFinishedParameters,
 }
 
 
-pub fn send_message_with_build_result_into_thread(job_url: JobUrl,
-                                                  _: JenkinsJob, 
-                                                  root_message: AppMentionMessageInfo,
-                                                  mut building_message: Message,
-                                                  params: BuildFinishedParameters,
-                                                  app_data: Data<ApplicationData>) {
+pub fn send_message_with_build_result_into_thread(mut data: ResponseAwaiterCallbackData) {
     spawn(async move {
         // Обновление сообщения со ссылкой на джобу
         {
-            let new_text = format!("```{}```", job_url);
-            building_message
+            let new_text = format!("```{}```", data.finished_params.job_info.build_job_url);
+            data.build_message
                 .update_text(&new_text)
                 .await
                 .ok();
         }
 
         // Получаем данные для QR кода
-        let file_info = params
+        let file_info = data
+            .finished_params
             .file_info
             .and_then(|link|{
                 match create_qr_data(&link.build_file_link){
@@ -156,10 +147,13 @@ pub fn send_message_with_build_result_into_thread(job_url: JobUrl,
         if let Some((image_data, commentary)) = file_info {
             // Qr код со ссылкой
             let commentary = commentary.replace("\\n", "\n");
-            let commentary = format!("<@{}>\n:borat:\n```{}```", root_message.user, commentary);
-            let result = app_data
+            let commentary = format!("<@{}>\n:borat:\n```{}```", data.root_trigger_message.user, commentary);
+            let result = data
+                .app_data
                 .slack_client
-                .send_image(image_data, commentary.clone(), SlackImageTarget::to_thread(&root_message.channel, &root_message.ts))
+                .send_image(image_data, 
+                            commentary.clone(), 
+                            SlackImageTarget::to_thread(&data.root_trigger_message.channel, &data.root_trigger_message.ts))
                 .await;
             
             if let Err(err) = result {
@@ -167,11 +161,12 @@ pub fn send_message_with_build_result_into_thread(job_url: JobUrl,
             }
         }else{
             // Просто текст в тред
-            let commentary = format!("<@{}>\n:borat:", root_message.user);
-            let result = app_data
+            let commentary = format!("<@{}>\n:borat:", data.root_trigger_message.user);
+            let result = data
+                .app_data
                 .slack_client
                 .send_message(&commentary,
-                              SlackMessageTaget::to_thread(&root_message.channel, &root_message.ts))
+                              SlackMessageTaget::to_thread(&data.root_trigger_message.channel, &data.root_trigger_message.ts))
                 .await;
             if let Err(err) = result {
                 error!("Message send error: {:?}", err);
