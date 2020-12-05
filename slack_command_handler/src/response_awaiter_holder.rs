@@ -51,7 +51,7 @@ pub struct ResponseAwaiterCallbackData{
     pub app_data: Data<ApplicationData>
 }
 
-type ResponseAwaiterCallback = dyn FnOnce(ResponseAwaiterCallbackData) + Send;
+type ResponseAwaiterCallback = fn(ResponseAwaiterCallbackData);
 
 /////////////////////////////////////////////////////////////////////////////////////////////////////////
 
@@ -61,11 +61,11 @@ struct ResponseAwaiter{
     root_message: Option<AppMentionMessageInfo>,
     message: Option<Message>,
     params: Option<BuildFinishedParameters>,
-    complete: Box<ResponseAwaiterCallback>
+    complete: ResponseAwaiterCallback
 }
 
 impl ResponseAwaiter{
-    fn new(complete: Box<ResponseAwaiterCallback>) -> ResponseAwaiter {
+    fn new(complete: ResponseAwaiterCallback) -> ResponseAwaiter {
         // Время жизни объекта - 45 минут
         let destroy_time = Instant::now()
             .checked_add(Duration::from_secs(60 * 45))
@@ -135,7 +135,7 @@ impl ResponseAwaiterHolder {
     fn try_to_update_entry_with_complete<U>(&self, 
                                             url: JobUrl, 
                                             app_data: Data<ApplicationData>, 
-                                            complete: Box<ResponseAwaiterCallback>, 
+                                            complete: ResponseAwaiterCallback, 
                                             update: U)
     where U: FnOnce(&mut ResponseAwaiter) {
 
@@ -148,7 +148,7 @@ impl ResponseAwaiterHolder {
             // Создаем объект
             let awaiter_obj = entry
                 .or_insert_with(||{
-                    ResponseAwaiter::new(Box::new(complete))
+                    ResponseAwaiter::new(complete)
                 });
 
             // Исполняем внешнее обновление
@@ -182,7 +182,7 @@ impl ResponseAwaiterHolder {
                                          url: JobUrl, 
                                          params: BuildFinishedParameters, 
                                          app_data: Data<ApplicationData>, 
-                                         complete: Box<ResponseAwaiterCallback>) {
+                                         complete: ResponseAwaiterCallback) {
         self.try_to_update_entry_with_complete(url, app_data, complete, |entry: &mut ResponseAwaiter|{
             entry.params = Some(params);
         });
@@ -195,7 +195,7 @@ impl ResponseAwaiterHolder {
                        root_message: AppMentionMessageInfo, 
                        message: Message, 
                        app_data: Data<ApplicationData>, 
-                       complete: Box<ResponseAwaiterCallback>) {
+                       complete: ResponseAwaiterCallback) {
         self.try_to_update_entry_with_complete(url, app_data, complete, |entry: &mut ResponseAwaiter|{
             entry.job = Some(job);
             entry.message = Some(message);

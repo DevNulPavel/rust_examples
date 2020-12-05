@@ -148,7 +148,7 @@ async fn start_jenkins_job(target: &str, branch: &str, session: EventSession, aw
                                     session.message, 
                                     message, 
                                     session.app_data, 
-                                    Box::new(send_message_with_build_result_into_thread));
+                                    send_message_with_build_result_into_thread);
 
                 break;
             },

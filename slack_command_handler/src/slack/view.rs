@@ -58,7 +58,7 @@ impl ViewInfo {
 ////////////////////////////////////////////////////////////////
 
 // #[async_trait]
-pub trait ViewActionHandler{
+pub trait ViewActionHandler: Send {
     fn update_info(&mut self, new_info: ViewInfo);
     fn get_view(&self) -> &View;
     fn on_submit(self: Box<Self>, session: WindowSession);
