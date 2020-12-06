@@ -1,6 +1,5 @@
 use std::{
-    collections::HashMap,
-    convert::TryFrom
+    collections::HashMap
 };
 use log::{
     info,
@@ -21,12 +20,12 @@ use currency_lib::{
     CurrencyType,
     get_all_currencies
 };
+#[allow(unused_imports)]
 use sqlx::{
     prelude::*,
     // Transaction,
     sqlite::{
-        SqliteConnection,
-        SqliteRow
+        SqliteConnection
     }
 };
 use crate::{
@@ -36,13 +35,8 @@ use crate::{
     bot_context::{
         BotContext
     },
-    currency_users_storrage::{
-        CurrencyUsersStorrage
-    },
     error::{
-        TelegramBotError,
-        TelegramBotResult,
-        DatabaseErrKind
+        TelegramBotError
     }
 };
 

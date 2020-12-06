@@ -1,5 +1,5 @@
 
-use std::{
+/*use std::{
     time::Duration,
 };
 use log::{
@@ -285,3 +285,4 @@ pub fn build_proxy_for_addresses(valid_proxy_addresses: &[String]) -> Box<dyn Co
 
     Box::new(HyperConnector::new(client))
 }
+*/

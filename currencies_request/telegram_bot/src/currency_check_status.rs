@@ -1,25 +1,15 @@
 use std::{
-    collections::HashMap,
     convert::TryFrom
 };
 use log::{
-    info,
-    error
+    info
 };
-use chrono::prelude::*;
 use telegram_bot::{
-    Message,
-    CanSendMessage,
-    ParseMode,
     UserId,
-    SendMessage
 };
 use currency_lib::{
-    CurrencyResult,
     CurrencyMinimum,
-    CurrencyValue,
-    CurrencyType,
-    get_all_currencies
+    CurrencyType
 };
 use sqlx::{
     prelude::*,
@@ -29,22 +19,7 @@ use sqlx::{
         SqliteRow
     }
 };
-use crate::{
-    app_context::{
-        AppContext
-    },
-    bot_context::{
-        BotContext
-    },
-    currency_users_storrage::{
-        CurrencyUsersStorrage
-    },
-    error::{
-        TelegramBotError,
-        TelegramBotResult,
-        DatabaseErrKind
-    }
-};
+
 
 #[derive(Clone)]
 pub struct CurrencyCheckStatus {

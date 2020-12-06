@@ -8,7 +8,7 @@
 // http://pubproxy.com/api/proxy?type=http
 // http://pubproxy.com/api/proxy?type=http&limit=5
 
-pub const PROXIES: &[&str] = &[
+/*pub const PROXIES: &[&str] = &[
     "http://185.134.23.196:80",
     "http://191.96.42.80:3128",
     "http://12.139.101.101:80",
@@ -89,4 +89,4 @@ pub const PROXIES: &[&str] = &[
     "http://54.37.131.45:3128",
     "http://51.158.68.68:8811",
     "http://51.91.212.159:3128",
-];
+];*/

@@ -16,7 +16,7 @@ use futures::{
     StreamExt,
 };
 use telegram_bot::{
-    connector::Connector,
+    //connector::Connector,
     Api,
     UpdatesStream,
     UpdateKind,
@@ -40,7 +40,7 @@ use reqwest::{
 };
 use log::{
     info,
-    warn,
+    //warn,
     error
 };
 // use sqlx::{
@@ -53,11 +53,11 @@ use crate::{
         TelegramBotError,
         TelegramBotResult
     },
-    proxy::{
+    /*proxy::{
         get_valid_proxy_addresses,
         build_proxy_for_addresses,
         check_all_proxy_addresses_accessible
-    },
+    },*/
     currency_users_storrage::{
         CurrencyUsersStorrage
     },
@@ -251,8 +251,8 @@ async fn async_main(){
     });*/
 
     // Таймер проверки проксей
-    let mut proxy_check_timer = tokio::time::interval(Duration::from_secs(60*3));
-    proxy_check_timer.tick().await; // Первый тик сбрасываем
+    //let mut proxy_check_timer = tokio::time::interval(Duration::from_secs(60*3));
+    //proxy_check_timer.tick().await; // Первый тик сбрасываем
 
     // Таймер проверки проксей
     let mut check_updates_timer = tokio::time::interval(Duration::from_secs(60*5));
@@ -264,16 +264,16 @@ async fn async_main(){
     // Данные всего приложения
     let mut app_context = AppContext{
         token,
-        proxy_check_timer,
+        //proxy_check_timer,
         check_updates_timer,
         client,
         db_conn,
         users_for_push: users_storrage, // Хранилище пользователей
     };
 
-    'main_loop: loop {
+    loop {
         // Получаем валидные адреса проксей
-        let valid_proxy_addresses = match get_valid_proxy_addresses().await{
+        /*let valid_proxy_addresses = match get_valid_proxy_addresses().await{
             Some(addresses) => {
                 addresses
             },
@@ -282,16 +282,17 @@ async fn async_main(){
                 tokio::time::delay_for(Duration::from_secs(15)).await;
                 continue 'main_loop;
             }
-        };
+        };*/
         
         // Создаем хранилище данных бота
         let mut bot_context = {
             // Создаем прокси
-            let proxy: Box<dyn Connector> = build_proxy_for_addresses(&valid_proxy_addresses);
+            /*let proxy: Box<dyn Connector> = build_proxy_for_addresses(&valid_proxy_addresses);*/
 
             // Подключаемся с использованием прокси
             let token = app_context.token.clone();
-            BotContext::new(app_context, Api::with_connector(token, proxy))
+            //BotContext::new(app_context, Api::with_connector(token, proxy))
+            BotContext::new(app_context, Api::new(token))
         }; 
             
         // Дергаем новые обновления через long poll метод
@@ -302,7 +303,7 @@ async fn async_main(){
         'select_loop: loop {
             tokio::select! {
                 // Таймер проверки проксей
-                _ = bot_context.app_context.proxy_check_timer.tick() => {
+                /*_ = bot_context.app_context.proxy_check_timer.tick() => {
                     info!("Repeat proxy check");
                     let accessible = check_all_proxy_addresses_accessible(&valid_proxy_addresses).await;
                     if accessible {
@@ -311,7 +312,7 @@ async fn async_main(){
                         warn!("Some proxy is invalid, break");
                         break 'select_loop;
                     }
-                },
+                },*/
                 
                 // Таймер периодических сообщений
                 _ = bot_context.app_context.check_updates_timer.tick() => {

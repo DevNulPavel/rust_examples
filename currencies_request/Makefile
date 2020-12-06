@@ -44,8 +44,8 @@ RUN_BOT:
 	# RUST_LOG=trace
 	# https://docs.rs/env_logger/0.7.1/env_logger/
 	# export SCCACHE_MEMCACHED="tcp://192.168.1.2:11211";
+	# export RUSTC_WRAPPER=/usr/local/bin/sccache; 
 	export RUST_LOG=telegram_bot=trace; \
-	export RUSTC_WRAPPER=/usr/local/bin/sccache; \
 	while true ; do \
 	$(BUILD_COMMAND) build --bin telegram_bot && \
 	./target/debug/telegram_bot; \
@@ -115,7 +115,7 @@ RUN_ON_PI_DOCKER:
 	# https://github.com/alexey-goloburdin/telegram-finance-bot
 	#docker run -d --name telegram_bot -v /home/pi/telegram_bot_db:/bot devnul/telegram_bot
 	docker pull devnul/telegram_bot:latest
-	docker run -d --env-file /home/pi/telegram_bot.env --name telegram_bot --rm -v /home/pi/telegram_bot_db:/bot/database devnul/telegram_bot:latest
+	docker run -d --restart unless-stopped --env-file /home/pi/telegram_bot.env --name telegram_bot -v /home/pi/telegram_bot_db:/bot/database devnul/telegram_bot:latest
 	docker run -it --env-file /home/pi/telegram_bot.env --name telegram_bot --rm -v /home/pi/telegram_bot_db:/bot/database devnul/telegram_bot:latest sh
 	# docker exec -ti telegram_bot bash
 
@@ -158,9 +158,10 @@ PROFILE_MEMORY_BOT_SERVER:
 BUILD_AND_INSTALL_ON_PI: BUILD_FOR_PI
 	# MUSL excutable
 	# https://www.ibm.com/developerworks/ru/library/l-lpic1-v3-102-3/index.html
-	rsync -av target/arm-unknown-linux-musleabi/release/telegram_bot pi@192.168.1.2:/home/pi/bin/
-	rsync -av sql/create_database.sql pi@192.168.1.2:/home/pi/bin/sql/
-	rsync -av support/bot_start.sh pi@192.168.1.2:/home/pi/bin/
+	#rsync -av target/arm-unknown-linux-musleabi/release/telegram_bot pi@192.168.1.2:/home/pi/bin/
+	#rsync -av sql/create_database.sql pi@192.168.1.2:/home/pi/bin/sql/
+	#rsync -av support/bot_start.sh pi@192.168.1.2:/home/pi/bin/
+	
 	# Запуск musl бинарника: 
 	# 	export LD_LIBRARY_PATH=/openssl_musl_library_path
 	#	/lib/ld-musl-armhf.so.1 telegram_bot

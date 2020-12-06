@@ -1,25 +1,8 @@
 use std::{
     collections::HashMap,
-    convert::TryFrom
 };
-use log::{
-    info,
-    error
-};
-use chrono::prelude::*;
 use telegram_bot::{
-    Message,
-    CanSendMessage,
-    ParseMode,
-    UserId,
-    SendMessage
-};
-use currency_lib::{
-    CurrencyResult,
-    CurrencyMinimum,
-    CurrencyValue,
-    CurrencyType,
-    get_all_currencies
+    UserId
 };
 use sqlx::{
     prelude::*,
@@ -30,12 +13,6 @@ use sqlx::{
     }
 };
 use crate::{
-    app_context::{
-        AppContext
-    },
-    bot_context::{
-        BotContext
-    },
     currency_check_status::{
         CurrencyCheckStatus
     },
