@@ -119,7 +119,7 @@ RUN_ON_PI_DOCKER:
 	docker run -it --env-file /home/pi/telegram_bot.env --name telegram_bot --rm -v /home/pi/telegram_bot_db:/bot/database devnul/telegram_bot:latest sh
 	# docker exec -ti telegram_bot bash
 
-BUILD_ON_PI_DOCKER: BUILD_FOR_PI
+BUILD_FOR_PI_DOCKER: BUILD_FOR_PI
 	docker build --no-cache -t devnul/telegram_bot .
 	docker push devnul/telegram_bot
 
