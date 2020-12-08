@@ -60,6 +60,12 @@ use crate::{
     },
     response_awaiter_holder::{
         ResponseAwaiterHolder
+    },
+    jenkins::{
+        JenkinsRequestBuilder
+    },
+    slack::{
+        SlackRequestBuilder
     }
 };
 
@@ -177,13 +183,19 @@ async fn main() -> std::io::Result<()>{
     // Специальный контейнер, который позволяет дождаться прихода ответа
     let response_awaiter = ResponseAwaiterHolder::new();
 
+    // Обработчик запросов Jenkins
+    let jenkins_request_builder = JenkinsRequestBuilder::new(request_client.clone(), jenkins_user, jenkins_api_token);
+
+    // Обработчик запросов Slack
+    let slack_request_builder = SlackRequestBuilder::new(request_client, slack_api_token);
+
     // Создание веб-приложения, таких приложений может быть создано много за раз
     // Данный коллбек может вызываться несколько раз
     let web_application_factory = move || {
         // Создаем данные приложения для текущего треда
         let app_data = Data::new(ApplicationData::new(
-            slack::SlackClient::new(request_client.clone(), &slack_api_token),
-            jenkins::JenkinsClient::new(request_client.clone(), &jenkins_user, &jenkins_api_token)
+            slack::SlackClient::new(slack_request_builder.clone()),
+            jenkins::JenkinsClient::new(jenkins_request_builder.clone())
         ));
 
         // Создаем приложение

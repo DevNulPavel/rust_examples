@@ -4,31 +4,27 @@ use log::{
 use serde::{
     Deserialize
 };
-use reqwest::{
-    Client
-};
 use super::{
     error::{
         JenkinsError
+    },
+    request_builder::{
+        JenkinsRequestBuilder
     }
 };
 
 pub type JobUrl = String;
 
 pub struct JenkinsJob{
-    client: Client,
-    jenkins_user: String,
-    jenkins_api_token: String,
+    client: JenkinsRequestBuilder,
     info_api_url: String,
     job_url: Option<String>,
 }
 
 impl JenkinsJob {
-    pub fn new(client: Client, jenkins_user: String, jenkins_api_token: String, url: &str) -> JenkinsJob {
+    pub fn new(client: JenkinsRequestBuilder, url: &str) -> JenkinsJob {
         JenkinsJob{
             client,
-            jenkins_user,
-            jenkins_api_token,
             info_api_url: format!("{}api/json", url),
             job_url: None,
         }
@@ -58,8 +54,7 @@ impl JenkinsJob {
 
         // Запрос информации о сборке
         let item_info_response: ItemInfoResponse = self.client
-            .get(self.info_api_url.as_str())
-            .basic_auth(&self.jenkins_user, Some(&self.jenkins_api_token))
+            .build_get_request(self.info_api_url.as_str())
             .send()
             .await
             .map_err(|err|{

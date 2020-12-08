@@ -6,9 +6,6 @@
 //         Data
 //     }
 // };
-use reqwest::{
-    Client
-};
 use serde_json::{
     json
 };
@@ -18,6 +15,9 @@ use serde::{
 use super::{
     error::{
         SlackError
+    },
+    request_builder::{
+        SlackRequestBuilder
     }
 };
 
@@ -34,18 +34,16 @@ pub struct MessageInfo{
 
 #[allow(dead_code)]
 pub struct Message {
-    client: Client,
-    token: String,
+    client: SlackRequestBuilder,
     info: MessageInfo,
     channel_id: String,
     timestamp: String,
 }
 
 impl Message {
-    pub fn new(client: Client, token: String, info: MessageInfo, channel_id: String, timestamp: String) -> Message{
+    pub fn new(client: SlackRequestBuilder, info: MessageInfo, channel_id: String, timestamp: String) -> Message{
         Message{
             client,
-            token,
             info,
             channel_id,
             timestamp
@@ -93,8 +91,7 @@ impl Message {
         });
 
         let response = self.client
-            .post("https://slack.com/api/chat.update")
-            .bearer_auth(&self.token)
+            .build_post_request("https://slack.com/api/chat.update")
             .header("Content-type", "application/json")
             .body(serde_json::to_string(&data).unwrap())
             .send()

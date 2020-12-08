@@ -1,15 +1,18 @@
-use reqwest::{
-    Client
-};
-use log::{
+// use reqwest::{
+//     Client
+// };
+// use log::{
     // error,
-    debug,
+    //debug,
     // info
-};
+// };
 use serde::{
     Deserialize
 };
 use super::{
+    request_builder::{
+        JenkinsRequestBuilder
+    },
     error::{
         JenkinsError
     },
@@ -19,24 +22,21 @@ use super::{
     }
 };
 
-
 pub struct JenkinsClient{
-    client: Client,
-    jenkins_user: String,
-    jenkins_api_token: String
+    client: JenkinsRequestBuilder
 }
 
 impl JenkinsClient {
-    pub fn new(client: Client, jenkins_user: &str, jenkins_api_token: &str) -> JenkinsClient {
+    pub fn new(client: JenkinsRequestBuilder) -> JenkinsClient {
+        //debug!("Jenkins client params: {}, {}", jenkins_user, jenkins_api_token);
+
         JenkinsClient{
-            client,
-            jenkins_user: jenkins_user.to_owned(),
-            jenkins_api_token: jenkins_api_token.to_owned()
+            client
         }
     }
 
     pub fn get_jenkins_user(&self) -> &str {
-        &self.jenkins_user
+        self.client.get_jenkins_user()
     }
 
     /// Запрашиваем список возможных таргетов
@@ -50,8 +50,6 @@ impl JenkinsClient {
         struct JenkinsTargetsResponse{
             jobs: Vec<JenkinsTargetInfo>
         }
-
-        debug!("Jenkins client params: {}, {}", self.jenkins_user, self.jenkins_api_token);
 
         /*let client = ClientBuilder::new()
             .basic_auth(&self.jenkins_user, Some(&self.jenkins_api_token))
@@ -73,9 +71,9 @@ impl JenkinsClient {
 
         let parsed_response = serde_json::from_str::<JenkinsTargetsResponse>(body).unwrap();*/
 
-        let parsed_response = self.client
-            .get("https://jenkins.17btest.com/api/json")
-            .basic_auth(&self.jenkins_user, Some(&self.jenkins_api_token))
+        let parsed_response = self
+            .client
+            .build_get_request("https://jenkins.17btest.com/api/json")
             .send()
             .await
             .map_err(|err|{
@@ -91,7 +89,7 @@ impl JenkinsClient {
             .jobs
             .into_iter()
             .map(|info|{
-                JenkinsTarget::new(self.client.clone(), &self.jenkins_user, &self.jenkins_api_token, info)
+                JenkinsTarget::new(self.client.clone(), info)
             })
             .collect();
 

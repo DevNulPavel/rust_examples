@@ -7,10 +7,10 @@ use serde::{
 use serde_json::{
     Value
 };
-use reqwest::{
-    Client
-};
 use super::{
+    request_builder::{
+        SlackRequestBuilder
+    },
     error::{
         SlackError,
         ViewOpenErrorInfo
@@ -141,15 +141,13 @@ impl<'a> SlackImageTarget<'a> {
 //////////////////////////////////////////////////////////////////////////////////////////
 
 pub struct SlackClient{
-    client: Client,
-    token: String
+    client: SlackRequestBuilder
 }
 
 impl SlackClient {
-    pub fn new(client: Client, token: &str) -> SlackClient {
+    pub fn new(client: SlackRequestBuilder) -> SlackClient {
         SlackClient{
-            client: client,
-            token: token.to_owned()
+            client: client
         }
     }
 
@@ -164,8 +162,7 @@ impl SlackClient {
         }
 
         let response = self.client
-            .post("https://slack.com/api/views.open")
-            .bearer_auth(&self.token)
+            .build_post_request("https://slack.com/api/views.open")
             .header("Content-type", "application/json")
             .body(serde_json::to_string(&window_json).unwrap())
             .send()
@@ -181,7 +178,7 @@ impl SlackClient {
 
         match response {
             ViewOpenResponse::Ok{view} => {
-                Ok(View::new(self.client.clone(), self.token.clone(), view))
+                Ok(View::new(self.client.clone(), view))
             },
             ViewOpenResponse::Error(err) => {
                 Err(SlackError::ViewOpenError(err))
@@ -253,8 +250,7 @@ impl SlackClient {
         };
 
         let response = self.client
-            .post(url)
-            .bearer_auth(&self.token)
+            .build_post_request(url)
             .header("Content-type", "application/json")
             .body(serde_json::to_string(&message_json).unwrap())
             .send()
@@ -273,7 +269,7 @@ impl SlackClient {
         match response {
             MessageResponse::Ok{ok, channel, ts, message} =>{
                 if ok {
-                    Ok(Some(Message::new(self.client.clone(), self.token.clone(), message, channel, ts)))
+                    Ok(Some(Message::new(self.client.clone(), message, channel, ts)))
                 }else{
                     return Err(SlackError::Custom(format!("Slack response: {}", ok)))
                 }
@@ -344,8 +340,7 @@ impl SlackClient {
 
         let response = self
             .client
-            .post("https://slack.com/api/files.upload")
-            .bearer_auth(&self.token)
+            .build_post_request("https://slack.com/api/files.upload")
             .multipart(form)
             .send()
             .await
@@ -381,11 +376,11 @@ impl SlackClient {
     
         // Выполняем GET запрос
         let get_parameters = vec![
-            ("token", self.token.to_owned()), 
+            //("token", self.token.to_owned()), // TODO: нужно протестировать
             ("email", email.to_owned())
         ];
         let response = self.client
-            .get("https://slack.com/api/users.lookupByEmail")
+            .build_get_request("https://slack.com/api/users.lookupByEmail")
             .query(&get_parameters)
             .send()
             .await
@@ -420,7 +415,7 @@ impl SlackClient {
 
     // TODO: Djpdhfofnm impl Future<>
     async fn find_user_id_by_name<'a>(&'a self, user_full_name: &'a str) -> Option<String> {
-        find_user_id_by_name(&self.client, &self.token, user_full_name).await
+        find_user_id_by_name(&self.client, user_full_name).await
     }
 
     pub async fn find_user_id(&self, user_email: &str, user_name: &str) -> Option<String> {

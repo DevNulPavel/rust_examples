@@ -8,6 +8,11 @@ use super::all_users_search::{
     UserInfo,
     iter_by_slack_users
 };
+use crate::{
+    slack::{
+        SlackRequestBuilder
+    }
+};
 
 fn read_cache(cache_file_full_path: &Path) -> HashMap<String, UserInfo> {
     let users_cache: HashMap<String, UserInfo> = File::open(cache_file_full_path)
@@ -142,7 +147,7 @@ fn search_by_fullname(full_users_list: Vec<UserInfo>, user_lowercase: &str) -> O
     }*/
 } 
 
-pub async fn find_user_id_by_name(client: &reqwest::Client, api_token: &str, src_user_name: &str) -> Option<String> {
+pub async fn find_user_id_by_name(client: &SlackRequestBuilder, src_user_name: &str) -> Option<String> {
     // Проверяем наличие user
     if src_user_name.is_empty(){
         return None;
@@ -180,7 +185,7 @@ pub async fn find_user_id_by_name(client: &reqwest::Client, api_token: &str, src
         // У цикла можно указать метку, затем с помощью break можно прервать работу именно этого цикла
         let mut found_info_local: Option<UserInfo> = 'tag: loop{
             // Получаем список юзеров итерационно
-            let (new_cursor, mut users_list) = iter_by_slack_users(client, api_token, last_cursor).await;
+            let (new_cursor, mut users_list) = iter_by_slack_users(&client, last_cursor).await;
 
             // Нет юзеров - конец
             if users_list.is_empty() {

@@ -6,7 +6,8 @@ use reqwest::{
     Client
 };
 use super::{
-    JenkinsClient
+    JenkinsClient,
+    JenkinsRequestBuilder
 };
 
 #[actix_rt::test]
@@ -26,7 +27,9 @@ async fn test_jenkins_jobs() {
     // TODO: Configure
     let request_client = Client::new();
 
-    let client = JenkinsClient::new(request_client, &jenkins_user, &jenkins_api_token);
+    let request_builder = JenkinsRequestBuilder::new(request_client, jenkins_user, jenkins_api_token);
+
+    let client = JenkinsClient::new(request_builder);
 
     let jobs = client
         .request_jenkins_targets_list()

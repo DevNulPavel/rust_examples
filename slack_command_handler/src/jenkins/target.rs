@@ -4,9 +4,6 @@ use serde::{
 use serde_json::{
     Value
 };
-use reqwest::{
-    Client
-};
 use log::{
     debug,
     // info
@@ -20,6 +17,9 @@ use super::{
     },
     target_parameter::{
         Parameter
+    },
+    request_builder::{
+        JenkinsRequestBuilder
     }
 };
 
@@ -31,18 +31,14 @@ pub struct JenkinsTargetInfo{
 }
 
 pub struct JenkinsTarget{
-    client: Client,
-    jenkins_user: String,
-    jenkins_api_token: String,
+    client: JenkinsRequestBuilder,
     info: JenkinsTargetInfo
 }
 
 impl<'a> JenkinsTarget {
-    pub fn new(client: Client, jenkins_user: &str, jenkins_api_token: &str, info: JenkinsTargetInfo) -> JenkinsTarget {
+    pub fn new(client: JenkinsRequestBuilder, info: JenkinsTargetInfo) -> JenkinsTarget {
         JenkinsTarget{
             client,
-            jenkins_user: jenkins_user.to_owned(),
-            jenkins_api_token: jenkins_api_token.to_owned(),
             info
         }
     }
@@ -82,8 +78,7 @@ impl<'a> JenkinsTarget {
             let response = {
                 let job_info_url = format!("https://jenkins.17btest.com/job/{}/config.xml", self.info.name);
                 self.client
-                    .get(job_info_url.as_str())
-                    .basic_auth(&self.jenkins_user, Some(&self.jenkins_api_token))
+                    .build_get_request(job_info_url.as_str())
                     .send()
                     .await
                     .map_err(|err|{
@@ -124,8 +119,7 @@ impl<'a> JenkinsTarget {
         let response = {
             let job_build_url = format!("https://jenkins.17btest.com/job/{}/buildWithParameters", self.info.name);
             self.client
-                .post(job_build_url.as_str())
-                .basic_auth(&self.jenkins_user, Some(&self.jenkins_api_token))
+                .build_post_request(job_build_url.as_str())
                 .form(&parameters)
                 .send()
                 .await
@@ -152,8 +146,6 @@ impl<'a> JenkinsTarget {
             })?;
 
         let job = JenkinsJob::new(self.client.clone(), 
-                                  self.jenkins_user.clone(), 
-                                  self.jenkins_api_token.clone(), 
                                   build_info_url);
 
         Ok(job)

@@ -2,6 +2,9 @@ use reqwest::{
     Client
 };
 use super::{
+    request_builder::{
+        SlackRequestBuilder
+    },
     client::{
         SlackClient,
         SlackMessageTaget,
@@ -27,7 +30,7 @@ fn build_client() -> SlackClient{
     let slack_api_token = std::env::var("SLACK_API_TOKEN")
         .expect("SLACK_API_TOKEN environment variable is missing");
 
-    let client = SlackClient::new(Client::new(), &slack_api_token);
+    let client = SlackClient::new(SlackRequestBuilder::new(Client::new(), slack_api_token));
 
     client
 }
@@ -121,4 +124,39 @@ async fn test_image_upload() {
         .send_image(image_data.clone(), "Test commentary".to_owned(), SlackImageTarget::to_user_direct("U0JU3ACSJ"))
         .await
         .expect("Image send failed");
+}
+
+
+#[actix_rt::test]
+async fn test_find_user() {
+    setup_logs();
+
+    let client = build_client();
+
+    let email_result = client
+        .find_user_id("pershov@game-insight.com", "")
+        .await
+        .expect("Find user by email failed");
+
+    assert_eq!(email_result, "U0JU3ACSJ");
+
+    let name_result = client
+        .find_user_id("none", "Pavel Ershov")
+        .await
+        .expect("Find user by name failed");
+
+    assert_eq!(name_result, "U0JU3ACSJ");
+
+    let full_result = client
+        .find_user_id("pershov@game-insight.com", "Pavel Ershov")
+        .await
+        .expect("Find user by full data failed");
+
+    assert_eq!(full_result, "U0JU3ACSJ");
+
+    let empty_result = client
+        .find_user_id("pershov@game-insight.com00", "01Pavel 12Ershov")
+        .await;
+
+    assert_eq!(empty_result.is_none(), true);
 }

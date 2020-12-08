@@ -11,9 +11,6 @@ use std::{
 //         Data
 //     }
 // };
-use reqwest::{
-    Client
-};
 use serde_json::{
     Value
 };
@@ -30,6 +27,9 @@ use super::{
     error::{
         SlackError,
         ViewUpdateErrorInfo
+    },
+    request_builder::{
+        SlackRequestBuilder
     }
 };
 
@@ -69,16 +69,14 @@ pub trait ViewActionHandler: Send {
 ////////////////////////////////////////////////////////////////
 
 pub struct View {
-    client: Client,
-    token: String,
+    client: SlackRequestBuilder,
     info: ViewInfo
 }
 
 impl View {
-    pub fn new(client: Client, token: String, info: ViewInfo) -> View{
+    pub fn new(client: SlackRequestBuilder, info: ViewInfo) -> View{
         View{
             client,
-            token,
             info
         }
     }
@@ -113,8 +111,7 @@ impl View {
         });
 
         let response = self.client
-            .post("https://slack.com/api/views.update")
-            .bearer_auth(&self.token)
+            .build_post_request("https://slack.com/api/views.update")
             .header("Content-type", "application/json")
             .body(serde_json::to_string(&window).unwrap())
             .send()

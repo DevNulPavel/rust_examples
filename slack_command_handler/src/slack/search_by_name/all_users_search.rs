@@ -1,5 +1,10 @@
 use serde::Deserialize;
 use serde::Serialize;
+use crate::{
+    slack::{
+        SlackRequestBuilder
+    }
+};
 
 
 // Создаем структурки, в которых будут нужные значения
@@ -19,8 +24,7 @@ impl PartialEq<UserInfo> for UserInfo {
 }
 
 // Result<Vec<UserInfo>, Box<dyn std::error::Error>>
-pub async fn iter_by_slack_users(client: &reqwest::Client, 
-                                 api_token: &str, 
+pub async fn iter_by_slack_users(client: &SlackRequestBuilder, 
                                  last_cursor: Option<String>) -> (Option<String>, Vec<UserInfo>) {   
     // Создаем структурки, в которых будут нужные значения
     #[derive(Deserialize, Debug)]
@@ -68,13 +72,14 @@ pub async fn iter_by_slack_users(client: &reqwest::Client,
         println!("{:?}", serde_json::to_string(&get_parameters));*/
 
         // Создаем список параметров
-        let get_parameters: [(&str, Option<&str>); 3] = [
-            ("token", Some(api_token)),
+        let get_parameters: [(&str, Option<&str>); 2] = [
+            //("token", Some(api_token)),
             ("limit", Some("150")),
             ("cursor", last_cursor_ptr)
         ];
 
-        client.get("https://slack.com/api/users.list")
+        client
+            .build_get_request("https://slack.com/api/users.list")
             .query(&get_parameters)
             .send()
             .await

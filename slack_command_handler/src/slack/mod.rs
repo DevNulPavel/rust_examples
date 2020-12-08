@@ -1,3 +1,4 @@
+mod request_builder;
 mod client;
 mod view;
 mod message;
@@ -6,6 +7,9 @@ mod error;
 #[cfg(test)] mod tests;
 
 pub use self::{
+    request_builder::{
+        SlackRequestBuilder
+    },
     client::{
         SlackClient,
         SlackMessageTaget,
