@@ -1,16 +1,37 @@
 #[allow(unused_imports)]
 
-use std::io::Cursor;
+use std::{
+    io::Cursor,
+    path::PathBuf,
+    sync::{
+        atomic::{
+            AtomicI64,
+            Ordering,
+        },
+        Arc
+    }
+};
 // use std::process::Output;
-use std::path::PathBuf;
 // use std::sync::Arc;
 // use futures::prelude::*;
 // use tokio::prelude::*;
-use futures::stream::StreamExt;
-// use futures::future::FutureExt;
-use tokio::sync::mpsc::unbounded_channel;
-use tokio::sync::broadcast;
-//use tokio::sync::Mutex;
+use futures::{
+    future::{
+        TryFuture,
+        TryFutureExt,
+        FutureExt
+    },
+    stream::StreamExt
+};
+use tokio::{
+    sync::{
+        mpsc::{
+            unbounded_channel
+        },
+        broadcast,
+        Notify,
+    }
+};
 use tokio::io::{AsyncReadExt, AsyncWriteExt};
 use tokio::net::{ TcpListener, TcpStream};
 use tokio::net::tcp::{ Incoming, ReadHalf, WriteHalf };
@@ -132,6 +153,32 @@ async fn process_connection(mut sock: TcpStream,
     println!("Process connection exit");
 }
 
+struct ActiveProcessings{
+    counter: AtomicI64,
+    notify: Notify
+}
+
+impl ActiveProcessings {
+    fn new() -> ActiveProcessings{
+        ActiveProcessings{
+            counter: AtomicI64::new(0),
+            notify: Notify::new()
+        }
+    }
+    fn acquire(&self){
+        self.counter.fetch_add(1, Ordering::AcqRel); // TODO: ???
+    }
+    fn release(&self){
+        self.counter.fetch_sub(1, Ordering::AcqRel); // TODO: ???
+        self.notify.notify();
+    }
+    async fn wait_finish(&self){
+        while self.counter.load(Ordering::Acquire) > 0 {
+            self.notify.notified().await;
+        }
+    }
+}
+
 
 // Сервер будет однопоточным, чтобы не отжирать бестолку ресурсы
 #[tokio::main(core_threads = 1)]
@@ -154,10 +201,10 @@ async fn main() {
     let stop_read_sender_server = stop_read_sender.clone();
     let stop_write_sender_server = stop_write_sender.clone();
     let server = async move {
-        let mut active_processings: Vec<tokio::sync::oneshot::Receiver<()>> = vec![];
-
         // Получаем поток новых соединений
         let mut incoming: Incoming = listener.incoming();
+
+        let active_processings = Arc::new(ActiveProcessings::new());
 
         // Получаем кавые соединения каждый раз
         'select_loop: loop{
@@ -189,19 +236,6 @@ async fn main() {
                 }
             };
 
-            // Очищаем список активных задач от уже завершившихся
-            let mut new_active_futures = vec![];
-            for mut receiver in active_processings.into_iter() {
-                match receiver.try_recv() {
-                    Ok(_) => {
-                    },
-                    Err(_) => {
-                        new_active_futures.push(receiver);
-                    }
-                }
-            }
-            active_processings = new_active_futures;
-
             println!("New connection received");
 
             // Создаем свою копию канала отправителя задач
@@ -213,19 +247,18 @@ async fn main() {
                                          sender, 
                                          stop_read_sender_server.subscribe(), 
                                          stop_write_sender_server.subscribe());
-            let (complete_sender, complete_receiver) = tokio::sync::oneshot::channel::<()>();
-            tokio::spawn(async move {
+            active_processings.acquire();
+            let active_processings_clone = active_processings.clone();
+            tokio::spawn(async move{
                 fut.await;
-                complete_sender.send(()).unwrap();
+                active_processings_clone.release();
             });
-            active_processings.push(complete_receiver); // TODO: Удаление из списка
+
             println!("Future created");
         }
 
         // Ждем завершения всех обработок соединений
-        for receiver in active_processings.into_iter() {
-            receiver.await.unwrap();
-        }
+        active_processings.wait_finish().await;
     };
     
     println!("Server running on localhost:10000");
