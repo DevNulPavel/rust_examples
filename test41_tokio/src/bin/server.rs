@@ -1,14 +1,8 @@
-#[allow(unused_imports)]
+// #[allow(unused_imports)]
 
 use std::{
-    io::Cursor,
-    path::PathBuf,
-    sync::{
-        atomic::{
-            AtomicI64,
-            Ordering,
-        },
-        Arc
+    path::{
+        PathBuf
     }
 };
 // use std::process::Output;
@@ -16,33 +10,40 @@ use std::{
 // use futures::prelude::*;
 // use tokio::prelude::*;
 use futures::{
-    future::{
-        TryFuture,
-        TryFutureExt,
-        FutureExt
-    },
+    // future::{
+    //     TryFuture,
+    //     TryFutureExt,
+    //     FutureExt
+    // },
     stream::StreamExt
+};
+use waitgroup::{
+    WaitGroup
 };
 use tokio::{
     sync::{
         mpsc::{
             unbounded_channel
         },
-        broadcast,
-        Notify,
+        broadcast
+    },
+    io::{AsyncReadExt, AsyncWriteExt},
+    net::{ 
+        tcp::{ 
+            Incoming, 
+            ReadHalf, 
+            WriteHalf 
+        },
+        TcpListener, 
+        TcpStream
     }
 };
-use tokio::io::{AsyncReadExt, AsyncWriteExt};
-use tokio::net::{ TcpListener, TcpStream};
-use tokio::net::tcp::{ Incoming, ReadHalf, WriteHalf };
 use bytes::BytesMut;
-//use rand::{Rng};
-// use std::rand::{task_rng, Rng};
-// use test41_tokio::*;
-// use test41_tokio::errors::*;
-use test41_tokio::types::*;
-use test41_tokio::file_processing::Processing;
-use test41_tokio::socket_helpers::*;
+use test41_tokio::{
+    types::*,
+    socket_helpers::*,
+    file_processing::Processing
+};
 
 async fn process_sending_data<'a>(mut writer: WriteHalf<'a>,
                                   mut receiver: ResultReceiver,
@@ -153,32 +154,6 @@ async fn process_connection(mut sock: TcpStream,
     println!("Process connection exit");
 }
 
-struct ActiveProcessings{
-    counter: AtomicI64,
-    notify: Notify
-}
-
-impl ActiveProcessings {
-    fn new() -> ActiveProcessings{
-        ActiveProcessings{
-            counter: AtomicI64::new(0),
-            notify: Notify::new()
-        }
-    }
-    fn acquire(&self){
-        self.counter.fetch_add(1, Ordering::AcqRel); // TODO: ???
-    }
-    fn release(&self){
-        self.counter.fetch_sub(1, Ordering::AcqRel); // TODO: ???
-        self.notify.notify();
-    }
-    async fn wait_finish(&self){
-        while self.counter.load(Ordering::Acquire) > 0 {
-            self.notify.notified().await;
-        }
-    }
-}
-
 
 // Сервер будет однопоточным, чтобы не отжирать бестолку ресурсы
 #[tokio::main(core_threads = 1)]
@@ -204,7 +179,7 @@ async fn main() {
         // Получаем поток новых соединений
         let mut incoming: Incoming = listener.incoming();
 
-        let active_processings = Arc::new(ActiveProcessings::new());
+        let active_processings = WaitGroup::new();
 
         // Получаем кавые соединения каждый раз
         'select_loop: loop{
@@ -247,18 +222,17 @@ async fn main() {
                                          sender, 
                                          stop_read_sender_server.subscribe(), 
                                          stop_write_sender_server.subscribe());
-            active_processings.acquire();
-            let active_processings_clone = active_processings.clone();
+            let waiter = active_processings.worker();
             tokio::spawn(async move{
                 fut.await;
-                active_processings_clone.release();
+                drop(waiter);
             });
 
             println!("Future created");
         }
 
         // Ждем завершения всех обработок соединений
-        active_processings.wait_finish().await;
+        active_processings.wait().await;
     };
     
     println!("Server running on localhost:10000");
