@@ -1,9 +1,6 @@
-
-
-
 #[derive(Debug)]
 pub enum HabrError {
-    RequestError(reqwest::Error)
+    RequestError(reqwest::Error),
 }
 
 impl From<reqwest::Error> for HabrError {

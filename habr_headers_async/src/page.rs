@@ -1,15 +1,6 @@
-use scraper::{
-    Html,
-    Selector
-};
-use lazy_static::{
-    lazy_static
-};
-use super::{
-    article::{
-        HabrArticle
-    }
-};
+use super::article::HabrArticle;
+use lazy_static::lazy_static;
+use scraper::{Html, Selector};
 
 macro_rules! ToTextOption {
     ($expression:expr) => {
@@ -24,7 +15,7 @@ macro_rules! ToTextOption {
 
 ////////////////////////////////////////////////////////////////////////////////////////////////
 
-struct CssSelectors{
+struct CssSelectors {
     preview_selector: scraper::Selector,
     time_selector: scraper::Selector,
     tags_selector: scraper::Selector,
@@ -33,7 +24,8 @@ struct CssSelectors{
 
 ////////////////////////////////////////////////////////////////////////////////////////////////
 
-fn parse_links_from_page(text: String, shared_selectors: &CssSelectors) -> Vec<HabrArticle>{
+#[cfg_attr(feature = "flame_it", flamer::flame)]
+fn parse_links_from_page(text: String, shared_selectors: &CssSelectors) -> Vec<HabrArticle> {
     // Парсим
     let parsed = Html::parse_document(&text);
     drop(text);
@@ -41,7 +33,7 @@ fn parse_links_from_page(text: String, shared_selectors: &CssSelectors) -> Vec<H
     // https://docs.rs/scraper/0.11.0/scraper/element_ref/struct.ElementRef.html
     let selected: Vec<HabrArticle> = parsed
         .select(&shared_selectors.preview_selector)
-        .map(|preview_element|{
+        .map(|preview_element| {
             let time = preview_element
                 .select(&shared_selectors.time_selector)
                 .take(1)
@@ -52,13 +44,9 @@ fn parse_links_from_page(text: String, shared_selectors: &CssSelectors) -> Vec<H
                 .next();
             (time, link, preview_element)
         })
-        .filter(|(time, link, _)|{
-            time.is_some() && link.is_some()
-        })
-        .map(|(time, link, preview_element)|{
-            (time.unwrap(), link.unwrap(), preview_element)
-        })
-        .map(|(time, link, preview_element)|{
+        .filter(|(time, link, _)| time.is_some() && link.is_some())
+        .map(|(time, link, preview_element)| (time.unwrap(), link.unwrap(), preview_element))
+        .map(|(time, link, preview_element)| {
             let time: Option<String> = ToTextOption!(time);
             let text: Option<String> = ToTextOption!(link);
 
@@ -66,33 +54,28 @@ fn parse_links_from_page(text: String, shared_selectors: &CssSelectors) -> Vec<H
 
             (time, href, text, preview_element)
         })
-        .filter(|(time, href, text, _)|{
-            time.is_some() && text.is_some() && href.is_some()
-        })
-        .map(|(time, href, text, preview_element)|{
+        .filter(|(time, href, text, _)| time.is_some() && text.is_some() && href.is_some())
+        .map(|(time, href, text, preview_element)| {
             let time = time.unwrap();
             let text = text.unwrap();
             let href = href.unwrap().to_owned();
 
             // Выдергиваем теги
-            let tags: Vec<String> = preview_element.select(&shared_selectors.tags_selector)
-                .map(|element|{
+            let tags: Vec<String> = preview_element
+                .select(&shared_selectors.tags_selector)
+                .map(|element| {
                     let text: Option<String> = ToTextOption!(element);
                     text
                 })
-                .filter(|val|{
-                    val.is_some()
-                })
-                .map(|val|{
-                    format!("#{}", val.unwrap())
-                })
+                .filter(|val| val.is_some())
+                .map(|val| format!("#{}", val.unwrap()))
                 .collect();
 
-            HabrArticle{
+            HabrArticle {
                 time,
                 tags,
                 title: text,
-                link: href
+                link: href,
             }
         })
         .collect();
@@ -102,16 +85,23 @@ fn parse_links_from_page(text: String, shared_selectors: &CssSelectors) -> Vec<H
 
 ////////////////////////////////////////////////////////////////////////////////////////////////
 
-pub struct HabrPage{
-    articles: Vec<HabrArticle>
+pub struct HabrPage {
+    articles: Vec<HabrArticle>,
 }
 
-impl HabrPage{
+impl Into<Vec<HabrArticle>> for HabrPage {
+    fn into(self) -> Vec<HabrArticle> {
+        self.articles
+    }
+}
+
+impl HabrPage {
+    #[cfg_attr(feature = "flame_it", flamer::flame)]
     pub fn parse_from(content: String) -> HabrPage {
         // Создаем селекторы по классу заранее
         lazy_static! {
             static ref CSS_SELECTORS: CssSelectors = {
-                CssSelectors{
+                CssSelectors {
                     preview_selector: Selector::parse(".post.post_preview").unwrap(),
                     time_selector: Selector::parse(".post__time").unwrap(),
                     tags_selector: Selector::parse(".inline-list__item-link.hub-link").unwrap(),
@@ -122,12 +112,14 @@ impl HabrPage{
 
         let articles = parse_links_from_page(content, &CSS_SELECTORS);
 
-        HabrPage{
-            articles
-        }
+        HabrPage { articles }
     }
 
-    pub fn get_articles(&self) -> &[HabrArticle]{
+    /*pub fn get_articles(&self) -> &[HabrArticle] {
         self.articles.as_ref()
+    }*/
+
+    pub fn into_articles(self) -> Vec<HabrArticle> {
+        self.into()
     }
 }

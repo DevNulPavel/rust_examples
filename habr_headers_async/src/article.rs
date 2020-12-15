@@ -1,3 +1,4 @@
+#[derive(Debug)]
 pub struct HabrArticle{
     pub time: String,
     pub tags: Vec<String>,
