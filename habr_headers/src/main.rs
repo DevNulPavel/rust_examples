@@ -182,16 +182,16 @@ fn receive_habr_info() -> Vec<HabrTitle>{
             request_links_from_page(*link, &selectors)
         })
         // Фильтруем проблемные
-        .filter(|value|{
-            if value.is_err(){
-                eprintln!("{:?}", value);
-                return false;
+        .filter_map(|value|{
+            match value{
+                Ok(value) => {
+                    Some(value)
+                },
+                Err(e) => {
+                    eprintln!("{:?}", e);
+                    None
+                }
             }
-            true
-        })
-        // Отбрасываем ошибку
-        .map(|value|{
-            value.unwrap()
         })
         // Превращаем в общий массив
         .flatten()
