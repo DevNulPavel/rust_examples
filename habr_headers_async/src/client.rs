@@ -1,8 +1,8 @@
-use tokio::{
-    task::{
-        spawn_blocking
-    }
-};
+// use tokio::{
+//     task::{
+//         spawn_blocking
+//     }
+// };
 use reqwest::{
     Client
 };
@@ -12,22 +12,27 @@ use super::{
     },
     page::{
         HabrPage
+    },
+    workers_pool::{
+        WorkersPool
     }
 };
 
 
 pub struct HabrClient{
-    client: Client
+    client: Client,
+    pool: WorkersPool
 }
 
 impl HabrClient{
-    pub fn new(client: Client) -> HabrClient{
+    pub fn new(client: Client, pool: WorkersPool) -> HabrClient{
         HabrClient{
-            client
+            client,
+            pool
         }
     }
        
-    async fn request_page(&self, link: &str) -> Result<HabrPage, HabrError>{
+    async fn request_page(&self,  link: &str) -> Result<HabrPage, HabrError>{
         let text = self.client
             .get(link)
             .send()
@@ -35,9 +40,9 @@ impl HabrClient{
             .text()
             .await?;
 
-        let page = spawn_blocking(move || { HabrPage::parse_from(text) })
-            .await
-            .expect("Page parsing spawn failed");
+        let page = self.pool
+            .queue_task(move || { HabrPage::parse_from(text) })
+            .await;
 
         Ok(page)
     }
@@ -45,14 +50,17 @@ impl HabrClient{
 
 #[cfg(test)]
 mod tests{
+    use crate::article;
+
     use super::*;
 
-    // #[tokio::test]
-    #[tokio::test(flavor = "multi_thread", worker_threads = 1)]
+    #[tokio::test]
     async fn test_page_request(){
         let http_client = reqwest::Client::default();
 
-        let client = HabrClient::new(http_client);
+        let pool = WorkersPool::new(1);
+
+        let client = HabrClient::new(http_client, pool);
 
         let page = client
             .request_page("https://habr.com/ru/all/")
@@ -61,5 +69,8 @@ mod tests{
 
         let articles = page.get_articles();
         assert_eq!(articles.len() > 0, true);
+        
+        let article = articles.get(0).unwrap();
+        assert_eq!(article.title.is_empty(), false);
     }
 }

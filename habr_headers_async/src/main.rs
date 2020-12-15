@@ -15,12 +15,11 @@ async fn async_main() {
 }
 
 fn main(){
-    let runtime = Builder::new_current_thread()
-        .enable_io()
-        .max_threads(8) // TODO: Num cpus
-        .worker_threads(1) 
+    let mut runtime = Builder::default()
+        .enable_io() 
+        .basic_scheduler()
         .build()
-        .expect("Tokio runtime create failed");
+        .expect("Tokio runctime create failed");
 
     runtime.block_on(async_main());
 }
