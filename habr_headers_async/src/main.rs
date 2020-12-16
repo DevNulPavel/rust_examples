@@ -1,15 +1,16 @@
 mod article;
 mod client;
 mod error;
-mod page;
-mod workers_pool;
 mod load_save;
-// mod print_support;
+mod page;
+mod print_support;
+// mod workers_pool;
 
-use crate::{article::HabrArticle, client::HabrClient, load_save::LoaderSaver};
+use crate::{
+    article::HabrArticle, client::HabrClient, load_save::LoaderSaver, print_support::print_results,
+};
 use futures::future::{join, join_all};
-use std::collections::hash_set::HashSet;
-use tokio::{fs::File, runtime::Builder};
+use tokio::runtime::Builder;
 
 #[cfg_attr(feature = "flame_it", flamer::flame)]
 async fn request_articles() -> Vec<HabrArticle> {
@@ -17,11 +18,11 @@ async fn request_articles() -> Vec<HabrArticle> {
 
     let client = HabrClient::new(http_client);
 
-    const LINKS: [&str; 2] = [
+    const LINKS: &[&str] = &[
         "https://habr.com/ru/all/",
         "https://habr.com/ru/all/page2/",
-        //"https://habr.com/ru/all/page3/",
-        //"https://habr.com/ru/all/page4/",
+        // "https://habr.com/ru/all/page3/",
+        // "https://habr.com/ru/all/page4/",
     ];
 
     let futures_iter = LINKS.iter().map(|url| client.request_page(url));
@@ -47,26 +48,26 @@ async fn async_main() {
     let loader_saver = LoaderSaver::new(".habrahabr_headers.json");
 
     // Одновременно грузим с сервера ссылки + читаем прошлые ссылки из файлика
-    let (results, previous_results) = {
+    let (selected, previous) = {
         let articles_future = request_articles();
         let previous_future = loader_saver.load_previous_results();
-        
-        join(articles_future, previous_future)
-            .await
+
+        join(articles_future, previous_future).await
     };
 
-    println!("{:?}", results);
-
     // Запускаем одновременный вывод результата + сохранение результата
-    // join(print_results(&selected, previous), save_links_to_file(&selected));
+    let print_future = print_results(&selected, previous);
+    let save_future = loader_saver.save_links_to_file(&selected);
+    join(print_future, save_future).await;
 }
 
 fn main() {
     let mut runtime = Builder::default()
         .enable_io()
-        .threaded_scheduler()
-        .core_threads(1)
-        .max_threads(num_cpus::get())
+        .basic_scheduler()
+        //.threaded_scheduler()
+        //.core_threads(1)
+        //.max_threads(2)
         .build()
         .expect("Tokio runctime create failed");
 

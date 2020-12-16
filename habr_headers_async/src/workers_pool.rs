@@ -5,7 +5,7 @@ use std::{
         mpsc
     }
 };
-use tokio::{sync::oneshot};
+use tokio::{sync::oneshot, task::block_in_place};
 
 pub struct WorkersPool {
     thread_pool: Arc<ThreadPool>,
@@ -35,18 +35,14 @@ impl WorkersPool {
     #[cfg_attr(feature = "flame_it", flamer::flame)]
     pub async fn queue_task<T, R>(&self, task: T) -> R
     where
-        T: Send + FnOnce() -> R,
-        R: Send,
+        T: 'static + Send + FnOnce() -> R,
+        R: 'static + Send,
     {
-        let (task_sender, task_receiver) = mpsc::channel::<T>();
+        // let (task_sender, task_receiver) = mpsc::channel::<T>();
         let (res_sender, res_receiver) = oneshot::channel();
 
         self.thread_pool.spawn(move || {
-            let local_task = task_receiver
-                .recv()
-                .expect("Task receive failed");
-
-            let result = local_task();
+            let result = task();
 
             match res_sender.send(result) {
                 Ok(_) => {}
@@ -55,7 +51,7 @@ impl WorkersPool {
                 }
             }
         });
-        task_sender.send(task);
+
         res_receiver.await.expect("Thread pool receive result failed")
     }
 }
@@ -76,5 +72,4 @@ mod tests {
 
         assert_eq!(result, 1);
     }
-}
-*/
+}*/

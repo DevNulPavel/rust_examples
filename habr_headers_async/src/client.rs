@@ -1,8 +1,8 @@
-use tokio::{
-    task::{
-        spawn_blocking
-    }
-};
+// use tokio::{
+//     task::{
+//         spawn_blocking
+//     }
+// };
 use super::{error::HabrError, page::HabrPage};
 use reqwest::Client;
 
@@ -19,13 +19,13 @@ impl HabrClient {
     pub async fn request_page(&self, link: &str) -> Result<HabrPage, HabrError> {
         let text = self.client.get(link).send().await?.text().await?;
 
-        let page = spawn_blocking(move || {
-            HabrPage::parse_from(text)
-        })
-        .await
-        .expect("Spawn blocking failed");
+        // let page = spawn_blocking(move || {
+        //    HabrPage::parse_from(text)
+        // })
+        // .await
+        // .expect("Spawn blocking failed");
 
-        Ok(page)
+        Ok(HabrPage::parse_from(text))
     }
 }
 

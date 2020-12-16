@@ -1,6 +1,6 @@
 use super::article::HabrArticle;
 use std::{collections::HashSet, path::PathBuf};
-use tokio::{fs::File, task::block_in_place};
+use tokio::{fs::File}; // task::block_in_place
 
 pub struct LoaderSaver {
     cache_file_name: PathBuf,
@@ -27,8 +27,10 @@ impl LoaderSaver {
             .into_std()
             .await;
 
-        let result =
-            block_in_place(move || serde_json::from_reader::<_, HashSet<String>>(file).ok());
+        // let result =
+            // block_in_place(move || serde_json::from_reader::<_, HashSet<String>>(file).ok());
+
+        let result = serde_json::from_reader::<_, HashSet<String>>(file).ok();
 
         result
     }
@@ -42,8 +44,8 @@ impl LoaderSaver {
             .into_std()
             .await;
 
-        block_in_place(move || {
+        // block_in_place(move || {
             serde_json::to_writer(file, &links_iter).ok();
-        });
+        // });
     }
 }
