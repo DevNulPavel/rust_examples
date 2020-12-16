@@ -4,9 +4,9 @@ mod error;
 mod page;
 mod workers_pool;
 mod load_save;
-mod print_support;
+// mod print_support;
 
-use crate::{article::HabrArticle, client::HabrClient};
+use crate::{article::HabrArticle, client::HabrClient, load_save::LoaderSaver};
 use futures::future::{join, join_all};
 use std::collections::hash_set::HashSet;
 use tokio::{fs::File, runtime::Builder};
@@ -44,14 +44,18 @@ async fn request_articles() -> Vec<HabrArticle> {
 
 #[cfg_attr(feature = "flame_it", flamer::flame)]
 async fn async_main() {
+    let loader_saver = LoaderSaver::new(".habrahabr_headers.json");
+
     // Одновременно грузим с сервера ссылки + читаем прошлые ссылки из файлика
     let (results, previous_results) = {
         let articles_future = request_articles();
-        let previous_future = load_previous_results();
+        let previous_future = loader_saver.load_previous_results();
         
         join(articles_future, previous_future)
             .await
     };
+
+    println!("{:?}", results);
 
     // Запускаем одновременный вывод результата + сохранение результата
     // join(print_results(&selected, previous), save_links_to_file(&selected));
@@ -60,7 +64,9 @@ async fn async_main() {
 fn main() {
     let mut runtime = Builder::default()
         .enable_io()
-        .basic_scheduler()
+        .threaded_scheduler()
+        .core_threads(1)
+        .max_threads(num_cpus::get())
         .build()
         .expect("Tokio runctime create failed");
 
