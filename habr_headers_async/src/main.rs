@@ -3,17 +3,19 @@ mod client;
 mod error;
 mod page;
 mod workers_pool;
+mod load_save;
+mod print_support;
 
-use crate::{article::HabrArticle, client::HabrClient, workers_pool::WorkersPool};
-use futures::future::join_all;
-use tokio::runtime::Builder;
-
+use crate::{article::HabrArticle, client::HabrClient};
+use futures::future::{join, join_all};
+use std::collections::hash_set::HashSet;
+use tokio::{fs::File, runtime::Builder};
 
 #[cfg_attr(feature = "flame_it", flamer::flame)]
-async fn request_articles(pool: WorkersPool) -> Vec<HabrArticle> {
+async fn request_articles() -> Vec<HabrArticle> {
     let http_client = reqwest::Client::default();
 
-    let client = HabrClient::new(http_client, pool);
+    let client = HabrClient::new(http_client);
 
     const LINKS: [&str; 2] = [
         "https://habr.com/ru/all/",
@@ -42,10 +44,17 @@ async fn request_articles(pool: WorkersPool) -> Vec<HabrArticle> {
 
 #[cfg_attr(feature = "flame_it", flamer::flame)]
 async fn async_main() {
-    let pool = WorkersPool::new(num_cpus::get());
-    let results: Vec<HabrArticle> = request_articles(pool).await;
+    // Одновременно грузим с сервера ссылки + читаем прошлые ссылки из файлика
+    let (results, previous_results) = {
+        let articles_future = request_articles();
+        let previous_future = load_previous_results();
+        
+        join(articles_future, previous_future)
+            .await
+    };
 
-    println!("Articles: {:?}", results);
+    // Запускаем одновременный вывод результата + сохранение результата
+    // join(print_results(&selected, previous), save_links_to_file(&selected));
 }
 
 fn main() {

@@ -1,29 +1,27 @@
-// use tokio::{
-//     task::{
-//         spawn_blocking
-//     }
-// };
-use super::{error::HabrError, page::HabrPage, workers_pool::WorkersPool};
+use tokio::{
+    task::{
+        block_in_place
+    }
+};
+use super::{error::HabrError, page::HabrPage};
 use reqwest::Client;
 
 pub struct HabrClient {
-    client: Client,
-    pool: WorkersPool,
+    client: Client
 }
 
 impl HabrClient {
-    pub fn new(client: Client, pool: WorkersPool) -> HabrClient {
-        HabrClient { client, pool }
+    pub fn new(client: Client) -> HabrClient {
+        HabrClient { client }
     }
 
     #[cfg_attr(feature = "flame_it", flamer::flame)]
     pub async fn request_page(&self, link: &str) -> Result<HabrPage, HabrError> {
         let text = self.client.get(link).send().await?.text().await?;
 
-        let page = self
-            .pool
-            .queue_task(move || HabrPage::parse_from(text))
-            .await;
+        let page = block_in_place(move || {
+            HabrPage::parse_from(text)
+        });
 
         Ok(page)
     }
@@ -37,9 +35,7 @@ mod tests {
     async fn test_page_request() {
         let http_client = reqwest::Client::default();
 
-        let pool = WorkersPool::new(1);
-
-        let client = HabrClient::new(http_client, pool);
+        let client = HabrClient::new(http_client);
 
         let page = client
             .request_page("https://habr.com/ru/all/")

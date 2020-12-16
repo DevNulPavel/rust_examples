@@ -1,6 +1,11 @@
-use rayon::{ThreadPool, ThreadPoolBuilder};
-use std::sync::Arc;
-use tokio::sync::oneshot;
+/*use rayon::{ThreadPool, ThreadPoolBuilder};
+use std::{
+    sync::{
+        Arc,
+        mpsc
+    }
+};
+use tokio::{sync::oneshot};
 
 pub struct WorkersPool {
     thread_pool: Arc<ThreadPool>,
@@ -30,23 +35,28 @@ impl WorkersPool {
     #[cfg_attr(feature = "flame_it", flamer::flame)]
     pub async fn queue_task<T, R>(&self, task: T) -> R
     where
-        // 'static для замыкания значит, что замыкание может иметь лишь ссылки на 'static,
-        // остальное должно быть move в замыкание
-        T: 'static + Send + FnOnce() -> R,
-        R: 'static + Send,
+        T: Send + FnOnce() -> R,
+        R: Send,
     {
-        let (sender, receiver) = oneshot::channel();
+        let (task_sender, task_receiver) = mpsc::channel::<T>();
+        let (res_sender, res_receiver) = oneshot::channel();
 
         self.thread_pool.spawn(move || {
-            let result = task();
-            match sender.send(result) {
+            let local_task = task_receiver
+                .recv()
+                .expect("Task receive failed");
+
+            let result = local_task();
+
+            match res_sender.send(result) {
                 Ok(_) => {}
                 Err(_) => {
                     panic!("Result send failed");
                 }
             }
         });
-        receiver.await.expect("Thread pool receive result failed")
+        task_sender.send(task);
+        res_receiver.await.expect("Thread pool receive result failed")
     }
 }
 
@@ -67,3 +77,4 @@ mod tests {
         assert_eq!(result, 1);
     }
 }
+*/
