@@ -1,5 +1,10 @@
 mod database;
 
+use std::{
+    path::{
+        Path
+    }
+};
 use tokio::{
     runtime::{
         Builder
@@ -17,7 +22,7 @@ use database::{
 };
 
 async fn async_main(){
-    let db = Database::open("database.sqlite")
+    let db = Database::open(Path::new("database.sqlite"))
         .await
         .expect("Database open failed");
 
@@ -26,7 +31,7 @@ async fn async_main(){
 
 fn main() {
     let mut runtime = Builder::new()
-        .basic_scheduler()
+        .threaded_scheduler()
         .enable_io()
         .build()
         .expect("Runtime build failed");

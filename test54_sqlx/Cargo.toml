@@ -7,7 +7,7 @@ authors = ["Pavel Ershov <pershov@game-insight.com>"]
 edition = "2018"
 
 [dependencies]
-sqlx = {version="0.4.2", features=["runtime-tokio-rustls", "sqlite", "macros", "json"]}
+sqlx = {version="0.4.2", default-features = false, features=["runtime-tokio-rustls", "sqlite", "macros", "json"]}
 tokio = "0.2.24"
 futures = "0.3.8"
 
