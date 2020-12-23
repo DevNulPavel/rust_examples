@@ -6,9 +6,6 @@ use std::{
 use tokio::{
     fs
 };
-use futures::{
-    StreamExt
-};
 use sqlx::{
     sqlite::{
         SqliteConnection,
@@ -43,34 +40,10 @@ impl Database{
                 .await?
         };
         
-        let mut db = Database{
+        let db = Database{
             connection
         };
 
-        db
-            .build_structure_if_needed()
-            .await?;
-
         Ok(db)
-    }
-
-    async fn build_structure_if_needed(&mut self) -> Result<(), sqlx::Error>{
-        let need_create = {
-            let mut stream = sqlx::query(include_str!("sql/check_db.sql"))
-                .fetch(&mut self.connection);
-
-            stream.next().await.is_none()
-        };
-
-        if need_create {
-            //let sql = r#""#;
-            let sql = include_str!("sql/create_db.sql");
-            sqlx::query(sql)
-                .execute(&mut self.connection)
-                .await?;
-            println!("New database structure created");
-        }
-
-        Ok(())
-    }
+    }    
 }

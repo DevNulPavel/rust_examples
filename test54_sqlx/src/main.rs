@@ -1,32 +1,15 @@
 mod database;
+mod custom_db;
+mod mm_db;
 
-use std::{
-    path::{
-        Path
-    }
-};
 use tokio::{
     runtime::{
         Builder
     }
 };
-use sqlx::{
-    sqlite::{
-        SqliteConnection,
-        // SqlitePool
-    },
-    // Connection,
-};
-use database::{
-    Database
-};
 
 async fn async_main(){
-    let db = Database::open(Path::new("database.sqlite"))
-        .await
-        .expect("Database open failed");
-
-    let db: SqliteConnection = db.into();
+    mm_db::test_mm_db().await;
 }
 
 fn main() {
