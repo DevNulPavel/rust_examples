@@ -9,7 +9,8 @@ use tokio::{
 };
 
 async fn async_main(){
-    mm_db::test_mm_db().await;
+    // mm_db::test_mm_db().await;
+    custom_db::test_custom_db().await;
 }
 
 fn main() {
