@@ -144,6 +144,30 @@ async fn stop_user_monitoring(bot_context: &mut BotContext, message: &Message) -
     Ok(())
 }
 
+async fn reset_user_monitoring(bot_context: &mut BotContext, message: &Message) -> TelegramBotResult {
+    info!("Reset monitoring for: {:?}", message.from);
+
+    // https://doc.rust-lang.org/book/ch18-03-pattern-syntax.html#destructuring-structs
+    // Разворачиваем структуру в поля
+    let AppContext{
+        db_conn: ref mut db,
+        users_for_push: ref mut users,
+        ..
+    } = bot_context.app_context; // Либо мы можем сразу сделать все переменные ref mut если взять &mut от контекста
+
+    // Сбрасываем значение
+    let result = users.reset_user(&message.from.id, db).await;
+    
+    // Если было все ок - сообщение успешности
+    // Если было все ок - запрашиваем валюты принудительно
+    if result.is_ok() {
+        info!("Check after reset currencies");
+        check_currencies_update(bot_context).await;
+    }
+
+    Ok(())
+}
+
 async fn process_bot_command(bot_context: &mut BotContext, data: &String, message: &Message) -> TelegramBotResult {
     /*
     start - Start bot
@@ -173,8 +197,7 @@ async fn process_bot_command(bot_context: &mut BotContext, data: &String, messag
             process_currencies_status(bot_context, message).await?;
         },
         "/currencies_monitoring_reset" => {
-            // TODO: ???
-            //reset_user_monitoring(bot_context, message).await?;
+            reset_user_monitoring(bot_context, message).await?;
         },
         text => {
             return Err(TelegramBotError::CustomError(format!("Invalid bot command: {}", text)));

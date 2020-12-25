@@ -4,11 +4,13 @@ create table monitoring_users(
 
 create table currency_minimum(
     id integer PRIMARY KEY AUTOINCREMENT,
-    user_id integer,
-    bank_name varchar(16),
-    value integer,
-    cur_type varchar(8),
-    update_time integer,
+    user_id integer NOT NULL,
+    bank_name varchar(16) NOT NULL,
+    value money NOT NULL,
+    cur_type varchar(8) NOT NULL,
+    update_time integer NOT NULL,
     
-    FOREIGN KEY(user_id) REFERENCES monitoring_users(user_id) ON DELETE CASCADE
+    FOREIGN KEY(user_id) 
+        REFERENCES monitoring_users(user_id) 
+        ON DELETE CASCADE
 );

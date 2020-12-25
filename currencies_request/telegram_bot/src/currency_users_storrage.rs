@@ -144,6 +144,38 @@ impl CurrencyUsersStorrage{
         }
     }
 
+    pub async fn reset_user(&mut self, user: &UserId, conn: &mut SqliteConnection) -> TelegramBotResult {
+        if self.users_for_push.contains_key(&*user) == false {
+            return Err(TelegramBotError::CustomError("User monitoring doesn't enabled".into()));
+        }
+
+        // TODO: Нужна ли транзакция? Можно ли как-то удалить все, что относится к user
+        // TODO: Валидация параметров!!
+        const SQL: &str =  "BEGIN; \
+                                DELETE FROM currency_minimum WHERE user_id = ?; \
+                            COMMIT;";
+        let id_num: i64 = (*user).into();
+        let remove_result = sqlx::query(SQL)
+            .bind(id_num)
+            .execute(conn)
+            .await;
+        
+        match remove_result{
+            Ok(users_updated) if users_updated > 0 =>{
+                Ok(())    
+            },
+            Ok(_) => {
+                Err(TelegramBotError::CustomError("User reset failed, 0 rows removed".into()))
+            },
+            Err(e)=>{
+                Err(TelegramBotError::DatabaseErr{
+                    err: e,
+                    context: DatabaseErrKind::RemoveUser
+                })
+            }
+        }
+    }
+
     pub fn try_get_user(&self, user: &UserId) -> Option<&CurrencyCheckStatus> {
         self.users_for_push.get(user)
     }
