@@ -3,6 +3,9 @@ mod subtypes;
 mod traits;
 #[cfg(test)] mod tests;
 
+use any_field_is_some::{
+    AnyFieldIsSome
+};
 use self::{
     traits::{
         TryParseParams
@@ -15,7 +18,7 @@ pub use self::{
 };
 
 
-// #[derive(AnyIsSome)]
+#[derive(AnyFieldIsSome)]
 pub struct EnvParameters{
     git: Option<GitParameters>,
     amazon: Option<AmazonParameters>,
@@ -41,7 +44,10 @@ pub fn parse() -> EnvParameters {
         result_slack: ResultSlackParameters::try_parse()
     };
 
-    // TODO: Проверить валидность
+    let is_some = params.any_field_is_some();
+    if !is_some{
+        panic!("Empty enviroment parameters");
+    }
 
     params
 }

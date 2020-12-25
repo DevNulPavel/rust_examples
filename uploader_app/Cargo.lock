@@ -10,9 +10,17 @@ dependencies = [
 ]
 
 [[package]]
-name = "any_derive"
+name = "any_field_is_some"
 version = "0.1.0"
 dependencies = [
+ "any_field_is_some_derive",
+]
+
+[[package]]
+name = "any_field_is_some_derive"
+version = "0.1.0"
+dependencies = [
+ "proc-macro2",
  "quote",
  "syn",
 ]
@@ -1240,7 +1248,7 @@ checksum = "f7fe0bb3479651439c9112f72b6c505038574c9fbb575ed1bf3b797fa39dd564"
 name = "uploader_app"
 version = "0.1.0"
 dependencies = [
- "any_derive",
+ "any_field_is_some",
  "env_logger",
  "flame",
  "flamer",

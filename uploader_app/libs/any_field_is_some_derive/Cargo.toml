@@ -1,5 +1,5 @@
 [package]
-name = "any_derive"
+name = "any_field_is_some_derive"
 version = "0.1.0"
 authors = ["Pavel Ershov <pershov@game-insight.com>"]
 edition = "2018"
@@ -12,7 +12,8 @@ edition = "2018"
 proc-macro = true
 
 [dependencies]
-syn = "1.0.55"
+proc-macro2 = "1.0.24"
 quote = "1.0.8"
+syn = "1.0.55"
 
 [dev-dependencies]
