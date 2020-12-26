@@ -20,48 +20,60 @@ use super::{
 
 /////////////////////////////////////////////////
 
-env_params_type!(GitEnvironment, 
-    git_branch: "GIT_BRANCH", 
-    git_commit: "GIT_COMMIT"
+env_params_type!(
+    GitEnvironment{
+        git_branch: "GIT_BRANCH", 
+        git_commit: "GIT_COMMIT"
+    }
 );
 
 /////////////////////////////////////////////////
 
-env_params_type!(AmazonEnvironment, 
-    client_id: "AMAZON_CLIENT_ID", 
-    client_secret: "AMAZON_CLIENT_SECRET",
-    app_id: "AMAZON_APP_ID"
+env_params_type!(
+    AmazonEnvironment{
+        client_id: "AMAZON_CLIENT_ID", 
+        client_secret: "AMAZON_CLIENT_SECRET",
+        app_id: "AMAZON_APP_ID"
+    }
 );
 
 /////////////////////////////////////////////////
 
-env_params_type!(AppCenterEnvironment,
-    token: "APP_CENTER_ACCESS_TOKEN",
-    app: "APP_CENTER_APP_NAME",
-    ownder: "APP_CENTER_APP_OWNER_NAME"
+env_params_type!(
+    AppCenterEnvironment{
+        token: "APP_CENTER_ACCESS_TOKEN",
+        app: "APP_CENTER_APP_NAME",
+        ownder: "APP_CENTER_APP_OWNER_NAME"
+    }
 );
 
 /////////////////////////////////////////////////
 
-env_params_type!(GooglePlayEnvironment,
-    email: "GOOGLE_PLAY_SERVICE_EMAIL",
-    key_id: "GOOGLE_PLAY_KEY_ID",
-    key: "GOOGLE_PLAY_KEY"
+env_params_type!(
+    GooglePlayEnvironment{
+        email: "GOOGLE_PLAY_SERVICE_EMAIL",
+        key_id: "GOOGLE_PLAY_KEY_ID",
+        key: "GOOGLE_PLAY_KEY"
+    }
 );
 
 /////////////////////////////////////////////////
 
-env_params_type!(GoogleDriveEnvironment,
-    email: "GOOGLE_DRIVE_SERVICE_EMAIL",
-    key_id: "GOOGLE_DRIVE_KEY_ID",
-    key: "GOOGLE_DRIVE_KEY"
+env_params_type!(
+    GoogleDriveEnvironment{
+        email: "GOOGLE_DRIVE_SERVICE_EMAIL",
+        key_id: "GOOGLE_DRIVE_KEY_ID",
+        key: "GOOGLE_DRIVE_KEY"
+    }
 );
 
 /////////////////////////////////////////////////
 
-env_params_type!(IOSEnvironment,
-    user: "IOS_USER",
-    pass: "IOS_PASS"
+env_params_type!(
+    IOSEnvironment{
+        user: "IOS_USER",
+        pass: "IOS_PASS"
+    }
 );
 
 /////////////////////////////////////////////////
@@ -103,9 +115,11 @@ impl EnvParamsTestable for SSHEnvironment {
 
 /////////////////////////////////////////////////
 
-env_params_type!(TargetSlackEnvironment, 
-    token: "TARGET_SLACK_API_TOKEN"
-    // target: "TARGET_SLACK_CHANNEL_OR_USER_ID"
+env_params_type!(
+    TargetSlackEnvironment{
+        token: "TARGET_SLACK_API_TOKEN"
+        // target: "TARGET_SLACK_CHANNEL_OR_USER_ID"
+    }
 );
 
 /////////////////////////////////////////////////

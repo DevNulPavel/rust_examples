@@ -4,7 +4,11 @@
 // https://doc.rust-lang.org/edition-guide/rust-2018/macros/custom-derive.html
 // https://doc.rust-lang.org/book/ch19-06-macros.html#how-to-write-a-custom-derive-macro
 macro_rules! env_params_type {
-    ($type: ident, $($val: ident: $key: literal),*) => {
+    (
+        $type: ident { 
+            $($val: ident: $key: literal),*
+        }
+    ) => {
         pub struct $type {
             $($val: String,)*
         }

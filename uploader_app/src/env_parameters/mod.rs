@@ -17,6 +17,8 @@ pub use self::{
     }
 };
 
+// TODO: Clap поддерживает и переменные окружения как оказалось
+
 macro_rules! describe_env_values {
     ( $( $val: ident: $type_id:ident ),* ) => {
         #[derive(AnyFieldIsSome)]

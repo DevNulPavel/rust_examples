@@ -1,60 +1,41 @@
-// const commaSeparatedList = (value) => {
-//     return value.split(",").filter((val)=>{
-//         return val && (val.length > 0);
-//     });
-// };
-// commander.allowUnknownOption();
-// commander.option("--amazon_input_file <input apk>", "Input file for amazon uploading");
-// commander.option("--app_center_input_file <input .apk or .ipa>", "Input file for app center uploading");
-// commander.option("--app_center_symbols_file <input .dSYM.zip>", "Input symbols archive for app center uploading");
-// commander.option("--app_center_distribution_groups <comma_separeted_groups>", "App center distribution groups: 'group1','group2'", commaSeparatedList);
-// commander.option("--app_center_build_description <text>", "App center build description");
-// commander.option("--google_drive_files <comma_separeted_file_paths>", "Input files for uploading: -gdrivefiles 'file1','file2'", commaSeparatedList);
-// commander.option("--google_drive_target_folder_id <folder_id>", "Target Google drive folder ID");
-// commander.option("--google_drive_target_subfolder_name <folder_name>", "Target Google drive subfolder name");
-// commander.option("--google_drive_target_owner_email <email>", "Target Google drive folder owner email");
-// commander.option("--google_drive_target_domain <domain>", "Target Google drive shared domain");
-// commander.option("--google_play_upload_file <file_path>", "File path for google play uploading");
-// commander.option("--google_play_target_track <target_track>", "Target track for google play build");
-// commander.option("--google_play_package_name <package>", "Package name for google play uploading: com.gameinsight.gplay.island2");
-// commander.option("--ipa_to_ios_app_store <ipa build path>", "Ipa file for iOS App store uploading");
-// commander.option("--ssh_upload_files <comma_separeted_file_paths>", "Input files for uploading: -sshfiles='file1','file2'", commaSeparatedList);
-// commander.option("--ssh_target_server_dir <dir>", "Target server directory for files");
-// commander.option("--slack_upload_files <comma_separeted_file_paths>", "Input files for uploading: -slackfiles='file1','file2'", commaSeparatedList);
-// commander.option("--slack_upload_channel <channel>", "Slack upload files channel");
-// commander.option("--slack_user <user>", "Slack user name for direct messages");
-// commander.option("--slack_user_email <user_email>", "Slack user email for direct messages");
-// commander.option("--slack_user_text <text>", "Slack direct message text");
-// commander.option("--slack_user_qr_commentary <text>", "Slack direct QR code commentary");
-// commander.option("--slack_user_qr_text <text>", "Slack direct QR code content");
-// commander.parse(process.argv);
+
+#[macro_use] mod macros;
+mod traits;
+mod subtypes;
 
 use clap::{
     App, 
     AppSettings, 
     Arg, 
-    ArgMatches
+    ArgMatches,
+    ArgSettings
+};
+use self::{
+    traits::{
+        AppParams
+    }
+};
+pub use self::{
+    subtypes::{
+        *
+    }
 };
 
-pub struct AmazonParams{
-    path: String
-}
+//////////////////////////////////////////////////////////////////////
 
 pub struct AppParameters{
-    //pub amazon: Option<AmazonParams>
+    pub amazon: Option<AmazonParams>,
+    pub app_center: Option<AppCenterParams>
 }
 
 impl AppParameters{
-    fn get_params_app<'a>(env_variables_help: Option<&'a str>) -> App<'a, 'a> {
+    fn get_params_app<'a>(env_variables_help: Option<&'a str>) -> App<'a, 'a>{
         let app = App::new("Uploader application")
             .author("Pavel Ershov")
             .version("1.0.0")
             .setting(AppSettings::ColorAuto)
-            .arg(Arg::with_name("in_file")
-                    .long("amazon_input_file")
-                    .use_delimiter(true)
-                    .value_delimiter(",")
-                    .takes_value(true));
+            .args(&AmazonParams::get_args())
+            .args(&AppCenterParams::get_args());
     
         // Выводим кастомное описание окружения если надо
         let app = match env_variables_help {
@@ -71,22 +52,18 @@ impl AppParameters{
     
     fn matches_to_struct(matches: ArgMatches) -> AppParameters {
         AppParameters {
+            amazon: AmazonParams::parse(&matches),
+            app_center: AppCenterParams::parse(&matches)
         }
     }
     
-    pub fn parse(optional_env_variables_help: Option<Vec<&str>>) -> AppParameters {
-        let text = optional_env_variables_help
-            .map(|env_variables|{
-                env_variables    
-                    .into_iter()
-                    .fold(String::from("ENVIRONMENT VARIABLES:\n"), |mut prev, var|{
-                        prev.push_str("    - ");
-                        prev.push_str(var);
-                        prev.push_str("\n");
-                        prev
-                    })
+    pub fn parse<T>(additional_help_provider: Option<T>) -> AppParameters
+    where T: FnOnce()->String {
+        let text = additional_help_provider
+            .map(|func|{
+                func()
             });
-    
+
         let matches = AppParameters::get_params_app(text.as_deref())
             .get_matches();
     
@@ -101,14 +78,37 @@ mod tests{
 
     #[test]
     fn test_app_parameters(){
+        #![allow(non_upper_case_globals)]
+
+        const app_center_file: &str = "app_center.apk";
+        const app_center_symbols: &str = "app_center_symbols";
+        const app_center_groups: &str = "group1,group2,group3";
+        const app_center_description: &str = "TEST TEST test";
+
         let test_parameters = [
-            "asd",
-            "asdsa"
+            "application",
+            "--app_center_input_file", app_center_file,
+            "--app_center_symbols_file", app_center_symbols,
+            "--app_center_distribution_groups", app_center_groups,
+            "--app_center_build_description", app_center_description
         ];
 
         let matches = AppParameters::get_params_app(None)
             .get_matches_from(&test_parameters);
 
         let result = AppParameters::matches_to_struct(matches);
+
+        let ref app_center_params = result
+            .app_center
+            .expect("Appcenter values failed");
+
+        assert_eq!(app_center_params.input_file.eq(app_center_file), true);
+        assert_eq!(app_center_params.symbols_file, Some(app_center_symbols.to_owned()));
+        assert_eq!(app_center_params.distribution_groups, Some(vec![
+            "group1".to_owned(),
+            "group2".to_owned(),
+            "group3".to_owned(),
+        ]));
+        assert_eq!(app_center_params.build_description, Some(app_center_description.to_owned()));
     }
 }

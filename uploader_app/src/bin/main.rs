@@ -12,9 +12,19 @@ use tokio::{
     }
 };
 
+
+
 async fn async_main() {
-    let possible_env_variables = AppEnvValues::get_possible_env_variables();
-    let _app_parameters = AppParameters::parse(Some(possible_env_variables));
+    let _app_parameters = AppParameters::parse(Some(||{
+        AppEnvValues::get_possible_env_variables()    
+            .into_iter()
+            .fold(String::from("ENVIRONMENT VARIABLES:\n"), |mut prev, var|{
+                prev.push_str("    - ");
+                prev.push_str(var);
+                prev.push_str("\n");
+                prev
+            })
+    }));
     let _env_params = AppEnvValues::parse();
 }
 
