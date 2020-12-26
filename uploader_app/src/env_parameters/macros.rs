@@ -6,22 +6,34 @@
 macro_rules! env_params_type {
     (
         $type: ident { 
-            $($val: ident: $key: literal),*
+            $(
+                Req{
+                    $($val_req:ident : $key_req:literal),*
+                }
+            )?
+            $(
+                Opt{
+                    $($val_opt:ident : $key_opt:literal),*
+                }
+            )?
         }
     ) => {
         pub struct $type {
-            $($val: String,)*
+            $( $($val_req: String,)* )?
+            $( $($val_opt: Option<String>,)* )?
         }
 
         impl crate::env_parameters::traits::EnvParams for $type {
             fn try_parse() -> Option<Self> {
                 Some(Self{
-                    $($val: var($key).ok()?),*
+                    $( $( $val_req: var($key_req).ok()?, )* )?
+                    $( $( $val_opt: var($key_opt).ok(), )* )?
                 })
             }
             fn get_available_keys() -> &'static [&'static str] {
                 let keys = &[
-                    $($key,)*
+                    $( $($key_req,)* )?
+                    $( $($key_opt,)* )?
                 ];
                 keys
             }
@@ -32,7 +44,25 @@ macro_rules! env_params_type {
             fn test(values: &std::collections::HashMap<String, String>){
                 let val = Self::try_parse()
                     .expect(&format!("Failed to parse: {}", stringify!($type)));
-                $( assert_eq!(val.$val.eq(&values[$key]), true); )*
+
+                $( $( assert_eq!(val.$val_req.eq(&values[$key_req]), true); )* )?
+                $( $(
+                        {
+                            let test_1 = val.$val_opt;
+                            let test_2 = values.get($key_opt);
+                            match (test_1, test_2){
+                                (Some(ref v1), Some(ref v2)) => {
+                                    assert_eq!((&v1).eq(v2), true);
+                                },
+                                (Some(_), None) | (None, Some(_)) => {
+                                    panic!("Test failed");
+                                },
+                                _ => {
+                                }
+                            }
+                        }
+                    )* 
+                )?
             }
             
         }
