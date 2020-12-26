@@ -15,7 +15,8 @@ use rand::{
 };
 use super::{
     traits::{
-        TestableParams
+        EnvParams,
+        EnvParamsTestable
     },
     *
 };
@@ -58,8 +59,8 @@ fn rand_string() -> String{
     std::str::from_utf8(&rand_string).unwrap().to_owned()
 }
 
-fn get_random_key_values<T: TestableParams>()-> HashMap<String, String>{
-    let keys = T::get_keys();
+fn get_random_key_values<T: EnvParams + EnvParamsTestable>()-> HashMap<String, String>{
+    let keys = T::get_available_keys();
     let res = keys
         .iter()
         .fold(HashMap::new(), |mut prev, key|{
@@ -71,16 +72,16 @@ fn get_random_key_values<T: TestableParams>()-> HashMap<String, String>{
 }
 
 #[test]
-fn test_env_parameters(){
+fn test_env_Environment(){
     test_types! (
-        GitParameters,
-        AmazonParameters,
-        AppCenterParameters,
-        GooglePlayParameters,
-        GoogleDriveParameters,
-        IOSParameters,
-        SSHParameters,
-        TargetSlackParameters,
-        ResultSlackParameters
+        GitEnvironment,
+        AmazonEnvironment,
+        AppCenterEnvironment,
+        GooglePlayEnvironment,
+        GoogleDriveEnvironment,
+        IOSEnvironment,
+        SSHEnvironment,
+        TargetSlackEnvironment,
+        ResultSlackEnvironment
     );
 }

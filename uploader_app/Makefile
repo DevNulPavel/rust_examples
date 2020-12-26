@@ -12,3 +12,6 @@ INSTALL: BUILD_RELEASE
 
 TEST_ENV_PARAMETERS:
 	cargo test -- env_parameters::tests
+
+EXAMPLE_APP_PARAMETERS:
+	cargo run --bin example_cli_params -- --help

@@ -3,21 +3,22 @@ name = "uploader_app"
 version = "0.1.0"
 authors = ["Pavel Ershov <pershov@game-insight.com>"]
 edition = "2018"
+default-run = "main"
 
 [features]
 default = []
 flame_it = ["flame", "flamer"]
 
 [dependencies]
-tokio = {version="0.2.24", features=["full"]} # https://docs.rs/crate/tokio/0.3.6/features
+tokio = {version="0.2.24", features=["full"]} # TODO: Убрать часть фичей https://docs.rs/crate/tokio/0.3.6/features
 reqwest = {version="0.10.10"}
 lazy_static = "1.4.0"
 futures = "0.3.8"
 serde_json = "1.0.60"
 log = "0.4.11"
 env_logger = "0.8.2"
+clap = "2.33.3"
 any_field_is_some = {path="libs/any_field_is_some"}
-
 flame = {version="0.2.2", optional=true}
 flamer = {version="0.4.0", optional=true}
 

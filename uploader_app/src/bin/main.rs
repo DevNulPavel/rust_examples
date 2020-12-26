@@ -1,5 +1,9 @@
-mod env_parameters;
-
+use uploader_app::{
+    app_parameters,
+    env_parameters::{
+        AppEnvValues
+    }
+};
 use tokio::{
     runtime::{
         Builder
@@ -7,6 +11,9 @@ use tokio::{
 };
 
 async fn async_main() {
+    let possible_env_variables = AppEnvValues::get_possible_env_variables();
+    let _app_parameters = app_parameters::parse(Some(possible_env_variables));
+    let _env_params = AppEnvValues::parse();
 }
 
 fn setup_logs(){

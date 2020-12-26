@@ -8,7 +8,7 @@ use any_field_is_some::{
 };
 use self::{
     traits::{
-        TryParseParams
+        EnvParams
     }
 };
 pub use self::{
@@ -17,37 +17,47 @@ pub use self::{
     }
 };
 
-
-#[derive(AnyFieldIsSome)]
-pub struct EnvParameters{
-    git: Option<GitParameters>,
-    amazon: Option<AmazonParameters>,
-    app_center: Option<AppCenterParameters>,
-    google_play: Option<GooglePlayParameters>,
-    google_drive: Option<GoogleDriveParameters>,
-    ios: Option<IOSParameters>,
-    ssh: Option<SSHParameters>,
-    target_slack: Option<TargetSlackParameters>,
-    result_slack: Option<ResultSlackParameters>,
-}
-
-pub fn parse() -> EnvParameters {
-    let params = EnvParameters{
-        git: GitParameters::try_parse(),
-        amazon: AmazonParameters::try_parse(),
-        app_center: AppCenterParameters::try_parse(),
-        google_play: GooglePlayParameters::try_parse(),
-        google_drive: GoogleDriveParameters::try_parse(),
-        ios: IOSParameters::try_parse(),
-        ssh: SSHParameters::try_parse(),
-        target_slack: TargetSlackParameters::try_parse(),
-        result_slack: ResultSlackParameters::try_parse()
+macro_rules! describe_env_values {
+    ( $( $val: ident: $type_id:ident ),* ) => {
+        #[derive(AnyFieldIsSome)]
+        pub struct AppEnvValues{
+            $( pub $val: Option<$type_id> ),*
+        }
+        impl AppEnvValues {
+            pub fn parse() -> AppEnvValues {
+                let params = AppEnvValues{
+                    $( $val: $type_id::try_parse() ),*
+                };
+            
+                let is_some = params.any_field_is_some();
+                if !is_some{
+                    panic!("Empty enviroment Environment");
+                }
+            
+                params
+            }
+            pub fn get_possible_env_variables() -> Vec<&'static str>{
+                // TODO: Убрать for, сделать на операторах
+                let mut vec = Vec::new();
+                $(
+                    for key in $type_id::get_available_keys(){
+                        vec.push(*key);
+                    }
+                )*
+                vec
+            }
+        }
     };
-
-    let is_some = params.any_field_is_some();
-    if !is_some{
-        panic!("Empty enviroment parameters");
-    }
-
-    params
 }
+
+describe_env_values!(
+    git: GitEnvironment,
+    amazon: AmazonEnvironment,
+    app_center: AppCenterEnvironment,
+    google_play: GooglePlayEnvironment,
+    google_drive: GoogleDriveEnvironment,
+    ios: IOSEnvironment,
+    ssh: SSHEnvironment,
+    target_slack: TargetSlackEnvironment,
+    result_slack: ResultSlackEnvironment
+);
