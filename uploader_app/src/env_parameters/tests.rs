@@ -72,7 +72,7 @@ fn get_random_key_values<T: EnvParams + EnvParamsTestable>()-> HashMap<String, S
 }
 
 #[test]
-fn test_env_Environment(){
+fn test_env_environment(){
     test_types! (
         GitEnvironment,
         AmazonEnvironment,
