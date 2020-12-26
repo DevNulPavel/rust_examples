@@ -44,52 +44,55 @@ pub struct AppParameters{
     //pub amazon: Option<AmazonParams>
 }
 
-fn get_params_app<'a>(env_variables_help: Option<&'a str>) -> App<'a, 'a> {
-    let app = App::new("Uploader application")
-        .author("Pavel Ershov")
-        .version("1.0.0")
-        .setting(AppSettings::ColorAuto)
-        .arg(Arg::with_name("in_file")
-                .long("amazon_input_file")
-                .value_delimiter(",")
-                .takes_value(true));
-
-    // Выводим кастомное окружение если надо
-    let app = match env_variables_help {
-        Some(env_variables_text) => {
-            app.after_help(env_variables_text)
-        },
-        None => {
-            app
-        }
-    };
+impl AppParameters{
+    fn get_params_app<'a>(env_variables_help: Option<&'a str>) -> App<'a, 'a> {
+        let app = App::new("Uploader application")
+            .author("Pavel Ershov")
+            .version("1.0.0")
+            .setting(AppSettings::ColorAuto)
+            .arg(Arg::with_name("in_file")
+                    .long("amazon_input_file")
+                    .use_delimiter(true)
+                    .value_delimiter(",")
+                    .takes_value(true));
     
-    app
-}
-
-fn matches_to_struct(matches: ArgMatches) -> AppParameters {
-    AppParameters {
+        // Выводим кастомное описание окружения если надо
+        let app = match env_variables_help {
+            Some(env_variables_text) => {
+                app.after_help(env_variables_text)
+            },
+            None => {
+                app
+            }
+        };
+        
+        app
     }
-}
-
-pub fn parse(env_variables_help: Option<Vec<&str>>) -> AppParameters {
-    let text = env_variables_help
-        .map(|env_variables|{
-            env_variables    
-                .into_iter()
-                .fold(String::from("ENVIRONMENT VARIABLES:\n"), |mut prev, var|{
-                    prev.push_str("    - ");
-                    prev.push_str(var);
-                    prev.push_str("\n");
-                    prev
-                })
-        });
-
-    let matches = get_params_app(text.as_deref())
-        .get_matches();
-
-    let parameters = matches_to_struct(matches);
-    parameters
+    
+    fn matches_to_struct(matches: ArgMatches) -> AppParameters {
+        AppParameters {
+        }
+    }
+    
+    pub fn parse(optional_env_variables_help: Option<Vec<&str>>) -> AppParameters {
+        let text = optional_env_variables_help
+            .map(|env_variables|{
+                env_variables    
+                    .into_iter()
+                    .fold(String::from("ENVIRONMENT VARIABLES:\n"), |mut prev, var|{
+                        prev.push_str("    - ");
+                        prev.push_str(var);
+                        prev.push_str("\n");
+                        prev
+                    })
+            });
+    
+        let matches = AppParameters::get_params_app(text.as_deref())
+            .get_matches();
+    
+        let parameters = AppParameters::matches_to_struct(matches);
+        parameters
+    }
 }
 
 #[cfg(test)]
@@ -103,9 +106,9 @@ mod tests{
             "asdsa"
         ];
 
-        let matches = get_params_app(None)
+        let matches = AppParameters::get_params_app(None)
             .get_matches_from(&test_parameters);
 
-        let result = matches_to_struct(matches);
+        let result = AppParameters::matches_to_struct(matches);
     }
 }
