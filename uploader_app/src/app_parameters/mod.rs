@@ -6,9 +6,7 @@ mod subtypes;
 use clap::{
     App, 
     AppSettings, 
-    Arg, 
-    ArgMatches,
-    ArgSettings
+    ArgMatches
 };
 use self::{
     traits::{
@@ -25,7 +23,12 @@ pub use self::{
 
 pub struct AppParameters{
     pub amazon: Option<AmazonParams>,
-    pub app_center: Option<AppCenterParams>
+    pub app_center: Option<AppCenterParams>,
+    pub goolge_drive: Option<GoogleDriveParams>,
+    pub goolge_play: Option<GooglePlayParams>,
+    pub ios: Option<IOSParams>,
+    pub ssh: Option<SSHParams>,
+    pub slack: Option<SlackParams>,
 }
 
 impl AppParameters{
@@ -35,7 +38,12 @@ impl AppParameters{
             .version("1.0.0")
             .setting(AppSettings::ColorAuto)
             .args(&AmazonParams::get_args())
-            .args(&AppCenterParams::get_args());
+            .args(&AppCenterParams::get_args())
+            .args(&GoogleDriveParams::get_args())
+            .args(&GooglePlayParams::get_args())
+            .args(&IOSParams::get_args())
+            .args(&SSHParams::get_args())
+            .args(&SlackParams::get_args());
     
         // Выводим кастомное описание окружения если надо
         let app = match env_variables_help {
@@ -53,7 +61,12 @@ impl AppParameters{
     fn matches_to_struct(matches: ArgMatches) -> AppParameters {
         AppParameters {
             amazon: AmazonParams::parse(&matches),
-            app_center: AppCenterParams::parse(&matches)
+            app_center: AppCenterParams::parse(&matches),
+            goolge_drive: GoogleDriveParams::parse(&matches),
+            goolge_play: GooglePlayParams::parse(&matches),
+            ios: IOSParams::parse(&matches),
+            ssh: SSHParams::parse(&matches),
+            slack: SlackParams::parse(&matches)
         }
     }
     

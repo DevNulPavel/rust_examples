@@ -126,27 +126,27 @@ env_params_type!(
 
 pub struct ResultSlackEnvironment{
     token: String,
-    // text_prefix: Option<String>,
-    // channel: Option<String>,
-    // user_email: Option<String>,
-    // user_id: Option<String>
+    text_prefix: Option<String>,
+    channel: Option<String>,
+    user_email: Option<String>,
+    user_id: Option<String>
 }
 impl EnvParams for ResultSlackEnvironment {
     fn try_parse() -> Option<Self> {
         Some(ResultSlackEnvironment{
             token: var("RESULT_SLACK_API_TOKEN").ok()?,
-            // text_prefix: var("RESULT_SLACK_TEXT_PREFIX").ok(),
-            // channel: var("RESULT_SLACK_CHANNEL").ok(),
-            // user_id: var("RESULT_SLACK_USER").ok(),
-            // user_email: var("RESULT_SLACK_USER_EMAIL").ok()
+            text_prefix: var("RESULT_SLACK_TEXT_PREFIX").ok(),
+            channel: var("RESULT_SLACK_CHANNEL").ok(),
+            user_id: var("RESULT_SLACK_USER").ok(),
+            user_email: var("RESULT_SLACK_USER_EMAIL").ok()
         })
     }
     fn get_available_keys() -> &'static [&'static str] {
         let keys = &["RESULT_SLACK_API_TOKEN",
-                     /*"RESULT_SLACK_TEXT_PREFIX",
+                     "RESULT_SLACK_TEXT_PREFIX",
                      "RESULT_SLACK_CHANNEL",
                      "RESULT_SLACK_USER",
-                     "RESULT_SLACK_USER_EMAIL"*/];
+                     "RESULT_SLACK_USER_EMAIL"];
         keys
     }
 }

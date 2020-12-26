@@ -1,10 +1,7 @@
 
 use clap::{
-    App, 
-    AppSettings, 
     Arg, 
-    ArgMatches,
-    ArgSettings
+    ArgMatches
 };
 
 pub trait AppParams: Sized {

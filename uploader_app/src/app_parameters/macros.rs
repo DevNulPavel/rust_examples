@@ -85,7 +85,14 @@ macro_rules! params_data_type {
                 Some($type_id {
                     $( $( $val_rec: values.value_of($key_rec)?.to_owned(), )* )?
                     $( $( $val_opt: values.value_of($key_opt).map(|v|{ v.to_owned() }), )* )?
-                    $( $( $val_mult: values.values_of($key_mult)?.to_owned(), )* )?
+                    $( $( $val_mult: 
+                            values
+                                .values_of($key_mult)?
+                                .map(|v|{
+                                    v.to_owned()
+                                })
+                                .collect::<Vec<String>>()
+                    )* )?
                     $( $( $val_mult_opt: 
                             values
                                 .values_of($key_mult_opt)
