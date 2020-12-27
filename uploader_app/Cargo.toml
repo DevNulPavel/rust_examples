@@ -18,6 +18,7 @@ serde_json = "1.0.60"
 log = "0.4.11"
 env_logger = "0.8.2"
 clap = "2.33.3"
+slack_client_lib = {git="https://github.com/DevNulPavel/slack_client_lib.git", tag="v1.0.2"}
 any_field_is_some = {path="libs/any_field_is_some"}
 flame = {version="0.2.2", optional=true}
 flamer = {version="0.4.0", optional=true}
