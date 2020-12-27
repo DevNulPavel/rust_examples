@@ -26,6 +26,8 @@ qrcode = "0.12.0"
 image = "0.23.12"
 uuid = { version = "0.8.1", features = ["v4"] }
 dirs = "3.0.1"
+slack_client_lib = {git="https://github.com/DevNulPavel/slack_client_lib.git", tag="v1.0.2"}
+# slack_client_lib = {path="../../slack_client_lib", default-features = false, features = ["rustls"]}
 #sqlx = {version="0.4.1", default-features = false, features=["runtime-actix-rustls", "sqlite"]}
 
 [dev-dependencies]

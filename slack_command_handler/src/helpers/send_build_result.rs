@@ -1,3 +1,8 @@
+use std::{
+    path::{
+        PathBuf
+    }
+};
 use actix_web::{
     web::{
         Data,
@@ -11,13 +16,13 @@ use log::{
     // info,
     error
 };
+use slack_client_lib::{
+    SlackMessageTarget,
+    SlackImageTarget
+};
 use crate::{
     qr::{
         create_qr_data
-    },
-    slack::{
-        SlackMessageTaget,
-        SlackImageTarget
     },
     handlers::{
         jenkins_handlers::{
@@ -57,10 +62,17 @@ pub fn send_message_with_build_result(params: BuildFinishedParameters,
 
         // Так как идентификаторы слака и дженкинса могут не совпадать, тогда ищем по email и полному имени
         // Если не нашли, пробуем айдишник, который прислали
-        let user_id = app_data
-            .slack_client
-            .find_user_id(&user_info.build_user_email, &user_info.build_user_name)
-            .await;
+        let user_id = {
+            // Пути к папке с кешем пользователей
+            let cache_file_full_path = PathBuf::new()
+                .join(&dirs::home_dir().unwrap())
+                .join(".cache/slack_direct_messenger/users_cache.json");
+
+            app_data
+                .slack_client
+                .find_user_id(&user_info.build_user_email, &user_info.build_user_name, &cache_file_full_path)
+                .await
+        };
         let user_id = match user_id {
             Some(user_id) => user_id,
             None => {
@@ -100,7 +112,7 @@ pub fn send_message_with_build_result(params: BuildFinishedParameters,
                 if let Err(err) = app_data
                                     .slack_client
                                     .send_message(&commentary,
-                                                  SlackMessageTaget::to_channel(&default_channel))
+                                                  SlackMessageTarget::to_channel(&default_channel))
                                     .await {
                     error!("Message send error: {:?}", err);
                 }
@@ -109,7 +121,7 @@ pub fn send_message_with_build_result(params: BuildFinishedParameters,
             if let Err(err) = app_data
                                 .slack_client
                                 .send_message(&commentary,
-                                            SlackMessageTaget::to_user_direct(&user_id))
+                                            SlackMessageTarget::to_user_direct(&user_id))
                                 .await {
                 error!("Message send error: {:?}", err);
             }
@@ -166,7 +178,7 @@ pub fn send_message_with_build_result_into_thread(mut data: ResponseAwaiterCallb
                 .app_data
                 .slack_client
                 .send_message(&commentary,
-                              SlackMessageTaget::to_thread(&data.root_trigger_message.channel, &data.root_trigger_message.ts))
+                              SlackMessageTarget::to_thread(&data.root_trigger_message.channel, &data.root_trigger_message.ts))
                 .await;
             if let Err(err) = result {
                 error!("Message send error: {:?}", err);

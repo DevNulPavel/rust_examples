@@ -21,10 +21,10 @@ use actix_web::{
         spawn
     }
 };
+use slack_client_lib::{
+    Message
+};
 use crate::{
-    slack::{
-        Message
-    },
     jenkins::{
         JobUrl,
         JenkinsJob

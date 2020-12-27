@@ -1,9 +1,9 @@
+use slack_client_lib::{
+    SlackClient
+};
 use crate::{
     jenkins::{
         JenkinsClient
-    },
-    slack::{
-        SlackClient,
     }
 };
 

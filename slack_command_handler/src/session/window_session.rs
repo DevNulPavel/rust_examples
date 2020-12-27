@@ -11,15 +11,15 @@ use actix_web::{
         Data
     }
 };
+use slack_client_lib::{
+    SlackMessageTarget
+};
 use crate::{
     application_data::{
         ApplicationData
     },
     active_views_holder::{
         ViewsHandlersHolder
-    },
-    slack::{
-        SlackMessageTaget
     }
 };
 use super::{
@@ -61,7 +61,7 @@ impl ResponseWithError for WindowSession{
         spawn(async move{
             let formatted_text = format!("*Jenkins bot error:*```{}```", error_text);
 
-            let message_type = SlackMessageTaget::to_user_direct(&self.user_id);
+            let message_type = SlackMessageTarget::to_user_direct(&self.user_id);
             let message_status = self.app_data
                 .slack_client
                 .send_message(&formatted_text, message_type)

@@ -11,15 +11,15 @@ use actix_web::{
         Data
     }
 };
+use slack_client_lib::{
+    SlackMessageTarget
+};
 use crate::{
     application_data::{
         ApplicationData
     },
     active_views_holder::{
         ViewsHandlersHolder
-    },
-    slack::{
-        SlackMessageTaget
     }
 };
 use super::{
@@ -62,7 +62,7 @@ impl ResponseWithError for CommandSession{
 
         // Пишем сообщение в ответ в слак
         spawn(async move{
-            let message_type = SlackMessageTaget::with_response_url(&self.response_url);
+            let message_type = SlackMessageTarget::with_response_url(&self.response_url);
             let message_status = self.app_data
                 .slack_client
                 .send_message(&error_text, message_type)

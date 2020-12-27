@@ -19,6 +19,9 @@ use log::{
     // info,
     error
 };
+use slack_client_lib::{
+    ViewInfo
+};
 use crate::{
     session::{
         WindowSession
@@ -28,9 +31,6 @@ use crate::{
     },
     active_views_holder::{
         ViewsHandlersHolder
-    },
-    slack::{
-        ViewInfo
     }
 };
 

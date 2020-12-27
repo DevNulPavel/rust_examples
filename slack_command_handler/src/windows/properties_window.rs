@@ -13,6 +13,11 @@ use actix_web::{
 use serde_json::{
     Value
 };
+use slack_client_lib::{
+    SlackMessageTarget,
+    View,
+    ViewInfo
+};
 use crate::{
     session::{
         WindowSession
@@ -23,13 +28,12 @@ use crate::{
         //JenkinsError,
         Parameter
     },
-    slack::{
-        SlackMessageTaget,
-        View,
-        ViewActionHandler,
-        ViewInfo
-    },
     slack_response_with_error
+};
+use super::{
+    view_action_handler::{
+        ViewActionHandler
+    }
 };
 
 fn param_to_json_field(param: Parameter) -> Value {
@@ -288,7 +292,7 @@ impl ViewActionHandler for PropertiesWindowView {
                 }
             };
 
-            let target = SlackMessageTaget::to_user_direct(&session.user_id);
+            let target = SlackMessageTarget::to_user_direct(&session.user_id);
 
             let text = format!("Build url: {}", self.target.get_info().url);
 

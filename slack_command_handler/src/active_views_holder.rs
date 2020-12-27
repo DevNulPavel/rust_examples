@@ -7,7 +7,7 @@ use std::{
     }
 };
 use crate::{
-    slack::{
+    windows::{
         ViewActionHandler
     }
 };

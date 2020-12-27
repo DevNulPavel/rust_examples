@@ -14,6 +14,10 @@ use actix_web::{
 use serde_json::{
     Value
 };
+use slack_client_lib::{
+    View,
+    ViewInfo
+};
 use crate::{
     session::{
         CommandSession,
@@ -23,15 +27,12 @@ use crate::{
         // JenkinsClient,
         JenkinsTarget
     },
-    slack::{
-        View,
-        ViewInfo,
-        ViewActionHandler,
-        // SlackViewError
-    },
     slack_response_with_error
 };
 use super::{
+    view_action_handler::{
+        ViewActionHandler
+    },
     properties_window::{
         open_build_properties_window_by_reponse
     }

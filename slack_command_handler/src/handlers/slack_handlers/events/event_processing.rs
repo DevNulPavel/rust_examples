@@ -8,12 +8,12 @@ use log::{
     info,
     error
 };
+use slack_client_lib::{
+    SlackMessageTarget
+};
 use crate::{
     session::{
         EventSession
-    },
-    slack::{
-        SlackMessageTaget
     },
     jenkins::{
         Parameter
@@ -104,7 +104,7 @@ async fn start_jenkins_job(target: &str, branch: &str, session: EventSession, aw
     let message = session
         .app_data
         .slack_client
-        .send_message(&test_message, SlackMessageTaget::to_thread(&session.message.channel, &session.message.ts))
+        .send_message(&test_message, SlackMessageTarget::to_thread(&session.message.channel, &session.message.ts))
         .await;
 
     let message = unwrap_error_with_slack_response_and_return!(message, 

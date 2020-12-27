@@ -1,6 +1,5 @@
 mod application_data;
 mod jenkins;
-mod slack;
 mod windows;
 mod session;
 mod handlers;
@@ -41,6 +40,10 @@ use log::{
 use listenfd::{
     ListenFd
 };
+use slack_client_lib::{
+    SlackRequestBuilder,
+    SlackClient
+};
 use crate::{
     application_data::{
         ApplicationData
@@ -63,9 +66,6 @@ use crate::{
     },
     jenkins::{
         JenkinsRequestBuilder
-    },
-    slack::{
-        SlackRequestBuilder
     }
 };
 
@@ -194,7 +194,7 @@ async fn main() -> std::io::Result<()>{
     let web_application_factory = move || {
         // Создаем данные приложения для текущего треда
         let app_data = Data::new(ApplicationData::new(
-            slack::SlackClient::new(slack_request_builder.clone()),
+            SlackClient::new(slack_request_builder.clone()),
             jenkins::JenkinsClient::new(jenkins_request_builder.clone())
         ));
 

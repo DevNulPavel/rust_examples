@@ -11,6 +11,9 @@ use actix_web::{
         Data
     }
 };
+use slack_client_lib::{
+    SlackMessageTarget
+};
 use crate::{
     handlers::{
         slack_handlers::{
@@ -19,9 +22,6 @@ use crate::{
     },
     application_data::{
         ApplicationData
-    },
-    slack::{
-        SlackMessageTaget
     }
 };
 use super::{
@@ -55,7 +55,7 @@ impl ResponseWithError for EventSession{
             let formatted_text = format!("```{}```", error_text);
 
             //let message_type = SlackMessageTaget::to_channel_ephemeral(&self.channel_id, &self.user_id);
-            let message_type = SlackMessageTaget::to_thread(&self.message.channel, &self.message.ts);
+            let message_type = SlackMessageTarget::to_thread(&self.message.channel, &self.message.ts);
 
             let message_status = self.app_data
                 .slack_client
