@@ -1,12 +1,6 @@
 use std::{
     error::{
         Error
-    },
-    sync::{
-        Arc
-    },
-    pin::{
-        Pin
     }
 };
 use async_trait::{
@@ -18,7 +12,7 @@ use log::{
 };
 use crate::{
     uploaders::{
-        UploadResult
+        UploadResultData
     }
 };
 use super::{
@@ -29,7 +23,7 @@ pub struct TerminalSender{
 }
 #[async_trait(?Send)]
 impl ResultSender for TerminalSender {
-    async fn send_result(&self, result: &UploadResult){
+    async fn send_result(&self, result: &UploadResultData){
         info!("Uploading task success: {}", result);
     }
     async fn send_error(&self, err: &dyn Error){

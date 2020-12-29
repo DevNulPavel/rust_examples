@@ -67,7 +67,7 @@ use self::{
 async fn wait_results<W, S>(mut active_workers: Vec<W>, 
                                result_senders: Vec<Box<S>>)
 where 
-    W: Future<Output=Result<UploadResult, Box<dyn error::Error>>> + Unpin,
+    W: Future<Output=UploadResult> + Unpin,
     S: ResultSender + ?Sized {
 
     // Смотрим на завершающиеся воркеры

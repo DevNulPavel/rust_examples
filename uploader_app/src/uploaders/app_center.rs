@@ -29,14 +29,15 @@ use crate::{
 };
 use super::{
     upload_result::{
-        UploadResult
+        UploadResult,
+        UploadResultData
     }
 };
 
 pub async fn upload_in_app_center(http_client: reqwest::Client, 
                               app_center_env_params: AppCenterEnvironment,
                               app_center_app_params: AppCenterParams,
-                              git_info: Option<GitEnvironment>) -> Result<UploadResult, Box<dyn std::error::Error>> {
+                              git_info: Option<GitEnvironment>) -> UploadResult {
 
     info!("Start app center uploading");
 
@@ -79,7 +80,7 @@ pub async fn upload_in_app_center(http_client: reqwest::Client,
         match upload_result {
             // Если все хорошо - возвращаем результат
             Ok(result) => {
-                return Ok(UploadResult{
+                return Ok(UploadResultData{
                     download_url: result.download_url,
                     install_url: result.install_url,
                     message: Some("App center uploading finished".to_owned()) // TODO: ???
@@ -92,7 +93,7 @@ pub async fn upload_in_app_center(http_client: reqwest::Client,
 
                 if iteration_number <= 5 {
                     info!("Wait some time before new iteration");
-                    delay_for(Duration::from_secs(20));
+                    delay_for(Duration::from_secs(20)).await;
                 }else{
                     return Err(format!("AppCenter uploading failed with error: {}", err).into());
                 }
