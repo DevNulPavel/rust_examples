@@ -19,8 +19,8 @@ macro_rules! env_params_type {
         }
     ) => {
         pub struct $type {
-            $( $($val_req: String,)* )?
-            $( $($val_opt: Option<String>,)* )?
+            $( $(pub $val_req: String,)* )?
+            $( $(pub $val_opt: Option<String>,)* )?
         }
 
         impl crate::env_parameters::traits::EnvParams for $type {

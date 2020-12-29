@@ -48,7 +48,7 @@ env_params_type!(
         Req{
             token: "APP_CENTER_ACCESS_TOKEN",
             app: "APP_CENTER_APP_NAME",
-            ownder: "APP_CENTER_APP_OWNER_NAME"
+            owner: "APP_CENTER_APP_OWNER_NAME"
         }
     }
 );
