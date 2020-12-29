@@ -14,6 +14,6 @@ use crate::{
 
 #[async_trait(?Send)]
 pub trait ResultSender {
-    async fn send_result(&self, result: &UploadResultData);
-    async fn send_error(&self, err: &dyn Error);
+    async fn send_result(&mut self, result: &UploadResultData);
+    async fn send_error(&mut self, err: &dyn Error);
 }

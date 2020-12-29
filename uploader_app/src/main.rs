@@ -65,36 +65,38 @@ use self::{
 };
 
 async fn wait_results<W, S>(mut active_workers: Vec<W>, 
-                               result_senders: Vec<Box<S>>)
+                            mut result_senders: Vec<Box<S>>)
 where 
     W: Future<Output=UploadResult> + Unpin,
     S: ResultSender + ?Sized {
 
     // Смотрим на завершающиеся воркеры
     while active_workers.len() > 0 {
+        // Выбираем успешную фьючу, получаем оставшиеся
         let (res, _, left_workers) = select_all(active_workers).await;
         active_workers = left_workers;
 
         // Обрабатываем результат
         match res {
             Ok(res) => {
+                /*let mut futures = Vec::new();
+                for mut sender in result_senders{
+                    let fut = sender.send_result(&res);
+                    futures.push(fut);
+                }*/
+
                 // Пишем во все получатели асинхронно
                 let futures_iter = result_senders
-                    .iter()
+                    .iter_mut()
                     .map(|sender|{
                         sender.send_result(&res)
                     });
                 join_all(futures_iter).await;
-
-                // Пишем в слак результат если надо
-                /*if let Some(slack) = result_slack_client {
-                    slack.send_message(message, target)
-                }*/
             },
             Err(err) => {
                 // Пишем во все получатели асинхронно
                 let futures_iter = result_senders
-                    .iter()
+                    .iter_mut()
                     .map(|sender|{
                         sender.send_error(err.as_ref())
                     });
@@ -146,7 +148,7 @@ async fn async_main() {
 
         // Создаем клиента для слака если надо отправлять результаты в слак
         if let Some(slack_params) = env_params.result_slack{
-            //SlackClient::new(http_client.clone(), slack_params.token)
+            
         }
 
         // Результат в терминал

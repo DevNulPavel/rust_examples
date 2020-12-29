@@ -123,7 +123,7 @@ env_params_type!(
         Opt{
             text_prefix: "RESULT_SLACK_TEXT_PREFIX",
             channel: "RESULT_SLACK_CHANNEL",
-            user_id: "RESULT_SLACK_USER",
+            user_name: "RESULT_SLACK_USER",
             user_email: "RESULT_SLACK_USER_EMAIL"
         }
     }
