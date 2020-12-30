@@ -34,7 +34,8 @@ use slack_client_lib::{
     SlackError,
     SlackMessageTarget,
     UsersCache,
-    UsersJsonCache
+    UsersJsonCache,
+    UsersSqliteCache
 };
 use crate::{
     uploaders::{
@@ -83,11 +84,17 @@ impl SlackResultSender {
                 .user_name
                 .as_ref()
                 .map(|name| async move {
-                    let cache_file_path = PathBuf::new()
+                    // Sqlite cache
+                    /*let cache_file_path = PathBuf::new()
                         .join(dirs::home_dir().unwrap())
                         .join(".cache/uploader_app/users_cache.json");
+                    let mut cache = UsersJsonCache::new(cache_file_path).await;*/
 
-                    let mut cache = UsersJsonCache::new(cache_file_path).await;
+                    // Sqlite cache
+                    let cache_file_path = PathBuf::new()
+                        .join(dirs::home_dir().unwrap())
+                        .join(".cache/uploader_app/users_cache.sqlite");
+                    let mut cache = UsersSqliteCache::new(cache_file_path).await;
 
                     client_ref.find_user_id_by_name(&name, Some(&mut cache)).await
                 })
