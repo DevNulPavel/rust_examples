@@ -1,6 +1,9 @@
 use std::{
     error::{
         Error
+    },
+    path::{
+        PathBuf
     }
 };
 use reqwest::{
@@ -8,16 +11,20 @@ use reqwest::{
 };
 use tokio::{
     task::{
-        JoinHandle
+        JoinHandle,
+        // spawn_local
     },
-    spawn
+    spawn,
 };
 use futures::{
     future::{
         join_all,
+        select,
+        Either,
         Future,
         FutureExt
-    }
+    },
+    // select
 };
 use async_trait::{
     async_trait
@@ -25,7 +32,9 @@ use async_trait::{
 use slack_client_lib::{
     SlackClient,
     SlackError,
-    SlackMessageTarget
+    SlackMessageTarget,
+    UsersCache,
+    UsersJsonCache
 };
 use crate::{
     uploaders::{
@@ -41,7 +50,8 @@ use super::{
 
 struct SenderResolved{
     client: SlackClient,
-    params: ResultSlackEnvironment,
+    text_prefix: Option<String>,
+    channel: Option<String>,
     user_id: Option<String>
 }
 
@@ -57,36 +67,58 @@ impl SlackResultSender {
     pub fn new(http_client: Client, params: ResultSlackEnvironment) -> SlackResultSender{
         let join = spawn(async move{
             let client = SlackClient::new(http_client, params.token.clone()); // TODO: Убрать клонирование
-
-            /**/
+            let client_ref = &client;
 
             let email_future = params
                 .user_email
                 .as_ref()
                 .map(|email|{
-                    client.find_user_id_by_email(&email)
+                    client_ref.find_user_id_by_email(&email)
+                })
+                .map(|fut|{
+                    fut.boxed()
                 });
 
             let name_future = params
                 .user_name
                 .as_ref()
-                .map(|name|{
+                .map(|name| async move {
                     let cache_file_path = PathBuf::new()
                         .join(dirs::home_dir().unwrap())
                         .join(".cache/uploader_app/users_cache.json");
 
-                    client.find_user_id_by_name(&email)
+                    let mut cache = UsersJsonCache::new(cache_file_path).await;
+
+                    client_ref.find_user_id_by_name(&name, Some(&mut cache)).await
+                })
+                .map(|fut|{
+                    fut.boxed()
                 });
 
-            /*if params.user_email.is_some() || params.user_name.is_some(){
-                //let user_email = self.params.user_email.unwrap_or_default();
-                // let user_name = self.params.user_name.unwrap_or_default();
-                self.client.find_user_id(&user_email, &user_name, cache_file_path).await;
-            }*/
+            let user_id: Option<String> = match (email_future, name_future){
+                (Some(email_future), Some(name_future)) => {
+                    let id: Option<String> = match select(name_future, email_future).await {
+                        Either::Left((id, _)) => id,
+                        Either::Right((id, _)) => id,
+                    };
+                    id
+                },
+                (None, Some(name_future)) => {
+                    name_future.await
+                },
+                (Some(email_future), None) => {
+                    email_future.await
+                },
+                (None, None) => {
+                    None
+                }
+            };
+
             SenderResolved{
                 client,
-                params,
-                user_id: None
+                text_prefix: params.text_prefix,
+                channel: params.channel,
+                user_id
             }
         });
         SlackResultSender{
@@ -111,29 +143,25 @@ impl SlackResultSender {
 #[async_trait(?Send)]
 impl ResultSender for SlackResultSender {
     async fn send_result(&mut self, result: &UploadResultData){
-        let sender = self.resolve_sender();
+        let sender = self.resolve_sender().await;
 
-        /*let mut futures_vec = Vec::new();
+        let mut futures_vec = Vec::new();
 
         if let Some(message) = &result.message{
-            if let Some(channel) = &self.params.channel{
+            if let Some(channel) = &sender.channel{
                 let target = SlackMessageTarget::to_channel(&channel);
-                let fut = self.client.send_message(&message, target);
+                let fut = sender.client.send_message(&message, target);
                 futures_vec.push(fut);
             }
             
-            if self.params.user_email.is_some() || self.params.user_name.is_some(){
-                //let user_email = self.params.user_email.unwrap_or_default();
-                // let user_name = self.params.user_name.unwrap_or_default();
-                let user_id = self.client.find_user_id(&user_email, &user_name, cache_file_path).await;
-
-                if let Some(user_id) = user_id {
-                    let target = SlackMessageTarget::to_user_direct(&user_id);
-                    let fut = self.client.send_message(&message, target);
-                    futures_vec.push(fut);
-                }
+            if let Some(user_id) = &sender.user_id {
+                let target = SlackMessageTarget::to_user_direct(&user_id);
+                let fut = sender.client.send_message(&message, target);
+                futures_vec.push(fut);
             }
-        }*/
+        }
+
+        join_all(futures_vec).await;
     }
     async fn send_error(&mut self, err: &dyn Error){
         //error!("Uploading task error: {}", err);
