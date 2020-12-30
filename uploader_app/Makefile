@@ -28,3 +28,6 @@ TEST_ENV_PARAMETERS:
 
 EXAMPLE_APP_PARAMETERS:
 	cargo run --bin example_cli_params -- --help
+
+TEST_APP: BUILD
+	bash test_uploading.sh

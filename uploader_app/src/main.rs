@@ -142,6 +142,8 @@ async fn async_main() {
         _ => {}
     }
 
+    // tokio::time::delay_for(std::time::Duration::from_secs(60)).await;
+
     // Получаетели результатов выгрузки
     let result_senders = {
         let mut result_senders: Vec<Box<dyn ResultSender>> = Vec::new();
@@ -178,7 +180,7 @@ fn main() {
 
     // Запускаем асинхронный рантайм
     let mut runtime = Builder::default()
-        .enable_io()
+        .enable_all()
         .basic_scheduler()
         //.threaded_scheduler()
         //.core_threads(1)

@@ -26,8 +26,8 @@ macro_rules! env_params_type {
         impl crate::env_parameters::traits::EnvParams for $type {
             fn try_parse() -> Option<Self> {
                 Some(Self{
-                    $( $( $val_req: var($key_req).ok()?, )* )?
-                    $( $( $val_opt: var($key_opt).ok(), )* )?
+                    $( $( $val_req: var($key_req).ok().map(|val| val.trim_matches('"').to_string() )?, )* )?
+                    $( $( $val_opt: var($key_opt).ok().map(|val| val.trim_matches('"').to_string() ), )* )?
                 })
             }
             fn get_available_keys() -> &'static [&'static str] {
