@@ -18,8 +18,9 @@ log = "0.4.11"
 env_logger = "0.8.2"
 clap = "2.33.3"
 async-trait = "0.1.42"
-slack_client_lib = {git="https://github.com/DevNulPavel/slack_client_lib.git", rev="a76bfb33a2719a511c305b275d191bc5571bd65f"}
+# slack_client_lib = {git="https://github.com/DevNulPavel/slack_client_lib.git", rev="a76bfb33a2719a511c305b275d191bc5571bd65f"}
 # app_center_client = {git="https://github.com/DevNulPavel/app_center_client.git", rev="b73b30b7f82f33ad0f1949ee1bfe05ac1af00bc7"}
+slack_client_lib = {path="../../slack_client_lib"}
 app_center_client = {path="../../app_center_client"}
 any_field_is_some = {path="libs/any_field_is_some"}
 flame = {version="0.2.2", optional=true}

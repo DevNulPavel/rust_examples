@@ -57,6 +57,27 @@ impl SlackResultSender {
     pub fn new(http_client: Client, params: ResultSlackEnvironment) -> SlackResultSender{
         let join = spawn(async move{
             let client = SlackClient::new(http_client, params.token.clone()); // TODO: Убрать клонирование
+
+            /**/
+
+            let email_future = params
+                .user_email
+                .as_ref()
+                .map(|email|{
+                    client.find_user_id_by_email(&email)
+                });
+
+            let name_future = params
+                .user_name
+                .as_ref()
+                .map(|name|{
+                    let cache_file_path = PathBuf::new()
+                        .join(dirs::home_dir().unwrap())
+                        .join(".cache/uploader_app/users_cache.json");
+
+                    client.find_user_id_by_name(&email)
+                });
+
             /*if params.user_email.is_some() || params.user_name.is_some(){
                 //let user_email = self.params.user_email.unwrap_or_default();
                 // let user_name = self.params.user_name.unwrap_or_default();

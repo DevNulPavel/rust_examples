@@ -1147,13 +1147,13 @@ checksum = "c111b5bd5695e56cffe5129854aa230b39c93a305372fdbb2668ca2394eea9f8"
 [[package]]
 name = "slack_client_lib"
 version = "1.0.3"
-source = "git+https://github.com/DevNulPavel/slack_client_lib.git?rev=a76bfb33a2719a511c305b275d191bc5571bd65f#a76bfb33a2719a511c305b275d191bc5571bd65f"
 dependencies = [
  "futures",
  "log",
  "reqwest",
  "serde",
  "serde_json",
+ "tokio",
  "uuid",
 ]
 
