@@ -181,8 +181,8 @@ fn main() {
     // Запускаем асинхронный рантайм
     let mut runtime = Builder::default()
         .enable_all()
-        .basic_scheduler()
-        //.threaded_scheduler()
+        // .basic_scheduler()
+        .threaded_scheduler()
         //.core_threads(1)
         //.max_threads(2)
         .build()
