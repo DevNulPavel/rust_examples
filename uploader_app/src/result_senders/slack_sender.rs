@@ -5,9 +5,6 @@ use std::{
     path::{
         PathBuf
     },
-    sync::{
-        Arc
-    },
     borrow::{
         Cow
     },
@@ -27,9 +24,6 @@ use tokio::{
         spawn_blocking
         // spawn_local
     },
-    sync::{
-        Mutex
-    },
     join,
     spawn,
 };
@@ -48,14 +42,13 @@ use async_trait::{
 };
 use slack_client_lib::{
     SlackClient,
-    SlackError,
-    SlackMessageTarget,
     SlackChannelMessageTarget,
     SlackUserMessageTarget,
-    SlackThreadMessageTarget,
     SlackThreadImageTarget,
-    UsersCache,
-    UsersJsonCache,
+    SlackUserImageTarget,
+    SlackChannelImageTarget,
+    // UsersCache,
+    // UsersJsonCache,
     UsersSqliteCache
 };
 use crate::{
@@ -67,14 +60,13 @@ use crate::{
     }
 };
 use super::{
+    ResultSender, 
     qr::{
-        create_qr_data,
-        QrCodeError
-    },
-    ResultSender,
+        create_qr_data
+    }
 };
 
-fn qr_future_for_result(install_url: Option<String>) -> impl Future<Output=Option<QRInfo>> {
+fn qr_future_for_result(install_url: Option<String>) -> Pin<Box<dyn Future<Output=Option<QRInfo>> + Send>>{
     let qr_data_future = match install_url{
         Some(url) => {
             let fut = async move {
@@ -82,33 +74,92 @@ fn qr_future_for_result(install_url: Option<String>) -> impl Future<Output=Optio
                     .await
                     .expect("QR code create spawn failed")
                     .map(|qr_data|{
-                        let inner = Arc::new(QRInfoInner{
+                        /*let inner = Arc::new(QRInfoInner{
                             url: url,
                             qr_data
                         });
                         QRInfo{
                             inner
+                        }*/
+                        QRInfo{
+                            url: url,
+                            qr_data
                         }
                     });
                 res
             };
-            fut.shared().boxed()
+            fut.boxed()
         }
         None => {
-            futures::future::ready(Option::None).shared().boxed()
+            futures::future::ready(Option::None).boxed()
         }
     };
     qr_data_future
 }
 
+macro_rules! message_target_impl {
+    ($fn_name:ident, $target_type:ident$(<$life:lifetime>)?) => {
+        async fn $fn_name <'a, Q: Future<Output=Option<QRInfo>>>(sender: &SenderResolved, 
+                                                              qr_data_future: Q, 
+                                                              target: $target_type$(<$life>)?, 
+                                                              text: &str) {
+        
+            let (message_result, qr) = join!(
+                async{
+                    sender
+                        .client
+                        .send_message(text, target)
+                        .await
+                        .ok()
+                        .flatten()
+                },
+                qr_data_future
+            );
+        
+            match (message_result, qr) {
+                (Some(message), Some(qr)) => {
+                    let target = SlackThreadImageTarget::new(
+                        message.get_channel_id(),
+                        message.get_thread_id()
+                    );
+                    let image_res = sender
+                        .client
+                        .send_image(
+                            qr.qr_data, 
+                            qr.url, 
+                            target
+                        )
+                        .await;
+            
+                    if let Err(err) = image_res {
+                        error!("Slack image uploading failed with err: {}", err);    
+                    }
+                },
+                _ => {
+                    error!("There is no slack message created or QR create error");
+                }
+            }
+        }  
+    };
+}
+message_target_impl!(message_to_channel_target, SlackChannelMessageTarget<'a>);
+message_target_impl!(message_to_user_target, SlackUserMessageTarget<'a>);
+
+
+
 // QR код
-struct QRInfoInner{
+/*struct QRInfoInner{
     url: String,
     qr_data: Vec<u8>
 }
 #[derive(Clone)]
 struct QRInfo{
     inner: Arc<QRInfoInner>,
+}*/
+#[derive(Clone)]
+struct QRInfo{
+    url: String,
+    qr_data: Vec<u8>
 }
 
 struct SenderResolved{
@@ -248,67 +299,63 @@ impl ResultSender for SlackResultSender {
         // Создаем футуру с результатом QR
         let qr_data_future = qr_future_for_result(result.install_url.clone());
 
-        let message_futures_vec = {
+        // Сообщение
+        if let Some(message) = &text {
             // Массив наших тасков
             let mut futures_vec = Vec::new();
 
-            // Сообщение
-            if let Some(message) = &text {
+            let qr_data_future = qr_data_future.shared();
+
+            // В канал
+            if let Some(channel) = &sender.channel {
+                let qr_data_future = qr_data_future.clone();
+                let fut = async move {
+                    let target = SlackChannelMessageTarget::new(&channel);
+                    message_to_channel_target(sender, qr_data_future, target, message)
+                        .await;
+                };
+
+                futures_vec.push(fut.boxed());
+            }
+            
+            // Юзеру
+            if let Some(user_id) = &sender.user_id {
+                let fut = async move {
+                    let target = SlackUserMessageTarget::new(&user_id);
+                    message_to_user_target(sender, qr_data_future, target, message)
+                        .await;
+                };
+
+                futures_vec.push(fut.boxed());
+            }
+
+            join_all(futures_vec).await;
+        }else {
+            // Массив наших тасков
+            let mut futures_vec = Vec::new();
+
+            // Просто засылаем QR код если нету сообщения
+            if let Some(qr_info) = qr_data_future.await{
+                // let QRInfo { url, qr_data } = qr_info.deref();
+
+                // В канал
                 if let Some(channel) = &sender.channel {
-                    let fut = async move {
-                        let target = SlackChannelMessageTarget::new(&channel);
-                        let (message_result, qr) = join!(
-                            async{
-                                sender
-                                    .client
-                                    .send_message(&message, target)
-                                    .await
-                                    .ok()
-                                    .flatten()
-                            },
-                            qr_data_future
-                        );
-                        match (message_result, qr) {
-                            (Some(message), Some(qr)) => {
-                                let target = SlackThreadImageTarget::new(
-                                    message.get_channel_id(),
-                                    message.get_thread_id()
-                                );
-                                let image_res = sender
-                                    .client
-                                    .send_image(
-                                        qr.inner.qr_data.clone(), 
-                                        qr.inner.url.clone(), 
-                                        target
-                                    )
-                                    .await;
-
-                                if let Err(err) = image_res {
-                                    error!("Slack image uploading failed with err: {}", err);    
-                                }
-                            },
-                            _ => {
-                                error!("There is no slack message created or QR create error");
-                            }
-                        }
-                    };
-
+                    let target = SlackChannelImageTarget::new(&channel);
+                    let fut = sender.client.send_image(qr_info.qr_data.clone(), qr_info.url.clone(), target);
                     futures_vec.push(fut.boxed());
                 }
                 
+                // Юзеру
                 if let Some(user_id) = &sender.user_id {
-                    // let target = SlackMessageTarget::to_user_direct(&user_id);
-                    // let fut = sender.client.send_message(&message, target);
-                    // futures_vec.push(fut);
+                    let target = SlackUserImageTarget::new(&user_id);
+                    let fut = sender.client.send_image(qr_info.qr_data, qr_info.url, target);
+                    futures_vec.push(fut.boxed());
                 }
+
+                join_all(futures_vec).await;
             }
+        }
 
-            futures_vec
-        };
-
-        // TODO: QR + Ссылка
-
-        let messages = join_all(message_futures_vec).await;
     }
 
     async fn send_error(&mut self, err: &dyn Error){

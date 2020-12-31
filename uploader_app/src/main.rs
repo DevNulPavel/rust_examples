@@ -150,7 +150,8 @@ async fn async_main() {
 
         // Создаем клиента для слака если надо отправлять результаты в слак
         if let Some(slack_params) = env_params.result_slack{
-            
+            let slack_sender = SlackResultSender::new(http_client, slack_params);
+            result_senders.push(Box::new(slack_sender));    
         }
 
         // Результат в терминал
