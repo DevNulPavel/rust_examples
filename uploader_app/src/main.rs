@@ -3,15 +3,6 @@ mod app_parameters;
 mod uploaders;
 mod result_senders;
 
-use std::{
-    path::{
-        Path,
-        PathBuf
-    },
-    error::{
-        self
-    }
-};
 use tokio::{
     runtime::{
         Builder
@@ -30,28 +21,12 @@ use log::{
     debug,
     error
 };
-use slack_client_lib::{
-    SlackClient,
-    SlackError,
-    SlackMessageTarget
-};
-use app_center_client::{
-    AppCenterClient,
-    AppCenterBuildGitInfo,
-    AppCenterBuildUploadTask,
-    AppCenterError
-};
 use self::{
     app_parameters::{
         AppParameters,
-        SlackParams,
-        AppCenterParams
     },
     env_parameters::{
-        AppEnvValues,
-        ResultSlackEnvironment,
-        AppCenterEnvironment,
-        GitEnvironment
+        AppEnvValues
     },
     uploaders::{
         upload_in_app_center,

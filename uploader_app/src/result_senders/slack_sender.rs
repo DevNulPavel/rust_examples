@@ -70,7 +70,8 @@ fn qr_future_for_result(install_url: Option<String>) -> Pin<Box<dyn Future<Outpu
     let qr_data_future = match install_url{
         Some(url) => {
             let fut = async move {
-                let res: Option<QRInfo> = spawn_blocking(||{ create_qr_data("This is test text").ok() })
+                let qr_data = url.clone();
+                let res: Option<QRInfo> = spawn_blocking(move || { create_qr_data(&qr_data).ok() })
                     .await
                     .expect("QR code create spawn failed")
                     .map(|qr_data|{
