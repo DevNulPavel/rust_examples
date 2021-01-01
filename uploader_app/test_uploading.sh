@@ -1,10 +1,12 @@
 #! /usr/bin/env bash
 
 # Import test environment
-$(gpg -a -r 0x0BD10E4E6E578FB6 -d test_environment.env.asc)
+eval "$(gpg -a -r 0x0BD10E4E6E578FB6 -d test_environment.env.asc)"
+# gpg -a -r 0x0BD10E4E6E578FB6 -d test_environment.env.asc -o test_environment.env
+# source test_environment.env
 
 # Print environment
-#env
+# env
 
 # Rust environment setup
 export RUST_BACKTRACE=1
