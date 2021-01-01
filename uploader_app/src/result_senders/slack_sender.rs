@@ -126,7 +126,7 @@ macro_rules! message_target_impl {
                         .client
                         .send_image(
                             qr.qr_data, 
-                            qr.url, 
+                            None, 
                             target
                         )
                         .await;
@@ -290,7 +290,7 @@ impl ResultSender for SlackResultSender {
                 strings.push(Cow::from(text));
             }
             if strings.len() > 0 {
-                Some(strings.join("\n\n"))
+                Some(strings.join("\n"))
             }else{
                 None
             }
@@ -341,14 +341,14 @@ impl ResultSender for SlackResultSender {
                 // В канал
                 if let Some(channel) = &sender.channel {
                     let target = SlackChannelImageTarget::new(&channel);
-                    let fut = sender.client.send_image(qr_info.qr_data.clone(), qr_info.url.clone(), target);
+                    let fut = sender.client.send_image(qr_info.qr_data.clone(), None, target);
                     futures_vec.push(fut.boxed());
                 }
                 
                 // Юзеру
                 if let Some(user_id) = &sender.user_id {
                     let target = SlackUserImageTarget::new(&user_id);
-                    let fut = sender.client.send_image(qr_info.qr_data, qr_info.url, target);
+                    let fut = sender.client.send_image(qr_info.qr_data, None, target);
                     futures_vec.push(fut.boxed());
                 }
 

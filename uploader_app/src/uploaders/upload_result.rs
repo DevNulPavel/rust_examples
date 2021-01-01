@@ -9,6 +9,7 @@ use std::{
 
 #[derive(Debug)]
 pub struct UploadResultData{
+    pub target: &'static str,
     pub message: Option<String>,
     pub download_url: Option<String>,
     pub install_url: Option<String>

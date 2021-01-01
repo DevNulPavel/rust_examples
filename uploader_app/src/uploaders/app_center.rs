@@ -82,9 +82,10 @@ pub async fn upload_in_app_center(http_client: reqwest::Client,
             // Если все хорошо - возвращаем результат
             Ok(result) => {
                 return Ok(UploadResultData{
+                    target: "AppCenter",
                     download_url: result.download_url,
                     install_url: result.install_url,
-                    message: Some("App center uploading finished".to_owned()) // TODO: ???
+                    message: None
                 })
             },
 

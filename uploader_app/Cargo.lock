@@ -67,6 +67,7 @@ dependencies = [
 name = "app_center_client"
 version = "1.0.0"
 dependencies = [
+ "bytes",
  "futures",
  "log",
  "reqwest",

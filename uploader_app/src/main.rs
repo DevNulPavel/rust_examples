@@ -136,7 +136,9 @@ async fn async_main() {
             let fut = upload_in_app_center(http_client.clone(), 
                                            app_center_env_params, 
                                            app_center_app_params,
-                                           env_params.git).boxed();
+                                           env_params.git)
+                                           
+                .boxed();
             active_workers.push(fut);
         },
         _ => {}
