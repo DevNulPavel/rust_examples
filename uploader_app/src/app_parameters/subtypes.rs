@@ -34,12 +34,13 @@ params_data_type!(
 params_data_type!(
     GoogleDriveParams{
         Req{
-            target_folder_id : "google_drive_target_folder_id" : "Google drive folder ID",
-            target_owner_email : "google_drive_target_owner_email" : "Google drive folder owner email",
-            google_drive_target_domain: "google_drive_target_domain" : "Google drive shared domain"
+            target_drive_id : "google_drive_target_drive_id" : "Google drive drive ID",
+            target_folder_id : "google_drive_target_folder_id" : "Google drive folder ID"
         }
         Opt{
-            target_subfolder_name : "google_drive_subfolder_name" : "Google drive subfolder name"
+            target_subfolder_name : "google_drive_subfolder_name" : "Google drive subfolder name",
+            target_owner_email : "google_drive_target_owner_email" : "Google drive folder owner email",
+            target_domain: "google_drive_target_domain" : "Google drive shared domain"
         }
         Mult { 
             files : "google_drive_files" : "Comma separated files list"

@@ -18,11 +18,11 @@ macro_rules! env_params_type {
             )?
         }
     ) => {
+        #[derive(Debug)]
         pub struct $type {
             $( $(pub $val_req: String,)* )?
             $( $(pub $val_opt: Option<String>,)* )?
         }
-
         impl crate::env_parameters::traits::EnvParams for $type {
             fn try_parse() -> Option<Self> {
                 Some(Self{
@@ -38,7 +38,6 @@ macro_rules! env_params_type {
                 keys
             }
         }
-
         #[cfg(test)]
         impl crate::env_parameters::traits::EnvParamsTestable for $type {
             fn test(values: &std::collections::HashMap<String, String>){

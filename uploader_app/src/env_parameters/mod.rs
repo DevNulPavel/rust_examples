@@ -21,7 +21,7 @@ pub use self::{
 
 macro_rules! describe_env_values {
     ( $( $val: ident: $type_id:ident ),* ) => {
-        #[derive(AnyFieldIsSome)]
+        #[derive(AnyFieldIsSome, Debug)]
         pub struct AppEnvValues{
             $( pub $val: Option<$type_id> ),*
         }

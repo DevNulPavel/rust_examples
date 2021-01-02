@@ -30,6 +30,7 @@ use self::{
     },
     uploaders::{
         upload_in_app_center,
+        upload_in_google_drive,
         UploadResult
     },
     result_senders::{
@@ -96,8 +97,12 @@ async fn async_main() {
             })
     }));
     
+    debug!("App params: {:#?}", app_parameters);
+
     // Получаем параметры окружения
     let env_params = AppEnvValues::parse();
+
+    debug!("Env params: {:#?}", env_params);
 
     // Общий клиент для запросов
     let http_client = reqwest::Client::new();
@@ -108,11 +113,24 @@ async fn async_main() {
     // Создаем задачу выгрузки в AppCenter
     match (env_params.app_center, app_parameters.app_center) {
         (Some(app_center_env_params), Some(app_center_app_params)) => {
+            info!("App center uploading task created");
             let fut = upload_in_app_center(http_client.clone(), 
                                            app_center_env_params, 
                                            app_center_app_params,
                                            env_params.git)
                                            
+                .boxed();
+            active_workers.push(fut);
+        },
+        _ => {}
+    }
+
+    // Создаем задачу выгрузки в Google drive
+    match (env_params.google_drive, app_parameters.goolge_drive) {
+        (Some(env_params), Some(app_params)) => {
+            info!("Google drive uploading task created");
+            let fut = upload_in_google_drive(env_params, 
+                                             app_params)
                 .boxed();
             active_workers.push(fut);
         },

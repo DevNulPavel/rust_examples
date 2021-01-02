@@ -22,6 +22,7 @@ pub use self::{
 
 //////////////////////////////////////////////////////////////////////
 
+#[derive(Debug)]
 pub struct AppParameters{
     pub amazon: Option<AmazonParams>,
     pub app_center: Option<AppCenterParams>,

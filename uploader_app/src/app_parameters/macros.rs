@@ -26,6 +26,7 @@ macro_rules! params_data_type {
     ) 
     => 
     {
+        #[derive(Debug)]
         pub struct $type_id {
             $( $( pub $val_rec: String, )* )?
             $( $( pub $val_opt: Option<String>, )* )?

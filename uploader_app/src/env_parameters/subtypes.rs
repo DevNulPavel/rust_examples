@@ -70,9 +70,10 @@ env_params_type!(
 env_params_type!(
     GoogleDriveEnvironment{
         Req{
-            email: "GOOGLE_DRIVE_SERVICE_EMAIL",
-            key_id: "GOOGLE_DRIVE_KEY_ID",
-            key: "GOOGLE_DRIVE_KEY"
+            // email: "GOOGLE_DRIVE_SERVICE_EMAIL",
+            // key_id: "GOOGLE_DRIVE_KEY_ID",
+            // key: "GOOGLE_DRIVE_KEY"
+            auth_file: "GOOGLE_DRIVE_AUTH_JSON_FILE"
         }
     }
 );
