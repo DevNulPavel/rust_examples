@@ -34,7 +34,6 @@ params_data_type!(
 params_data_type!(
     GoogleDriveParams{
         Req{
-            target_drive_id : "google_drive_target_drive_id" : "Google drive drive ID",
             target_folder_id : "google_drive_target_folder_id" : "Google drive folder ID"
         }
         Opt{

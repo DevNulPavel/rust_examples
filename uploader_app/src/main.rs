@@ -129,7 +129,8 @@ async fn async_main() {
     match (env_params.google_drive, app_parameters.goolge_drive) {
         (Some(env_params), Some(app_params)) => {
             info!("Google drive uploading task created");
-            let fut = upload_in_google_drive(env_params, 
+            let fut = upload_in_google_drive(http_client.clone(),
+                                             env_params, 
                                              app_params)
                 .boxed();
             active_workers.push(fut);

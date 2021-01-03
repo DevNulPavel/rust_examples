@@ -64,7 +64,7 @@ pub async fn upload_in_app_center(http_client: reqwest::Client,
         distribution_groups: app_center_app_params.distribution_groups,
         build_description: app_center_app_params.build_description,
         git_info,
-        upload_threads_count: 10
+        upload_threads_count: 5
     };
 
     let mut iteration_number = 0_u32;
@@ -83,9 +83,8 @@ pub async fn upload_in_app_center(http_client: reqwest::Client,
             Ok(result) => {
                 return Ok(UploadResultData{
                     target: "AppCenter",
-                    download_url: result.download_url,
+                    message: result.download_url,
                     install_url: result.install_url,
-                    message: None
                 })
             },
 

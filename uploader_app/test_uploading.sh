@@ -23,10 +23,9 @@ export RUST_LOG=uploader_app=trace,reqwest=trace
 #     --app_center_distribution_groups "Paradise Island 2 Team","Collaborators"
 
 # Google drive
-# google_drive_subfolder_name
-# --google_drive_target_owner_email "devnulpavel@gmail.com"
 # --google_drive_target_domain ""
 target/debug/uploader_app \
-    --google_drive_files "/Users/devnul/Downloads/Island2-Android-qc-1130--2020.12.28_18.23-tf_12.10.0_giads_kinesis-400cd90.apk" \
-    --google_drive_target_drive_id "0AFOEWCRBt5u2Uk9PVA" \
-    --google_drive_target_folder_id "1YtSfyiMp-MxF5AVWq_VnJxGtAwiMghBF"
+    --google_drive_files "/Users/devnul/Downloads/magic_mac.zip","/Users/devnul/Downloads/KeePassX-2.0.3.dmg" \
+    --google_drive_target_folder_id "1YtSfyiMp-MxF5AVWq_VnJxGtAwiMghBF" \
+    --google_drive_subfolder_name "New folder" \
+    --google_drive_target_owner_email "devnulpavel@gmail.com" \

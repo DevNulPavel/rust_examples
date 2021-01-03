@@ -283,11 +283,8 @@ impl ResultSender for SlackResultSender {
             if let Some(prefix) = &sender.text_prefix {
                 strings.push(Cow::from(prefix));
             }
-            if let Some(message) = &result.message{
-                strings.push(Cow::from(message));
-            }
-            if let Some(download_url) = &result.download_url{
-                let text = format!("Download url: ```{}```", download_url);
+            if let Some(message) = &result.message {
+                let text = format!("```{}```", message);
                 strings.push(Cow::from(text));
             }
             if strings.len() > 0 {

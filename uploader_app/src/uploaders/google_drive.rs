@@ -17,6 +17,12 @@ use tokio::{
     io::{
         AsyncRead,
         AsyncReadExt
+    },
+    stream::{
+        FromStream,
+        Stream,
+        StreamExt,
+        iter,
     }
 };
 use tokio_util::{
@@ -27,21 +33,23 @@ use tokio_util::{
 };
 use log::{
     info,
-    //debug,
+    debug,
     error
 };
 use reqwest::{
     Body
-};
-use google_drive::{
-    GoogleDrive,
-    FileUploadContent
 };
 use yup_oauth2::{
     parse_application_secret,
     read_service_account_key, 
     ServiceAccountAuthenticator,
     ServiceAccountKey
+};
+use google_drive_client::{
+    GoogleDriveClient,
+    GoogleDriveUploadResult,
+    GoogleDriveUploadTask,
+    GoogleDriveError
 };
 use crate::{
     app_parameters::{
@@ -58,28 +66,16 @@ use super::{
     }
 };
 
-pub async fn upload_in_google_drive(env_params: GoogleDriveEnvironment, app_params: GoogleDriveParams) -> UploadResult {
+pub async fn upload_in_google_drive(client: reqwest::Client, env_params: GoogleDriveEnvironment, app_params: GoogleDriveParams) -> UploadResult {
     info!("Start google drive uploading");
 
     // Содержимое Json файлика ключа 
-    /*let key = ServiceAccountKey{
-        client_email: env_params.email,
-        private_key: env_params.key,
-        private_key_id: Some(env_params.key_id),
-        auth_provider_x509_cert_url: None,
-        auth_uri: Some("https://accounts.google.com/o/oauth2/auth".to_owned()),
-        client_id: Some("103678887665860884939".to_owned()),
-        client_x509_cert_url: Some("https://www.googleapis.com/oauth2/v1/certs".to_owned()),
-        key_type: Some("service_account".to_owned()),
-        project_id: Some("testapp-258813".to_owned()),
-        token_uri: "https://oauth2.googleapis.com/token".to_owned()
-    };*/
     let key = read_service_account_key(env_params.auth_file)
         .await
         .expect("Google drive auth file parsing failed");
 
+    // Аутентификация на основе прочитанного файлика
     let auth = ServiceAccountAuthenticator::builder(key)
-          .subject("")
           .build()
           .await
           .expect("Failed to create google drive authenticator");
@@ -89,41 +85,60 @@ pub async fn upload_in_google_drive(env_params: GoogleDriveEnvironment, app_para
         .token(&["https://www.googleapis.com/auth/drive"])
         .await
         .expect("Failed to get google drive token");
- 
+
+    // Проверяем получившийся токен
     if token.as_str().is_empty() {
         panic!("Empty google drive token is not valid");
     }
 
-    // Drive client
-    let client = GoogleDrive::new(token);
+    // Клиент
+    let client = GoogleDriveClient::new(client, token);
 
-    // 
+    // Целевая папка
+    let folder = {
+        let folder = client
+            .get_folder_for_id(&app_params.target_folder_id)
+            .await?
+            .ok_or_else(||{
+                "Target google drive folder is not found"
+            })?;
+        if let Some(sub_folder_name) = app_params.target_subfolder_name{
+            folder
+                .create_subfolder_if_needed(&sub_folder_name)
+                .await?
+        }else{
+            folder
+        }
+    };
 
-
-    for file_path_str in app_params.files{
-        // https://www.reddit.com/r/rust/comments/ilpqvy/faster_way_to_read_a_file_in_chunks/
-
-        let path = Path::new(&file_path_str);
-        let file_name = path
-            .file_name()
-            .expect("Google drive Invalid file path")
-            .to_str()
-            .expect("Path convert failed");
-        let file = File::open(path).await?;
-        let file_length = file.metadata().await?.len();
-        let reader = FramedRead::new(file, BytesCodec::new());
-        let stream = Body::wrap_stream(reader);
-
-        let contents = FileUploadContent::new(file_length, stream);
-        client
-            .create_or_upload_file(&app_params.target_drive_id, &app_params.target_folder_id, file_name, "application/octet-stream", contents)
+    // Грузим файлы
+    let mut results = Vec::with_capacity(app_params.files.len());
+    for file_path_str in app_params.files {
+        let task = GoogleDriveUploadTask{
+            file_path: PathBuf::from(file_path_str),
+            owner_domain: app_params.target_owner_email.as_ref(),
+            owner_email: app_params.target_owner_email.as_ref(),
+            parent_folder: &folder
+        };
+        let result = client
+            .upload(task)
             .await?;
+        
+        debug!("Google drive uploading result: {:#?}", result);
+        results.push(result);
     }
+
+    // Финальное сообщение
+    let message_begin = format!("Google drive folder ({}):", folder.get_info().web_view_link);
+    let message = results
+        .into_iter()
+        .fold(message_begin, |prev, res|{
+            format!("{}\n- {} ({})", prev, res.file_name, res.web_view_link)
+        });
 
     Ok(UploadResultData{
         target: "Google drive",
-        message: None,
-        download_url: None,
+        message: Some(message),
         install_url: None
     })
 }
