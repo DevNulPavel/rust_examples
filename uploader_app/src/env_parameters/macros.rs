@@ -41,7 +41,7 @@ macro_rules! env_params_type {
         #[cfg(test)]
         impl crate::env_parameters::traits::EnvParamsTestable for $type {
             fn test(values: &std::collections::HashMap<String, String>){
-                let val = Self::try_parse()
+                let val: Self = crate::env_parameters::traits::EnvParams::try_parse()
                     .expect(&format!("Failed to parse: {}", stringify!($type)));
 
                 $( $( assert_eq!(val.$val_req.eq(&values[$key_req]), true); )* )?

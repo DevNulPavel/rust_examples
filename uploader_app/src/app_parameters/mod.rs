@@ -6,8 +6,7 @@ mod subtypes;
 use clap::{
     App, 
     AppSettings, 
-    ArgMatches,
-    Arg
+    ArgMatches
 };
 use self::{
     traits::{

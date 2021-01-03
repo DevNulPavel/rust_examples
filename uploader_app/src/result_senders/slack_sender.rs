@@ -137,7 +137,6 @@ macro_rules! message_target_impl {
                     }
                 },
                 _ => {
-                    error!("There is no slack message created or QR create error");
                 }
             }
         }  

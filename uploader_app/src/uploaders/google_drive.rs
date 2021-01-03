@@ -1,55 +1,20 @@
 use std::{
-    time::{
-        Duration
-    },
     path::{
-        Path,
         PathBuf
-    }
-};
-use tokio::{
-    time::{
-        delay_for
-    },
-    fs::{
-        File
-    },
-    io::{
-        AsyncRead,
-        AsyncReadExt
-    },
-    stream::{
-        FromStream,
-        Stream,
-        StreamExt,
-        iter,
-    }
-};
-use tokio_util::{
-    codec::{
-        FramedRead,
-        BytesCodec
     }
 };
 use log::{
     info,
     debug,
-    error
-};
-use reqwest::{
-    Body
+    //error
 };
 use yup_oauth2::{
-    parse_application_secret,
     read_service_account_key, 
-    ServiceAccountAuthenticator,
-    ServiceAccountKey
+    ServiceAccountAuthenticator
 };
 use google_drive_client::{
     GoogleDriveClient,
-    GoogleDriveUploadResult,
-    GoogleDriveUploadTask,
-    GoogleDriveError
+    GoogleDriveUploadTask
 };
 use crate::{
     app_parameters::{
@@ -129,11 +94,13 @@ pub async fn upload_in_google_drive(client: reqwest::Client, env_params: GoogleD
     }
 
     // Финальное сообщение
-    let message_begin = format!("Google drive folder ({}):", folder.get_info().web_view_link);
+    let message_begin = format!("Google drive folder:\n- \"{}\"\n  {}\n\nFiles:", 
+                                    folder.get_info().name, 
+                                    folder.get_info().web_view_link);
     let message = results
         .into_iter()
         .fold(message_begin, |prev, res|{
-            format!("{}\n- {} ({})", prev, res.file_name, res.web_view_link)
+            format!("{}\n- {}\n  {}", prev, res.file_name, res.web_view_link)
         });
 
     Ok(UploadResultData{
