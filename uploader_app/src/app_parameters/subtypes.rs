@@ -53,8 +53,10 @@ params_data_type!(
     GooglePlayParams{
         Req{
             file_path : "google_play_upload_file" : "File path for google play uploading",
-            target_track : "google_play_target_track" : "Target track for google play build",
             package_name: "google_play_package_name" : "Package name"
+        }
+        Opt{
+            target_track : "google_play_target_track" : "Target track for google play build"
         }
     }
 );

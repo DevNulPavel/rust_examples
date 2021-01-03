@@ -1,6 +1,7 @@
 mod upload_result;
 mod app_center;
 mod google_drive;
+mod google_play;
 
 pub use self::{
     upload_result::{

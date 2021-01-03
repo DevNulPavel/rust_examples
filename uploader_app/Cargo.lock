@@ -678,11 +678,25 @@ dependencies = [
 name = "google_drive_client"
 version = "1.0.0"
 dependencies = [
- "bytes",
  "futures",
  "log",
  "mime",
  "mime_guess",
+ "reqwest",
+ "serde",
+ "serde_json",
+ "tokio",
+ "tokio-util",
+ "url",
+ "yup-oauth2",
+]
+
+[[package]]
+name = "google_play_client"
+version = "1.0.0"
+dependencies = [
+ "futures",
+ "log",
  "reqwest",
  "serde",
  "serde_json",
@@ -2299,6 +2313,7 @@ dependencies = [
  "flamer",
  "futures",
  "google_drive_client",
+ "google_play_client",
  "image",
  "lazy_static 1.4.0",
  "log",
@@ -2308,7 +2323,6 @@ dependencies = [
  "serde_json",
  "slack_client_lib",
  "tokio",
- "tokio-util",
  "yup-oauth2",
 ]
 

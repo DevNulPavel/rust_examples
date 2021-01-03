@@ -81,8 +81,8 @@ pub async fn upload_in_google_drive(client: reqwest::Client, env_params: GoogleD
     for file_path_str in app_params.files {
         let task = GoogleDriveUploadTask{
             file_path: PathBuf::from(file_path_str),
-            owner_domain: app_params.target_owner_email.as_ref(),
-            owner_email: app_params.target_owner_email.as_ref(),
+            owner_domain: app_params.target_owner_email.as_deref(),
+            owner_email: app_params.target_owner_email.as_deref(),
             parent_folder: &folder
         };
         let result = client

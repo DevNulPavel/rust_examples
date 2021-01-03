@@ -44,9 +44,10 @@ env_params_type!(
 env_params_type!(
     GooglePlayEnvironment{
         Req{
-            email: "GOOGLE_PLAY_SERVICE_EMAIL",
-            key_id: "GOOGLE_PLAY_KEY_ID",
-            key: "GOOGLE_PLAY_KEY"
+            // email: "GOOGLE_PLAY_SERVICE_EMAIL",
+            // key_id: "GOOGLE_PLAY_KEY_ID",
+            // key: "GOOGLE_PLAY_KEY"
+            auth_file: "GOOGLE_PLAY_AUTH_JSON_FILE"
         }
     }
 );
