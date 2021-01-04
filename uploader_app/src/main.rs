@@ -3,6 +3,11 @@ mod app_parameters;
 mod uploaders;
 mod result_senders;
 
+use std::{
+    pin::{
+        Pin
+    }
+};
 use tokio::{
     runtime::{
         Builder
@@ -23,14 +28,16 @@ use log::{
 };
 use self::{
     app_parameters::{
-        AppParameters,
+        AppParameters
     },
     env_parameters::{
-        AppEnvValues
+        AppEnvValues,
+        ResultSlackEnvironment
     },
     uploaders::{
         upload_in_app_center,
         upload_in_google_drive,
+        upload_in_google_play,
         UploadResult
     },
     result_senders::{
@@ -84,6 +91,52 @@ where
     }
 }
 
+fn build_uploaders(http_client: reqwest::Client, 
+                   env_params: AppEnvValues, 
+                   app_parameters: AppParameters) -> (Option<ResultSlackEnvironment>, Vec<Pin<Box<dyn Future<Output=UploadResult> + Send>>>) {
+
+    let mut active_workers = Vec::new();
+
+    // Создаем задачу выгрузки в AppCenter
+    match (env_params.app_center, app_parameters.app_center) {
+        (Some(app_center_env_params), Some(app_center_app_params)) => {
+            info!("App center uploading task created");
+            let fut = upload_in_app_center(http_client.clone(), 
+                                           app_center_env_params, 
+                                           app_center_app_params,
+                                           env_params.git).boxed();
+            active_workers.push(fut);
+        },
+        _ => {}
+    }
+
+    // Создаем задачу выгрузки в Google drive
+    match (env_params.google_drive, app_parameters.goolge_drive) {
+        (Some(env_params), Some(app_params)) => {
+            info!("Google drive uploading task created");
+            let fut = upload_in_google_drive(http_client.clone(),
+                                             env_params, 
+                                             app_params).boxed();
+            active_workers.push(fut);
+        },
+        _ => {}
+    }
+
+    // Создаем задачу выгрузки в Google Play
+    match (env_params.google_play, app_parameters.goolge_play) {
+        (Some(env_params), Some(app_params)) => {
+            info!("Google play uploading task created");
+            let fut = upload_in_google_play(http_client,
+                                            env_params, 
+                                            app_params).boxed();
+            active_workers.push(fut);
+        },
+        _ => {}
+    }
+
+    (env_params.result_slack, active_workers)
+}
+
 async fn async_main() {
     // Параметры приложения
     let app_parameters = AppParameters::parse(Some(||{
@@ -108,44 +161,14 @@ async fn async_main() {
     let http_client = reqwest::Client::new();
 
     // Вектор с активными футурами выгрузки
-    let mut active_workers = Vec::new();
-
-    // Создаем задачу выгрузки в AppCenter
-    match (env_params.app_center, app_parameters.app_center) {
-        (Some(app_center_env_params), Some(app_center_app_params)) => {
-            info!("App center uploading task created");
-            let fut = upload_in_app_center(http_client.clone(), 
-                                           app_center_env_params, 
-                                           app_center_app_params,
-                                           env_params.git)
-                                           
-                .boxed();
-            active_workers.push(fut);
-        },
-        _ => {}
-    }
-
-    // Создаем задачу выгрузки в Google drive
-    match (env_params.google_drive, app_parameters.goolge_drive) {
-        (Some(env_params), Some(app_params)) => {
-            info!("Google drive uploading task created");
-            let fut = upload_in_google_drive(http_client.clone(),
-                                             env_params, 
-                                             app_params)
-                .boxed();
-            active_workers.push(fut);
-        },
-        _ => {}
-    }
-
-    // tokio::time::delay_for(std::time::Duration::from_secs(60)).await;
+    let (result_slack, active_workers) = build_uploaders(http_client.clone(), env_params, app_parameters);
 
     // Получаетели результатов выгрузки
     let result_senders = {
         let mut result_senders: Vec<Box<dyn ResultSender>> = Vec::new();
 
         // Создаем клиента для слака если надо отправлять результаты в слак
-        if let Some(slack_params) = env_params.result_slack{
+        if let Some(slack_params) = result_slack{
             let slack_sender = SlackResultSender::new(http_client, slack_params);
             result_senders.push(Box::new(slack_sender));    
         }

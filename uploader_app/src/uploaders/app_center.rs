@@ -35,9 +35,9 @@ use super::{
 };
 
 pub async fn upload_in_app_center(http_client: reqwest::Client, 
-                              app_center_env_params: AppCenterEnvironment,
-                              app_center_app_params: AppCenterParams,
-                              git_info: Option<GitEnvironment>) -> UploadResult {
+                                  app_center_env_params: AppCenterEnvironment,
+                                  app_center_app_params: AppCenterParams,
+                                  git_info: Option<GitEnvironment>) -> UploadResult {
 
     info!("Start app center uploading");
 

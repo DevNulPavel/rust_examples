@@ -13,5 +13,8 @@ pub use self::{
     },
     google_drive::{
         upload_in_google_drive
+    },
+    google_play::{
+        upload_in_google_play
     }
 };
