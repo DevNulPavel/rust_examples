@@ -53,11 +53,6 @@ pub async fn upload_in_google_play(client: reqwest::Client,
         .await
         .expect("Failed to get google play token");
 
-    // Проверяем получившийся токен
-    if token.as_str().is_empty() {
-        panic!("Empty google play token is not valid");
-    }
-
     // Клиент
     let client = GooglePlayClient::new(client, token);
 

@@ -36,26 +36,18 @@ pub async fn upload_in_google_drive(client: reqwest::Client, env_params: GoogleD
 
     // Содержимое Json файлика ключа 
     let key = read_service_account_key(env_params.auth_file)
-        .await
-        .expect("Google drive auth file parsing failed");
+        .await?;
 
     // Аутентификация на основе прочитанного файлика
     let auth = ServiceAccountAuthenticator::builder(key)
           .build()
-          .await
-          .expect("Failed to create google drive authenticator");
+          .await?;
  
     // Add the scopes to the secret and get the token.
     let token = auth
         .token(&["https://www.googleapis.com/auth/drive"])
-        .await
-        .expect("Failed to get google drive token");
-
-    // Проверяем получившийся токен
-    if token.as_str().is_empty() {
-        panic!("Empty google drive token is not valid");
-    }
-
+        .await?;
+        
     // Клиент
     let client = GoogleDriveClient::new(client, token);
 

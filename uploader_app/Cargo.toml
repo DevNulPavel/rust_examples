@@ -26,6 +26,7 @@ slack_client_lib = {path="../../slack_client_lib", features=["rustls", "sql"]}
 app_center_client = {path="../../app_center_client", features=["rustls"]}
 google_drive_client = {path="../../google_drive_client", features=["rustls"]}
 google_play_client = {path="../../google_play_client", features=["rustls"]}
+amazon_client = {path="../../amazon_client", features=["rustls"]}
 any_field_is_some = {path="libs/any_field_is_some"}
 flame = {version="0.2.2", optional=true}
 flamer = {version="0.4.0", optional=true}

@@ -38,6 +38,7 @@ use self::{
         upload_in_app_center,
         upload_in_google_drive,
         upload_in_google_play,
+        upload_in_amazon,
         UploadResult
     },
     result_senders::{
@@ -126,9 +127,21 @@ fn build_uploaders(http_client: reqwest::Client,
     match (env_params.google_play, app_parameters.goolge_play) {
         (Some(env_params), Some(app_params)) => {
             info!("Google play uploading task created");
-            let fut = upload_in_google_play(http_client,
+            let fut = upload_in_google_play(http_client.clone(),
                                             env_params, 
                                             app_params).boxed();
+            active_workers.push(fut);
+        },
+        _ => {}
+    }
+
+    // Создаем задачу выгрузки в Amazon
+    match (env_params.amazon, app_parameters.amazon) {
+        (Some(env_params), Some(app_params)) => {
+            info!("Google play uploading task created");
+            let fut = upload_in_amazon(http_client,
+                                       env_params, 
+                                       app_params).boxed();
             active_workers.push(fut);
         },
         _ => {}

@@ -2,6 +2,7 @@ mod upload_result;
 mod app_center;
 mod google_drive;
 mod google_play;
+mod amazon;
 
 pub use self::{
     upload_result::{
@@ -16,5 +17,8 @@ pub use self::{
     },
     google_play::{
         upload_in_google_play
+    },
+    amazon::{
+        upload_in_amazon
     }
 };

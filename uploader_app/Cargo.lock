@@ -39,6 +39,20 @@ dependencies = [
 ]
 
 [[package]]
+name = "amazon_client"
+version = "1.0.0"
+dependencies = [
+ "futures",
+ "log",
+ "reqwest",
+ "serde",
+ "serde_json",
+ "tokio",
+ "tokio-util",
+ "url",
+]
+
+[[package]]
 name = "ansi_term"
 version = "0.11.0"
 source = "registry+https://github.com/rust-lang/crates.io-index"
@@ -2303,6 +2317,7 @@ checksum = "a156c684c91ea7d62626509bce3cb4e1d9ed5c4d978f7b4352658f96a4c26b4a"
 name = "uploader_app"
 version = "0.1.0"
 dependencies = [
+ "amazon_client",
  "any_field_is_some",
  "app_center_client",
  "async-trait",
