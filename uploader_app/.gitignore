@@ -1,5 +1,0 @@
-/target
-**/*.rs.bk
-flame-graph.html
-*.env
-*.json
