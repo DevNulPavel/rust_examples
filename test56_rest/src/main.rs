@@ -8,7 +8,8 @@ use std::{
     }
 };
 use serde::{
-    Deserialize
+    Deserialize,
+    Serialize
 };
 use serde_json::{
     json
@@ -48,7 +49,7 @@ use actix_web::{
         self
     },
     body::{
-        Body
+        Body,
     },
     HttpServer,
     App,
@@ -61,16 +62,27 @@ use actix_multipart::{
 
 ////////////////////////////////////////////////////////////////////////////////
 
+#[derive(Debug, Serialize)]
+struct ImageResponse{
+    id: String
+}
+#[derive(Debug, Serialize)]
+struct UploadResponse{
+    images: Vec<ImageResponse>
+}
+
+////////////////////////////////////////////////////////////////////////////////
+
 #[derive(Deserialize)]
 struct UploadImageQuery{
 }
 #[derive(Deserialize)]
 struct UploadImageJsonData{
-    base64: String
+    base64_images: Vec<String> // TODO: Читать итерационно для экономии оперативки
 }
 #[derive(Deserialize)]
 struct UploadImageJsonUrl{
-    url: String
+    urls: Vec<String>
 }
 #[derive(Deserialize)]
 #[serde(untagged)]
@@ -80,9 +92,14 @@ enum UploadImageJson{
 }
 async fn upload_image_json(query: web::Query<UploadImageQuery>, 
                            body: web::Json<UploadImageJson>) -> impl Responder {
+
+    let data = UploadResponse{
+        images: vec![]
+    };
     HttpResponse::Ok()
-        .finish()
+        .json(data)
 }
+
 
 ////////////////////////////////////////////////////////////////////////////////
 
@@ -90,6 +107,16 @@ async fn upload_image_multipart(mut payload: Multipart) -> Result<HttpResponse, 
     // Обходим входные части мультапарта
     // TODO: Может быть просто прерывать работу, а не возвращать ошибку
     while let Some(mut field) = payload.try_next().await? {
+        {
+            let disposition = match field.content_disposition(){
+                Some(disposition) => disposition,
+                None => return Ok(actix_web::HttpResponse::BadRequest().into())
+            };
+            if !disposition.is_form_data(){
+                return Ok(actix_web::HttpResponse::BadRequest().into())
+            }
+        }
+
         // field.content_type()
         // Получаем тип контента
         /*let content_type = match field.content_disposition(){
@@ -137,7 +164,11 @@ async fn upload_image_multipart(mut payload: Multipart) -> Result<HttpResponse, 
             return Err(err);
         }
     }
-    Ok(HttpResponse::Ok().into())
+    let data = UploadResponse{
+        images: vec![]
+    };
+    Ok(HttpResponse::Ok()
+        .json(data))
 }
 
 ////////////////////////////////////////////////////////////////////////////////
@@ -148,14 +179,24 @@ fn build_image_service() -> impl dev::HttpServiceFactory {
         .guard(guard::Header("Content-Type", "application/json"))
         .to(upload_image_json);
 
+    let upload_mulipart_route = web::route()
+        .guard(guard::Post())
+        .guard(guard::Header("Content-Type", "multipart/form-data"))
+        .to(upload_image_multipart);
+
     let image_service = web::resource("/upload_image")
-        .route(upload_json_route);
+        .route(upload_json_route)
+        .route(upload_mulipart_route);
     
     image_service
 }
 
+////////////////////////////////////////////////////////////////////////////////
+
 #[actix_web::main]
 async fn main() -> io::Result<()> {
+    // TODO: Логирование
+
     // Важно! На каждый поток у нас создается свое приложение со своими данными
     let app_builder = ||{
         let image_service = build_image_service();
@@ -182,11 +223,13 @@ mod tests {
     use super::{
         *
     };
+    use actix_multipart_rfc7578::client::multipart;
     use actix_web::{
         test::{
             self
         }
     };
+    use futures::channel::mpsc::unbounded;
     use http::StatusCode;
 
     #[actix_rt::test]
@@ -226,7 +269,9 @@ mod tests {
         // URL
         {
             let body = json!({
-                "url": "https://picsum.photos/200/300"
+                "urls": [
+                    "https://picsum.photos/200/300"
+                ]
             });
             let response = server
                 .post("/upload_image")
@@ -239,11 +284,50 @@ mod tests {
         // Base64
         {
             let body = json!({
-                "base64": "asddsadsa"
+                "base64_images": [
+                    "asddsadsa"
+                ]
             });
             let response = server
                 .post("/upload_image")
                 .send_json(&body)
+                .await
+                .expect("Request failed");
+            assert_eq!(response.status(), StatusCode::OK);
+        }
+
+        // Multipart
+        {
+            use actix_multipart_rfc7578::{
+                client::{
+                    multipart::{
+                        Body as ClientBody,
+                        Form as ClientForm
+                    }
+                }
+            };
+            use futures::{
+                Future, 
+                // lazy
+            };
+
+            // TODO: Как с потреблением оперативки?
+            let form = {
+                let mut form = ClientForm::new();
+                form
+                    .add_file("test", "Cargo.toml")
+                    .expect("Multipart create failed");
+                form
+                    .add_file("test", "Cargo.lock")
+                    .expect("Multipart create failed");
+                form
+            };
+
+            let body = ClientBody::from(form);
+
+            let response = server
+                .post("/upload_image")
+                .send_stream(body)
                 .await
                 .expect("Request failed");
             assert_eq!(response.status(), StatusCode::OK);
