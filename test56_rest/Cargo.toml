@@ -6,11 +6,19 @@ version = "0.1.0"
 authors = ["Pavel Ershov <devnulpavel@gmail.com>"]
 edition = "2018"
 
+# TODO: только нужные значения
+
 [dependencies]
 actix-web = "3.3.2"
+actix-multipart = "0.3.0"
 serde = "1.0.120"
 serde_json = "1.0.61"
 http = "0.2.3"
+futures = "0.3.12"
+# scopeguard = "1.1.0"
+tokio = {version = "0.2.24", features = ["fs"]}
+uuid = {version = "0.8.2", features = ["v4"]}
+
 
 [dev-dependencies]
 actix-rt = "1.1.1"

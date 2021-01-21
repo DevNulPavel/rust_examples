@@ -1,6 +1,10 @@
 use std::{
     io::{
         self
+    },
+    path::{
+        PathBuf,
+        Path
     }
 };
 use serde::{
@@ -9,7 +13,31 @@ use serde::{
 use serde_json::{
     json
 };
+use uuid::{
+    Uuid
+};
+use tokio::{
+    fs::{
+        File,
+        remove_file
+    },
+    io::{
+        AsyncRead,
+        AsyncReadExt,
+        AsyncWrite,
+        AsyncWriteExt
+    }
+};
+use futures::{
+    Stream,
+    StreamExt,
+    TryStream,
+    TryStreamExt
+};
 use actix_web::{
+    middleware::{
+        self
+    },
     dev::{
         self
     },
@@ -26,6 +54,9 @@ use actix_web::{
     App,
     Responder,
     HttpResponse,
+};
+use actix_multipart::{
+    Multipart
 };
 
 ////////////////////////////////////////////////////////////////////////////////
@@ -55,6 +86,62 @@ async fn upload_image_json(query: web::Query<UploadImageQuery>,
 
 ////////////////////////////////////////////////////////////////////////////////
 
+async fn upload_image_multipart(mut payload: Multipart) -> Result<HttpResponse, actix_web::Error> {
+    // Обходим входные части мультапарта
+    // TODO: Может быть просто прерывать работу, а не возвращать ошибку
+    while let Some(mut field) = payload.try_next().await? {
+        // field.content_type()
+        // Получаем тип контента
+        /*let content_type = match field.content_disposition(){
+            Some(content_type) => content_type,
+            None => return Ok(actix_web::HttpResponse::BadRequest().into())
+        };
+        let filename = match content_type.get_filename() {
+            Some(filename) => filename,
+            None => return Ok(actix_web::HttpResponse::BadRequest().into())
+        };*/
+
+        // TODO: Может ли повторяться
+        let filename = Uuid::new_v4().to_string();
+    
+        // Путь
+        let filepath = PathBuf::new()
+            .join("/tmp")
+            .join(filename);
+
+        // Создаем файлик
+        let mut file = File::create(&filepath).await?;
+
+        // TODO: Как-то лучше?
+        // Итерируемся по полю и получаем контент файлика
+        let mut found_err: Option<actix_web::Error> = None;
+        while let Some(chunk) = field.next().await {
+            // Данные
+            let data = match chunk {
+                Ok(data) => data,
+                Err(err) => {
+                    found_err = Some(err.into());
+                    break;
+                }
+            };
+
+            // Пишем в файлик
+            if let Err(err) = file.write_all(&data).await{
+                found_err = Some(err.into());
+                break;
+            }
+        }
+        // Удаление файлика при ошибке
+        if let Some(err) = found_err {
+            remove_file(filepath).await?;
+            return Err(err);
+        }
+    }
+    Ok(HttpResponse::Ok().into())
+}
+
+////////////////////////////////////////////////////////////////////////////////
+
 fn build_image_service() -> impl dev::HttpServiceFactory {
     let upload_json_route = web::route()
         .guard(guard::Post())
@@ -73,6 +160,7 @@ async fn main() -> io::Result<()> {
     let app_builder = ||{
         let image_service = build_image_service();
         App::new()
+            .wrap(middleware::Logger::default())
             .default_service(web::route().to(|| { web::HttpResponse::NotFound() }))
             .service(image_service)
             // .app_data() // Можно получить у запроса
@@ -107,6 +195,7 @@ mod tests {
         let app_builder = ||{
             let image_service = build_image_service();
             App::new()
+                .wrap(middleware::Logger::default())
                 .default_service(web::route().to(|| { web::HttpResponse::NotFound() }))
                 .service(image_service)
                 // .app_data() // Можно получить у запроса
