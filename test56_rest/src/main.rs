@@ -65,10 +65,12 @@ use actix_multipart::{
 ////////////////////////////////////////////////////////////////////////////////
 
 #[derive(Debug, Serialize)]
+#[cfg_attr(test, derive(Deserialize))]
 struct ImageResponse{
     id: String
 }
 #[derive(Debug, Serialize)]
+#[cfg_attr(test, derive(Deserialize))]
 struct UploadResponse{
     images: Vec<ImageResponse>
 }
@@ -183,7 +185,14 @@ fn build_image_service() -> impl dev::HttpServiceFactory {
 
     let upload_mulipart_route = web::route()
         .guard(guard::Post())
-        .guard(guard::Header("Content-Type", "multipart/form-data"))
+        .guard(guard::fn_guard(|req|{
+            if let Some(val) = req.headers.get("Content-Type") {
+                if let Ok(val_str) = val.to_str(){
+                    return val_str.starts_with("multipart/form-data");
+                }
+            }
+            false
+        }))
         .to(upload_image_multipart);
 
     let image_service = web::resource("/upload_image")
@@ -263,13 +272,13 @@ mod tests {
         // TODO: Стандартный тестовый сервер в actix-web не очень удобный
 
         // TODO: остановка сервера в тестах
-        let test_server = start_server("127.0.0.1:8080")
+        let test_server = start_server("127.0.0.1:8888")
             .await
             .expect("Server start error");
 
         let client = reqwest::Client::new();
 
-        let base_url = url::Url::parse("http://localhost:8080").expect("Base url parse failed");
+        let base_url = url::Url::parse("http://localhost:8888").expect("Base url parse failed");
 
         // Not found
         {
@@ -305,6 +314,11 @@ mod tests {
                 .await
                 .expect("Request failed");
             assert_eq!(response.status(), StatusCode::OK);
+
+            let data = response
+                .json::<UploadResponse>()
+                .await
+                .expect("Json parse failed");
         }
 
         // Base64
@@ -337,13 +351,14 @@ mod tests {
                 .expect("Request failed");
             assert_eq!(response.status(), StatusCode::OK);
         }
+        info!("All tests finished");
 
         // Обрываем соединение для успешного завершения
         drop(client);
-
-        info!("All tests finished");
+        info!("Client destroyed");
 
         test_server.stop(true).await;
+        info!("Gacefull stop finished");
         // test_server.await.expect("Server stop failed");
     }
 }
