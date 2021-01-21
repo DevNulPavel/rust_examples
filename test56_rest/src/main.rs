@@ -7,10 +7,7 @@ use std::{
         Path
     }
 };
-use serde::{
-    Deserialize,
-    Serialize
-};
+use serde::{Deserialize, Serialize, __private::ser};
 use serde_json::{
     json
 };
@@ -28,6 +25,11 @@ use tokio::{
         AsyncWrite,
         AsyncWriteExt
     }
+};
+use log::{
+    info,
+    debug,
+    error
 };
 use futures::{
     Stream,
@@ -193,8 +195,7 @@ fn build_image_service() -> impl dev::HttpServiceFactory {
 
 ////////////////////////////////////////////////////////////////////////////////
 
-#[actix_web::main]
-async fn main() -> io::Result<()> {
+async fn start_server(addr: &str) -> io::Result<dev::Server>{
     // TODO: Логирование
 
     // Важно! На каждый поток у нас создается свое приложение со своими данными
@@ -209,11 +210,31 @@ async fn main() -> io::Result<()> {
     };
 
     // Запускаем сервер
-    HttpServer::new(app_builder)
-        .bind("0.0.0.0:8080")?
+    let server = HttpServer::new(app_builder)
+        .bind(addr)?
         .keep_alive(75_usize) // 75 секунд
-        .run()
-        .await
+        .run();
+
+    Ok(server)
+}
+
+#[actix_web::main]
+async fn main() -> io::Result<()> {
+    pretty_env_logger::formatted_builder()
+        .filter_level(log::LevelFilter::Debug) // TODO: ???
+        .try_init()
+        .expect("Logger init failed"); // TODO: ???
+
+    let server = start_server("0.0.0.0:8080").await?;
+    info!("Server started");
+    
+    tokio::signal::ctrl_c().await.expect("Signal wait failed");
+    info!("Stop signal received");
+
+    server.stop(true).await;
+    info!("Gracefull stop finished");
+
+    Ok(())
 }
 
 ////////////////////////////////////////////////////////////////////////////////
@@ -223,33 +244,37 @@ mod tests {
     use super::{
         *
     };
-    use actix_multipart_rfc7578::client::multipart;
     use actix_web::{
         test::{
             self
         }
     };
-    use futures::channel::mpsc::unbounded;
-    use http::StatusCode;
+    use http::{
+        StatusCode
+    };
 
     #[actix_rt::test]
     async fn test_server() {
-        // TODO: Приходится дублировать код, так как не вынести в функцию из-за закрытых структур
-        let app_builder = ||{
-            let image_service = build_image_service();
-            App::new()
-                .wrap(middleware::Logger::default())
-                .default_service(web::route().to(|| { web::HttpResponse::NotFound() }))
-                .service(image_service)
-                // .app_data() // Можно получить у запроса
-                // .data(data) // Можно прокидывать как параметр у обработчика
-        };
-        let server = test::start(app_builder);
+        pretty_env_logger::formatted_builder()
+            .filter_level(log::LevelFilter::Debug)
+            // .is_test(true)
+            .try_init()
+            .expect("Logger init failed");
+        // TODO: Стандартный тестовый сервер в actix-web не очень удобный
+
+        // TODO: остановка сервера в тестах
+        let test_server = start_server("127.0.0.1:8080")
+            .await
+            .expect("Server start error");
+
+        let client = reqwest::Client::new();
+
+        let base_url = url::Url::parse("http://localhost:8080").expect("Base url parse failed");
 
         // Not found
         {
-            let response = server
-                .post("/adads")
+            let response = client
+                .post(base_url.join("asdad/").unwrap())
                 .send()
                 .await
                 .expect("Request failed");
@@ -258,8 +283,8 @@ mod tests {
 
         // Not allowed
         {
-            let response = server
-                .post("/upload_image")
+            let response = client
+                .post(base_url.join("upload_image").unwrap())
                 .send()
                 .await
                 .expect("Request failed");
@@ -273,9 +298,10 @@ mod tests {
                     "https://picsum.photos/200/300"
                 ]
             });
-            let response = server
-                .post("/upload_image")
-                .send_json(&body)
+            let response = client
+                .post(base_url.join("upload_image").unwrap())
+                .json(&body)
+                .send()
                 .await
                 .expect("Request failed");
             assert_eq!(response.status(), StatusCode::OK);
@@ -288,9 +314,10 @@ mod tests {
                     "asddsadsa"
                 ]
             });
-            let response = server
-                .post("/upload_image")
-                .send_json(&body)
+            let response = client
+                .post(base_url.join("upload_image").unwrap())
+                .json(&body)
+                .send()
                 .await
                 .expect("Request failed");
             assert_eq!(response.status(), StatusCode::OK);
@@ -298,39 +325,25 @@ mod tests {
 
         // Multipart
         {
-            use actix_multipart_rfc7578::{
-                client::{
-                    multipart::{
-                        Body as ClientBody,
-                        Form as ClientForm
-                    }
-                }
-            };
-            use futures::{
-                Future, 
-                // lazy
-            };
+            let form = reqwest::multipart::Form::default()
+                .part("first", reqwest::multipart::Part::text("asdsd"))
+                .part("second", reqwest::multipart::Part::text("asdsd"));
 
-            // TODO: Как с потреблением оперативки?
-            let form = {
-                let mut form = ClientForm::new();
-                form
-                    .add_file("test", "Cargo.toml")
-                    .expect("Multipart create failed");
-                form
-                    .add_file("test", "Cargo.lock")
-                    .expect("Multipart create failed");
-                form
-            };
-
-            let body = ClientBody::from(form);
-
-            let response = server
-                .post("/upload_image")
-                .send_stream(body)
+            let response = client
+                .post(base_url.join("upload_image").unwrap())
+                .multipart(form)
+                .send()
                 .await
                 .expect("Request failed");
             assert_eq!(response.status(), StatusCode::OK);
         }
+
+        // Обрываем соединение для успешного завершения
+        drop(client);
+
+        info!("All tests finished");
+
+        test_server.stop(true).await;
+        // test_server.await.expect("Server stop failed");
     }
 }
