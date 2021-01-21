@@ -5,6 +5,7 @@ name = "test56_rest"
 version = "0.1.0"
 authors = ["Pavel Ershov <devnulpavel@gmail.com>"]
 edition = "2018"
+# links = "opencv_core" # Линкуем с библиотеками, поиск в build.rs (links, 2, 3, 4, links...)
 
 # TODO: только нужные значения опций
 # TODO: rustls
@@ -28,3 +29,6 @@ reqwest = {version = "0.10.10", features = ["json"]} # "multipart"
 url = "2.2.0"
 # actix-multipart-rfc7578 = "0.2.1"
 # multipart = "0.17.1"
+
+[build-dependencies]
+# cc = "1.0.46"

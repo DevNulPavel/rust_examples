@@ -1,3 +1,7 @@
+mod ffi;
+
+// TODO: Документация
+
 use std::{
     io::{
         self
