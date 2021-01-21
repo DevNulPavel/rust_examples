@@ -1,4 +1,5 @@
-mod ffi;
+mod ffi_opencv;
+mod ffi_imagemagic;
 
 // TODO: Документация
 

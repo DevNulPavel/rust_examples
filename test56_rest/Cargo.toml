@@ -19,9 +19,10 @@ serde = "1.0.120"
 serde_json = "1.0.61"
 http = "0.2.3"
 futures = "0.3.12"
+libc = "0.2.82"
 tokio = {version = "0.2.24", features = ["fs"]}
 uuid = {version = "0.8.2", features = ["v4"]}
-# scopeguard = "1.1.0"
+scopeguard = "1.1.0"
 
 [dev-dependencies]
 actix-rt = "1.1.1"
@@ -31,4 +32,5 @@ url = "2.2.0"
 # multipart = "0.17.1"
 
 [build-dependencies]
-# cc = "1.0.46"
+bindgen = "0.56.0"
+# cc = "1.0.66"
