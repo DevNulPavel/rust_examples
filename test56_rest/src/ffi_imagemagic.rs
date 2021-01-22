@@ -6,17 +6,20 @@ use std::{
     path::{
         Path
     },
+    fmt::{
+        self,
+        Formatter,
+        Display
+    },
+    error::{
+        self
+    },
     ffi::{
         OsString,
         OsStr,
         CString,
         CStr
     }
-    // os::{
-    //     raw::{
-    //         c_uint
-    //     }
-    // }
 };
 use libc::{
     c_uint,
@@ -26,6 +29,8 @@ use libc::{
     c_uchar,
     size_t
 };
+
+// Поддерживаемые форматы: identify -list format -v
 
 // https://github.com/nlfiedler/magick-rust/
 
@@ -39,12 +44,13 @@ use libc::{
 // /opt/homebrew/Cellar/imagemagick/7.0.10-58/include/ImageMagick-7/MagickWand/magick-image.h
 // /opt/homebrew/Cellar/imagemagick/7.0.10-58/include/ImageMagick-7/MagickCore/magick-type.h
 // /opt/homebrew/Cellar/imagemagick/7.0.10-58/include/ImageMagick-7/MagickCore/resample.h
+// /opt/homebrew/Cellar/imagemagick/7.0.10-58/include/ImageMagick-7/MagickCore/exception.h
 
-type MagickBooleanType = ::std::os::raw::c_uint;
+type MagickBooleanType = c_uint;
 const MagickFalse: MagickBooleanType = 0;
 const MagickTrue: MagickBooleanType = 1;
 
-type MagicFilterType = ::std::os::raw::c_uint;
+type MagicFilterType = c_uint;
 const UndefinedFilter: MagicFilterType = 0;
 const PointFilter: MagicFilterType = 1;
 const BoxFilter: MagicFilterType = 2;
@@ -79,10 +85,23 @@ const LanczosRadiusFilter: MagicFilterType = 30;
 const CubicSplineFilter: MagicFilterType = 31;
 const SentinelFilter: MagicFilterType = 32;
 
+// TODO: 
+// pub fn magick_wand_terminus() {
+//     unsafe {
+//         if let bindings::MagickBooleanType_MagickTrue = bindings::IsMagickWandInstantiated() {
+//             bindings::MagickWandTerminus();
+//         }
+//     }
+// }
+
 // Указываем у какой библиотеки будут наши функции
 #[link(name = "MagickWand-7.Q16HDRI")]
 extern "C" {
     fn MagickWandGenesis();
+    fn MagickWandTerminus();
+    fn IsMagickWandInstantiated() -> MagickBooleanType;
+    fn MagickGetExceptionType(wand: *const c_void) -> c_uint;
+    fn MagickGetException(wand: *const c_void, exception_type: *mut c_uint) -> *const c_char;
     fn NewMagickWand() -> *const c_void;
     fn DestroyMagickWand(wand: *const c_void);
     fn MagickReadImage(wand: *const c_void, path: *const c_char) -> MagickBooleanType;
@@ -95,85 +114,37 @@ extern "C" {
     fn MagickRelinquishMemory(wand: *const c_void) -> *const c_void;
 }
 
-// /// Read the image data from the named file.
-// pub fn read_image(&self, path: &str) -> Result<(), &'static str> {
-//     let c_name = CString::new(path).unwrap();
-//     let result = unsafe { bindings::MagickReadImage(self.wand, c_name.as_ptr()) };
-//     match result {
-//         bindings::MagickBooleanType_MagickTrue => Ok(()),
-//         _ => Err("failed to read image"),
-//     }
-// }
+////////////////////////////////////////////////////////////////////////////////////////////////
 
-// /// Adaptively resize the currently selected image.
-// pub fn adaptive_resize_image(&self, width: usize, height: usize) -> Result<(), &'static str> {
-//     match unsafe { bindings::MagickAdaptiveResizeImage(self.wand, width, height) } {
-//         bindings::MagickBooleanType_MagickTrue => Ok(()),
-//         _ => Err("failed to adaptive-resize image"),
-//     }
-// }
+#[derive(Debug)]
+pub struct ImageMagicErrorData{
+    info: String, 
+    code: i32
+}
 
-/// Resize the image to fit within the given dimensions, maintaining
-// /// the current aspect ratio.
-// pub fn fit(&self, width: size_t, height: size_t) {
-//     let mut width_ratio = width as f64;
-//     width_ratio /= self.get_image_width() as f64;
-//     let mut height_ratio = height as f64;
-//     height_ratio /= self.get_image_height() as f64;
-//     let (new_width, new_height) = if width_ratio < height_ratio {
-//         (
-//             width,
-//             (self.get_image_height() as f64 * width_ratio) as size_t,
-//         )
-//     } else {
-//         (
-//             (self.get_image_width() as f64 * height_ratio) as size_t,
-//             height,
-//         )
-//     };
-//     unsafe {
-//         bindings::MagickResetIterator(self.wand);
-//         while bindings::MagickNextImage(self.wand) != bindings::MagickBooleanType_MagickFalse {
-//             bindings::MagickResizeImage(
-//                 self.wand,
-//                 new_width,
-//                 new_height,
-//                 bindings::MagicFilterType_LanczosFilter,
-//             );
-//         }
-//     }
-// }
+#[derive(Debug)]
+pub enum ImageMagicError{
+    ExceptionParseFailed(std::str::Utf8Error),
+    ReadFailed(ImageMagicErrorData),
+    ResizeFailed,
+    GetResultFailed
+}
+impl Display for ImageMagicError {
+    fn fmt(&self, f: &mut Formatter<'_>) -> fmt::Result {
+        write!(f, "ImageMagicError: {:#?}", self)
+    }
+}
+impl error::Error for ImageMagicError {
+}
+impl From<std::str::Utf8Error> for ImageMagicError{
+    fn from(err: std::str::Utf8Error) -> ImageMagicError {
+        ImageMagicError::ExceptionParseFailed(err)
+    }
+}
 
-//     /// Retrieve the width of the image.
-// pub fn get_image_width(&self) -> usize {
-//     unsafe { bindings::MagickGetImageWidth(self.wand) as usize }
-// }
+////////////////////////////////////////////////////////////////////////////////////////////////
 
-/// Retrieve the height of the image.
-// pub fn get_image_height(&self) -> usize {
-//     unsafe { bindings::MagickGetImageHeight(self.wand) as usize }
-// }
-
-// pub fn write_image_blob(&self, format: &str) -> Result<Vec<u8>, &'static str> {
-//     let c_format = CString::new(format).unwrap();
-//     let mut length: size_t = 0;
-//     let blob = unsafe {
-//                 bindings::MagickResetIterator(self.wand);
-//                 bindings::MagickSetImageFormat(self.wand, c_format.as_ptr());
-//                 bindings::MagickGetImageBlob(self.wand, &mut length)
-//             };
-//     let mut bytes = Vec::with_capacity(length as usize);
-//     unsafe {
-//                 bytes.set_len(length as usize);
-//                 ptr::copy_nonoverlapping(blob, bytes.as_mut_ptr(), length as usize);
-//                 bindings::MagickRelinquishMemory(blob as *mut c_void);
-//             };
-//     Ok(bytes)
-//         }
-
-// TODO: Ошибка
-
-pub fn fit_image(data: Vec<u8>, max_width: usize, max_height: usize) -> Result<Vec<u8>, ()> {
+pub fn fit_image(data: Vec<u8>, max_width: usize, max_height: usize) -> Result<Vec<u8>, ImageMagicError> {
 
     static ONCE: std::sync::Once = std::sync::Once::new();
     ONCE.call_once(||{
@@ -182,19 +153,29 @@ pub fn fit_image(data: Vec<u8>, max_width: usize, max_height: usize) -> Result<V
         }
     });
 
+    // Инициализация обработки
     let wand = unsafe { NewMagickWand() };
     scopeguard::defer!( unsafe { DestroyMagickWand(wand) } );
-
     
+    // Читаем наши данные
     let result = unsafe { MagickReadImageBlob(wand, data.as_ptr() as *const c_void, data.len()) };
     if result == MagickFalse{
-        return Err(());
+        let mut exc_type: c_uint = 0;
+        let text = unsafe { 
+            let exc_text = MagickGetException(wand, &mut exc_type);
+            CStr::from_ptr(exc_text).to_str()?.to_owned()
+        };
+        let info = ImageMagicErrorData{
+            info: text,
+            code: exc_type as i32
+        };
+        return Err(ImageMagicError::ReadFailed(info));
     }
-    return Ok(vec![]);
 
+    // Вычисляем размер новый, либо сразу возвращаем, если уже меньше
     let (new_width, new_height) = {
         let source_width = unsafe{ MagickGetImageWidth(wand) };
-        let source_height = unsafe{ MagickGetImageWidth(wand) };   
+        let source_height = unsafe{ MagickGetImageHeight(wand) };   
 
         let mut width_ratio = max_width as f64;
         width_ratio /= source_width as f64;
@@ -203,31 +184,36 @@ pub fn fit_image(data: Vec<u8>, max_width: usize, max_height: usize) -> Result<V
         height_ratio /= source_height as f64;
 
         // Если у нас и так все влезает - не конвертируем ничего
-        if (width_ratio < 1.0) && (height_ratio < 1.0) {
+        /*if (width_ratio >= 1.0) && (height_ratio <= 1.0) {
             return Ok(data);
-        }
+        }*/
 
         if width_ratio < height_ratio {
-            (source_width, (source_height as f64 * width_ratio) as size_t)
+            (((source_width as f64) * width_ratio) as size_t, (source_height as f64 * width_ratio) as size_t)
         } else {
-            ((source_width as f64 * height_ratio) as size_t, source_height)
+            ((source_width as f64 * height_ratio) as size_t, ((source_height as f64)  * height_ratio) as size_t)
         }
     };
+
+    // println!("New size: {} x {}", new_width, new_height);
 
     // bindings::MagickResetIterator(self.wand);
     // while bindings::MagickNextImage(self.wand) != bindings::MagickBooleanType_MagickFalse {
 
+    // Смена размера
     let result = unsafe { MagickResizeImage(wand, new_width, new_height, LanczosFilter) };
     if result == MagickFalse{
-        return Err(());
+        return Err(ImageMagicError::ResizeFailed);
     }
 
+    // Результат
     let mut result_data_size: size_t = 0;
     let blob = unsafe{ MagickGetImageBlob(wand, &mut result_data_size) };
     if blob.is_null() {
-        return Err(());
+        return Err(ImageMagicError::GetResultFailed);
     }
 
+    // Буффер для результата
     let mut buffer: Vec<u8> = Vec::with_capacity(result_data_size);
     unsafe {
         buffer.set_len(result_data_size);
@@ -246,13 +232,54 @@ mod tests{
     };
     use std::{
         fs::{
-            read
+            read,
+            write,
+            create_dir,
+        },
+        path::{
+            Path,
         }
     };
 
+    fn make_result_dir<P: AsRef<Path>> (path: P){
+        if !path.as_ref().exists() {
+            create_dir(path).expect("Result directory create failed");
+        }
+    }
+
     #[test]
     fn test_imagemagic_ffi_png(){
+        make_result_dir("test_results");
         let data = read("test_images/airplane.png").expect("File read failed");
         let result = fit_image(data, 100, 100).expect("Fit failed");
+        assert!(result.len() > 0);
+        write("test_results/small_airplane.png", result).expect("Write failed");
+    }
+
+    #[test]
+    fn test_imagemagic_ffi_jpg(){
+        make_result_dir("test_results");
+        let data = read("test_images/building.jpg").expect("File read failed");
+        let result = fit_image(data, 100, 100).expect("Fit failed");
+        assert!(result.len() > 0);
+        write("test_results/small_building.jpg", result).expect("Write failed");
+    }
+
+    #[test]
+    fn test_imagemagic_ffi_bmp(){
+        make_result_dir("test_results");
+        let data = read("test_images/barbara.bmp").expect("File read failed");
+        let result = fit_image(data, 100, 100).expect("Fit failed");
+        assert!(result.len() > 0);
+        write("test_results/small_barbara.bmp", result).expect("Write failed");
+    }
+
+    #[test]
+    fn test_imagemagic_ffi_tif(){
+        make_result_dir("test_results");
+        let data = read("test_images/cameraman.tif").expect("File read failed");
+        let result = fit_image(data, 100, 100).expect("Fit failed");
+        assert!(result.len() > 0);
+        write("test_results/small_cameraman.tif", result).expect("Write failed");
     }
 }

@@ -14,6 +14,7 @@ fn main() {
     // brew install imagemagick zlib libxml2 libiconv bzip2 little-cms2
     // Есть проблема с разными типами зависимостей libiconv, приходится добавлять стандартный маковский фреймворк
     
+    // Пути поиска библиотек
     println!("cargo:rustc-link-search=/opt/homebrew/lib");
     println!("cargo:rustc-link-search=/opt/homebrew/opt/zlib/lib");
     println!("cargo:rustc-link-search=/opt/homebrew/opt/libxml2/lib");
@@ -23,15 +24,19 @@ fn main() {
                 Platforms/MacOSX.platform/Developer/SDKs/MacOSX.sdk/usr/lib");
     // println!("cargo:rustc-link-search=/opt/homebrew/opt/libiconv/lib");
 
-    println!("cargo:rustc-link-lib=static=MagickCore-7.Q16HDRI");
-    println!("cargo:rustc-link-lib=static=MagickWand-7.Q16HDRI");
+    // Static
     println!("cargo:rustc-link-lib=static=z");
     println!("cargo:rustc-link-lib=static=xml2");
     println!("cargo:rustc-link-lib=static=bz2");
     println!("cargo:rustc-link-lib=static=ltdl");
     println!("cargo:rustc-link-lib=static=lcms2");
+
+    // Dynamic
+    println!("cargo:rustc-link-lib=dylib=MagickCore-7.Q16HDRI");
+    println!("cargo:rustc-link-lib=dylib=MagickWand-7.Q16HDRI");
     println!("cargo:rustc-link-lib=dylib=iconv");
     println!("cargo:rustc-link-lib=dylib=omp");
+
     // println!("cargo:rustc-link-lib=static=charset");
     // println!("cargo:rustc-link-lib=static=iconv");
     // println!("cargo:rustc-link-lib=dylib=dl");
