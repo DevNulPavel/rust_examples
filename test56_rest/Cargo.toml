@@ -5,7 +5,7 @@ name = "test56_rest"
 version = "0.1.0"
 authors = ["Pavel Ershov <devnulpavel@gmail.com>"]
 edition = "2018"
-# links = "opencv_core" # Линкуем с библиотеками, поиск в build.rs (links, 2, 3, 4, links...)
+# links = "opencv_core" # TODO: ??? Линкуем с библиотеками, поиск в build.rs (links, 2, 3, 4, links...)
 
 # TODO: только нужные значения опций
 # TODO: rustls

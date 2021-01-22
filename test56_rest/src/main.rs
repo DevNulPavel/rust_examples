@@ -136,6 +136,8 @@ async fn upload_image_multipart(mut payload: Multipart) -> Result<HttpResponse, 
             Some(filename) => filename,
             None => return Ok(actix_web::HttpResponse::BadRequest().into())
         };*/
+        
+        // TODO: Расширение картинки
 
         // TODO: Может ли повторяться
         let filename = Uuid::new_v4().to_string();
