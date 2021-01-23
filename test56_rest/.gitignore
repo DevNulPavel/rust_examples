@@ -1,4 +1,3 @@
 /target
 **/*.rs.bk
 /tmp
-/test_results

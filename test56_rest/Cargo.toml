@@ -20,13 +20,16 @@ serde_json = "1.0.61"
 http = "0.2.3"
 futures = "0.3.12"
 libc = "0.2.82"
+dirs = "3.0.1"
+scopeguard = "1.1.0"
+base64 = "0.13.0"
+tokio-util = "0.3.1"
 tokio = {version = "0.2.24", features = ["fs"]}
 uuid = {version = "0.8.2", features = ["v4"]}
-scopeguard = "1.1.0"
 
 [dev-dependencies]
 actix-rt = "1.1.1"
-reqwest = {version = "0.10.10", features = ["json"]} # "multipart"
+reqwest = {version = "0.10.10", features = ["json", "stream"]} # "multipart"
 url = "2.2.0"
 # actix-multipart-rfc7578 = "0.2.1"
 # multipart = "0.17.1"

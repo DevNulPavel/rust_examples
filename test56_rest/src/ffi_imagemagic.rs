@@ -1,11 +1,6 @@
 #![allow(non_upper_case_globals)]
-#![allow(non_camel_case_types)]
-#![allow(non_snake_case)]
 
 use std::{
-    path::{
-        Path
-    },
     fmt::{
         self,
         Formatter,
@@ -15,15 +10,11 @@ use std::{
         self
     },
     ffi::{
-        OsString,
-        OsStr,
-        CString,
         CStr
     }
 };
 use libc::{
     c_uint,
-    c_int,
     c_void,
     c_char,
     c_uchar,
@@ -46,12 +37,18 @@ use libc::{
 // /opt/homebrew/Cellar/imagemagick/7.0.10-58/include/ImageMagick-7/MagickCore/resample.h
 // /opt/homebrew/Cellar/imagemagick/7.0.10-58/include/ImageMagick-7/MagickCore/exception.h
 
+////////////////////////////////////////////////////////////////////////////////////////////////
+
 type MagickBooleanType = c_uint;
-const MagickFalse: MagickBooleanType = 0;
-const MagickTrue: MagickBooleanType = 1;
+const MAGIC_FALSE: MagickBooleanType = 0;
+// const MagickTrue: MagickBooleanType = 1;
+
+////////////////////////////////////////////////////////////////////////////////////////////////
 
 type MagicFilterType = c_uint;
-const UndefinedFilter: MagicFilterType = 0;
+const LANCHOZ_FILTER: MagicFilterType = 22;
+
+/*const UndefinedFilter: MagicFilterType = 0;
 const PointFilter: MagicFilterType = 1;
 const BoxFilter: MagicFilterType = 2;
 const TriangleFilter: MagicFilterType = 3;
@@ -83,7 +80,7 @@ const CosineFilter: MagicFilterType = 28;
 const SplineFilter: MagicFilterType = 29;
 const LanczosRadiusFilter: MagicFilterType = 30;
 const CubicSplineFilter: MagicFilterType = 31;
-const SentinelFilter: MagicFilterType = 32;
+const SentinelFilter: MagicFilterType = 32;*/
 
 // TODO: 
 // pub fn magick_wand_terminus() {
@@ -94,21 +91,23 @@ const SentinelFilter: MagicFilterType = 32;
 //     }
 // }
 
+////////////////////////////////////////////////////////////////////////////////////////////////
+
 // Указываем у какой библиотеки будут наши функции
 #[link(name = "MagickWand-7.Q16HDRI")]
 extern "C" {
     fn MagickWandGenesis();
-    fn MagickWandTerminus();
-    fn IsMagickWandInstantiated() -> MagickBooleanType;
-    fn MagickGetExceptionType(wand: *const c_void) -> c_uint;
+    //fn MagickWandTerminus();
+    //fn IsMagickWandInstantiated() -> MagickBooleanType;
+    //fn MagickGetExceptionType(wand: *const c_void) -> c_uint;
     fn MagickGetException(wand: *const c_void, exception_type: *mut c_uint) -> *const c_char;
     fn NewMagickWand() -> *const c_void;
     fn DestroyMagickWand(wand: *const c_void);
-    fn MagickReadImage(wand: *const c_void, path: *const c_char) -> MagickBooleanType;
+    //fn MagickReadImage(wand: *const c_void, path: *const c_char) -> MagickBooleanType;
     fn MagickReadImageBlob(wand: *const c_void, data: *const c_void, size: size_t) -> MagickBooleanType;
     fn MagickGetImageWidth(wand: *const c_void) -> size_t;
     fn MagickGetImageHeight(wand: *const c_void) -> size_t;
-    fn MagickAdaptiveResizeImage(wand: *const c_void, width: size_t, height: size_t) -> MagickBooleanType;
+    //fn MagickAdaptiveResizeImage(wand: *const c_void, width: size_t, height: size_t) -> MagickBooleanType;
     fn MagickResizeImage(wand: *const c_void, width: size_t, height: size_t, filter: MagicFilterType) -> MagickBooleanType;
     fn MagickGetImageBlob(wand: *const c_void, length: *mut size_t) -> *const c_uchar;
     fn MagickRelinquishMemory(wand: *const c_void) -> *const c_void;
@@ -159,7 +158,7 @@ pub fn fit_image(data: Vec<u8>, max_width: usize, max_height: usize) -> Result<V
     
     // Читаем наши данные
     let result = unsafe { MagickReadImageBlob(wand, data.as_ptr() as *const c_void, data.len()) };
-    if result == MagickFalse{
+    if result == MAGIC_FALSE{
         let mut exc_type: c_uint = 0;
         let text = unsafe { 
             let exc_text = MagickGetException(wand, &mut exc_type);
@@ -201,8 +200,8 @@ pub fn fit_image(data: Vec<u8>, max_width: usize, max_height: usize) -> Result<V
     // while bindings::MagickNextImage(self.wand) != bindings::MagickBooleanType_MagickFalse {
 
     // Смена размера
-    let result = unsafe { MagickResizeImage(wand, new_width, new_height, LanczosFilter) };
-    if result == MagickFalse{
+    let result = unsafe { MagickResizeImage(wand, new_width, new_height, LANCHOZ_FILTER) };
+    if result == MAGIC_FALSE{
         return Err(ImageMagicError::ResizeFailed);
     }
 
@@ -254,6 +253,7 @@ mod tests{
         let result = fit_image(data, 100, 100).expect("Fit failed");
         assert!(result.len() > 0);
         write("test_results/small_airplane.png", result).expect("Write failed");
+        // TODO: Сравнение данных с референсом
     }
 
     #[test]
