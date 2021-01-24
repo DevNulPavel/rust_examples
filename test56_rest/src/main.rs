@@ -1,6 +1,3 @@
-// TODO: Документация
-
-
 mod ffi;
 mod rest;
 #[cfg(test)] mod tests;

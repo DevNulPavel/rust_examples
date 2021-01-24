@@ -159,5 +159,3 @@ pub async fn upload_image_multipart(mut payload: Multipart) -> Result<HttpRespon
     Ok(HttpResponse::Ok()
         .json(data))
 }
-
-// TODO: Логирование
