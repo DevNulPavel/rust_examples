@@ -1,52 +1,18 @@
 // TODO: Документация
 
 
-// mod ffi_opencv;
-mod ffi_imagemagic;
+mod ffi;
+mod rest;
 
 use std::{
     io::{
         self
-    },
-    path::{
-        PathBuf,
-        Path
-    }
-};
-use serde::{
-    Serialize,
-    Deserialize
-};
-use serde_json::{
-    json
-};
-use uuid::{
-    Uuid
-};
-use tokio::{
-    fs::{
-        File,
-        remove_file
-    },
-    io::{
-        AsyncRead,
-        AsyncReadExt,
-        AsyncWrite,
-        AsyncWriteExt,
-        AsyncBufRead,
-        AsyncBufReadExt
     }
 };
 use log::{
     info,
     debug,
     error
-};
-use futures::{
-    Stream,
-    StreamExt,
-    TryStream,
-    TryStreamExt
 };
 use actix_web::{
     middleware::{
@@ -61,201 +27,15 @@ use actix_web::{
     guard::{
         self
     },
-    body::{
-        Body,
-    },
     HttpServer,
-    App,
-    Responder,
-    HttpResponse,
+    App
 };
-use actix_multipart::{
-    Multipart,
-    Field
+use self::{
+    rest::{
+        upload_image_multipart,
+        upload_image_json
+    }
 };
-use ffi_imagemagic::{
-    fit_image
-};
-
-////////////////////////////////////////////////////////////////////////////////
-
-#[derive(Debug, Serialize)]
-#[cfg_attr(test, derive(Deserialize))]
-struct ImageResponse{
-    base_64_preview: String,
-}
-#[derive(Debug, Serialize)]
-#[cfg_attr(test, derive(Deserialize))]
-struct UploadResponse{
-    images: Vec<ImageResponse>
-}
-
-////////////////////////////////////////////////////////////////////////////////
-
-#[derive(Deserialize)]
-struct UploadImageJsonData{
-    base64_images: Vec<String> // TODO: Читать итерационно для экономии оперативки
-}
-#[derive(Deserialize)]
-struct UploadImageJsonUrl{
-    urls: Vec<String>
-}
-#[derive(Deserialize)]
-#[serde(untagged)]
-enum UploadImageJson{
-    Data(UploadImageJsonData),
-    Url(UploadImageJsonUrl)
-}
-async fn upload_image_json(body: web::Json<UploadImageJson>) -> impl Responder {
-
-    let data = UploadResponse{
-        images: vec![]
-    };
-    HttpResponse::Ok()
-        .json(data)
-}
-
-
-////////////////////////////////////////////////////////////////////////////////
-
-/*async fn save_multipart_to_file(mut field: Field) -> Result<PathBuf, actix_web::Error> {
-    // TODO: Может ли повторяться
-    let filename = Uuid::new_v4().to_string();
-    
-    // Путь
-    // Если нету директории временных файлов - лучше сразу крашить
-    let filepath = PathBuf::new()
-        .join(dirs::template_dir().expect("There is no template directory")) // TODO: ошибка?
-        .join(filename);
-
-    // Создаем файлик
-    let mut file = File::create(&filepath).await?;
-
-    // TODO: Как-то лучше?
-    // Итерируемся по полю и получаем контент файлика
-    let mut found_err: Option<actix_web::Error> = None;
-    while let Some(chunk) = field.next().await {
-        // Данные
-        let data = match chunk {
-            Ok(data) => data,
-            Err(err) => {
-                found_err = Some(err.into());
-                break;
-            }
-        };
-
-        // Пишем в файлик
-        if let Err(err) = file.write_all(&data).await{
-            found_err = Some(err.into());
-            break;
-        }
-    }
-    // Удаление файлика при ошибке
-    if let Some(err) = found_err {
-        remove_file(filepath).await?;
-        return Err(err);
-    }
-
-    Ok(filepath)
-}*/
-
-async fn read_multipart_to_vec(mut field: Field) -> Result<Vec<u8>, actix_web::Error> {
-    // Есть размер?
-    let data_size = field
-        .headers()
-        .get("Content-Length")
-        .and_then(|val|{
-            val.to_str().ok()
-        })
-        .and_then(|val|{
-            val.parse::<usize>().ok()
-        });
-
-    // Конечный буффер с резервированием если есть инфа
-    let mut result_buffer = if let Some(size) = data_size {
-        Vec::with_capacity(size)
-    } else{
-        Vec::new()
-    };
-    
-    // TODO: Как-то лучше?
-    // Итерируемся по полю и получаем контент файлика
-    while let Some(chunk) = field.next().await {
-        // Данные
-        let data = chunk?;
-        // Пишем в буффер
-        result_buffer.extend(data.into_iter());
-    }
-
-    Ok(result_buffer)
-}
-
-// TODO: Расширение картинки
-/*let file_extention = {
-    let disposition = match field.content_disposition(){
-        Some(disposition) => disposition,
-        None => return Ok(actix_web::HttpResponse::BadRequest().into())
-    };
-    if !disposition.is_form_data(){
-        return Ok(actix_web::HttpResponse::BadRequest().into())
-    }
-    let filename = match disposition.get_filename() {
-        Some(filename) => filename,
-        None => return Ok(actix_web::HttpResponse::BadRequest().into())
-    };
-    let ext = Path::new(filename)
-        .extension()
-        .and_then(|ext| {
-            ext.to_str()
-        })
-        .map(|ext|{
-            ext.to_owned()
-        });
-    ext
-};*/
-
-async fn upload_image_multipart(mut payload: Multipart) -> Result<HttpResponse, actix_web::Error> {
-    // Обходим входные части мультапарта
-    // TODO: Может быть просто прерывать работу, а не возвращать ошибку
-    let mut results = vec![];
-    while let Some(field) = payload.try_next().await? {
-        // Верные ли данные
-        let disposition = match field.content_disposition(){
-            Some(disposition) => disposition,
-            None => return Ok(actix_web::HttpResponse::BadRequest().into())
-        };
-        if !disposition.is_form_data(){
-            return Ok(actix_web::HttpResponse::BadRequest().into())
-        }
-
-        // Читаем
-        let buffer = read_multipart_to_vec(field).await?;
-
-        // Конвертируем на пуле потоков, чтобы не блокироваться
-        let preview = actix_web::web::block(move ||{
-            // TODO: Не подходит вопросик в конце, поэтому приходится разворачивать в конкретную ошибку
-            let data = match fit_image(buffer, 100, 100) {
-                Ok(data) => data,
-                Err(err) => {
-                    return Err(err);
-                },
-            };
-            // Base64
-            let base_64_data = base64::encode::<Vec<u8>>(data);
-            Ok(base_64_data)
-        }).await?;
-
-        // Результат
-        results.push(ImageResponse{
-            base_64_preview: preview
-        })
-    }
-    let data = UploadResponse{
-        images: results
-    };
-    Ok(HttpResponse::Ok()
-        .json(data))
-}
 
 ////////////////////////////////////////////////////////////////////////////////
 
@@ -351,6 +131,14 @@ mod tests {
     use http::{
         StatusCode
     };
+    use serde_json::{
+        json
+    };
+    use crate::{
+        rest::{
+            UploadImageResponse
+        }
+    };
 
     #[actix_rt::test]
     async fn test_server() {
@@ -406,16 +194,22 @@ mod tests {
             assert_eq!(response.status(), StatusCode::OK);
 
             let data = response
-                .json::<UploadResponse>()
+                .json::<UploadImageResponse>()
                 .await
                 .expect("Json parse failed");
         }
 
         // Base64
         {
+            let data = tokio::fs::read("test_images/small_building.jpg")
+                .await
+                .expect("File read failed");
+            
+            let base64_data = base64::encode(data);
+
             let body = json!({
                 "base64_images": [
-                    "asddsadsa"
+                    base64_data
                 ]
             });
             let response = client
@@ -425,6 +219,14 @@ mod tests {
                 .await
                 .expect("Request failed");
             assert_eq!(response.status(), StatusCode::OK);
+
+            let data = response
+                .json::<UploadImageResponse>()
+                .await
+                .expect("Json parse failed");
+            assert_eq!(data.images.len(), 1);
+            assert!(data.images[0].base_64_preview.len() > 0);
+            // TODO: Сравнить результат
         }
 
         // Multipart
@@ -457,12 +259,13 @@ mod tests {
             assert_eq!(response.status(), StatusCode::OK);
 
             let data = response
-                .json::<UploadResponse>()
+                .json::<UploadImageResponse>()
                 .await
                 .expect("Json parse failed");
             assert_eq!(data.images.len(), 2);
             assert!(data.images[0].base_64_preview.len() > 0);
             assert!(data.images[1].base_64_preview.len() > 0);
+
             // TODO: сравнение данных у картинки
         }
 

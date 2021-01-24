@@ -1,15 +1,10 @@
 // https://doc.rust-lang.org/cargo/reference/build-scripts.html
-use std::{
-    path::{
-        PathBuf
-    },
-    env::{
-        self
-    }
-};
-
 
 fn main() {
+    ////////////////////////////////////////////////////////////////////////
+    // ImageMagic
+    ////////////////////////////////////////////////////////////////////////
+
     // TODO: Конфиг по платформам
     // brew install imagemagick zlib libxml2 libiconv bzip2 little-cms2
     // Есть проблема с разными типами зависимостей libiconv, приходится добавлять стандартный маковский фреймворк
@@ -37,9 +32,9 @@ fn main() {
     println!("cargo:rustc-link-lib=dylib=iconv");
     println!("cargo:rustc-link-lib=dylib=omp");
 
-    // println!("cargo:rustc-link-lib=static=charset");
-    // println!("cargo:rustc-link-lib=static=iconv");
-    // println!("cargo:rustc-link-lib=dylib=dl");
+    ////////////////////////////////////////////////////////////////////////
+    // OpenCV
+    ////////////////////////////////////////////////////////////////////////
 
     /*println!("cargo:rustc-link-lib=framework=AppKit");
     println!("cargo:rustc-link-lib=framework=OpenCL");

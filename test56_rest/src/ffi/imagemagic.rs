@@ -21,7 +21,7 @@ use libc::{
     size_t
 };
 
-// Поддерживаемые форматы: identify -list format -v
+// Поддерживаемые форматы imagemagic: identify -list format -v
 
 // https://github.com/nlfiedler/magick-rust/
 
@@ -47,49 +47,6 @@ const MAGIC_FALSE: MagickBooleanType = 0;
 
 type MagicFilterType = c_uint;
 const LANCHOZ_FILTER: MagicFilterType = 22;
-
-/*const UndefinedFilter: MagicFilterType = 0;
-const PointFilter: MagicFilterType = 1;
-const BoxFilter: MagicFilterType = 2;
-const TriangleFilter: MagicFilterType = 3;
-const HermiteFilter: MagicFilterType = 4;
-const HannFilter: MagicFilterType = 5;
-const HammingFilter: MagicFilterType = 6;
-const BlackmanFilter: MagicFilterType = 7;
-const GaussianFilter: MagicFilterType = 8;
-const QuadraticFilter: MagicFilterType = 9;
-const CubicFilter: MagicFilterType = 10;
-const CatromFilter: MagicFilterType = 11;
-const MitchellFilter: MagicFilterType = 12;
-const JincFilter: MagicFilterType = 13;
-const SincFilter: MagicFilterType = 14;
-const SincFastFilter: MagicFilterType = 15;
-const KaiserFilter: MagicFilterType = 16;
-const WelchFilter: MagicFilterType = 17;
-const ParzenFilter: MagicFilterType = 18;
-const BohmanFilter: MagicFilterType = 19;
-const BartlettFilter: MagicFilterType = 20;
-const LagrangeFilter: MagicFilterType = 21;
-const LanczosFilter: MagicFilterType = 22;
-const LanczosSharpFilter: MagicFilterType = 23;
-const Lanczos2Filter: MagicFilterType = 24;
-const Lanczos2SharpFilter: MagicFilterType = 25;
-const RobidouxFilter: MagicFilterType = 26;
-const RobidouxSharpFilter: MagicFilterType = 27;
-const CosineFilter: MagicFilterType = 28;
-const SplineFilter: MagicFilterType = 29;
-const LanczosRadiusFilter: MagicFilterType = 30;
-const CubicSplineFilter: MagicFilterType = 31;
-const SentinelFilter: MagicFilterType = 32;*/
-
-// TODO: 
-// pub fn magick_wand_terminus() {
-//     unsafe {
-//         if let bindings::MagickBooleanType_MagickTrue = bindings::IsMagickWandInstantiated() {
-//             bindings::MagickWandTerminus();
-//         }
-//     }
-// }
 
 ////////////////////////////////////////////////////////////////////////////////////////////////
 
@@ -143,7 +100,7 @@ impl From<std::str::Utf8Error> for ImageMagicError{
 
 ////////////////////////////////////////////////////////////////////////////////////////////////
 
-pub fn fit_image(data: Vec<u8>, max_width: usize, max_height: usize) -> Result<Vec<u8>, ImageMagicError> {
+pub fn imagemagic_fit_image(data: Vec<u8>, max_width: usize, max_height: usize) -> Result<Vec<u8>, ImageMagicError> {
 
     static ONCE: std::sync::Once = std::sync::Once::new();
     ONCE.call_once(||{
@@ -224,6 +181,8 @@ pub fn fit_image(data: Vec<u8>, max_width: usize, max_height: usize) -> Result<V
     Ok(buffer)
 }
 
+///////////////////////////////////////////////////////////////////////////////////////////////////
+
 #[cfg(test)]
 mod tests{
     use super::{
@@ -246,21 +205,33 @@ mod tests{
         }
     }
 
+    /*fn is_vectors_eq<T: PartialEq>(a: &Vec<T>, b: &Vec<T>) -> bool {
+        let matching = a
+            .iter()
+            .zip(b.iter())
+            .filter(|&(a, b)| a == b)
+            .count();
+        (matching == a.len()) && (matching == b.len())
+    }*/
+
     #[test]
     fn test_imagemagic_ffi_png(){
         make_result_dir("test_results");
         let data = read("test_images/airplane.png").expect("File read failed");
-        let result = fit_image(data, 100, 100).expect("Fit failed");
+        let result = imagemagic_fit_image(data, 100, 100).expect("Fit failed");
         assert!(result.len() > 0);
         write("test_results/small_airplane.png", result).expect("Write failed");
-        // TODO: Сравнение данных с референсом
+        
+        // TODO: Меняется дата создания файлика, поэтому визуальная проверка
+        // let reference_result = read("test_results/small_airplane.png").expect("File read failed");
+        // assert!(is_vectors_eq(&result, &reference_result));
     }
 
     #[test]
     fn test_imagemagic_ffi_jpg(){
         make_result_dir("test_results");
         let data = read("test_images/building.jpg").expect("File read failed");
-        let result = fit_image(data, 100, 100).expect("Fit failed");
+        let result = imagemagic_fit_image(data, 100, 100).expect("Fit failed");
         assert!(result.len() > 0);
         write("test_results/small_building.jpg", result).expect("Write failed");
     }
@@ -269,7 +240,7 @@ mod tests{
     fn test_imagemagic_ffi_bmp(){
         make_result_dir("test_results");
         let data = read("test_images/barbara.bmp").expect("File read failed");
-        let result = fit_image(data, 100, 100).expect("Fit failed");
+        let result = imagemagic_fit_image(data, 100, 100).expect("Fit failed");
         assert!(result.len() > 0);
         write("test_results/small_barbara.bmp", result).expect("Write failed");
     }
@@ -278,7 +249,7 @@ mod tests{
     fn test_imagemagic_ffi_tif(){
         make_result_dir("test_results");
         let data = read("test_images/cameraman.tif").expect("File read failed");
-        let result = fit_image(data, 100, 100).expect("Fit failed");
+        let result = imagemagic_fit_image(data, 100, 100).expect("Fit failed");
         assert!(result.len() > 0);
         write("test_results/small_cameraman.tif", result).expect("Write failed");
     }
