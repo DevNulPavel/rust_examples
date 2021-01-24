@@ -180,6 +180,21 @@ mod tests {
         
         // URL
         {
+            /*let response = reqwest::get("https://picsum.photos/200/300")
+                .await
+                .expect("Test image url request failed");
+
+            debug!("Image mata response: {:#?}", response);
+
+            let url = response
+                .headers()
+                .get("location")
+                .expect("No location info")
+                .to_str()
+                .expect("Location parse failed");
+
+            debug!("Real image url: {}", url);*/
+
             let body = json!({
                 "urls": [
                     "https://picsum.photos/200/300"
@@ -201,7 +216,7 @@ mod tests {
 
         // Base64
         {
-            let data = tokio::fs::read("test_images/small_building.jpg")
+            let data = tokio::fs::read("test_images/logo.jpg")
                 .await
                 .expect("File read failed");
             
@@ -220,13 +235,19 @@ mod tests {
                 .expect("Request failed");
             assert_eq!(response.status(), StatusCode::OK);
 
+            // Получаем результат
             let data = response
                 .json::<UploadImageResponse>()
                 .await
                 .expect("Json parse failed");
             assert_eq!(data.images.len(), 1);
             assert!(data.images[0].base_64_preview.len() > 0);
-            // TODO: Сравнить результат
+
+            // Сравнить результат
+            let reference_data = tokio::fs::read("test_results/small_logo.jpg")
+                .await
+                .expect("File read failed");
+            assert!(data.images[0].base_64_preview == base64::encode(reference_data));
         }
 
         // Multipart

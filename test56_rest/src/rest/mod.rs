@@ -5,7 +5,8 @@ mod response;
 pub use self::{
     response::{
         UploadImageResponse,
-        UploadImageResponseData
+        UploadImageResponseData,
+        UploadImageError
     },
     json::{
         upload_image_json

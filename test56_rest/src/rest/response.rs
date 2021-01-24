@@ -18,3 +18,9 @@ pub struct UploadImageResponseData{
 pub struct UploadImageResponse{
     pub images: Vec<UploadImageResponseData>
 }
+
+#[derive(Debug, Serialize)]
+#[cfg_attr(test, derive(Deserialize))]
+pub struct UploadImageError{
+    pub message: String
+}

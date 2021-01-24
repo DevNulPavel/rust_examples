@@ -205,14 +205,14 @@ mod tests{
         }
     }
 
-    /*fn is_vectors_eq<T: PartialEq>(a: &Vec<T>, b: &Vec<T>) -> bool {
+    fn is_vectors_eq<T: PartialEq>(a: &Vec<T>, b: &Vec<T>) -> bool {
         let matching = a
             .iter()
             .zip(b.iter())
             .filter(|&(a, b)| a == b)
             .count();
         (matching == a.len()) && (matching == b.len())
-    }*/
+    }
 
     #[test]
     fn test_imagemagic_ffi_png(){
@@ -220,20 +220,36 @@ mod tests{
         let data = read("test_images/airplane.png").expect("File read failed");
         let result = imagemagic_fit_image(data, 100, 100).expect("Fit failed");
         assert!(result.len() > 0);
+        
+        // TODO: Меняется мета у файлика каждый раз? поэтому визуальная проверка
         write("test_results/small_airplane.png", result).expect("Write failed");
         
-        // TODO: Меняется дата создания файлика, поэтому визуальная проверка
         // let reference_result = read("test_results/small_airplane.png").expect("File read failed");
         // assert!(is_vectors_eq(&result, &reference_result));
     }
 
     #[test]
-    fn test_imagemagic_ffi_jpg(){
+    fn test_imagemagic_ffi_jpg_1(){
         make_result_dir("test_results");
         let data = read("test_images/building.jpg").expect("File read failed");
         let result = imagemagic_fit_image(data, 100, 100).expect("Fit failed");
         assert!(result.len() > 0);
-        write("test_results/small_building.jpg", result).expect("Write failed");
+
+        let reference_result = read("test_results/small_building.jpg").expect("File read failed");
+        assert!(is_vectors_eq(&result, &reference_result));
+    }
+
+    #[test]
+    fn test_imagemagic_ffi_jpg_2(){
+        make_result_dir("test_results");
+        let data = read("test_images/logo.jpg").expect("File read failed");
+        let result = imagemagic_fit_image(data, 100, 100).expect("Fit failed");
+        assert!(result.len() > 0);
+
+        // write("test_results/small_logo.jpg", result).expect("Write failed");
+
+        let reference_result = read("test_results/small_logo.jpg").expect("File read failed");
+        assert!(is_vectors_eq(&result, &reference_result));
     }
 
     #[test]
@@ -242,7 +258,9 @@ mod tests{
         let data = read("test_images/barbara.bmp").expect("File read failed");
         let result = imagemagic_fit_image(data, 100, 100).expect("Fit failed");
         assert!(result.len() > 0);
-        write("test_results/small_barbara.bmp", result).expect("Write failed");
+
+        let reference_result = read("test_results/small_barbara.bmp").expect("File read failed");
+        assert!(is_vectors_eq(&result, &reference_result));
     }
 
     #[test]
@@ -251,6 +269,8 @@ mod tests{
         let data = read("test_images/cameraman.tif").expect("File read failed");
         let result = imagemagic_fit_image(data, 100, 100).expect("Fit failed");
         assert!(result.len() > 0);
-        write("test_results/small_cameraman.tif", result).expect("Write failed");
+
+        let reference_result = read("test_results/small_cameraman.tif").expect("File read failed");
+        assert!(is_vectors_eq(&result, &reference_result));
     }
 }
