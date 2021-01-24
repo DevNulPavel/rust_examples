@@ -20,6 +20,12 @@ use libc::{
     c_uchar,
     size_t
 };
+use log::{
+    error,
+    debug,
+    warn,
+    info
+};
 
 // Поддерживаемые форматы imagemagic: identify -list format -v
 

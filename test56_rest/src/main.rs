@@ -3,6 +3,7 @@
 
 mod ffi;
 mod rest;
+#[cfg(test)] mod tests;
 
 use std::{
     io::{
@@ -11,8 +12,8 @@ use std::{
 };
 use log::{
     info,
-    debug,
-    error
+    //debug,
+    //error
 };
 use actix_web::{
     middleware::{
@@ -67,15 +68,17 @@ fn build_image_service() -> impl dev::HttpServiceFactory {
 ////////////////////////////////////////////////////////////////////////////////
 
 async fn start_server(addr: &str) -> io::Result<dev::Server>{
-    // TODO: Логирование
+    // Клиент для запросов
+    let shared_client = reqwest::Client::new();
 
     // Важно! На каждый поток у нас создается свое приложение со своими данными
-    let app_builder = ||{
+    let app_builder = move ||{
         let image_service = build_image_service();
         App::new()
             .wrap(middleware::Logger::default())
             .default_service(web::route().to(|| { web::HttpResponse::NotFound() }))
             .service(image_service)
+            .data(shared_client.clone())
             // .app_data() // Можно получить у запроса
             // .data(data) // Можно прокидывать как параметр у обработчика
     };
@@ -92,9 +95,9 @@ async fn start_server(addr: &str) -> io::Result<dev::Server>{
 #[actix_web::main]
 async fn main() -> io::Result<()> {
     pretty_env_logger::formatted_builder()
-        .filter_level(log::LevelFilter::Debug) // TODO: ???
+        .filter_level(log::LevelFilter::Debug) // Для тестовых целей ставим всегда DEBUG
         .try_init()
-        .expect("Logger init failed"); // TODO: ???
+        .expect("Logger init failed");
 
     let server = start_server("0.0.0.0:8080").await?;
     info!("Server started");
@@ -106,197 +109,4 @@ async fn main() -> io::Result<()> {
     info!("Gracefull stop finished");
 
     Ok(())
-}
-
-////////////////////////////////////////////////////////////////////////////////
-
-#[cfg(test)]
-mod tests {
-    use super::{
-        *
-    };
-    use tokio_util::{
-        codec::{
-            BytesCodec,
-            FramedRead
-        }
-    };
-    use reqwest::{
-        multipart::{
-            Form,
-            Part
-        },
-        Body
-    };
-    use http::{
-        StatusCode
-    };
-    use serde_json::{
-        json
-    };
-    use crate::{
-        rest::{
-            UploadImageResponse
-        }
-    };
-
-    #[actix_rt::test]
-    async fn test_server() {
-        pretty_env_logger::formatted_builder()
-            .filter_level(log::LevelFilter::Debug)
-            // .is_test(true)
-            .try_init()
-            .expect("Logger init failed");
-        // TODO: Стандартный тестовый сервер в actix-web не очень удобный
-
-        // TODO: остановка сервера в тестах
-        let test_server = start_server("127.0.0.1:8888")
-            .await
-            .expect("Server start error");
-
-        let client = reqwest::Client::new();
-
-        let base_url = url::Url::parse("http://localhost:8888").expect("Base url parse failed");
-
-        // Not found
-        {
-            let response = client
-                .post(base_url.join("asdad/").unwrap())
-                .send()
-                .await
-                .expect("Request failed");
-            assert_eq!(response.status(), StatusCode::NOT_FOUND);
-        }
-
-        // Not allowed
-        {
-            let response = client
-                .post(base_url.join("upload_image").unwrap())
-                .send()
-                .await
-                .expect("Request failed");
-            assert_eq!(response.status(), StatusCode::METHOD_NOT_ALLOWED);
-        }
-        
-        // URL
-        {
-            /*let response = reqwest::get("https://picsum.photos/200/300")
-                .await
-                .expect("Test image url request failed");
-
-            debug!("Image mata response: {:#?}", response);
-
-            let url = response
-                .headers()
-                .get("location")
-                .expect("No location info")
-                .to_str()
-                .expect("Location parse failed");
-
-            debug!("Real image url: {}", url);*/
-
-            let body = json!({
-                "urls": [
-                    "https://picsum.photos/200/300"
-                ]
-            });
-            let response = client
-                .post(base_url.join("upload_image").unwrap())
-                .json(&body)
-                .send()
-                .await
-                .expect("Request failed");
-            assert_eq!(response.status(), StatusCode::OK);
-
-            let data = response
-                .json::<UploadImageResponse>()
-                .await
-                .expect("Json parse failed");
-        }
-
-        // Base64
-        {
-            let data = tokio::fs::read("test_images/logo.jpg")
-                .await
-                .expect("File read failed");
-            
-            let base64_data = base64::encode(data);
-
-            let body = json!({
-                "base64_images": [
-                    base64_data
-                ]
-            });
-            let response = client
-                .post(base_url.join("upload_image").unwrap())
-                .json(&body)
-                .send()
-                .await
-                .expect("Request failed");
-            assert_eq!(response.status(), StatusCode::OK);
-
-            // Получаем результат
-            let data = response
-                .json::<UploadImageResponse>()
-                .await
-                .expect("Json parse failed");
-            assert_eq!(data.images.len(), 1);
-            assert!(data.images[0].base_64_preview.len() > 0);
-
-            // Сравнить результат
-            let reference_data = tokio::fs::read("test_results/small_logo.jpg")
-                .await
-                .expect("File read failed");
-            assert!(data.images[0].base_64_preview == base64::encode(reference_data));
-        }
-
-        // Multipart
-        {
-            let body1 = {
-                let file = tokio::fs::File::open("test_images/airplane.png")
-                    .await
-                    .expect("Test image is not found");
-                let reader = FramedRead::new(file, BytesCodec::default());
-                Body::wrap_stream(reader)
-            };
-            let body2 = {
-                let file = tokio::fs::File::open("test_images/airplane.png")
-                    .await
-                    .expect("Test image is not found");
-                let reader = FramedRead::new(file, BytesCodec::default());
-                Body::wrap_stream(reader)
-            };
-
-            let form = Form::default()
-                .part("first", Part::stream(body1))
-                .part("second", Part::stream(body2));
-
-            let response = client
-                .post(base_url.join("upload_image").unwrap())
-                .multipart(form)
-                .send()
-                .await
-                .expect("Request failed");
-            assert_eq!(response.status(), StatusCode::OK);
-
-            let data = response
-                .json::<UploadImageResponse>()
-                .await
-                .expect("Json parse failed");
-            assert_eq!(data.images.len(), 2);
-            assert!(data.images[0].base_64_preview.len() > 0);
-            assert!(data.images[1].base_64_preview.len() > 0);
-
-            // TODO: сравнение данных у картинки
-        }
-
-        info!("All tests finished");
-
-        // Обрываем соединение для успешного завершения
-        drop(client);
-        info!("Client destroyed");
-
-        test_server.stop(true).await;
-        info!("Gacefull stop finished");
-    }
 }

@@ -2,9 +2,9 @@ use serde::{
     Deserialize
 };
 use log::{
-    info,
+    // info,
     debug,
-    error
+    // error
 };
 use actix_web::{
     web::{
@@ -70,7 +70,7 @@ async fn convert_base64_data(base64_image: String) -> Result<String, actix_web::
     Ok(res)
 }
 
-pub async fn upload_image_json(body: web::Json<UploadImageJson>) -> Result<HttpResponse, actix_web::Error> {
+pub async fn upload_image_json(body: web::Json<UploadImageJson>, web_client: web::Data<reqwest::Client>) -> Result<HttpResponse, actix_web::Error> {
     let mut results = Vec::new();
     match body.into_inner() {
         UploadImageJson::Data(base64_info) => {
@@ -89,11 +89,8 @@ pub async fn upload_image_json(body: web::Json<UploadImageJson>) -> Result<HttpR
             for url_str in url_info.urls.into_iter(){
                 debug!("Request url: {}", url_str);
 
-                // TODO: Переиспользование клиента
-                let client = reqwest::Client::new();
-
                 // Запрашиваем
-                let response: Result<reqwest::Response, reqwest::Error> = client
+                let response: Result<reqwest::Response, reqwest::Error> = web_client
                     .get(&url_str)
                     .send()
                     .await;  
