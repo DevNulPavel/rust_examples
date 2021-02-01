@@ -1170,10 +1170,12 @@ dependencies = [
  "futures",
  "log",
  "md5",
+ "mime",
  "pretty_env_logger",
  "serde",
  "serde_json",
  "tokio",
+ "url",
 ]
 
 [[package]]

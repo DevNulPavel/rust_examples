@@ -4,6 +4,9 @@ use std::{
     },
     sync::{
         Arc
+    },
+    path::{
+        Path
     }
 };
 use log::{
@@ -13,6 +16,9 @@ use log::{
 };
 use serde::{
     Deserialize
+};
+use url::{
+    Url
 };
 use actix_web::{
     middleware::{
@@ -26,6 +32,9 @@ use actix_web::{
     },
     guard::{
         self
+    },
+    client::{
+        Client
     },
     HttpServer,
     HttpResponse,
@@ -41,7 +50,9 @@ struct AuthRequest{
     sessionid: String,
     lang: String,
     platform: String,
-    platformSPIL: String
+
+    #[serde(rename = "platformSPIL")]
+    platform_spil: String
 }
 
 async fn auth(params: web::Query<AuthRequest>, shared_data: web::Data<SharedAppData>) -> Result<HttpResponse, actix_web::Error> {
@@ -95,6 +106,42 @@ async fn process_pay(body: web::Form<PaymentInfoRequest>) -> Result<HttpResponse
 
 ////////////////////////////////////////////////////////////////////////////////
 
+async fn static_forward(req: web::HttpRequest, 
+                        body: web::Bytes, 
+                        target_url: web::Data<Url>, 
+                        client: web::Data<Client>) -> Result<HttpResponse, actix_web::Error> {
+
+    let mut new_url = target_url.get_ref().clone();
+    new_url.set_path(req.uri().path());
+    new_url.set_query(req.uri().query());
+
+    // TODO: This forwarded implementation is incomplete as it only handles the inofficial
+    // X-Forwarded-For header but not the official Forwarded one.
+    let forwarded_req = client
+        .request_from(new_url.as_str(), req.head())
+        .no_decompress();
+    let forwarded_req = if let Some(addr) = req.head().peer_addr {
+        forwarded_req.header("x-forwarded-for", format!("{}", addr.ip()))
+    } else {
+        forwarded_req
+    };
+
+    let mut res = forwarded_req.send_body(body).await.map_err(actix_web::Error::from)?;
+
+    let mut client_resp = HttpResponse::build(res.status());
+    // Remove `Connection` as per
+    // https://developer.mozilla.org/en-US/docs/Web/HTTP/Headers/Connection#Directives
+    for (header_name, header_value) in
+        res.headers().iter().filter(|(h, _)| *h != "connection")
+    {
+        client_resp.header(header_name.clone(), header_value.clone());
+    }
+
+    Ok(client_resp.body(res.body().await?))
+}
+
+////////////////////////////////////////////////////////////////////////////////
+
 struct SharedAppData{
     secret_key: String
 }
@@ -102,10 +149,12 @@ struct SharedAppData{
 ////////////////////////////////////////////////////////////////////////////////
 
 async fn start_server(addr: &str) -> io::Result<dev::Server>{
+    let static_redirect_url = Url::parse("http://127.0.0.0:8080").unwrap();
+
     let shared_data = web::Data::new(SharedAppData{
         secret_key: String::from("TEST")
     });
-    
+
     // Важно! На каждый поток у нас создается свое приложение со своими данными
     let app_builder = move ||{
         let auth_service = web::resource("/auth")
@@ -116,6 +165,9 @@ async fn start_server(addr: &str) -> io::Result<dev::Server>{
         
         let process_pay_service = web::resource("/process_pay")
             .route(web::post().to(process_pay));
+
+        let static_files_service = web::resource("/azerion")
+            .route(web::route().to(static_forward));
         
         App::new()
             .wrap(middleware::Logger::default())
@@ -123,7 +175,10 @@ async fn start_server(addr: &str) -> io::Result<dev::Server>{
             .service(auth_service)
             .service(get_payment_info_service)
             .service(process_pay_service)
+            .service(static_files_service)
             .app_data(shared_data.clone()) // Можно получить у запроса
+            .app_data(Client::new()) // Можно получить у запроса
+            .app_data(static_redirect_url.clone()) // Можно получить у запроса
             // .data(data) // Можно прокидывать как параметр у обработчика
     };
 
@@ -143,7 +198,7 @@ async fn main() -> io::Result<()> {
         .try_init()
         .expect("Logger init failed");
 
-    let server = start_server("0.0.0.0:8080").await?;
+    let server = start_server("0.0.0.0:8888").await?;
     info!("Server started");
     
     tokio::signal::ctrl_c().await.expect("Signal wait failed");
