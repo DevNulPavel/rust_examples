@@ -47,7 +47,7 @@ impl ValidateParams for AuthRequest {
 }
 
 pub async fn auth(params: web::Query<AuthRequest>, 
-             shared_data: web::Data<SharedAppData>) -> Result<HttpResponse, actix_web::Error> {
+                  shared_data: web::Data<SharedAppData>) -> Result<HttpResponse, actix_web::Error> {
     debug!("Auth request with params: {:#?}", params.0);
     
     if params.is_valid(&shared_data.secret_key) {
