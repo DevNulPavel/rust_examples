@@ -15,9 +15,9 @@ use log::{
     debug,
     error
 };
-use url::{
-    Url
-};
+// use url::{
+//     Url
+// };
 use actix_web::{
     middleware::{
         self
@@ -31,9 +31,9 @@ use actix_web::{
     // guard::{
     //     self
     // },
-    client::{
-        Client
-    },
+    // client::{
+    //     Client
+    // },
     HttpServer,
     App
 };
@@ -50,35 +50,35 @@ use self::{
     process_pay::{
         process_pay
     },
-    static_forward::{
-        static_forward
-    }
+    // static_forward::{
+    //     static_forward
+    // }
 };
 
 ////////////////////////////////////////////////////////////////////////////////
 
 async fn start_server(addr: &str) -> io::Result<dev::Server>{
-    let static_redirect_url = Url::parse("http://127.0.0.1:8080").unwrap();
+    //let static_redirect_url = Url::parse("http://127.0.0.1:8080").unwrap();
 
     let shared_data = web::Data::new(SharedAppData{
-        secret_key: String::from("TEST")
+        secret_key: std::env::var("PLINGA_SECRET").expect("PLINGA_SECRET is missing")
     });
 
     // Важно! На каждый поток у нас создается свое приложение со своими данными
     let app_builder = move ||{
-        let auth_service = web::resource("/auth")
+        let auth_service = web::resource("/pub/azerion/auth.php")
             .route(web::get().to(auth));
         
-        let get_payment_info_service = web::resource("/get_payment_info")
+        let get_payment_info_service = web::resource("/pub/azerion/get_payment_info.php")
             .route(web::post().to(get_payment_info));
         
-        let process_pay_service = web::resource("/process_pay")
+        let process_pay_service = web::resource("/pub/azerion/processpay.php")
             .route(web::post().to(process_pay));
 
-        let static_files_service = web::resource("/azerion")
+        /*let static_files_service = web::resource("/azerion")
             .route(web::route().to(static_forward))
             .data(Client::new()) // Можно прокидывать как параметр у обработчика
-            .data(static_redirect_url.clone()); // Можно прокидывать как параметр у обработчика
+            .data(static_redirect_url.clone()); // Можно прокидывать как параметр у обработчика*/
         
         App::new()
             .wrap(middleware::Logger::default())
@@ -86,10 +86,9 @@ async fn start_server(addr: &str) -> io::Result<dev::Server>{
             .service(auth_service)
             .service(get_payment_info_service)
             .service(process_pay_service)
-            .service(static_files_service)
-            .data(shared_data.clone()) // Можно прокидывать как параметр у обработчика
-            
-            // .app_data(data) // Как параметр у запроса
+            //.service(static_files_service)
+            //.data(shared_data.clone()) // Можно прокидывать как параметр у обработчика, не нужно оборачивать в web::Data
+            .app_data(shared_data.clone()) // Как параметр у запроса + параметр у обработчика как есть (web::Data)
     };
 
     // Запускаем сервер
