@@ -3,14 +3,14 @@ use std::{
         HashMap
     }
 };
-use log::{
+// use log::{
     // info,
-    debug,
+    // debug,
     // error
-};
+// };
 use serde::{
     Deserialize,
-    Serialize
+    // Serialize
 };
 use actix_web::{
     web::{
@@ -46,28 +46,37 @@ impl ValidateParams for ProcessPayRequest {
         // Проверяем валидность запроса
         let buffer = {
             let mut params_arr = vec![];
-            // Обязательные параметры
-            params_arr.push(format!("userid={}", self.userid));
-            params_arr.push(format!("game={}", self.game));
-            params_arr.push(format!("ts={}", self.ts));
+            // Обязательные параметры в алфавитном порядке
             params_arr.push(format!("coins={}", self.coins));
             params_arr.push(format!("currency={}", self.currency));
+            params_arr.push(format!("game={}", self.game));
+            params_arr.push(format!("oid={}", self.oid));
             params_arr.push(format!("price={}", self.price));
             params_arr.push(format!("tid={}", self.tid));
-            params_arr.push(format!("oid={}", self.oid));
+            params_arr.push(format!("ts={}", self.ts));
+            params_arr.push(format!("userid={}", self.userid));
             // Добавляем остальные итемы в параметрах
-            let other_items_string = self.other
+            // TODO: Вынести в функцию
+            let mut other_params = self
+                .other
+                .iter()
+                .collect::<Vec<_>>();
+            other_params
+                .sort_by(|a, b| {
+                    a.0.to_lowercase().cmp(&b.0.to_lowercase())
+                });
+            let other_items_iter = other_params
                 .iter()
                 .map(|(k, v)| {
                     format!("{}={}", k, v)
                 });
-            params_arr.extend(other_items_string);
+            params_arr.extend(other_items_iter);
             
-            // Сцепляем параметры вместе
-            let mut buffer = params_arr.join("&");
-
             // Добавляем секретный ключ
-            buffer.push_str(secret_key);
+            params_arr.push(secret_key.to_owned()); // TODO: Cow
+
+            // Сцепляем параметры вместе
+            let buffer = params_arr.join("&");
 
             buffer    
         };

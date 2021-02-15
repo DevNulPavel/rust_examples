@@ -42,27 +42,37 @@ impl ValidateParams for PaymentInfoRequest {
         // Проверяем валидность запроса
         let buffer = {
             let mut params_arr = vec![];
-            // Обязательные параметры
-            params_arr.push(format!("userid={}", self.userid));
+            // Обязательные параметры в алфавитном порядке
             params_arr.push(format!("transactionId={}", self.transaction_id));
+            params_arr.push(format!("userid={}", self.userid));
             // Добавляем остальные итемы в параметрах
-            let other_items_string = self.other
+            // TODO: Вынести в функцию
+            let mut other_params = self
+                .other
+                .iter()
+                .collect::<Vec<_>>();
+            other_params
+                .sort_by(|a, b| {
+                    a.0.to_lowercase().cmp(&b.0.to_lowercase())
+                });
+            let other_items_iter = other_params
                 .iter()
                 .map(|(k, v)| {
                     format!("{}={}", k, v)
                 });
-            params_arr.extend(other_items_string);
+            params_arr.extend(other_items_iter);
             
-            // Сцепляем параметры вместе
-            let mut buffer = params_arr.join("&");
-
             // Добавляем секретный ключ
-            buffer.push_str(secret_key);
+            params_arr.push(secret_key.to_owned()); // TODO: Сow
+
+            // Сцепляем параметры вместе
+            let buffer = params_arr.join("&");
 
             buffer    
         };
         // Проверяем валидность запроса
         let result = format!("{:x}", md5::compute(buffer));
+        debug!("Calculated signature: {}, received signature: {}", result, self.signature);
         self.signature.eq(&result)
     }
 }

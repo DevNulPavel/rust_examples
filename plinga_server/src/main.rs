@@ -12,8 +12,8 @@ use std::{
 };
 use log::{
     info,
-    debug,
-    error
+    // debug,
+    // error
 };
 // use url::{
 //     Url

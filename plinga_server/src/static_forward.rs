@@ -1,4 +1,4 @@
-use url::{
+/*use url::{
     Url
 };
 use log::{
@@ -63,4 +63,4 @@ pub async fn static_forward(req: web::HttpRequest,
     Ok(client_resp
         .body(res.body()
         .await?))
-}
+}*/
