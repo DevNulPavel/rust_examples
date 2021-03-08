@@ -1,0 +1,9 @@
+[package]
+name = "test-device"
+version = "0.1.0"
+authors = ["Lewin Bormann <lewin@lewin-bormann.info>"]
+edition = "2018"
+
+[dependencies]
+yup-oauth2 = { path = "../../" }
+tokio = { version = "1.0", features = ["macros", "rt-multi-thread"] }
