@@ -37,13 +37,15 @@ use crate::{
 // Фильтр блума позволяет эффективно пропускать любы сущности, которые определенно не являеются подмножеством.
 // Данная реализация использует 64х битный фильтр блума с 4мя хэш функциями.
 
-/// ScopeHash is a hash value derived from a list of scopes. The hash value
-/// represents a fingerprint of the set of scopes *independent* of the ordering.
+/// ScopeHash - это значение хэша, унаследованное из списка скоупов.
+/// Значение хэша представляет собой отпечаток набора скоупов, независимо от порядка???
 #[derive(Debug, Copy, Clone, Eq, PartialEq, Hash)]
 struct ScopeHash(u64);
 
-/// ScopeFilter represents a filter for a set of scopes. It can definitively
-/// prove that a given list of scopes is not a subset of another.
+/////////////////////////////////////////////////////////////////////////////////////////////////////////
+
+/// ScopeFilter представляет собой фильтр для набора скоупов.
+/// Он может определенно доказать, что данный список скоупов не поднабор других скоупов.
 #[derive(Debug, Copy, Clone, Eq, PartialEq, Hash)]
 struct ScopeFilter(u64);
 
@@ -54,7 +56,7 @@ enum FilterResponse {
 }
 
 impl ScopeFilter {
-    /// Determine if this ScopeFilter could be a subset of the provided filter.
+    /// Определяем, что ScopeFilter может быть набором предоставленного фильтра
     fn is_subset_of(self, filter: ScopeFilter) -> FilterResponse {
         if self.0 & filter.0 == self.0 {
             FilterResponse::Maybe
@@ -64,6 +66,8 @@ impl ScopeFilter {
     }
 }
 
+/////////////////////////////////////////////////////////////////////////////////////////////////////////
+
 #[derive(Debug)]
 pub(crate) struct ScopeSet<'a, T> {
     hash: ScopeHash,
@@ -71,8 +75,8 @@ pub(crate) struct ScopeSet<'a, T> {
     scopes: &'a [T],
 }
 
-// Implement Clone manually. Auto derive fails to work correctly because we want
-// Clone to be implemented regardless of whether T is Clone or not.
+// Реализуем клонирование вручную, авто-наследование фейлится так как нам нужно, чтобы каждый элемент был клонируемым.
+// А так, мы создаем новый сет вне зависимости от поддержки клонирования
 impl<'a, T> Clone for ScopeSet<'a, T> {
     fn clone(&self) -> Self {
         ScopeSet {
@@ -82,7 +86,9 @@ impl<'a, T> Clone for ScopeSet<'a, T> {
         }
     }
 }
-impl<'a, T> Copy for ScopeSet<'a, T> {}
+
+impl<'a, T> Copy for ScopeSet<'a, T> {
+}
 
 impl<'a, T> ScopeSet<'a, T>
 where
@@ -94,13 +100,14 @@ where
     // From trait. This inherent method just serves to auto deref from array
     // refs to slices and proxy to the From impl.
     pub fn from(scopes: &'a [T]) -> Self {
-        let (hash, filter) = scopes.iter().fold(
-            (ScopeHash(0), ScopeFilter(0)),
-            |(mut scope_hash, mut scope_filter), scope| {
+        // Перебираем все скоупы, сладываем их в один хэш с фильтром
+        let (hash, filter) = scopes
+            .iter()
+            .fold((ScopeHash(0), ScopeFilter(0)), |(mut scope_hash, mut scope_filter), scope| {
                 let h = seahash::hash(scope.as_ref().as_bytes());
 
-                // Use the first 4 6-bit chunks of the seahash as the 4 hash values
-                // in the bloom filter.
+                // Используем первые 4 битных чанка из seahash как 4 хэш значения
+                // фильтра блума
                 for i in 0..4 {
                     // h is a hash derived value in the range 0..64
                     let h = (h >> (6 * i)) & 0b11_1111;
@@ -110,8 +117,7 @@ where
                 // xor the hashes together to get an order independent fingerprint.
                 scope_hash.0 ^= h;
                 (scope_hash, scope_filter)
-            },
-        );
+            });
         ScopeSet {
             hash,
             filter,
@@ -119,6 +125,8 @@ where
         }
     }
 }
+
+/////////////////////////////////////////////////////////////////////////////////////////////////////////
 
 pub(crate) enum Storage {
     Memory { tokens: Mutex<JSONTokens> },
