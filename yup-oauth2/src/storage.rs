@@ -115,6 +115,7 @@ where
                 }
 
                 // xor the hashes together to get an order independent fingerprint.
+                // Ксорим хэши вместе, чтобы получить порядко-независимый отпечаток
                 scope_hash.0 ^= h;
                 (scope_hash, scope_filter)
             });
@@ -129,22 +130,32 @@ where
 /////////////////////////////////////////////////////////////////////////////////////////////////////////
 
 pub(crate) enum Storage {
-    Memory { tokens: Mutex<JSONTokens> },
+    Memory { 
+        tokens: Mutex<JSONTokens> 
+    },
     Disk(DiskStorage),
 }
 
 impl Storage {
-    pub(crate) async fn set<T>(
-        &self,
-        scopes: ScopeSet<'_, T>,
-        token: TokenInfo,
-    ) -> Result<(), io::Error>
+    pub(crate) async fn set<T>(&self,
+                               scopes: ScopeSet<'_, T>,
+                               token: TokenInfo) -> Result<(), io::Error>
     where
         T: AsRef<str>,
     {
+        // В зависимости от типа хранилища устанавливаем куда надо
         match self {
-            Storage::Memory { tokens } => tokens.lock().await.set(scopes, token),
-            Storage::Disk(disk_storage) => disk_storage.set(scopes, token).await,
+            Storage::Memory { tokens } => {
+                tokens
+                    .lock()
+                    .await
+                    .set(scopes, token)
+            },
+            Storage::Disk(disk_storage) => {
+                disk_storage
+                    .set(scopes, token)
+                    .await
+            },
         }
     }
 
@@ -153,11 +164,22 @@ impl Storage {
         T: AsRef<str>,
     {
         match self {
-            Storage::Memory { tokens } => tokens.lock().await.get(scopes),
-            Storage::Disk(disk_storage) => disk_storage.get(scopes).await,
+            Storage::Memory { tokens } => {
+                tokens
+                    .lock()
+                    .await
+                    .get(scopes)
+            },
+            Storage::Disk(disk_storage) => {
+                disk_storage
+                    .get(scopes)
+                    .await
+            },
         }
     }
 }
+
+/////////////////////////////////////////////////////////////////////////////////////////////////////////
 
 /// A single stored token.
 
@@ -207,6 +229,8 @@ impl Serialize for JSONToken {
         .serialize(serializer)
     }
 }
+
+/////////////////////////////////////////////////////////////////////////////////////////////////////////
 
 /// List of tokens in a JSON object
 #[derive(Debug, Clone)]
