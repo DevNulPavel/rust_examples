@@ -23,35 +23,35 @@ pub struct AccessToken {
 }
 
 impl AccessToken {
-    /// A string representation of the access token.
+    /// Строковое представление токена
     pub fn as_str(&self) -> &str {
         &self.value
     }
 
-    /// The time the access token will expire, if any.
+    /// Время, когда токен будет просрочен
     pub fn expiration_time(&self) -> Option<DateTime<Utc>> {
         self.expires_at
     }
 
-    /// Determine if the access token is expired.
-    /// This will report that the token is expired 1 minute prior to the
-    /// expiration time to ensure that when the token is actually sent to the
-    /// server it's still valid.
+    /// Определяем, не просрочен ли токен.
+    /// Информирование о завершении работы токена будет за 1 минуту до его фактического окончания,
+    /// чтобы гарантировать, что токен который еще в работе все еще валидный.
     pub fn is_expired(&self) -> bool {
-        // Consider the token expired if it's within 1 minute of it's expiration
-        // time.
+        // Считаем токен просроченым если его время жизни истекает через 1ну минуту
         self.expires_at
             .map(|expiration_time| expiration_time - chrono::Duration::minutes(1) <= Utc::now())
             .unwrap_or(false)
     }
 }
 
+/// Интерпретация данного токена как ссылку на строку
 impl AsRef<str> for AccessToken {
     fn as_ref(&self) -> &str {
         self.as_str()
     }
 }
 
+/// Конвертация данного токена из десереализованной информации
 impl From<TokenInfo> for AccessToken {
     fn from(value: TokenInfo) -> Self {
         AccessToken {
@@ -95,20 +95,19 @@ impl TokenInfo {
             expires_in,
         } = serde_json::from_slice::<AuthErrorOr<RawToken>>(json_data)?.into_result()?;
 
+        // Если у нас не Bearer токен, тогда выдаем ошибку наружу
         if token_type.to_lowercase().as_str() != "bearer" {
             use std::io;
-            return Err(io::Error::new(
-                io::ErrorKind::InvalidData,
-                format!(
-                    r#"unknown token type returned; expected "bearer" found {}"#,
-                    token_type
-                ),
-            )
-            .into());
+            return Err(io::Error::new(io::ErrorKind::InvalidData,
+                                      format!(r#"unknown token type returned; expected "bearer" found {}"#, token_type))
+                .into());
         }
 
+        // Конкретное время истечения вместо длительности жизни
         let expires_at = expires_in
-            .map(|seconds_from_now| Utc::now() + chrono::Duration::seconds(seconds_from_now));
+            .map(|seconds_from_now| {
+                Utc::now() + chrono::Duration::seconds(seconds_from_now)
+            });
 
         Ok(TokenInfo {
             access_token,
@@ -117,15 +116,19 @@ impl TokenInfo {
         })
     }
 
-    /// Returns true if we are expired.
+    /// Возвращает true если уже истечен
     pub fn is_expired(&self) -> bool {
         self.expires_at
-            .map(|expiration_time| expiration_time - chrono::Duration::minutes(1) <= Utc::now())
+            .map(|expiration_time| {
+                (expiration_time - chrono::Duration::minutes(1)) <= Utc::now()
+            })
             .unwrap_or(false)
     }
 }
 
-/// Represents either 'installed' or 'web' applications in a json secrets file.
+////////////////////////////////////////////////////////////////////////////////////////////////
+
+/// Представляет собой 'installed' или 'web' приложения в json файлике
 /// See `ConsoleApplicationSecret` for more information
 #[derive(Deserialize, Serialize, Clone, Default, Debug)]
 pub struct ApplicationSecret {
@@ -150,8 +153,8 @@ pub struct ApplicationSecret {
     pub client_x509_cert_url: Option<String>,
 }
 
-/// A type to facilitate reading and writing the json secret file
-/// as returned by the [google developer console](https://code.google.com/apis/console)
+/// Тип, помогающий чтению и записи json файликов
+/// возвращается из [google developer console](https://code.google.com/apis/console)
 #[derive(Deserialize, Serialize, Default, Debug)]
 pub struct ConsoleApplicationSecret {
     /// web app secret

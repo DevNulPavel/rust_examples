@@ -2,25 +2,40 @@
 //
 // See project root for licensing information.
 //
-use crate::types::TokenInfo;
+use futures::{
+    lock::{
+        Mutex
+    }
+};
+use std::{
+    io,
+    path::{
+        Path, 
+        PathBuf
+    },
+    collections::{
+        HashMap
+    }
+};
+use serde::{
+    Deserialize, 
+    Serialize
+};
+use crate::{
+    types::{
+        TokenInfo
+    }
+};
 
-use futures::lock::Mutex;
-use std::collections::HashMap;
-use std::io;
-use std::path::{Path, PathBuf};
-
-use serde::{Deserialize, Serialize};
-
-// The storage layer allows retrieving tokens for scopes that have been
-// previously granted tokens. One wrinkle is that a token granted for a set
-// of scopes X is also valid for any subset of X's scopes. So when retrieving a
-// token for a set of scopes provided by the caller it's beneficial to compare
-// that set to all previously stored tokens to see if it is a subset of any
-// existing set. To do this efficiently we store a bloom filter along with each
-// token that represents the set of scopes the token is associated with. The
-// bloom filter allows for efficiently skipping any entries that are
-// definitively not a superset.
-// The current implementation uses a 64bit bloom filter with 4 hash functions.
+// Слой storage возволяет заполучать токены для scope, которые предварительно были одобрены
+// Одним из особенностей является то, что токен одобренный для набора
+// скоупов X так же валидный для любого подмножества X скоупов.
+// Так что при получении токена для набора скоупов, предоставляемых вызывающей стороной, выгоднее сравнить
+// набор предыдущих сохраненных токенов, чтобы увидеть, что это поднабор других существующих токенов.
+// Чтобы делать это эффективно, мы храним bloom filter вместе с каждым токеном, который представляет 
+// набор скоупов, с которым ассоциирован токен.
+// Фильтр блума позволяет эффективно пропускать любы сущности, которые определенно не являеются подмножеством.
+// Данная реализация использует 64х битный фильтр блума с 4мя хэш функциями.
 
 /// ScopeHash is a hash value derived from a list of scopes. The hash value
 /// represents a fingerprint of the set of scopes *independent* of the ordering.
