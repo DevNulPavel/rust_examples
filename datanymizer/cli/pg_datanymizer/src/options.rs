@@ -72,11 +72,19 @@ impl Options {
                 return Err(anyhow!("Scheme url error"));
             }
         }
-        self.build_url(Some(self.database.to_string()).filter(|x| !x.is_empty()))
+        let db = Some(self.database.to_string())
+            .filter(|x| {
+                !x.is_empty()
+            });
+        self
+            .build_url(db)
     }
 
     fn build_url(&self, override_db_name: Option<String>) -> Result<String> {
-        let db_name = override_db_name.unwrap_or_else(|| self.db_name.clone());
+        let db_name = override_db_name
+            .unwrap_or_else(|| {
+                self.db_name.clone()
+            });
         if db_name.is_empty() {
             return Err(anyhow!("No one database passed"));
         }

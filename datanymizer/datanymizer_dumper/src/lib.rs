@@ -1,35 +1,66 @@
-use anyhow::Result;
-use core::iter::Iterator;
-use datanymizer_engine::{Filter, Settings};
-use indicatif::HumanDuration;
-use solvent::DepGraph;
-use std::{collections::HashMap, hash::Hash, time::Instant};
-
 pub mod postgres;
 
-// Dumper makes dump with same stages
+use anyhow::{
+    Result
+};
+use core::{
+    iter::{
+        Iterator
+    }
+};
+use datanymizer_engine::{
+    Filter, 
+    Settings
+};
+use indicatif::{
+    HumanDuration
+};
+use solvent::{
+    DepGraph
+};
+use std::{
+    collections::{
+        HashMap
+    }, 
+    hash::{
+        Hash
+    }, 
+    time::{
+        Instant
+    }
+};
+
+////////////////////////////////////////////////////////////////////////////////////////////////
+
+/// Трейт Dumper делаем дамп с помощью некоторых стадий
 pub trait Dumper: 'static + Sized + Send {
     type Table;
     type Connection;
-    type SchemaInspector: SchemaInspector<Dumper = Self>;
+    type SchemaInspector: SchemaInspector<Dumper = Self>; // Дополнительное ограничение для дочерних типов у трейтов
 
-    /// Process steps
+    /// Заранее подготовленный метод для создания дампов
     fn dump(&mut self, connection: &mut Self::Connection) -> Result<()> {
         let started = Instant::now();
+        // Готовим данные
         self.pre_data(connection)?;
+        // Данные
         self.data(connection)?;
+        // Постим данные
         self.post_data(connection)?;
 
+        // Получаем длительность
         let finished = started.elapsed();
         self.debug(format!("Full Dump finished in {}", HumanDuration(finished)));
         Ok(())
     }
 
-    /// Stage before dumping data. It makes dump schema with any options
+    /// Стадия передо созданием дампов, создает схему с разными опциями
     fn pre_data(&mut self, _connection: &mut Self::Connection) -> Result<()>;
 
+    /// Делаем дамп непосредственно
     fn data(&mut self, connection: &mut Self::Connection) -> Result<()>;
 
+    /// Фильтрация конкретной таблицы с конкретным опциональным фильтром
     fn filter_table(&mut self, table: String, filter: &Option<Filter>) -> bool {
         if let Some(f) = filter {
             f.filter_schema(&table) && f.filter_data(&table)
@@ -40,7 +71,7 @@ pub trait Dumper: 'static + Sized + Send {
 
     fn schema_inspector(&self) -> Self::SchemaInspector;
 
-    /// This stage makes dump foreign keys, indices and other...
+    /// Данная стадия создает дампы внешних ключей, индексов и прочего
     fn post_data(&mut self, _connection: &mut Self::Connection) -> Result<()>;
 
     fn settings(&mut self) -> Settings;
@@ -50,6 +81,8 @@ pub trait Dumper: 'static + Sized + Send {
     fn debug(&self, message: String);
 }
 
+////////////////////////////////////////////////////////////////////////////////////////////////
+
 pub trait SchemaInspector: 'static + Sized + Send + Clone {
     type Type;
     type Dumper: Dumper;
@@ -57,29 +90,22 @@ pub trait SchemaInspector: 'static + Sized + Send + Clone {
     type Column: ColumnData<Self::Type>;
 
     /// Get all tables in the database
-    fn get_tables(
-        &self,
-        connection: &mut <Self::Dumper as Dumper>::Connection,
-    ) -> Result<Vec<Self::Table>>;
+    fn get_tables(&self, 
+                  connection: &mut <Self::Dumper as Dumper>::Connection) -> Result<Vec<Self::Table>>;
 
     /// Get table size
-    fn get_table_size(
-        &self,
-        connection: &mut <Self::Dumper as Dumper>::Connection,
-        table_name: String,
-    ) -> Result<i64>;
+    fn get_table_size(&self,
+                      connection: &mut <Self::Dumper as Dumper>::Connection,
+                      table_name: String) -> Result<i64>;
 
     /// Get all dependencies (by FK) for `table` in database
-    fn get_dependencies(
-        &self,
-        connection: &mut <Self::Dumper as Dumper>::Connection,
-        table: &Self::Table,
-    ) -> Result<Vec<Self::Table>>;
+    fn get_dependencies(&self,
+                        connection: &mut <Self::Dumper as Dumper>::Connection,
+                        table: &Self::Table) -> Result<Vec<Self::Table>>;
 
-    fn ordered_tables(
-        &self,
-        connection: &mut <Self::Dumper as Dumper>::Connection,
-    ) -> Vec<(Self::Table, i32)> {
+    fn ordered_tables(&self,
+                      connection: &mut <Self::Dumper as Dumper>::Connection) -> Vec<(Self::Table, i32)> {
+
         let mut res: HashMap<Self::Table, i32> = HashMap::new();
         let mut depgraph: DepGraph<Self::Table> = DepGraph::new();
         if let Ok(tables) = self.get_tables(connection) {
@@ -89,11 +115,14 @@ pub trait SchemaInspector: 'static + Sized + Send + Clone {
                     .unwrap_or_default()
                     .into_iter()
                     .collect();
-                depgraph.register_dependencies(table.clone(), deps);
+                depgraph
+                    .register_dependencies(table.clone(), deps);
             }
 
             for table in tables.iter() {
-                let _ = res.entry(table.clone()).or_insert(0);
+                let _ = res
+                    .entry(table.clone())
+                    .or_insert(0);
                 if let Ok(nodes) = depgraph.dependencies_of(&table) {
                     for node in nodes {
                         if let Ok(node) = node {
@@ -108,12 +137,12 @@ pub trait SchemaInspector: 'static + Sized + Send + Clone {
     }
 
     /// Get columns for table
-    fn get_columns(
-        &self,
-        connection: &mut <Self::Dumper as Dumper>::Connection,
-        table: &Self::Table,
-    ) -> Result<Vec<Self::Column>>;
+    fn get_columns(&self,
+                   connection: &mut <Self::Dumper as Dumper>::Connection,
+                   table: &Self::Table) -> Result<Vec<Self::Column>>;
 }
+
+////////////////////////////////////////////////////////////////////////////////////////////////
 
 /// Table trait for all databases
 pub trait Table<T>: Sized + Send + Clone + Eq + Hash {
@@ -134,6 +163,8 @@ pub trait Table<T>: Sized + Send + Clone + Eq + Hash {
     /// Get column name - index map
     fn get_column_indexes(&self) -> &HashMap<String, usize>;
 }
+
+////////////////////////////////////////////////////////////////////////////////////////////////
 
 pub trait ColumnData<T> {
     fn position(&self) -> usize;

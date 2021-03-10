@@ -1,6 +1,17 @@
-use crate::ColumnData;
-use postgres::{types::Type, Row as PostgresRow};
-use std::cmp::Ordering;
+use postgres::{
+    types::{
+        Type
+    }, 
+    Row as PostgresRow
+};
+use std::{
+    cmp::{
+        Ordering
+    }
+};
+use crate::{
+    ColumnData
+};
 
 #[derive(Debug, Clone, Eq)]
 pub struct PgColumn {
