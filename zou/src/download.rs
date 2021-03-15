@@ -39,74 +39,81 @@ macro_rules! initbar {
     }
 }
 
-/// Function to get the current chunk length, based on the chunk index.
-fn get_chunk_length(
-    chunk_index: u64,
-    content_length: Bytes,
-    global_chunk_length: Bytes,
-) -> Option<RangeBytes> {
-
+/// Функция получения длины чанка, основанная на индексе чанка
+fn get_chunk_length(chunk_index: u64,
+                    content_length: Bytes,
+                    global_chunk_length: Bytes) -> Option<RangeBytes> {
+    // Если размер контента нулевой - выход
     if content_length == 0 || global_chunk_length == 0 {
         return None;
     }
 
+    // Получаем диапазон значений как индекс, умноженный раз размер чанка
     let b_range: Bytes = chunk_index * global_chunk_length;
 
+    // Если размер превышен, тогда None
     if b_range >= (content_length - 1) {
         return None;
     }
 
-    let e_range: Bytes = min(
-        content_length - 1,
-        ((chunk_index + 1) * global_chunk_length) - 1,
-    );
+    // Ограничиваем диапазон размером файлика
+    let e_range: Bytes = min(content_length - 1,
+                             ((chunk_index + 1) * global_chunk_length) - 1);
 
     Some(RangeBytes(b_range, e_range))
-
 }
 
 
-/// Function to get the HTTP header to send to the file server, for a chunk (specified by its index)
-fn get_header_from_index(
-    chunk_index: u64,
-    content_length: Bytes,
-    global_chunk_length: Bytes,
-) -> Option<(Headers, RangeBytes)> {
-
-    get_chunk_length(chunk_index, content_length, global_chunk_length).map(|range| {
-        let mut header = Headers::new();
-        header.set(Range::Bytes(vec![ByteRangeSpec::FromTo(range.0, range.1)]));
-        (header, RangeBytes(range.0, range.1 - range.0))
-    })
+/// Функция получения HTTP заголовка для отправки на файловый сервер для конкретного чанка, определенного индексом
+fn get_header_from_index(chunk_index: u64,
+                         content_length: Bytes,
+                         global_chunk_length: Bytes) -> Option<(Headers, RangeBytes)> {
+    get_chunk_length(chunk_index, content_length, global_chunk_length)
+        .map(|range| {
+            // На исновании диапазона создаем заголовок
+            let mut header = Headers::new();
+            // Устанавливаем диапазон на основаниии полученного диапазона
+            header.set(Range::Bytes(vec![ByteRangeSpec::FromTo(range.0, range.1)]));
+            // Возвращаем хедер, и диапазон в байтах (позиция + размер)
+            (header, RangeBytes(range.0, range.1 - range.0))
+        })
 }
 
 
-/// Function to get from the server the content of a chunk.
-/// This function returns a Result type - Bytes if the content of the header is accessible, an Error type otherwise.
-fn download_a_chunk(
-    http_client: &Client,
-    http_header: Headers,
-    mut chunk_writer: OutputChunkWriter,
-    url: &str,
-    mpb: &mut ProgressBar<Pipe>,
-    monothreading: bool,
-) -> Result<Bytes, Error> {
-
+/// Функция для получения с сервера содержимого чанка
+/// Данная функция возвращает Result - Bytes, если контень хедера доступен
+/// Error - иначе
+fn download_a_chunk(http_client: &Client,
+                    http_header: Headers,
+                    mut chunk_writer: OutputChunkWriter,
+                    url: &str,
+                    mpb: &mut ProgressBar<Pipe>,
+                    monothreading: bool) -> Result<Bytes, Error> {
+    // Получаем HTTP ответ c хедерами
     let mut body = http_client
         .get_http_response_using_headers(url, http_header)
         .unwrap();
+    
+    // Если однопоточно и не поддерживается загрузка по частям - ошибка
     if monothreading && !body.check_partialcontent_status() {
         return Err(Error::Status);
     }
+
+    // Буффер на стеке в 64 килобайта
     let mut bytes_buffer = [0; DOWNLOAD_BUFFER_BYTES];
     let mut sum_bytes = 0;
 
+    // Интервал обновления прогресса
     let progress_update_interval = Duration::from_millis(PROGRESS_UPDATE_INTERVAL_MILLIS);
+
+    // Последний прогресс в байтах
     let mut last_progress_bytes = 0;
+    // Последнее время прогресса
     let mut last_progress_time = Instant::now() - progress_update_interval;
 
-
+    // Читаем из body в буффер
     while let Ok(n) = body.read(&mut bytes_buffer) {
+        // Если не прочитали ничего, значит возвращаем
         if n == 0 {
             return Ok(sum_bytes);
         }
@@ -126,70 +133,86 @@ fn download_a_chunk(
     return Ok(0u64);
 }
 
-/// Function to download each chunk of a remote content (given by its URL).
-/// This function takes as parameters:
-/// * the remote content length,
-/// * a mutable reference to share between threads, which contains each chunk,
-/// * the number of chunks that contains the remote content,
-/// * the URL of the remote content server,
-/// * a custom authorization to access and download the remote content.
-pub fn download_chunks<'a>(
-    cargo_info: RemoteServerInformations<'a>,
-    mut out_file: OutputFileWriter,
-    nb_chunks: u64,
-    ssl_support: bool,
-) -> bool {
-    let (content_length, auth_header_factory) =
-        (cargo_info.file.content_length, cargo_info.auth_header);
+/// Функция для загрузки каждого чанка удаленного контента с сервера, данного через URL
+/// Данная функция принимает в виде параметров:
+/// * размера контента удаленного
+/// * мутабельную ссылку писателя, чтобы шарить между потоками, которые содержат каждый чанк
+/// * число чанков, которые содержат удаленный контент
+/// * урл удаленного контент-сервера
+/// * кастомную авторизацию для доступа и загрузки удаленного контента
+pub fn download_chunks<'a>(cargo_info: RemoteServerInformations<'a>,
+                           mut out_file: OutputFileWriter,
+                           nb_chunks: u64,
+                           ssl_support: bool) -> bool {
+    // Разворачиваем переменные в переменные
+    let (content_length, auth_header_factory) = (cargo_info.file.content_length, cargo_info.auth_header);
+    // Расчитываем максимальный размер чанка
     let global_chunk_length: u64 = (content_length / nb_chunks) + 1;
 
+    // Массив с джобами
     let mut jobs = vec![];
 
+    // Создаем экземпляр терминального прогрессбара
     let mut mpb = MultiBar::new();
     mpb.println(&format!("Downloading {} chunk(s): ", nb_chunks));
 
+    // Идем по массиву чанков
     for chunk_index in 0..nb_chunks {
-
+        // Получаем урл для загрузки
         let server_url = cargo_info.url.clone();
+        // Создаем клон урла загрузки
         let url_clone = String::from(server_url);
-        let (mut http_header, RangeBytes(chunk_offset, chunk_length)) =
-            get_header_from_index(chunk_index, content_length, global_chunk_length).unwrap();
+
+        // HTTP заголовок + диапазон байтов
+        let (mut http_header, RangeBytes(chunk_offset, chunk_length)) = 
+            get_header_from_index(chunk_index, content_length, global_chunk_length)
+                .unwrap();
+
+        // Создаем конфиг
         let current_config = Config { enable_ssl: ssl_support };
+        // Создаем клиент на основе конфига
         let hyper_client = current_config.get_hyper_client();
+
+        // Клонируем заголовок аутентификации
         if let Some(auth_header_factory) = auth_header_factory.clone() {
             http_header.set(auth_header_factory.build_header());
         }
+
+        // Один поток или нет?
         let monothreading = cargo_info.accept_partialcontent;
 
-        // Initialize the progress bar for that chunk
+        // Инициализируем прогрессбар для данного чанка
         initbar!(mp, mpb, chunk_length, chunk_index, server_url);
 
+        // Создаем писателя в файлик для диапазона
         let chunk_writer = out_file.get_chunk_writer(chunk_offset);
 
-        // In this work, we push a boolean value to know if the chunk is OK
-        jobs.push(thread::spawn(move || match download_a_chunk(
-            &hyper_client,
-            http_header,
-            chunk_writer,
-            &url_clone,
-            &mut mp,
-            monothreading,
-        ) {
-            Ok(bytes_written) => {
-                mp.finish();
-                if bytes_written == 0 {
-                    error!(&format!("The downloaded chunk {} is empty", chunk_index));
+        // Создаем поток загрузки, в нем мы пушим булевское значение, чтобы знать, что чанк в порядке
+        jobs.push(thread::spawn(move || {
+            // Грузим наш чанк
+            let res = download_a_chunk(&hyper_client,
+                                       http_header,
+                                       chunk_writer,
+                                       &url_clone,
+                                       &mut mp,
+                                       monothreading);
+            match res {
+                Ok(bytes_written) => {
+                    mp.finish();
+                    if bytes_written == 0 {
+                        error!(&format!("The downloaded chunk {} is empty", chunk_index));
+                    }
+                    return true;
                 }
-                return true;
-            }
-            Err(error) => {
-                mp.finish();
-                error!(&format!(
-                    "Cannot download the chunk {}, due to error {}",
-                    chunk_index,
-                    error
-                ));
-                return false;
+                Err(error) => {
+                    mp.finish();
+                    error!(&format!(
+                        "Cannot download the chunk {}, due to error {}",
+                        chunk_index,
+                        error
+                    ));
+                    return false;
+                }
             }
         }));
     }
