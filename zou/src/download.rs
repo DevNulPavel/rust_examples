@@ -118,17 +118,23 @@ fn download_a_chunk(http_client: &Client,
             return Ok(sum_bytes);
         }
 
+        // Затем пишем в писатель наши данные со смещением на нужное значение
         chunk_writer.write(sum_bytes, &bytes_buffer[0..n]);
+        // Суммируем скаченный объем
         sum_bytes += n as u64;
 
-        // Update the CLI
+        // Если прошло достаточно времени с последнего обновления прогресс-бара
         if Instant::now().duration_since(last_progress_time) > progress_update_interval {
+            // Время последнего обновления
             last_progress_time = Instant::now();
+            // Вычисляем дельту данных
             let progress_bytes_delta = sum_bytes - last_progress_bytes;
             last_progress_bytes = sum_bytes;
+            // Выставляем прогресс
             mpb.add(progress_bytes_delta);
         }
     }
+    // Когда цикл закончился, выставляем еще раз прогресс конечный
     mpb.add(sum_bytes - last_progress_bytes);
     return Ok(0u64);
 }
@@ -185,7 +191,7 @@ pub fn download_chunks<'a>(cargo_info: RemoteServerInformations<'a>,
         initbar!(mp, mpb, chunk_length, chunk_index, server_url);
 
         // Создаем писателя в файлик для диапазона
-        let chunk_writer = out_file.get_chunk_writer(chunk_offset);
+        let chunk_writer = out_file.create_chunk_writer(chunk_offset);
 
         // Создаем поток загрузки, в нем мы пушим булевское значение, чтобы знать, что чанк в порядке
         jobs.push(thread::spawn(move || {
@@ -196,9 +202,13 @@ pub fn download_chunks<'a>(cargo_info: RemoteServerInformations<'a>,
                                        &url_clone,
                                        &mut mp,
                                        monothreading);
+            // Смотрим на результат
             match res {
+                // Если записали
                 Ok(bytes_written) => {
+                    // Завершаем прогресс бар для чанка
                     mp.finish();
+                    // Если размер чанка нулевой, тогда просто пишем ошибку
                     if bytes_written == 0 {
                         error!(&format!("The downloaded chunk {} is empty", chunk_index));
                     }
@@ -206,36 +216,36 @@ pub fn download_chunks<'a>(cargo_info: RemoteServerInformations<'a>,
                 }
                 Err(error) => {
                     mp.finish();
-                    error!(&format!(
-                        "Cannot download the chunk {}, due to error {}",
-                        chunk_index,
-                        error
-                    ));
+                    error!(&format!("Cannot download the chunk {}, due to error {}",
+                                    chunk_index,
+                                    error));
                     return false;
                 }
             }
         }));
     }
 
+    // Завершаем общий прогресс-бар
     mpb.listen();
 
-    // Contain the result state for chunks
-    let mut child_results: Vec<bool> = Vec::with_capacity(nb_chunks as usize);
-
-    for child in jobs {
-        match child.join() {
-            Ok(b) => child_results.push(b),
-            Err(_) => child_results.push(false),
-        }
-    }
+    let success = jobs
+        .into_iter()
+        .map(|j|{
+            match j.join(){
+                Ok(b) => b,
+                Err(_) => false, 
+            }
+        })
+        .all(|x| {
+            *x
+        });
 
     // Check if all chunks are OK
-    return child_results.iter().all(|x| *x);
+    return success;
 }
 
 #[cfg(test)]
 mod test_chunk_length {
-
     use super::get_chunk_length;
     use super::RangeBytes;
 

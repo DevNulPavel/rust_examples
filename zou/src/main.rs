@@ -210,5 +210,4 @@ fn main() {
             error!("Cannot delete downloaded file!");
         }
     }
-
 }
