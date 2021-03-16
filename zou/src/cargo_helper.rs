@@ -1,27 +1,60 @@
-use authorization::{AuthorizationHeaderFactory, AuthorizationType, GetAuthorizationType};
-use BytesLength;
-use client::{Config, GetResponse};
-use contentlength::GetContentLength;
-use hyper::header::{ByteRangeSpec, Headers, Range};
-use std::error;
-use std::fmt;
-use std::result::Result;
-use util::prompt_user;
+use hyper::{
+    header::{
+        ByteRangeSpec, 
+        Headers, 
+        Range
+    }
+};
+use crate::{
+    authorization::{
+        AuthorizationHeaderFactory, 
+        AuthorizationType, 
+        GetAuthorizationType
+    },
+    client::{
+        ClientBuilder, 
+        GetResponse
+    },
+    contentlength::{
+        GetContentLength
+    },
+    util::{
+        prompt_user
+    },
+    BytesLength
+};
+use std::{
+    error,
+    fmt,
+    result::{
+        Result
+    }
+};
 
-/// Contains informations about the remote server
+////////////////////////////////////////////////////////////////////////////////////////////////
+
+/// Содержит информацию об удаленном сервере
 #[derive(Debug)]
 pub struct RemoteServerInformations<'a> {
+    // Использовать ли загрузку частями
     pub accept_partialcontent: bool,
+    // Заголовки аутентификации в запросах
     pub auth_header: Option<AuthorizationHeaderFactory>,
+    // Информация непосредственно о файлике
     pub file: RemoteFileInformations,
+    // Адрес файлика
     pub url: &'a str,
 }
 
-/// Contains informations about the remote file
+////////////////////////////////////////////////////////////////////////////////////////////////
+
+/// Содержит в себе информацию об удаленном файле
 #[derive(Debug)]
 pub struct RemoteFileInformations {
     pub content_length: BytesLength,
 }
+
+////////////////////////////////////////////////////////////////////////////////////////////////
 
 /// Some enumeration to display accurate errors
 #[derive(Debug)]
@@ -52,6 +85,8 @@ impl error::Error for RemoteServerError {
         }
     }
 }
+
+////////////////////////////////////////////////////////////////////////////////////////////////
 
 type RemoteServerInformationsResult<'a> = Result<RemoteServerInformations<'a>, RemoteServerError>;
 

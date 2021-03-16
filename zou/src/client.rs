@@ -72,37 +72,40 @@ pub trait GetResponse {
     /// Для конкретного URL, получаем ответ от целевого сервера
     fn get_http_response(&self, url: &str) -> Result<Response, Error>;
 
-    /// Given a specific URL and an header, get the response from the target server
-    /// 
+    /// Для конкретного указанного URL и заголовка, получаем ответ от целевого сервера
     fn get_http_response_using_headers(&self,
                                        url: &str,
                                        header: Headers) -> Result<Response, Error>;
 }
 
+/// Реализация трейта для данного Hyper клиента
 impl GetResponse for Client {
     fn get_head_response(&self, url: &str) -> Result<Response, Error> {
-        self.request(Method::Head, url).send()
+        self
+            .request(Method::Head, url)
+            .send()
     }
 
-    fn get_head_response_using_headers(
-        &self,
-        url: &str,
-        custom_header: Headers,
-    ) -> Result<Response, Error> {
+    /// Получаем ответ на запрос с заголовками
+    fn get_head_response_using_headers(&self,
+                                       url: &str,
+                                       custom_header: Headers) -> Result<Response, Error> {
         self.request(Method::Head, url)
             .headers(custom_header)
             .send()
     }
 
+    /// Получаем ответ от сервера
     fn get_http_response(&self, url: &str) -> Result<Response, Error> {
         self.get_http_response_using_headers(url, Headers::new())
     }
 
-    fn get_http_response_using_headers(
-        &self,
-        url: &str,
-        custom_header: Headers,
-    ) -> Result<Response, Error> {
-        self.request(Method::Get, url).headers(custom_header).send()
+    fn get_http_response_using_headers(&self,
+                                       url: &str,
+                                       custom_header: Headers) -> Result<Response, Error> {
+        self
+            .request(Method::Get, url)
+            .headers(custom_header)
+            .send()
     }
 }

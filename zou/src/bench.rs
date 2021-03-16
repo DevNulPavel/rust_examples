@@ -1,39 +1,76 @@
-use client::{Config, GetResponse};
-use hyper::Client;
-use hyper::header::{ByteRangeSpec, Headers, Range};
-use MirrorsList;
-use rayon::prelude::*;
-use std::path::Path;
-use std::time::{Duration, Instant};
-use URL;
+use std::{
+    path::{
+        Path
+    },
+    time::{
+        Duration, 
+        Instant
+    }
+};
+use rayon::{
+    prelude::{
+        *
+    }
+};
+use hyper::{
+    header::{
+        ByteRangeSpec, 
+        Headers, 
+        Range
+    },
+    Client
+};
+use crate::{
+    client::{
+        ClientBuilder, 
+        GetResponse
+    },
+    MirrorsList,
+    URL
+};
 
-/// Number of times to ping the remote server
+/// Количество раз для пигна сервера
 const PING_TIMES: usize = 5;
-/// Number of bytes to download from the remote server
+/// Количество байт для загрузки с удаленного сервера
 const LEN_BENCH_CHUNK: u64 = 64;
 
-/// Launch a benchmark on a single URL
-/// This benchmark tests the network for this URL, downloading five times a 64 bits packet
-/// The result is the mean of the five measures
+/// Запустить бенчмарк для конкретного урла
+/// Данный бенчмар тестирует сеть для данного урла, загрузка происходит 5 раз 64 битными пакетами
+/// Результат - среднее значение пяти измерений
 fn launch_bench<'a>(bench_client: &Client, url: URL<'a>) -> u32 {
+    // Массив со значением времени пинга
     let mut c_ping_time: [u32; PING_TIMES] = [0; PING_TIMES];
+    
+    // Итерируемся нужное количество раз
     for index in 0..PING_TIMES {
+        // Время начала
         let now = Instant::now();
+
+        // Заголовки запроса
         let mut header = Headers::new();
-        header.set(Range::Bytes(
-            vec![ByteRangeSpec::FromTo(0, LEN_BENCH_CHUNK)],
-        ));
+        header.set(Range::Bytes(vec![ByteRangeSpec::FromTo(0, LEN_BENCH_CHUNK)]));
+
+        // Выполняем запросы и считаем время с момента старта
         match bench_client.get_head_response_using_headers(url, header) {
-            Ok(_) => c_ping_time[index] = now.elapsed().subsec_nanos(),
-            Err(_) => break,
+            Ok(_) => {
+                c_ping_time[index] = now
+                    .elapsed()
+                    .subsec_nanos()
+            },
+            Err(_) => {
+                break;
+            },
         }
     }
-    // Return 0 if an error occured - the mirror is automatically removed
-    if c_ping_time.iter().any(|&x| x == 0) {
+    
+    // Возвращаем 0 если ошибка возникла, зеркало автоматически будет удалено
+    if c_ping_time.iter().any(|&x| { x == 0 }) {
         return 0;
     }
-    // Return the mean value
+
+    // Возвращаем вреднее сначение времени
     let sum: u32 = c_ping_time.iter().sum();
+    
     sum / PING_TIMES as u32
 }
 
