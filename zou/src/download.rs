@@ -1,5 +1,5 @@
 use cargo_helper::RemoteServerInformations;
-use Bytes;
+use BytesLength;
 use client::{Config, GetResponse};
 use hyper::client::Client;
 use hyper::error::Error;
@@ -22,7 +22,7 @@ const PROGRESS_UPDATE_INTERVAL_MILLIS: u64 = 500;
 
 /// Represents a range between two Bytes types
 #[derive(Debug, PartialEq)]
-struct RangeBytes(Bytes, Bytes);
+struct RangeBytes(BytesLength, BytesLength);
 
 macro_rules! initbar {
     ($mp:ident,$mpb:ident,$length:expr,$index:expr,$server:expr) => {
@@ -41,15 +41,15 @@ macro_rules! initbar {
 
 /// Функция получения длины чанка, основанная на индексе чанка
 fn get_chunk_length(chunk_index: u64,
-                    content_length: Bytes,
-                    global_chunk_length: Bytes) -> Option<RangeBytes> {
+                    content_length: BytesLength,
+                    global_chunk_length: BytesLength) -> Option<RangeBytes> {
     // Если размер контента нулевой - выход
     if content_length == 0 || global_chunk_length == 0 {
         return None;
     }
 
     // Получаем диапазон значений как индекс, умноженный раз размер чанка
-    let b_range: Bytes = chunk_index * global_chunk_length;
+    let b_range: BytesLength = chunk_index * global_chunk_length;
 
     // Если размер превышен, тогда None
     if b_range >= (content_length - 1) {
@@ -57,7 +57,7 @@ fn get_chunk_length(chunk_index: u64,
     }
 
     // Ограничиваем диапазон размером файлика
-    let e_range: Bytes = min(content_length - 1,
+    let e_range: BytesLength = min(content_length - 1,
                              ((chunk_index + 1) * global_chunk_length) - 1);
 
     Some(RangeBytes(b_range, e_range))
@@ -66,8 +66,8 @@ fn get_chunk_length(chunk_index: u64,
 
 /// Функция получения HTTP заголовка для отправки на файловый сервер для конкретного чанка, определенного индексом
 fn get_header_from_index(chunk_index: u64,
-                         content_length: Bytes,
-                         global_chunk_length: Bytes) -> Option<(Headers, RangeBytes)> {
+                         content_length: BytesLength,
+                         global_chunk_length: BytesLength) -> Option<(Headers, RangeBytes)> {
     get_chunk_length(chunk_index, content_length, global_chunk_length)
         .map(|range| {
             // На исновании диапазона создаем заголовок
@@ -88,7 +88,7 @@ fn download_a_chunk(http_client: &Client,
                     mut chunk_writer: OutputChunkWriter,
                     url: &str,
                     mpb: &mut ProgressBar<Pipe>,
-                    monothreading: bool) -> Result<Bytes, Error> {
+                    monothreading: bool) -> Result<BytesLength, Error> {
     // Получаем HTTP ответ c хедерами
     let mut body = http_client
         .get_http_response_using_headers(url, http_header)
@@ -175,9 +175,9 @@ pub fn download_chunks<'a>(cargo_info: RemoteServerInformations<'a>,
                 .unwrap();
 
         // Создаем конфиг
-        let current_config = Config { enable_ssl: ssl_support };
+        let current_config = ClientBuilder { enable_ssl: ssl_support };
         // Создаем клиент на основе конфига
-        let hyper_client = current_config.get_hyper_client();
+        let hyper_client = current_config.build_hyper_client();
 
         // Клонируем заголовок аутентификации
         if let Some(auth_header_factory) = auth_header_factory.clone() {

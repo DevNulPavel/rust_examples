@@ -4,8 +4,6 @@ extern crate hyper_openssl;
 extern crate pbr;
 extern crate rayon;
 
-use std::sync::{Arc, Mutex};
-
 #[macro_use]
 pub mod logs;
 
@@ -22,8 +20,15 @@ pub mod response;
 pub mod util;
 pub mod write;
 
-/// Represents a number of bytes, as `u64`.
-pub type Bytes = u64;
+use std::{
+    sync::{
+        Arc, 
+        Mutex
+    }
+};
+
+/// Представляет собой число байт как `u64` 
+pub type BytesLength = u64;
 /// Represents a 'chunk', which is just a piece of bytes.
 type Chunk = Vec<u8>;
 /// Represents a list of chunks

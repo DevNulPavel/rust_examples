@@ -1,5 +1,5 @@
 use authorization::{AuthorizationHeaderFactory, AuthorizationType, GetAuthorizationType};
-use Bytes;
+use BytesLength;
 use client::{Config, GetResponse};
 use contentlength::GetContentLength;
 use hyper::header::{ByteRangeSpec, Headers, Range};
@@ -20,7 +20,7 @@ pub struct RemoteServerInformations<'a> {
 /// Contains informations about the remote file
 #[derive(Debug)]
 pub struct RemoteFileInformations {
-    pub content_length: Bytes,
+    pub content_length: BytesLength,
 }
 
 /// Some enumeration to display accurate errors
@@ -58,9 +58,9 @@ type RemoteServerInformationsResult<'a> = Result<RemoteServerInformations<'a>, R
 /// Get Rust structure that contains network benchmarks
 pub fn get_remote_server_informations<'a>(url: &'a str, ssl_support: bool) -> RemoteServerInformationsResult<'a> {
     // Создаем конфигурацию для Hyper
-    let current_config = Config{ enable_ssl: ssl_support };
+    let current_config = ClientBuilder{ enable_ssl: ssl_support };
     // Создаем клиента для Hyper
-    let hyper_client = current_config.get_hyper_client();
+    let hyper_client = current_config.build_hyper_client();
     // Запрашиваем у данного URL информацию чисто по хедерам
     let client_response = hyper_client.get_head_response(url).unwrap();
     

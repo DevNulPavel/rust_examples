@@ -7,7 +7,7 @@ pub enum Protocol {
     HTTPS,
 }
 
-/// Returns an Option type, that contains a Protocol enum
+/// Возвращает тип Option, который содержит Protocol enum
 pub fn get_protocol(url: &str) -> Option<Protocol> {
     match Url::parse(url) {
         Ok(url) => match url.scheme() {

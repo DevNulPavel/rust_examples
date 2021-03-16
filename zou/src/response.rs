@@ -1,13 +1,23 @@
-use hyper::client::response::Response;
-use hyper::status::StatusCode;
+use hyper::{
+    client::{
+        response::{
+            Response
+        }
+    },
+    status::{
+        StatusCode
+    }
+};
 
+/// Трейт, дающий возможность дополнительно проверять статус в ответе
 pub trait CheckResponseStatus {
-    /// Function to check if the `PartialContent` status is contained
-    /// in the HTTP header response
+    /// Функция для проверки, что статуc `PartialContent` содержится в ответе HTTP
     fn check_partialcontent_status(&self) -> bool;
+    /// Валидный ли ответ?
     fn is_ok(&self) -> bool;
 }
 
+/// Делаем реализацию трейта для ответа из hyper, то есть для сторонней структуры
 impl CheckResponseStatus for Response {
     fn check_partialcontent_status(&self) -> bool {
         self.status == StatusCode::PartialContent

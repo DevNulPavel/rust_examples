@@ -1,19 +1,29 @@
-use hyper::header::{ContentLength, Headers};
-use std::ops::Deref;
+use std::{
+    ops::{
+        Deref
+    }
+};
+use hyper::{
+    header::{
+        ContentLength, 
+        Headers
+    }
+};
 
-use Bytes;
+use BytesLength;
 
-/// Trait to extend functionalities of the Headers type, from `hyper`
+/// Трейт для расширения функциональности типа `Headers` из `hyper`
 pub trait GetContentLength {
-    /// Function to get the content length of a remote document.
-    /// The returned type is `Option<Bytes>`.
-    fn get_content_length(&self) -> Option<Bytes>;
+    /// Функция для получения длины контента удаленного документа
+    /// Возвращаемый тип - `Option<Bytes>`
+    fn get_content_length(&self) -> Option<BytesLength>;
 }
 
+/// Расширяем хедеры реализацией трейта
 impl GetContentLength for Headers {
-    /// Function to get the `content-length` container, from a given header.
-    /// This function returns an Option that contains a `Bytes` type.
-    fn get_content_length(&self) -> Option<Bytes> {
+    /// Функция для получения `content-length` контейнера из данного хедера
+    /// Данная функция возвращает `Option`, который содержит размер
+    fn get_content_length(&self) -> Option<BytesLength> {
         if self.has::<ContentLength>() {
             return Some(*self.get::<ContentLength>().unwrap().deref());
         }

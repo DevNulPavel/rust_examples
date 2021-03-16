@@ -1,20 +1,38 @@
-use hyper::client::Client;
-use hyper::client::response::Response;
-use hyper::error::Error;
-use hyper::header::Headers;
-use hyper::method::Method;
-use hyper::net::HttpsConnector;
-use hyper_openssl::OpensslClient;
+use hyper::{
+    client::{
+        response::{
+            Response
+        },
+        Client
+    },
+    error::{
+        Error
+    },
+    header::{
+        Headers
+    },
+    method::{
+        Method
+    },
+    net::{
+        HttpsConnector
+    }
+};
+use hyper_openssl::{
+    OpensslClient
+};
 
-/// Structure to store if SSL is required, and to
-/// implement a default HTTP/HTTPS client
-pub struct Config {
+//////////////////////////////////////////////////////////////////////
+
+/// Структура для сохранения необходимости SSL
+/// и для реализации стандартного HTTP/HTTPS клиента
+pub struct ClientBuilder {
     pub enable_ssl: bool,
 }
 
-impl Config {
-    /// Get the HTTP/HTTPS Hyper client
-    pub fn get_hyper_client(&self) -> Client {
+impl ClientBuilder {
+    /// Создаем HTTP/HTTPS Hyper клиента
+    pub fn build_hyper_client(&self) -> Client {
         if !self.enable_ssl {
             return Client::default();
         }
@@ -22,9 +40,11 @@ impl Config {
     }
 }
 
-/// Trait to instantiate an Hyper client, with SSL support
+//////////////////////////////////////////////////////////////////////
+
+/// Трейт для создания Hyper клиента с поддержкой SSL
 trait SSLSupport {
-    /// Function to return a Client, with SSL support
+    /// Функция создания клиента с SSL
     fn default_ssl() -> Client;
 }
 
@@ -36,29 +56,27 @@ impl SSLSupport for Client {
     }
 }
 
-/// Trait that represents some methods to send a specific request
+//////////////////////////////////////////////////////////////////////
+
+/// Трейт представляет собой некоторые методы для отправки специфичных запросов
 pub trait GetResponse {
-    /// Given a specific URL, get the header without the content body (useful to not waste time,
-    /// ressources and informations)
+    /// Учитывая специфичный URL адрес, получем заголовок без тела контента
+    /// Полезно для того, чтобы не тратить время и ресурсы на тело
     fn get_head_response(&self, url: &str) -> Result<Response, Error>;
 
-    /// Given a specific URL and an header, get the header without the content body (useful to not
-    /// waste time, ressources and informations)
-    fn get_head_response_using_headers(
-        &self,
-        url: &str,
-        header: Headers,
-    ) -> Result<Response, Error>;
+    /// Давая специфичный URL и заголовок, получаем заголовок ответа без тела контента
+    fn get_head_response_using_headers(&self,
+                                       url: &str,
+                                       header: Headers) -> Result<Response, Error>;
 
-    /// Given a specific URL, get the response from the target server
+    /// Для конкретного URL, получаем ответ от целевого сервера
     fn get_http_response(&self, url: &str) -> Result<Response, Error>;
 
     /// Given a specific URL and an header, get the response from the target server
-    fn get_http_response_using_headers(
-        &self,
-        url: &str,
-        header: Headers,
-    ) -> Result<Response, Error>;
+    /// 
+    fn get_http_response_using_headers(&self,
+                                       url: &str,
+                                       header: Headers) -> Result<Response, Error>;
 }
 
 impl GetResponse for Client {

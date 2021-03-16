@@ -45,8 +45,8 @@ pub fn bench_mirrors<'a>(
     ssl_support: bool,
 ) -> MirrorsList<'a> {
     // Hyper client to make benchmarks
-    let current_config = Config { enable_ssl: ssl_support };
-    let mut bench_client = current_config.get_hyper_client();
+    let current_config = ClientBuilder { enable_ssl: ssl_support };
+    let mut bench_client = current_config.build_hyper_client();
     bench_client.set_read_timeout(Some(Duration::from_secs(3)));
     // Get mirrors list
     // let mut b_mirrors: Vec<(&'a str, u32)> = Vec::with_capacity(PING_TIMES);
