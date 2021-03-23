@@ -1,7 +1,20 @@
-use hyper::header::{Authorization, Basic, Headers, Scheme};
-use std::fmt::{Display, Formatter, Result};
+use hyper::{
+    header::{
+        Authorization, 
+        Basic, 
+        Headers, 
+        Scheme
+    }
+};
+use std::{
+    fmt::{
+        Display, 
+        Formatter, 
+        Result
+    }
+};
 
-/// Enum for the different types of authorization required by a remote document.
+/// Перечисление для разных типов авторизации
 #[derive(Clone, Debug)]
 pub enum AuthorizationType {
     Basic,
@@ -9,22 +22,30 @@ pub enum AuthorizationType {
     Unknown,
 }
 
-/// Trait to extend functionalities of the Headers type, from `hyper`
+/// Специальный трейт для расширения функциональности типа Headers из `hyper`
 pub trait GetAuthorizationType {
-    /// Function to get the authorization type (if any) of a remote document.
-    /// The returned type is `Option<AuthorizationType>`.
+    /// Функция для получения типа авторизации remote аккаунта
     fn get_authorization_type(&self) -> Option<AuthorizationType>;
 }
 
+/// Реализация трейта выше для заголовков из `hyper`
 impl GetAuthorizationType for Headers {
-    /// Function to get the `WWW-Authenticate` container, from a given header.
-    /// This function returns an Option that contains a `AuthorizationType` type.
+    /// Функция для получения `WWW-Authenticate` контейнера из данного заголовка
+    /// Данная функция возвращает Option, который содержит `AuthorizationType`
     fn get_authorization_type(&self) -> Option<AuthorizationType> {
+        // Получаем значение в сыром виде (массив векторов байт)
         match self.get_raw("WWW-Authenticate") {
             Some(raw) => {
-                let header_content = String::from_utf8(raw.get(0).unwrap().clone()).unwrap();
+                // Перегоняем в строку данные
+                let header_content = String::from_utf8(raw
+                                                        .get(0)
+                                                        .unwrap()
+                                                        .clone())
+                    .unwrap();
+                // Разделяем по пробелам
                 let mut header_parts = header_content.split(" ");
-
+                
+                // Берем первый элемент и смотрим значение
                 let auth_type = match header_parts.next() {
                     Some(part) => {
                         match part {
@@ -52,6 +73,8 @@ impl Display for AuthorizationType {
     }
 }
 
+////////////////////////////////////////////////////////////////////////////////////////////////////////////////
+
 #[derive(Clone, Debug)]
 pub struct AuthorizationHeaderFactory {
     authorization_type: AuthorizationType,
@@ -62,8 +85,7 @@ pub struct AuthorizationHeaderFactory {
 impl AuthorizationHeaderFactory {
     pub fn new(authorization_type: AuthorizationType,
                username: String,
-               password: Option<String>)
-               -> AuthorizationHeaderFactory {
+               password: Option<String>) -> AuthorizationHeaderFactory {
         AuthorizationHeaderFactory {
             authorization_type: authorization_type,
             username: username,
@@ -73,7 +95,9 @@ impl AuthorizationHeaderFactory {
 
     pub fn build_header(&self) -> Authorization<String> {
         match self.authorization_type {
-            AuthorizationType::Basic => Authorization(format!("Basic {}", self)),
+            AuthorizationType::Basic => {
+                Authorization(format!("Basic {}", self))
+            },
             _ => {
                 epanic!(&format!("{} Authorization is not supported!",
                                  self.authorization_type))

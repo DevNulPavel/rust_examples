@@ -74,32 +74,38 @@ fn launch_bench<'a>(bench_client: &Client, url: URL<'a>) -> u32 {
     sum / PING_TIMES as u32
 }
 
-/// Test each URL to download the required file
-/// This function returns a list of URLs, which is sorted by median measures (the first URL is the fastest server)
-pub fn bench_mirrors<'a>(
-    mirrors: MirrorsList<'a>,
-    filename: &str,
-    ssl_support: bool,
-) -> MirrorsList<'a> {
-    // Hyper client to make benchmarks
+/// Тестируем каждый URL для загрузки необходимого файлика
+/// Данная функция возвращает список URL-ов, который отсортирован по медиане измерений
+pub fn bench_mirrors<'a>(mirrors: MirrorsList<'a>, filename: &str, ssl_support: bool) -> MirrorsList<'a> {
+    // Конфиг для Hyper для бенчмарков
     let current_config = ClientBuilder { enable_ssl: ssl_support };
     let mut bench_client = current_config.build_hyper_client();
+
+    // Выставляем таймаут на всякий пожарный
     bench_client.set_read_timeout(Some(Duration::from_secs(3)));
-    // Get mirrors list
-    // let mut b_mirrors: Vec<(&'a str, u32)> = Vec::with_capacity(PING_TIMES);
+
+    // Получаем список зеркал, затем параллельно для каждого зеркала стартуем бенчмарк
     let mut b_mirrors: Vec<(&'a str, u32)> = mirrors
         .par_iter()
-        // Launch bench tests
         .map(|mirror| -> (&'a str, u32) {
-                 let mirror_file = Path::new(mirror).join(filename);
-                 match mirror_file.to_str() {
-                     Some(mirror_path) => (mirror, launch_bench(&bench_client, mirror_path)),
-                     None => (mirror, 0),
-                 }
+                // Копия пути файлика
+                let mirror_file = Path::new(mirror)
+                   .join(filename);
+                // Запускаем бенчмарк
+                match mirror_file.to_str() {
+                    Some(mirror_path) => (mirror, launch_bench(&bench_client, mirror_path)),
+                    None => (mirror, 0),
+                }
              })
-        // If the bench is equals to 0, an error occured
-        .filter(|x| x.1 != 0)
+        .filter(|x| x.1 != 0) // Отбрасываем нулевые результаты
         .collect();
-    b_mirrors.sort_by_key(|k| k.1);
-    b_mirrors.iter().map(|x| x.0).collect()
+    // Сортируем по значению времени
+    b_mirrors.sort_by_key(|k| {
+        k.1
+    });
+    // Собираем список из сайтов
+    b_mirrors
+        .iter()
+        .map(|x| x.0)
+        .collect()
 }
