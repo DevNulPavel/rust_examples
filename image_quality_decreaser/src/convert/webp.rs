@@ -13,12 +13,15 @@ use std::{
         temp_dir
     }
 };
-use quick_error::{ResultExt, quick_error};
+use quick_error::{
+    ResultExt, 
+    quick_error
+};
 
 
 quick_error!{
     #[derive(Debug)]
-    pub enum WebPError{
+    pub enum WebPerror{
         /// Ошибка в IO
         IO(context: &'static str, err: std::io::Error){
             context(context: &'static str, err: std::io::Error)-> (context, err)
@@ -30,8 +33,7 @@ quick_error!{
     }
 }
 
-
-pub fn convert_webp(input_file: &Path, output_file: &Path, quality: u8) -> Result<(), WebPError> {
+pub fn convert_webp(input_file: &Path, output_file: &Path, quality: u8) -> Result<(), WebPerror> {
     // Сразу же создаем код, который автоматически удаляет временный файлик
     let temporary_file_path = {
         let temporary_file = temp_dir()
@@ -66,7 +68,7 @@ pub fn convert_webp(input_file: &Path, output_file: &Path, quality: u8) -> Resul
         if !result.status.success() {
             let err_text = String::from_utf8(result.stderr)
                 .expect("dwebp UTF-8 error parsing failed");
-            return Err(WebPError::ExecutionFailed(format!("dwebp execution failed: \n{}", err_text)));
+            return Err(WebPerror::ExecutionFailed(format!("dwebp execution failed: \n{}", err_text)));
         }
     }
 
@@ -91,7 +93,7 @@ pub fn convert_webp(input_file: &Path, output_file: &Path, quality: u8) -> Resul
         if !result.status.success() {
             let err_text = String::from_utf8(result.stderr)
                 .expect("cwebp UTF-8 error parsing failed");
-            return Err(WebPError::ExecutionFailed(format!("cwebp execution failed: \n{}", err_text)));
+            return Err(WebPerror::ExecutionFailed(format!("cwebp execution failed: \n{}", err_text)));
         }
     }
 

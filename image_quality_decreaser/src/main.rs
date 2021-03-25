@@ -1,6 +1,6 @@
 mod app_parameters;
 mod image_file_type;
-mod webp;
+mod convert;
 
 use std::{
     fs::{
@@ -33,8 +33,9 @@ use crate::{
         ImageFileType,
         get_image_file_type
     },
-    webp::{
-        convert_webp
+    convert::{
+        convert_webp,
+        convert_with_image_magic
     }
 };
 
@@ -79,9 +80,9 @@ fn process_file(app_params: &AppParameters, entry: DirEntry){
                 convert_webp(entry.path(), &result_file_path, app_params.target_quality)
                     .expect("WebP convertation failed");
             },
-            ImageFileType::Jpg => {
-            },
-            ImageFileType::Png => {
+            ImageFileType::Png | ImageFileType::Jpg => {
+                convert_with_image_magic(entry.path(), &result_file_path, app_params.target_quality)
+                    .expect("WebP/Png convertation failed");
             }
         }
     }else{
