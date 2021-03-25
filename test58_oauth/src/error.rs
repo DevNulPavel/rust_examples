@@ -22,6 +22,15 @@ quick_error!{
         URLParseError(err: url::ParseError){
             from()
         }
+
+        /// Ошибка у внутреннего запроса с сервера на какое-то API
+        InternalReqwestLibraryError(err: reqwest::Error){
+            from()
+        }
+
+        /// Ошибка с произвольным описанием
+        Custom(err: String){
+        }
     }
 }
 
