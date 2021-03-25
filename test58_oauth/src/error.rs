@@ -12,6 +12,16 @@ quick_error!{
         TemplateRenderError(err: handlebars::RenderError){
             from()
         }
+
+        /// Не смогли отрендерить шаблон
+        ActixError(err: actix_web::Error){
+            from()
+        }
+
+        /// Ошибка парсинга адреса
+        URLParseError(err: url::ParseError){
+            from()
+        }
     }
 }
 
