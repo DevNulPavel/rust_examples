@@ -4,6 +4,11 @@ use quick_error::{
 use actix_web::{
     ResponseError
 };
+use crate::{
+    responses::{
+        FacebookErrorResponse
+    }
+};
 
 quick_error!{
     #[derive(Debug)]
@@ -25,6 +30,16 @@ quick_error!{
 
         /// Ошибка у внутреннего запроса с сервера на какое-то API
         InternalReqwestLibraryError(err: reqwest::Error){
+            from()
+        }
+
+        /// Сервер Facebook ответил ошибкой какой-то
+        FacebookApiError(err: FacebookErrorResponse){
+            from()
+        }
+
+        /// Произошла ошибка работы с базой данных
+        DatabaseError(err: sqlx::Error){
             from()
         }
 
