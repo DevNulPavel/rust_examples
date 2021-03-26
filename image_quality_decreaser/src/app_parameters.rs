@@ -11,7 +11,8 @@ use clap::{
 pub struct AppParameters{
     pub input_folder: PathBuf,
     pub output_folder: PathBuf,
-    pub target_quality: u8
+    pub target_quality: Option<u8>,
+    pub resize_percent: Option<u16>
 }
 
 pub fn parse_app_parameters() -> AppParameters {
@@ -19,7 +20,7 @@ pub fn parse_app_parameters() -> AppParameters {
         .version("1.0")
         .author("Pavel Ershov")
         .arg(Arg::with_name("input_folder")
-                .short("s")
+                .short("i")
                 .long("input_folder")
                 .value_name("INPUT_FOLDER")
                 .help("Input folder for recursive image convertation")
@@ -37,8 +38,13 @@ pub fn parse_app_parameters() -> AppParameters {
                 .long("target_quality")
                 .value_name("TARGET_QUALITY")
                 .help("Quality value of result images, value from 1 to 100")
-                .required(true)
-                .takes_value(true))               
+                .takes_value(true))
+        .arg(Arg::with_name("resize_percent")
+                .short("p")
+                .long("resize_percent")
+                .value_name("RESIZE_PERCENT")
+                .help("Resize image in persents, example: --resize_percent 100")
+                .takes_value(true))                         
         .get_matches();
 
     // Получаем входные значения в нужном формате
@@ -54,14 +60,26 @@ pub fn parse_app_parameters() -> AppParameters {
             PathBuf::from(path_str)
         })
         .unwrap();
-    let target_quality = matches
-        .value_of("target_quality")
-        .unwrap()
-        .parse::<u8>()
-        .expect("Target quality must be u8 integer value");
+    let target_quality = if let Some(entry) = matches.value_of("target_quality") {
+        let val = entry
+            .parse::<u8>()
+            .expect("Target quality must be u8 integer value");
+        assert!((val <= 100) && (val >= 1), "Quality value must be from 1 to 100");
+        Some(val)
+    }else{
+        None
+    };
+    let resize_percent = if let Some(entry) = matches.value_of("resize_percent") {
+        let val = entry
+            .parse::<u16>()
+            .expect("Resize percent must be u16 integer value");
+        assert!(val >= 1, "Resize percent must be greater 1");
+        Some(val)
+    }else{
+        None
+    };   
 
     // Проверим переданные параметры с помощью ассертов
-    assert!((target_quality <= 100) && (target_quality >= 1), "Quality value must be from 1 to 100");
     assert!(input_folder.exists(), "Input folder does not exist!");
     assert!(input_folder.is_dir(), "Input folder must be folder!");
     assert!(output_folder.exists() == false, "Output folder already exists, remove it first!");
@@ -69,6 +87,7 @@ pub fn parse_app_parameters() -> AppParameters {
     AppParameters{
         input_folder,
         output_folder,
-        target_quality
+        target_quality,
+        resize_percent
     }
 }

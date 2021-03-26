@@ -16,7 +16,7 @@ use walkdir::{
     DirEntry
 };
 use log::{
-    info,
+    //info,
     debug
 };
 use rayon::{
@@ -77,12 +77,12 @@ fn process_file(app_params: &AppParameters, entry: DirEntry){
         // Выполняем непосредственно конвертацию
         match file_type {
             ImageFileType::WebP => {
-                convert_webp(entry.path(), &result_file_path, app_params.target_quality)
+                convert_webp(entry.path(), &result_file_path, app_params.target_quality, app_params.resize_percent)
                     .expect("WebP convertation failed");
             },
             ImageFileType::Png | ImageFileType::Jpg => {
-                convert_with_image_magic(entry.path(), &result_file_path, app_params.target_quality)
-                    .expect("WebP/Png convertation failed");
+                convert_with_image_magic(entry.path(), &result_file_path, app_params.target_quality, app_params.resize_percent)
+                   .expect("WebP/Png convertation failed");
             }
         }
     }else{

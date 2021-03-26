@@ -4,4 +4,5 @@ TEST_APP:
 	cargo run --release -- \
 		--input_folder "/Users/devnul/projects/island2/project/res" \
 		--output_folder "/Users/devnul/projects/island2/project/res_result" \
-		--target_quality 25
+		--target_quality 25 \
+		--resize_percent 50
