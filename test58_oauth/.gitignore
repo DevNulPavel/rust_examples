@@ -1,3 +1,4 @@
 /target
 .DS_Store
-*.env
+test_environment.env
+/*.sqlite*

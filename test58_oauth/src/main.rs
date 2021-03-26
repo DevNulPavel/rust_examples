@@ -3,6 +3,11 @@ mod facebook_env_params;
 mod app_middlewares;
 mod constants;
 
+use std::{
+    env::{
+        self
+    }
+};
 use actix_files::{
     Files
 };
@@ -32,6 +37,11 @@ use actix_identity::{
 };
 use serde::{
     Deserialize
+};
+use sqlx::{
+    sqlite::{
+        SqlitePool
+    }
 };
 use crate::{
     error::{
@@ -181,29 +191,46 @@ fn configure_new_app(config: &mut web::ServiceConfig) {
         .service(Files::new("static/js", "static/js"));
 }
 
+/// Создаем менеджер шаблонов и регистрируем туда нужные
+fn create_templates<'a>() -> Handlebars<'a> {
+    let mut handlebars = Handlebars::new();
+    handlebars
+        .register_template_file(constants::INDEX_TEMPLATE, "templates/index.hbs")
+        .unwrap();
+    handlebars
+        .register_template_file(constants::LOGIN_TEMPLATE, "templates/login.hbs")
+        .unwrap();
+    handlebars
+        .register_template_file(constants::ERROR_TEMPLATE, "templates/error.hbs")
+        .unwrap();   
+    
+    handlebars
+}
+
+async fn create_db_connection() -> SqlitePool {
+    let sqlite_conn = SqlitePool::connect(&env::var("DATABASE_URL")
+                                             .expect("DATABASE_URL env variable is missing"))
+        .await
+        .expect("Database connection failed");
+
+    sqlite_conn
+}
+
 #[actix_web::main]
 async fn main() -> std::io::Result<()> {
+    // Инициализируем менеджер логирования
     env_logger::init();
 
     // Получаем параметры Facebook
     let facebook_env_params = web::Data::new(FacebookEnvParams::get_from_env());
 
+    // Создаем подключение к нашей базе
+    let sqlite_conn = web::Data::new(create_db_connection().await);
+
     // Создаем шареную ссылку на обработчик шаблонов
     // Пример работы с шаблонами
     // https://github.com/actix/examples/tree/master/template_engines/handlebars
-    let handlebars = {
-        let mut handlebars = Handlebars::new();
-        handlebars
-            .register_template_file(constants::INDEX_TEMPLATE, "templates/index.hbs")
-            .unwrap();
-        handlebars
-            .register_template_file(constants::LOGIN_TEMPLATE, "templates/login.hbs")
-            .unwrap();
-        handlebars
-            .register_template_file(constants::ERROR_TEMPLATE, "templates/error.hbs")
-            .unwrap();        
-        web::Data::new(handlebars)
-    };
+    let handlebars = web::Data::new(create_templates());
 
     // Ключ для шифрования кук, генерируется каждый раз при запуске сервера
     let private_key = rand::thread_rng().gen::<[u8; 32]>();
@@ -222,11 +249,14 @@ async fn main() -> std::io::Result<()> {
                 IdentityService::new(policy)
             };
 
+            // TODO: Session middleware
+
             // Приложение создается для каждого потока свое собственное
             App::new()
                 .wrap(create_error_middleware())
                 .wrap(identity_middleware)
                 .wrap(actix_web::middleware::Logger::default())
+                .app_data(sqlite_conn.clone())
                 .app_data(handlebars.clone())
                 .app_data(facebook_env_params.clone())
                 .app_data(http_client.clone())
@@ -236,3 +266,12 @@ async fn main() -> std::io::Result<()> {
         .run()
         .await
 }
+
+/*fn main(){
+    let mut runtime = tokio::runtime::Builder::new()
+        .threaded_scheduler()
+        .enable_all()
+        .build()
+        .unwrap();
+    runtime.block_on(async_main()).unwrap();
+}*/
