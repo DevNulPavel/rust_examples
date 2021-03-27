@@ -3,12 +3,8 @@ mod facebook_env_params;
 mod app_middlewares;
 mod constants;
 mod responses;
+mod database;
 
-use std::{
-    env::{
-        self
-    }
-};
 use actix_files::{
     Files
 };
@@ -39,14 +35,6 @@ use actix_identity::{
 use serde::{
     Deserialize
 };
-use sqlx::{
-    prelude::{
-        *
-    },
-    sqlite::{
-        SqlitePool
-    }
-};
 use crate::{
     error::{
         AppError
@@ -55,21 +43,66 @@ use crate::{
         FacebookEnvParams
     },
     app_middlewares::{
-        create_error_middleware,
-        create_check_login_middleware
+        create_error_middleware
     },
     responses::{
         DataOrErrorResponse,
         FacebookErrorResponse,
         FacebookTokenResponse,
         FacebookUserInfoResponse
+    },
+    database::{
+        Database
     }
 };
 
 ////////////////////////////////////////////////////////////////////////////////////////////////////////////////
 
-async fn index(handlebars: web::Data<Handlebars<'_>>) -> Result<web::HttpResponse, AppError> {
-    let body = handlebars.render(constants::INDEX_TEMPLATE, &serde_json::json!({}))?;
+async fn get_uuid_with_db_check(id: &Identity,
+                                db: &web::Data<Database>) -> Result<Option<String>, AppError>{
+    // Проверка идентификатора пользователя
+    // TODO: приходится делать это здесь, а не в middleware, так как 
+    // есть проблемы с асинхронным запросом к базе в middleware
+    if let Some(uuid) = id.identity(){
+        // Проверяем, что у нас валидный пользователь из базы
+        let exists = db.does_user_uuid_exist(&uuid).await?;
+        if !exists {
+            // Сброс куки с идентификатором
+            id.forget();
+
+            return Ok(None);
+        }else{
+            return Ok(Some(uuid));
+        }
+    }else{
+        return Ok(None);
+    }
+}
+
+////////////////////////////////////////////////////////////////////////////////////////////////////////////////
+
+async fn index(handlebars: web::Data<Handlebars<'_>>, 
+               id: Identity,
+               db: web::Data<Database>) -> Result<web::HttpResponse, AppError> {
+    // Проверка идентификатора пользователя
+    // TODO: приходится делать это здесь, а не в middleware, так как
+    // есть проблемы с асинхронным запросом к базе в middleware 
+    let uuid = match get_uuid_with_db_check(&id, &db).await? {
+        Some(uuid) => uuid,
+        None => {
+            // Возвращаем код 302 и Location в заголовках для перехода
+            return Ok(web::HttpResponse::Found()
+                        .header(actix_web::http::header::LOCATION, constants::LOGIN_PATH)
+                        .finish())
+        }
+    };
+
+    let template_data = serde_json::json!({
+        "uuid": uuid
+    });
+
+    // Рендерим шаблон
+    let body = handlebars.render(constants::INDEX_TEMPLATE, &template_data)?;
 
     Ok(web::HttpResponse::Ok()
         .content_type("text/html; charset=utf-8")
@@ -78,7 +111,19 @@ async fn index(handlebars: web::Data<Handlebars<'_>>) -> Result<web::HttpRespons
 
 ////////////////////////////////////////////////////////////////////////////////////////////////////////////////
 
-async fn login_page(handlebars: web::Data<Handlebars<'_>>) -> Result<web::HttpResponse, AppError> {
+async fn login_page(handlebars: web::Data<Handlebars<'_>>,
+                    id: Identity,
+                    db: web::Data<Database>) -> Result<web::HttpResponse, AppError> {
+    // Проверка идентификатора пользователя
+    // TODO: приходится делать это здесь, а не в middleware, так как
+    // есть проблемы с асинхронным запросом к базе в middleware 
+    if get_uuid_with_db_check(&id, &db).await?.is_some() {
+        // Возвращаем код 302 и Location в заголовках для перехода
+        return Ok(web::HttpResponse::Found()
+                    .header(actix_web::http::header::LOCATION, constants::INDEX_PATH)
+                    .finish())
+    }
+
     let body = handlebars.render(constants::LOGIN_TEMPLATE, &serde_json::json!({}))?;
 
     Ok(web::HttpResponse::Ok()
@@ -88,23 +133,22 @@ async fn login_page(handlebars: web::Data<Handlebars<'_>>) -> Result<web::HttpRe
 
 ////////////////////////////////////////////////////////////////////////////////////////////////////////////////
 
+async fn logout(id: Identity) -> Result<web::HttpResponse, AppError> {
+    id.forget();
+
+    // Возвращаем код 302 и Location в заголовках для перехода
+    return Ok(web::HttpResponse::Found()
+                .header(actix_web::http::header::LOCATION, constants::LOGIN_PATH)
+                .finish())
+}
+
+////////////////////////////////////////////////////////////////////////////////////////////////////////////////
+
 /// Данный метод вызывается при нажатии на кнопку логина в Facebook
 async fn login_with_facebook(req: actix_web::HttpRequest, fb_params: web::Data<FacebookEnvParams>) -> Result<web::HttpResponse, AppError> {
     debug!("Request object: {:?}", req);
 
     // Адрес нашего сайта + адрес коллбека
-    /*let callback_site_address = {
-        let site_addr = req
-            .headers()
-            .get(actix_web::http::header::ORIGIN)
-            .and_then(|val|{
-                val.to_str().ok()
-            })
-            .ok_or_else(||{
-                AppError::ActixError(actix_web::error::ErrorBadRequest("Origin header get failed"))
-            })?;
-        format!("{}/facebook/auth_callback", site_addr)
-    };*/
     let callback_site_address = {
         let conn_info = req.connection_info();
         format!("{scheme}://{host}/facebook/auth_callback", 
@@ -147,7 +191,7 @@ async fn facebook_auth_callback(req: actix_web::HttpRequest,
                                 identity: Identity,
                                 fb_params: web::Data<FacebookEnvParams>,
                                 http_client: web::Data<reqwest::Client>,
-                                db: web::Data<SqlitePool>) -> Result<web::HttpResponse, AppError> {
+                                db: web::Data<Database>) -> Result<web::HttpResponse, AppError> {
 
     let callback_site_address = {
         let conn_info = req.connection_info();
@@ -177,7 +221,7 @@ async fn facebook_auth_callback(req: actix_web::HttpRequest,
     debug!("Facebook token request response: {:?}", response);
 
     // Теперь можем получить информацию о пользователе Facebook
-    let user_info = http_client
+    let fb_user_info = http_client
         .get("https://graph.facebook.com/me")
         .query(&[
             ("access_token", response.access_token.as_str())
@@ -188,23 +232,10 @@ async fn facebook_auth_callback(req: actix_web::HttpRequest,
         .await?
         .into_result()?;
 
-    debug!("Facebook user info response: {:?}", user_info);
+    debug!("Facebook user info response: {:?}", fb_user_info);
 
     // Получили айдишник пользователя на FB, делаем запрос к базе данных, чтобы проверить наличие нашего пользователя
-    #[derive(Debug)]
-    struct UserInfo {
-        user_uuid: String
-    }
-    let db_res = sqlx::query_as!(UserInfo,
-                                r#"   
-                                    SELECT app_users.user_uuid 
-                                    FROM app_users 
-                                    INNER JOIN facebook_users 
-                                            ON facebook_users.app_user_id = app_users.id
-                                    WHERE facebook_users.facebook_uid = ?
-                              "#, user_info.id)
-        .fetch_optional(db.as_ref())
-        .await?;
+    let db_res = db.try_to_find_user_with_fb_id(&fb_user_info.id).await?;
 
     debug!("Facebook database search result: {:?}", db_res);
     
@@ -218,27 +249,9 @@ async fn facebook_auth_callback(req: actix_web::HttpRequest,
         None => {
             // Выполняем генерацию UUID и запись в базу
             let uuid = format!("island_uuid_{}", uuid::Uuid::new_v4());
-
-            // Стартуем транзакцию, если будет ошибка, то вызовется rollback автоматически в drop
-            // если все хорошо, то руками вызываем commit
-            let transaction = db.begin().await?;
-
-            // TODO: ???
-            // Если таблица иммет поле INTEGER PRIMARY KEY тогда last_insert_rowid - это алиас
-            // Но вроде бы наиболее надежный способ - это сделать подзапрос
-            let new_row_id = sqlx::query!(r#"
-                            INSERT INTO app_users(user_uuid)
-                                VALUES (?);
-                            INSERT INTO facebook_users(facebook_uid, app_user_id)
-                                VALUES (?, (SELECT id FROM app_users WHERE user_uuid = ?));
-                        "#, uuid, user_info.id, uuid)
-                .execute(db.as_ref())
-                .await?
-                .last_insert_rowid();
-
-            transaction.commit().await?;
-
-            debug!("New facebook user included: row_id = {}", new_row_id);
+            
+            // Сохраняем в базу идентификатор нашего пользователя
+            db.insert_uuid_for_facebook_user(&uuid, &fb_user_info.id).await?;
 
             // Сохраняем идентификатор в куках
             identity.remember(uuid);
@@ -274,15 +287,17 @@ fn create_templates<'a>() -> Handlebars<'a> {
 fn configure_new_app(config: &mut web::ServiceConfig) {
     config
         .service(web::resource(constants::INDEX_PATH)
-                    .wrap(create_check_login_middleware())
                     .route(web::route()
                             .guard(guard::Get())
                             .to(index)))
         .service(web::resource(constants::LOGIN_PATH)
-                        .wrap(create_check_login_middleware())
-                        .route(web::route()
+                    .route(web::route()
                                 .guard(guard::Get())
                                 .to(login_page)))                         
+        .service(web::resource(constants::LOGOUT_PATH)
+                    .route(web::route()
+                                .guard(guard::Post())
+                                .to(logout))) 
         .service(web::scope("/facebook")
                     .service(web::resource("/login")
                                 .route(web::route()
@@ -296,21 +311,6 @@ fn configure_new_app(config: &mut web::ServiceConfig) {
         .service(Files::new("static/js", "static/js"));
 }
 
-async fn create_db_connection() -> SqlitePool {
-    let sqlite_conn = SqlitePool::connect(&env::var("DATABASE_URL")
-                                             .expect("DATABASE_URL env variable is missing"))
-        .await
-        .expect("Database connection failed");
-
-    // Включаем все миграции базы данных сразу в наш бинарник, выполняем при старте
-    sqlx::migrate!("./migrations")
-        .run(&sqlite_conn)
-        .await
-        .expect("database migration failed");
-
-    sqlite_conn
-}
-
 #[actix_web::main]
 async fn main() -> std::io::Result<()> {
     // Инициализируем менеджер логирования
@@ -320,7 +320,7 @@ async fn main() -> std::io::Result<()> {
     let facebook_env_params = web::Data::new(FacebookEnvParams::get_from_env());
 
     // Создаем подключение к нашей базе
-    let sqlite_conn = web::Data::new(create_db_connection().await);
+    let sqlite_conn = web::Data::new(Database::open().await);
 
     // Создаем шареную ссылку на обработчик шаблонов
     // Пример работы с шаблонами
@@ -347,9 +347,10 @@ async fn main() -> std::io::Result<()> {
             // TODO: Session middleware
 
             // Приложение создается для каждого потока свое собственное
+            // Порядок выполнения Middleware обратный, снизу вверх
             App::new()
-                .wrap(create_error_middleware())
                 .wrap(identity_middleware)
+                .wrap(create_error_middleware())
                 .wrap(actix_web::middleware::Logger::default())
                 .app_data(sqlite_conn.clone())
                 .app_data(handlebars.clone())

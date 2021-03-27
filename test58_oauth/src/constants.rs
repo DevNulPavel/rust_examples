@@ -4,3 +4,4 @@ pub const ERROR_TEMPLATE: &str = "error";
 
 pub const INDEX_PATH: &str = "/";
 pub const LOGIN_PATH: &str = "/login";
+pub const LOGOUT_PATH: &str = "/logout";
