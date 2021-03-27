@@ -52,14 +52,15 @@ use crate::{
         FacebookUserInfoResponse
     },
     database::{
-        Database
+        Database,
+        UserInfo
     }
 };
 
 ////////////////////////////////////////////////////////////////////////////////////////////////////////////////
 
-async fn get_uuid_with_db_check(id: &Identity,
-                                db: &web::Data<Database>) -> Result<Option<String>, AppError>{
+async fn get_uuid_from_ident_with_db_check(id: &Identity,
+                                          db: &web::Data<Database>) -> Result<Option<String>, AppError>{
     // Проверка идентификатора пользователя
     // TODO: приходится делать это здесь, а не в middleware, так как 
     // есть проблемы с асинхронным запросом к базе в middleware
@@ -79,6 +80,27 @@ async fn get_uuid_with_db_check(id: &Identity,
     }
 }
 
+async fn get_full_user_info_for_identity(id: &Identity,
+                                         db: &web::Data<Database>) -> Result<Option<UserInfo>, AppError>{
+    // Проверка идентификатора пользователя
+    // TODO: приходится делать это здесь, а не в middleware, так как 
+    // есть проблемы с асинхронным запросом к базе в middleware
+    if let Some(uuid) = id.identity(){
+        // Проверяем, что у нас валидный пользователь из базы
+        let info = db.try_find_full_user_info_for_uuid(&uuid).await?;
+        if info.is_none() {
+            // Сброс куки с идентификатором
+            id.forget();
+
+            return Ok(None);
+        }else{
+            return Ok(info);
+        }
+    }else{
+        return Ok(None);
+    }
+}
+
 ////////////////////////////////////////////////////////////////////////////////////////////////////////////////
 
 async fn index(handlebars: web::Data<Handlebars<'_>>, 
@@ -87,8 +109,8 @@ async fn index(handlebars: web::Data<Handlebars<'_>>,
     // Проверка идентификатора пользователя
     // TODO: приходится делать это здесь, а не в middleware, так как
     // есть проблемы с асинхронным запросом к базе в middleware 
-    let uuid = match get_uuid_with_db_check(&id, &db).await? {
-        Some(uuid) => uuid,
+    let full_info = match get_full_user_info_for_identity(&id, &db).await? {
+        Some(full_info) => full_info,
         None => {
             // Возвращаем код 302 и Location в заголовках для перехода
             return Ok(web::HttpResponse::Found()
@@ -98,7 +120,9 @@ async fn index(handlebars: web::Data<Handlebars<'_>>,
     };
 
     let template_data = serde_json::json!({
-        "uuid": uuid
+        "uuid": full_info.user_uuid,
+        "facebook_uid": full_info.facebook_uid,
+        "google_uid": full_info.google_uid,
     });
 
     // Рендерим шаблон
@@ -117,7 +141,7 @@ async fn login_page(handlebars: web::Data<Handlebars<'_>>,
     // Проверка идентификатора пользователя
     // TODO: приходится делать это здесь, а не в middleware, так как
     // есть проблемы с асинхронным запросом к базе в middleware 
-    if get_uuid_with_db_check(&id, &db).await?.is_some() {
+    if get_uuid_from_ident_with_db_check(&id, &db).await?.is_some() {
         // Возвращаем код 302 и Location в заголовках для перехода
         return Ok(web::HttpResponse::Found()
                     .header(actix_web::http::header::LOCATION, constants::INDEX_PATH)
@@ -235,16 +259,16 @@ async fn facebook_auth_callback(req: actix_web::HttpRequest,
     debug!("Facebook user info response: {:?}", fb_user_info);
 
     // Получили айдишник пользователя на FB, делаем запрос к базе данных, чтобы проверить наличие нашего пользователя
-    let db_res = db.try_to_find_user_with_fb_id(&fb_user_info.id).await?;
+    let db_res = db.try_to_find_user_uuid_with_fb_id(&fb_user_info.id).await?;
 
     debug!("Facebook database search result: {:?}", db_res);
     
     match db_res {
-        Some(data) => {
-            debug!("Our user exists in database with UUID: {:?}", data);
+        Some(user_uuid) => {
+            debug!("Our user exists in database with UUID: {:?}", user_uuid);
 
             // Сохраняем идентификатор в куках
-            identity.remember(data.user_uuid);
+            identity.remember(user_uuid);
         },
         None => {
             // Выполняем генерацию UUID и запись в базу
