@@ -1,9 +1,10 @@
 mod error;
-mod facebook_env_params;
+mod auth_handlers;
 mod app_middlewares;
 mod constants;
 mod responses;
 mod database;
+mod env_app_params;
 
 use actix_files::{
     Files
@@ -32,24 +33,16 @@ use actix_identity::{
     IdentityService,
     Identity
 };
-use serde::{
-    Deserialize
-};
 use crate::{
     error::{
         AppError
     },
-    facebook_env_params::{
-        FacebookEnvParams
+    env_app_params::{
+        FacebookEnvParams,
+        GoogleEnvParams
     },
     app_middlewares::{
         create_error_middleware
-    },
-    responses::{
-        DataOrErrorResponse,
-        FacebookErrorResponse,
-        FacebookTokenResponse,
-        FacebookUserInfoResponse
     },
     database::{
         Database,
@@ -168,128 +161,6 @@ async fn logout(id: Identity) -> Result<web::HttpResponse, AppError> {
 
 ////////////////////////////////////////////////////////////////////////////////////////////////////////////////
 
-/// Данный метод вызывается при нажатии на кнопку логина в Facebook
-async fn login_with_facebook(req: actix_web::HttpRequest, fb_params: web::Data<FacebookEnvParams>) -> Result<web::HttpResponse, AppError> {
-    debug!("Request object: {:?}", req);
-
-    // Адрес нашего сайта + адрес коллбека
-    let callback_site_address = {
-        let conn_info = req.connection_info();
-        format!("{scheme}://{host}/facebook/auth_callback", 
-                    scheme = conn_info.scheme(),
-                    host = conn_info.host())
-    };
-
-    // Создаем урл, на который надо будет редиректиться браузеру для логина
-    // https://www.facebook.com/dialog/oauth\
-    //      ?client_id=578516362116657\
-    //      &redirect_uri=http://localhost/facebook-auth\
-    //      &response_type=code\
-    //      &scope=email,user_birthday
-    let mut redirect_url = url::Url::parse("https://www.facebook.com/dialog/oauth")?;
-    redirect_url
-        .query_pairs_mut()
-        .append_pair("client_id", &fb_params.client_id)
-        .append_pair("redirect_uri", &callback_site_address)
-        .append_pair("response_type", "code")
-        .append_pair("scope", "email")
-        .finish();
-
-    debug!("Facebook url value: {}", redirect_url);
-
-    // Возвращаем код 302 и Location в заголовках для перехода
-    Ok(web::HttpResponse::Found()
-        .header(actix_web::http::header::LOCATION, redirect_url.as_str())
-        .finish())
-}
-
-////////////////////////////////////////////////////////////////////////////////////////////////////////////////
-
-/// Данный метод является адресом-коллбеком который вызывается после логина на facebook
-#[derive(Debug, Deserialize)]
-pub struct FacebookAuthParams{
-    code: String
-}
-async fn facebook_auth_callback(req: actix_web::HttpRequest,
-                                query_params: web::Query<FacebookAuthParams>, 
-                                identity: Identity,
-                                fb_params: web::Data<FacebookEnvParams>,
-                                http_client: web::Data<reqwest::Client>,
-                                db: web::Data<Database>) -> Result<web::HttpResponse, AppError> {
-
-    let callback_site_address = {
-        let conn_info = req.connection_info();
-        format!("{scheme}://{host}/facebook/auth_callback", 
-                    scheme = conn_info.scheme(),
-                    host = conn_info.host())
-    };
-
-    debug!("Request object: {:?}", req);
-    debug!("Facebook auth callback query params: {:?}", query_params);
-
-    // Выполняем запрос для получения токена на основании кода у редиректа
-    let response = http_client
-        .get("https://graph.facebook.com/oauth/access_token")
-        .query(&[
-            ("client_id", fb_params.client_id.as_str()),
-            ("redirect_uri", callback_site_address.as_str()),   // TODO: Для чего он нужен?
-            ("client_secret", fb_params.client_secret.as_str()),
-            ("code", query_params.code.as_str())
-        ])
-        .send()
-        .await?
-        .json::<DataOrErrorResponse<FacebookTokenResponse, FacebookErrorResponse>>()
-        .await?
-        .into_result()?;
-
-    debug!("Facebook token request response: {:?}", response);
-
-    // Теперь можем получить информацию о пользователе Facebook
-    let fb_user_info = http_client
-        .get("https://graph.facebook.com/me")
-        .query(&[
-            ("access_token", response.access_token.as_str())
-        ])
-        .send()
-        .await?
-        .json::<DataOrErrorResponse<FacebookUserInfoResponse, FacebookErrorResponse>>()
-        .await?
-        .into_result()?;
-
-    debug!("Facebook user info response: {:?}", fb_user_info);
-
-    // Получили айдишник пользователя на FB, делаем запрос к базе данных, чтобы проверить наличие нашего пользователя
-    let db_res = db.try_to_find_user_uuid_with_fb_id(&fb_user_info.id).await?;
-
-    debug!("Facebook database search result: {:?}", db_res);
-    
-    match db_res {
-        Some(user_uuid) => {
-            debug!("Our user exists in database with UUID: {:?}", user_uuid);
-
-            // Сохраняем идентификатор в куках
-            identity.remember(user_uuid);
-        },
-        None => {
-            // Выполняем генерацию UUID и запись в базу
-            let uuid = format!("island_uuid_{}", uuid::Uuid::new_v4());
-            
-            // Сохраняем в базу идентификатор нашего пользователя
-            db.insert_uuid_for_facebook_user(&uuid, &fb_user_info.id).await?;
-
-            // Сохраняем идентификатор в куках
-            identity.remember(uuid);
-        }
-    }
-
-    // Возвращаем код 302 и Location в заголовках для перехода
-    Ok(web::HttpResponse::Found()
-        .header(actix_web::http::header::LOCATION, constants::INDEX_PATH)
-        .finish())
-}
-
-////////////////////////////////////////////////////////////////////////////////////////////////////////////////
-
 /// Создаем менеджер шаблонов и регистрируем туда нужные
 fn create_templates<'a>() -> Handlebars<'a> {
     let mut handlebars = Handlebars::new();
@@ -322,15 +193,24 @@ fn configure_new_app(config: &mut web::ServiceConfig) {
                     .route(web::route()
                                 .guard(guard::Post())
                                 .to(logout))) 
-        .service(web::scope("/facebook")
-                    .service(web::resource("/login")
+        .service(web::scope(constants::FACEBOOK_SCOPE_PATH)
+                    .service(web::resource(constants::LOGIN_PATH)
                                 .route(web::route()
                                         .guard(guard::Post())
-                                        .to(login_with_facebook)))
-                    .service(web::resource("/auth_callback")
+                                        .to(auth_handlers::login_with_facebook)))
+                    .service(web::resource(constants::AUTH_CALLBACK_PATH)
                                 .route(web::route()
                                         .guard(guard::Get())
-                                        .to(facebook_auth_callback))))
+                                        .to(auth_handlers::facebook_auth_callback))))
+        .service(web::scope(constants::GOOGLE_SCOPE_PATH)
+                    .service(web::resource(constants::LOGIN_PATH)
+                                .route(web::route()
+                                        .guard(guard::Post())
+                                        .to(auth_handlers::login_with_google)))
+                    .service(web::resource(constants::AUTH_CALLBACK_PATH)
+                                .route(web::route()
+                                        .guard(guard::Get())
+                                        .to(auth_handlers::google_auth_callback))))
         .service(Files::new("static/css", "static/css"))
         .service(Files::new("static/js", "static/js"));
 }
@@ -340,8 +220,9 @@ async fn main() -> std::io::Result<()> {
     // Инициализируем менеджер логирования
     env_logger::init();
 
-    // Получаем параметры Facebook
+    // Получаем параметры Facebook + Google
     let facebook_env_params = web::Data::new(FacebookEnvParams::get_from_env());
+    let google_env_params = web::Data::new(GoogleEnvParams::get_from_env());
 
     // Создаем подключение к нашей базе
     let sqlite_conn = web::Data::new(Database::open().await);
@@ -379,6 +260,7 @@ async fn main() -> std::io::Result<()> {
                 .app_data(sqlite_conn.clone())
                 .app_data(handlebars.clone())
                 .app_data(facebook_env_params.clone())
+                .app_data(google_env_params.clone())
                 .app_data(http_client.clone())
                 .configure(configure_new_app)
         }) 

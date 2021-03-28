@@ -23,6 +23,7 @@ rand = "0.8.3"
 log = "0.4.14"
 env_logger = "0.8.3"
 url = "2.2.1"
+lazy_static = "1.4.0"
 uuid = { version = "0.8.2", features = ["v4"] }
 reqwest = { version = "0.10.10", features = [ "json" ] }
 sqlx = { version = "0.4.2", features = [ "runtime-actix-rustls", "sqlite" ] }
