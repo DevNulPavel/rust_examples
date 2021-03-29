@@ -22,7 +22,7 @@ use crate::{
 
 ////////////////////////////////////////////////////////////////////////////////////////////////////////////////
 
-#[derive(Debug)]
+#[derive(Debug, Clone)]
 pub struct UserInfo {
     pub user_uuid: String,
     pub facebook_uid: Option<String>,

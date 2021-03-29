@@ -42,7 +42,8 @@ use crate::{
         GoogleEnvParams
     },
     app_middlewares::{
-        create_error_middleware
+        create_error_middleware,
+        // create_check_login_middleware
     },
     database::{
         Database,
@@ -96,15 +97,18 @@ async fn get_full_user_info_for_identity(id: &Identity,
 
 ////////////////////////////////////////////////////////////////////////////////////////////////////////////////
 
-async fn index(handlebars: web::Data<Handlebars<'_>>, 
+async fn index(req: web::HttpRequest,
+               handlebars: web::Data<Handlebars<'_>>, 
                id: Identity,
                db: web::Data<Database>) -> Result<web::HttpResponse, AppError> {
+
     // Проверка идентификатора пользователя
     // TODO: приходится делать это здесь, а не в middleware, так как
     // есть проблемы с асинхронным запросом к базе в middleware 
     let full_info = match get_full_user_info_for_identity(&id, &db).await? {
         Some(full_info) => full_info,
         None => {
+            debug!("Redirect code from handler");
             // Возвращаем код 302 и Location в заголовках для перехода
             return Ok(web::HttpResponse::Found()
                         .header(actix_web::http::header::LOCATION, constants::LOGIN_PATH)
@@ -135,6 +139,7 @@ async fn login_page(handlebars: web::Data<Handlebars<'_>>,
     // TODO: приходится делать это здесь, а не в middleware, так как
     // есть проблемы с асинхронным запросом к базе в middleware 
     if get_uuid_from_ident_with_db_check(&id, &db).await?.is_some() {
+        debug!("Redirect code from handler");
         // Возвращаем код 302 и Location в заголовках для перехода
         return Ok(web::HttpResponse::Found()
                     .header(actix_web::http::header::LOCATION, constants::INDEX_PATH)
@@ -245,6 +250,7 @@ async fn main() -> std::io::Result<()> {
                 let policy = CookieIdentityPolicy::new(&private_key)
                     .name("auth-logic")
                     .max_age(60 * 60 * 24 * 30) // 30 дней максимум
+                    .http_only(true)
                     .secure(false);
                 IdentityService::new(policy)
             };

@@ -1,3 +1,5 @@
+// TODO: Вариант проверки логина без middleware: https://www.youtube.com/channel/UCdZV0XJvls773ljUEYTsNzA/videos
+
 /*use std::{
     task::{
         Context, 
