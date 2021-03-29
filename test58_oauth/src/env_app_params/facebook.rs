@@ -1,3 +1,5 @@
+
+#[derive(Debug)]
 pub struct FacebookEnvParams{
     pub client_id: String,
     pub client_secret: String

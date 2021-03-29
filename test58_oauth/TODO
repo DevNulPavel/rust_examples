@@ -4,3 +4,4 @@
 - Redis?
 - Вариант проверки логина без middleware: https://www.youtube.com/channel/UCdZV0XJvls773ljUEYTsNzA/videos
 - Улучшенный способ логирования, чтобы можно было отделять пользователей: https://crates.io/crates/tracing
+- Opentelemetry для статистики и метрик скорости https://crates.io/crates/opentelemetry + tracing-opentelemetry

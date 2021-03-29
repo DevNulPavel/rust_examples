@@ -101,7 +101,7 @@ pub struct GoogleErrorResponse{
 pub struct GoogleTokenResponse{
     pub access_token: String,
     pub token_type: String,
-    pub expires_in: u64,
+    pub expires_in: u32,
 
     #[serde(flatten)]
     pub other: HashMap<String, Value>

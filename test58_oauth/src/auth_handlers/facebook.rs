@@ -18,6 +18,10 @@ use lazy_static::{
 use quick_error::{
     ResultExt
 };
+use tracing::{
+    instrument,
+    Instrument
+};
 use crate::{
     error::{
         AppError
@@ -51,6 +55,7 @@ fn get_callback_address(req: &actix_web::HttpRequest) -> String {
 ////////////////////////////////////////////////////////////////////////////////////////////////////////////////
 
 /// Данный метод вызывается при нажатии на кнопку логина в Facebook
+#[instrument]
 pub async fn login_with_facebook(req: actix_web::HttpRequest, 
                                  fb_params: web::Data<FacebookEnvParams>) -> Result<web::HttpResponse, AppError> {
     debug!("Request object: {:?}", req);
@@ -115,6 +120,7 @@ pub async fn facebook_auth_callback(req: actix_web::HttpRequest,
             ("code", query_params.code.as_str())
         ])
         .send()
+        .instrument(tracing::info_span!("facebook_token"))
         .await
         .context("Facebook token reqwest send error")?
         // .error_for_status() // Может выдать секреты наружу

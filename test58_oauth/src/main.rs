@@ -9,9 +9,17 @@ mod env_app_params;
 use actix_files::{
     Files
 };
-use actix_web::{App, FromRequest, HttpServer, guard::{
+use actix_web::{App, 
+    FromRequest, 
+    HttpServer, 
+    guard::{
         self
-    }, web::{self, Data}};
+    }, 
+    web::{
+        self, 
+        Data
+    }
+};
 use handlebars::{
     Handlebars
 };
@@ -21,7 +29,16 @@ use log::{
 use rand::{
     Rng
 };
-use actix_identity::{CookieIdentityPolicy, Identity, IdentityService, RequestIdentity};
+use actix_identity::{
+    CookieIdentityPolicy, 
+    Identity, 
+    IdentityService, 
+    RequestIdentity
+};
+use tracing::{
+    instrument,
+    Instrument
+};
 use crate::{
     error::{
         AppError
@@ -42,8 +59,9 @@ use crate::{
 
 ////////////////////////////////////////////////////////////////////////////////////////////////////////////////
 
+// #[instrument]
 async fn get_uuid_from_ident_with_db_check(id: &Identity,
-                                          db: &web::Data<Database>) -> Result<Option<String>, AppError>{
+                                           db: &web::Data<Database>) -> Result<Option<String>, AppError>{
     // Проверка идентификатора пользователя
     // TODO: приходится делать это здесь, а не в middleware, так как 
     // есть проблемы с асинхронным запросом к базе в middleware
@@ -63,6 +81,7 @@ async fn get_uuid_from_ident_with_db_check(id: &Identity,
     }
 }
 
+// #[instrument]
 async fn get_full_user_info_for_identity(id: &Identity,
                                          db: &web::Data<Database>) -> Result<Option<UserInfo>, AppError>{
     // Проверка идентификатора пользователя
@@ -86,8 +105,8 @@ async fn get_full_user_info_for_identity(id: &Identity,
 
 ////////////////////////////////////////////////////////////////////////////////////////////////////////////////
 
-async fn index(req: web::HttpRequest,
-               handlebars: web::Data<Handlebars<'_>>, 
+// #[instrument]
+async fn index(handlebars: web::Data<Handlebars<'_>>, 
                id: Identity,
                db: web::Data<Database>) -> Result<web::HttpResponse, AppError> {
 
@@ -121,6 +140,7 @@ async fn index(req: web::HttpRequest,
 
 ////////////////////////////////////////////////////////////////////////////////////////////////////////////////
 
+// #[instrument]
 async fn login_page(handlebars: web::Data<Handlebars<'_>>,
                     id: Identity,
                     db: web::Data<Database>) -> Result<web::HttpResponse, AppError> {
@@ -144,6 +164,7 @@ async fn login_page(handlebars: web::Data<Handlebars<'_>>,
 
 ////////////////////////////////////////////////////////////////////////////////////////////////////////////////
 
+// #[instrument]
 async fn logout(id: Identity) -> Result<web::HttpResponse, AppError> {
     id.forget();
 
@@ -212,7 +233,14 @@ fn configure_new_app(config: &mut web::ServiceConfig) {
 #[actix_web::main]
 async fn main() -> std::io::Result<()> {
     // Инициализируем менеджер логирования
-    env_logger::init();
+    // env_logger::init();
+    tracing_subscriber::fmt()
+        // .with_max_level(tracing::Level::TRACE)
+        // .pretty()
+        .with_thread_names(true)
+        .with_thread_ids(true)
+        .with_env_filter(tracing_subscriber::EnvFilter::from_default_env())
+        .init();
 
     // Получаем параметры Facebook + Google
     let facebook_env_params = web::Data::new(FacebookEnvParams::get_from_env());
@@ -251,6 +279,7 @@ async fn main() -> std::io::Result<()> {
             App::new()
                 .wrap(identity_middleware)
                 .wrap(create_error_middleware())
+                // .wrap(TracingLogger)
                 .wrap(actix_web::middleware::Logger::default())
                 .app_data(sqlite_conn.clone())
                 .app_data(handlebars.clone())
