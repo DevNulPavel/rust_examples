@@ -100,6 +100,53 @@ impl Database{
     }
 
     /// Пытаемся найти нового пользователя для FB ID 
+    pub async fn try_to_find_user_uuid_with_google_id(&self, id: &str) -> Result<Option<String>, AppError>{
+        struct Res{
+            user_uuid: String
+        }
+        let res = sqlx::query_as!(Res,
+                        r#"   
+                            SELECT app_users.user_uuid
+                            FROM app_users 
+                            INNER JOIN google_users 
+                                    ON google_users.app_user_id = app_users.id
+                            WHERE google_users.google_uid = ?
+                        "#, id)
+            .fetch_optional(&self.db)
+            .await
+            .map_err(AppError::from)?
+            .map(|val|{
+                val.user_uuid
+            });
+        Ok(res)
+    }
+
+    pub async fn insert_uuid_for_google_user(&self, uuid: &str, google_uid: &str) -> Result<(), AppError>{
+        // Стартуем транзакцию, если будет ошибка, то вызовется rollback автоматически в drop
+        // если все хорошо, то руками вызываем commit
+        let transaction = self.db.begin().await?;
+
+        // TODO: ???
+        // Если таблица иммет поле INTEGER PRIMARY KEY тогда last_insert_rowid - это алиас
+        // Но вроде бы наиболее надежный способ - это сделать подзапрос
+        let new_row_id = sqlx::query!(r#"
+                                        INSERT INTO app_users(user_uuid)
+                                        VALUES (?);
+                                        INSERT INTO google_users(google_uid, app_user_id)
+                                        VALUES (?, (SELECT id FROM app_users WHERE user_uuid = ?));
+                                        "#, uuid, google_uid, uuid)
+            .execute(&self.db)
+            .await?
+            .last_insert_rowid();
+
+        transaction.commit().await?;
+
+        debug!("New google user included: row_id = {}", new_row_id);
+
+        Ok(())
+    }
+
+    /// Пытаемся найти нового пользователя для FB ID 
     pub async fn try_find_full_user_info_for_uuid(&self, uuid: &str) -> Result<Option<UserInfo>, AppError>{
         // Специальным образом описываем, что поле действительно может быть нулевым с 
         // помощью вопросика в переименовании - as 'facebook_uid?'

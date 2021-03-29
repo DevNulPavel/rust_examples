@@ -15,6 +15,9 @@ use serde::{
 use lazy_static::{
     lazy_static
 };
+use quick_error::{
+    ResultExt
+};
 use crate::{
     error::{
         AppError
@@ -97,10 +100,10 @@ pub async fn facebook_auth_callback(req: actix_web::HttpRequest,
                                     http_client: web::Data<reqwest::Client>,
                                     db: web::Data<Database>) -> Result<web::HttpResponse, AppError> {
 
-    let callback_site_address = get_callback_address(&req);
-
     debug!("Request object: {:?}", req);
     debug!("Facebook auth callback query params: {:?}", query_params);
+
+    let callback_site_address = get_callback_address(&req);
 
     // Выполняем запрос для получения токена на основании кода у редиректа
     let response = http_client
@@ -112,9 +115,13 @@ pub async fn facebook_auth_callback(req: actix_web::HttpRequest,
             ("code", query_params.code.as_str())
         ])
         .send()
-        .await?
+        .await
+        .context("Facebook token reqwest send error")?
+        // .error_for_status() // Может выдать секреты наружу
+        // .context("Facebook token reqwest status error")?
         .json::<DataOrErrorResponse<FacebookTokenResponse, FacebookErrorResponse>>()
-        .await?
+        .await
+        .context("Facebook token reqwest parse error")?
         .into_result()?;
 
     debug!("Facebook token request response: {:?}", response);
@@ -126,9 +133,13 @@ pub async fn facebook_auth_callback(req: actix_web::HttpRequest,
             ("access_token", response.access_token.as_str())
         ])
         .send()
-        .await?
+        .await
+        .context("Facebook user data reqwest send error")?
+        // .error_for_status() // Может выдать секреты наружу
+        // .context("Facebook user data reqwest status error")?
         .json::<DataOrErrorResponse<FacebookUserInfoResponse, FacebookErrorResponse>>()
-        .await?
+        .await
+        .context("Facebook user data reponse parse error")?
         .into_result()?;
 
     debug!("Facebook user info response: {:?}", fb_user_info);

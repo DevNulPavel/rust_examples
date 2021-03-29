@@ -9,16 +9,9 @@ mod env_app_params;
 use actix_files::{
     Files
 };
-use actix_web::{
-    web::{
+use actix_web::{App, FromRequest, HttpServer, guard::{
         self
-    },
-    guard::{
-        self
-    },
-    HttpServer,
-    App
-};
+    }, web::{self, Data}};
 use handlebars::{
     Handlebars
 };
@@ -28,11 +21,7 @@ use log::{
 use rand::{
     Rng
 };
-use actix_identity::{
-    CookieIdentityPolicy, 
-    IdentityService,
-    Identity
-};
+use actix_identity::{CookieIdentityPolicy, Identity, IdentityService, RequestIdentity};
 use crate::{
     error::{
         AppError

@@ -6,7 +6,8 @@ use actix_web::{
 };
 use crate::{
     responses::{
-        FacebookErrorResponse
+        FacebookErrorResponse,
+        GoogleErrorResponse
     }
 };
 
@@ -29,12 +30,17 @@ quick_error!{
         }
 
         /// Ошибка у внутреннего запроса с сервера на какое-то API
-        InternalReqwestLibraryError(err: reqwest::Error){
-            from()
+        InternalReqwestLibraryError(context: &'static str, err: reqwest::Error){
+            context(context: &'static str, err: reqwest::Error) -> (context, err)
         }
 
         /// Сервер Facebook ответил ошибкой какой-то
         FacebookApiError(err: FacebookErrorResponse){
+            from()
+        }
+
+        /// Сервер Google ответил ошибкой какой-то
+        GoogleApiError(err: GoogleErrorResponse){
             from()
         }
 

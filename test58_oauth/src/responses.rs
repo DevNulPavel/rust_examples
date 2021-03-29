@@ -72,3 +72,50 @@ pub struct FacebookUserInfoResponse{
     #[serde(flatten)]
     pub other: HashMap<String, Value>
 }
+
+////////////////////////////////////////////////////////////////////////
+
+/// Тип ошибки, в который мы можем парсить наши данные
+// TODO: Формат данных
+#[derive(Deserialize, Debug)]
+pub struct GoogleErrorValue{
+    pub message: String,
+    pub code: u32,
+    pub error_subcode: u32,
+    pub fbtrace_id: String,
+
+    #[serde(rename = "type")]
+    pub err_type: String
+}
+#[derive(Deserialize, Debug)]
+pub struct GoogleErrorResponse{
+    // pub error: GoogleErrorValue,
+
+    #[serde(flatten)]
+    pub other: HashMap<String, Value>
+}
+
+////////////////////////////////////////////////////////////////////////
+
+#[derive(Deserialize, Debug)]
+pub struct GoogleTokenResponse{
+    pub access_token: String,
+    pub token_type: String,
+    pub expires_in: u64,
+
+    #[serde(flatten)]
+    pub other: HashMap<String, Value>
+}
+
+////////////////////////////////////////////////////////////////////////
+
+#[derive(Deserialize, Debug)]
+pub struct GoogleUserInfoResponse{
+    pub id: String,
+    pub email: String,
+    pub verified_email: bool,
+    pub picture: String,
+    
+    #[serde(flatten)]
+    pub other: HashMap<String, Value>
+}
