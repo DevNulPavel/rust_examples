@@ -34,16 +34,26 @@ use actix_identity::{
 };
 use tracing::{
     Instrument, 
+    Value,
     debug_span, 
     error_span, 
-    event, 
     info_span, 
-    instrument, 
     trace_span,
+    event, 
+    instrument, 
     debug,
     error,
     info,
     trace
+};
+use tracing_subscriber::{
+    prelude::{
+        *
+    }
+};
+use tracing_opentelemetry::{
+    OpenTelemetrySpanExt,
+    PreSampledTracer
 };
 use crate::{
     error::{
@@ -115,6 +125,8 @@ async fn get_full_user_info_for_identity(id: &Identity,
 async fn index(handlebars: web::Data<Handlebars<'_>>, 
                id: Identity,
                db: web::Data<Database>) -> Result<web::HttpResponse, AppError> {
+    let span = debug_span!("index_page_span", "user" = tracing::field::Empty);
+    let _enter_guard = span.enter();
 
     // Проверка идентификатора пользователя
     // TODO: приходится делать это здесь, а не в middleware, так как
@@ -129,6 +141,8 @@ async fn index(handlebars: web::Data<Handlebars<'_>>,
                         .finish())
         }
     };
+
+    span.record("user", &tracing::field::debug(&full_info));
 
     let template_data = serde_json::json!({
         "uuid": full_info.user_uuid,
@@ -150,6 +164,9 @@ async fn index(handlebars: web::Data<Handlebars<'_>>,
 async fn login_page(handlebars: web::Data<Handlebars<'_>>,
                     id: Identity,
                     db: web::Data<Database>) -> Result<web::HttpResponse, AppError> {
+    let span = debug_span!("login_page_span", "user" = tracing::field::Empty);
+    let _enter_guard = span.enter();
+
     // Проверка идентификатора пользователя
     // TODO: приходится делать это здесь, а не в middleware, так как
     // есть проблемы с асинхронным запросом к базе в middleware 
@@ -246,19 +263,35 @@ fn configure_new_app(config: &mut web::ServiceConfig) {
 #[actix_web::main]
 async fn main() -> std::io::Result<()> {
     // Инициализируем менеджер логирования
-    // env_logger::init();
-    // let file_appender = tracing_appender::rolling::hourly("logs", "app_log");
-    // let (non_blocking_appender, _file_appender_guard) = tracing_appender::non_blocking(file_appender);
-    let subscriber = tracing_subscriber::FmtSubscriber::builder()
-        // .with_writer(non_blocking_appender)
+    let filter = tracing_subscriber::EnvFilter::from_default_env();
+    let (non_blocking_appender, _file_appender_guard) = 
+        tracing_appender::non_blocking(tracing_appender::rolling::hourly("logs", "app_log"));
+    let file_sub = tracing_subscriber::fmt::layer()
+        .with_ansi(false)
+        .json()
+        .with_writer(non_blocking_appender);
+    let stdoud_sub = tracing_subscriber::fmt::layer()
         .with_thread_names(true)
         .with_thread_ids(true)
-        .with_env_filter(tracing_subscriber::EnvFilter::from_default_env())
-        .finish();
-    tracing::subscriber::set_global_default(subscriber).unwrap();
-    // tracing_subscriber::fmt()
-        // .with_max_level(tracing::Level::TRACE)
-        // .pretty()
+        .with_ansi(true)
+        .with_writer(std::io::stdout);
+    let (opentelemetry_tracer, _opentelemetry_uninstall) = opentelemetry_jaeger::new_pipeline()
+        .with_service_name("oauth_server")
+        .install()
+        .unwrap();
+    /*let (opentelemetry_tracer, _un) = opentelemetry::sdk::export::trace::stdout::new_pipeline()
+        .install();*/
+    let opentelemetry_sub = tracing_opentelemetry::layer()
+        .with_tracer(opentelemetry_tracer);
+    let full_subscriber = tracing_subscriber::registry()
+        .with(filter)
+        .with(stdoud_sub)
+        .with(file_sub)
+        .with(opentelemetry_sub);
+    tracing::subscriber::set_global_default(full_subscriber).unwrap();
+
+    let span = debug_span!("root_span");
+    let _span_guard = span.enter();
 
     // Получаем параметры Facebook + Google
     let facebook_env_params = web::Data::new(FacebookEnvParams::get_from_env());
@@ -310,12 +343,3 @@ async fn main() -> std::io::Result<()> {
         .run()
         .await
 }
-
-/*fn main(){
-    let mut runtime = tokio::runtime::Builder::new()
-        .threaded_scheduler()
-        .enable_all()
-        .build()
-        .unwrap();
-    runtime.block_on(async_main()).unwrap();
-}*/

@@ -7,6 +7,7 @@ use tracing::{
     debug,
     event,
     Level,
+    Value,
     instrument
 };
 use sqlx::{
