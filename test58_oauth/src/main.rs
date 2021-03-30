@@ -51,6 +51,9 @@ use tracing_subscriber::{
         *
     }
 };
+use tracing_actix_web::{
+    TracingLogger
+};
 use tracing_opentelemetry::{
     OpenTelemetrySpanExt,
     PreSampledTracer
@@ -330,8 +333,7 @@ async fn main() -> std::io::Result<()> {
             App::new()
                 .wrap(identity_middleware)
                 .wrap(create_error_middleware())
-                // .wrap(TracingLogger)
-                .wrap(actix_web::middleware::Logger::default())
+                .wrap(TracingLogger)
                 .app_data(sqlite_conn.clone())
                 .app_data(handlebars.clone())
                 .app_data(facebook_env_params.clone())

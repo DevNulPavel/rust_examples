@@ -120,7 +120,7 @@ pub async fn facebook_auth_callback(req: actix_web::HttpRequest,
             ("code", query_params.code.as_str())
         ])
         .send()
-        .instrument(tracing::info_span!("facebook_token"))
+        // .instrument(tracing::info_span!("facebook_token"))
         .await
         .context("Facebook token reqwest send error")?
         // .error_for_status() // Может выдать секреты наружу

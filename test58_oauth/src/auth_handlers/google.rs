@@ -116,7 +116,7 @@ pub async fn google_auth_callback(req: actix_web::HttpRequest,
         .context("Google token reqwest status error")?
         .json::<DataOrErrorResponse<GoogleTokenResponse, GoogleErrorResponse>>()
         .await
-        .context("Google token reqwest parse error")?
+        .context("Google token reqwest response parse error")?
         .into_result()?;
 
     debug!("Google token request response: {:?}", response);

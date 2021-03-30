@@ -58,8 +58,8 @@ pub struct FacebookTokenResponse{
     pub token_type: String,
     pub expires_in: u64,
 
-    #[serde(flatten)]
-    pub other: HashMap<String, Value>
+    // #[serde(flatten)]
+    // pub other: HashMap<String, Value>
 }
 
 ////////////////////////////////////////////////////////////////////////
@@ -89,7 +89,7 @@ pub struct GoogleErrorValue{
 }
 #[derive(Deserialize, Debug)]
 pub struct GoogleErrorResponse{
-    // pub error: GoogleErrorValue,
+    pub error: GoogleErrorValue,
 
     #[serde(flatten)]
     pub other: HashMap<String, Value>
@@ -103,8 +103,8 @@ pub struct GoogleTokenResponse{
     pub token_type: String,
     pub expires_in: u32,
 
-    #[serde(flatten)]
-    pub other: HashMap<String, Value>
+    // #[serde(flatten)]
+    // pub other: HashMap<String, Value>
 }
 
 ////////////////////////////////////////////////////////////////////////
