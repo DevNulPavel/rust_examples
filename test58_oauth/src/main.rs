@@ -225,7 +225,6 @@ fn configure_new_app(config: &mut web::ServiceConfig) {
 #[actix_web::main]
 async fn main() -> std::io::Result<()> {
     // Инициализируем менеджер логирования
-    let filter = tracing_subscriber::EnvFilter::from_default_env();
     let (non_blocking_appender, _file_appender_guard) = 
         tracing_appender::non_blocking(tracing_appender::rolling::hourly("logs", "app_log"));
     let file_sub = tracing_subscriber::fmt::layer()
@@ -246,10 +245,12 @@ async fn main() -> std::io::Result<()> {
     let opentelemetry_sub = tracing_opentelemetry::layer()
         .with_tracer(opentelemetry_tracer);
     let full_subscriber = tracing_subscriber::registry()
-        .with(filter)
-        .with(stdoud_sub)
+        .with(tracing_subscriber::EnvFilter::from_default_env()
+                .add_directive(tracing::Level::TRACE.into()))
         .with(file_sub)
-        .with(opentelemetry_sub);
+        .with(opentelemetry_sub)
+        .with(tracing_subscriber::EnvFilter::from_default_env()) // Фильтр стоит специально в этом месте, чтобы фильтровать лишь сообщения для терминала
+        .with(stdoud_sub);
     tracing::subscriber::set_global_default(full_subscriber).unwrap();
 
     let span = debug_span!("root_span");
