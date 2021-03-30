@@ -3,7 +3,7 @@ use actix_web::{
         self
     }
 };
-use log::{
+use tracing::{
     debug
 };
 use actix_identity::{

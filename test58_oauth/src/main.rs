@@ -23,9 +23,6 @@ use actix_web::{App,
 use handlebars::{
     Handlebars
 };
-use log::{
-    debug
-};
 use rand::{
     Rng
 };
@@ -36,8 +33,17 @@ use actix_identity::{
     RequestIdentity
 };
 use tracing::{
-    instrument,
-    Instrument
+    Instrument, 
+    debug_span, 
+    error_span, 
+    event, 
+    info_span, 
+    instrument, 
+    trace_span,
+    debug,
+    error,
+    info,
+    trace
 };
 use crate::{
     error::{
@@ -177,7 +183,11 @@ async fn logout(id: Identity) -> Result<web::HttpResponse, AppError> {
 ////////////////////////////////////////////////////////////////////////////////////////////////////////////////
 
 /// Создаем менеджер шаблонов и регистрируем туда нужные
+#[instrument]
 fn create_templates<'a>() -> Handlebars<'a> {
+    let span = debug_span!("Template engine configure", templates_type = "handlebars");
+    let _g = span.enter();
+
     let mut handlebars = Handlebars::new();
     handlebars
         .register_template_file(constants::INDEX_TEMPLATE, "templates/index.hbs")
@@ -195,6 +205,9 @@ fn create_templates<'a>() -> Handlebars<'a> {
 /// Функция непосредственного конфигурирования приложения
 /// Для каждого потока исполнения будет создано свое приложение
 fn configure_new_app(config: &mut web::ServiceConfig) {
+    let span = debug_span!("Server application configure");
+    let _g = span.enter();
+
     config
         .service(web::resource(constants::INDEX_PATH)
                     .route(web::route()
@@ -234,13 +247,18 @@ fn configure_new_app(config: &mut web::ServiceConfig) {
 async fn main() -> std::io::Result<()> {
     // Инициализируем менеджер логирования
     // env_logger::init();
-    tracing_subscriber::fmt()
-        // .with_max_level(tracing::Level::TRACE)
-        // .pretty()
+    // let file_appender = tracing_appender::rolling::hourly("logs", "app_log");
+    // let (non_blocking_appender, _file_appender_guard) = tracing_appender::non_blocking(file_appender);
+    let subscriber = tracing_subscriber::FmtSubscriber::builder()
+        // .with_writer(non_blocking_appender)
         .with_thread_names(true)
         .with_thread_ids(true)
         .with_env_filter(tracing_subscriber::EnvFilter::from_default_env())
-        .init();
+        .finish();
+    tracing::subscriber::set_global_default(subscriber).unwrap();
+    // tracing_subscriber::fmt()
+        // .with_max_level(tracing::Level::TRACE)
+        // .pretty()
 
     // Получаем параметры Facebook + Google
     let facebook_env_params = web::Data::new(FacebookEnvParams::get_from_env());

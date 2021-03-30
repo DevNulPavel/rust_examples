@@ -3,8 +3,11 @@ use std::{
         self
     }
 };
-use log::{
-    debug
+use tracing::{
+    debug,
+    event,
+    Level,
+    instrument
 };
 use sqlx::{
     // prelude::{
@@ -36,11 +39,17 @@ pub struct Database{
     db: SqlitePool
 }
 impl Database{
+
+    #[instrument]
     pub async fn open() -> Database {
         let sqlite_conn = SqlitePool::connect(&env::var("DATABASE_URL")
                                                 .expect("DATABASE_URL env variable is missing"))
             .await
             .expect("Database connection failed");
+
+        event!(Level::DEBUG, 
+               db_type = %"sqlite", // Будет отформатировано как Display
+               "Database open success");
 
         // Включаем все миграции базы данных сразу в наш бинарник, выполняем при старте
         sqlx::migrate!("./migrations")
@@ -48,12 +57,16 @@ impl Database{
             .await
             .expect("database migration failed");
 
+        debug!(migration_file = ?"./migrations", // Будет отформатировано как debug
+               "Database migration finished");
+
         Database{
             db: sqlite_conn
         }
     }
 
     /// Пытаемся найти нового пользователя для FB ID 
+    #[instrument]
     pub async fn try_to_find_user_uuid_with_fb_id(&self, id: &str) -> Result<Option<String>, AppError>{
         struct Res{
             user_uuid: String
@@ -75,6 +88,7 @@ impl Database{
         Ok(res)
     }
 
+    #[instrument]
     pub async fn insert_uuid_for_facebook_user(&self, uuid: &str, fb_uid: &str) -> Result<(), AppError>{
         // Стартуем транзакцию, если будет ошибка, то вызовется rollback автоматически в drop
         // если все хорошо, то руками вызываем commit
@@ -101,6 +115,7 @@ impl Database{
     }
 
     /// Пытаемся найти нового пользователя для FB ID 
+    #[instrument]
     pub async fn try_to_find_user_uuid_with_google_id(&self, id: &str) -> Result<Option<String>, AppError>{
         struct Res{
             user_uuid: String
@@ -122,6 +137,7 @@ impl Database{
         Ok(res)
     }
 
+    #[instrument]
     pub async fn insert_uuid_for_google_user(&self, uuid: &str, google_uid: &str) -> Result<(), AppError>{
         // Стартуем транзакцию, если будет ошибка, то вызовется rollback автоматически в drop
         // если все хорошо, то руками вызываем commit
@@ -148,6 +164,7 @@ impl Database{
     }
 
     /// Пытаемся найти нового пользователя для FB ID 
+    #[instrument]
     pub async fn try_find_full_user_info_for_uuid(&self, uuid: &str) -> Result<Option<UserInfo>, AppError>{
         // Специальным образом описываем, что поле действительно может быть нулевым с 
         // помощью вопросика в переименовании - as 'facebook_uid?'
@@ -173,6 +190,7 @@ impl Database{
     }
 
     /// Пытаемся найти нового пользователя для FB ID 
+    #[instrument]
     pub async fn does_user_uuid_exist(&self, uuid: &str) -> Result<bool, AppError>{
         // TODO: Более оптимальный вариант
         let res = sqlx::query!(r#"   
