@@ -89,7 +89,7 @@ impl Database{
     }
 
     #[instrument]
-    pub async fn insert_uuid_for_facebook_user(&self, uuid: &str, fb_uid: &str) -> Result<(), AppError>{
+    pub async fn insert_facebook_user_with_uuid(&self, uuid: &str, fb_uid: &str) -> Result<(), AppError>{
         // Стартуем транзакцию, если будет ошибка, то вызовется rollback автоматически в drop
         // если все хорошо, то руками вызываем commit
         let transaction = self.db.begin().await?;
@@ -103,6 +103,30 @@ impl Database{
                         INSERT INTO facebook_users(facebook_uid, app_user_id)
                             VALUES (?, (SELECT id FROM app_users WHERE user_uuid = ?));
                     "#, uuid, fb_uid, uuid)
+            .execute(&self.db)
+            .await?
+            .last_insert_rowid();
+
+        transaction.commit().await?;
+
+        debug!("New facebook user included: row_id = {}", new_row_id);
+
+        Ok(())
+    }
+
+    #[instrument]
+    pub async fn append_facebook_user_for_uuid(&self, uuid: &str, fb_uid: &str) -> Result<(), AppError>{
+        // Стартуем транзакцию, если будет ошибка, то вызовется rollback автоматически в drop
+        // если все хорошо, то руками вызываем commit
+        let transaction = self.db.begin().await?;
+
+        // TODO: ???
+        // Если таблица иммет поле INTEGER PRIMARY KEY тогда last_insert_rowid - это алиас
+        // Но вроде бы наиболее надежный способ - это сделать подзапрос
+        let new_row_id = sqlx::query!(r#"
+                                            INSERT INTO facebook_users(facebook_uid, app_user_id)
+                                            VALUES (?, (SELECT id FROM app_users WHERE user_uuid = ?));
+                                        "#, fb_uid, uuid)
             .execute(&self.db)
             .await?
             .last_insert_rowid();
@@ -138,7 +162,7 @@ impl Database{
     }
 
     #[instrument]
-    pub async fn insert_uuid_for_google_user(&self, uuid: &str, google_uid: &str) -> Result<(), AppError>{
+    pub async fn insert_google_user_with_uuid(&self, uuid: &str, google_uid: &str) -> Result<(), AppError>{
         // Стартуем транзакцию, если будет ошибка, то вызовется rollback автоматически в drop
         // если все хорошо, то руками вызываем commit
         let transaction = self.db.begin().await?;
@@ -152,6 +176,30 @@ impl Database{
                                         INSERT INTO google_users(google_uid, app_user_id)
                                         VALUES (?, (SELECT id FROM app_users WHERE user_uuid = ?));
                                         "#, uuid, google_uid, uuid)
+            .execute(&self.db)
+            .await?
+            .last_insert_rowid();
+
+        transaction.commit().await?;
+
+        debug!("New google user included: row_id = {}", new_row_id);
+
+        Ok(())
+    }
+
+    #[instrument]
+    pub async fn append_google_user_for_uuid(&self, uuid: &str, google_uid: &str) -> Result<(), AppError>{
+        // Стартуем транзакцию, если будет ошибка, то вызовется rollback автоматически в drop
+        // если все хорошо, то руками вызываем commit
+        let transaction = self.db.begin().await?;
+
+        // TODO: ???
+        // Если таблица иммет поле INTEGER PRIMARY KEY тогда last_insert_rowid - это алиас
+        // Но вроде бы наиболее надежный способ - это сделать подзапрос
+        let new_row_id = sqlx::query!(r#"
+                                        INSERT INTO google_users(google_uid, app_user_id)
+                                        VALUES (?, (SELECT id FROM app_users WHERE user_uuid = ?));
+                                        "#, google_uid, uuid)
             .execute(&self.db)
             .await?
             .last_insert_rowid();

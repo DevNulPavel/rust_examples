@@ -163,11 +163,30 @@ pub async fn facebook_auth_callback(req: actix_web::HttpRequest,
             identity.remember(user_uuid);
         },
         None => {
-            // Выполняем генерацию UUID и запись в базу
-            let uuid = format!("island_uuid_{}", uuid::Uuid::new_v4());
-            
-            // Сохраняем в базу идентификатор нашего пользователя
-            db.insert_uuid_for_facebook_user(&uuid, &fb_user_info.id).await?;
+            // Если мы залогинились, но у нас есть валидный пользователь в куках, джойним к нему GoogleId
+            let uuid = match identity.identity() {
+                Some(uuid) if db.does_user_uuid_exist(&uuid).await? => {
+                    debug!(uuid = %uuid, "User with identity exists");
+
+                    // Добавляем в базу идентификатор нашего пользователя
+                    db.append_facebook_user_for_uuid(&uuid, &fb_user_info.id).await?;
+
+                    uuid
+                },
+                _ => {
+                    // Сбрасываем если был раньше
+                    identity.forget();
+                    
+                    // TODO: вынести в общую функцию
+                    // Выполняем генерацию нового UUID
+                    let uuid = format!("island_uuid_{}", uuid::Uuid::new_v4());
+
+                    // Сохраняем в базу идентификатор нашего пользователя
+                    db.insert_facebook_user_with_uuid(&uuid, &fb_user_info.id).await?;
+
+                    uuid
+                }
+            };
 
             // Сохраняем идентификатор в куках
             identity.remember(uuid);

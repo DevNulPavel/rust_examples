@@ -9,8 +9,8 @@ CREATE TABLE IF NOT EXISTS app_users
 CREATE TABLE IF NOT EXISTS facebook_users
 (
     id INTEGER PRIMARY KEY,
-    facebook_uid VARCHAR(64) NOT NULL,
-    app_user_id INTEGER,
+    facebook_uid VARCHAR(64) NOT NULL UNIQUE,
+    app_user_id INTEGER UNIQUE,
 
     FOREIGN KEY (app_user_id) REFERENCES app_users(id)
 );
@@ -18,8 +18,8 @@ CREATE TABLE IF NOT EXISTS facebook_users
 CREATE TABLE IF NOT EXISTS google_users
 (
     id INTEGER PRIMARY KEY,
-    google_uid VARCHAR(64) NOT NULL,
-    app_user_id INTEGER,
+    google_uid VARCHAR(64) NOT NULL UNIQUE,
+    app_user_id INTEGER UNIQUE,
 
     FOREIGN KEY (app_user_id) REFERENCES app_users(id)
 );

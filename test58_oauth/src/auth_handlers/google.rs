@@ -3,6 +3,7 @@ use actix_web::{
         self
     }
 };
+use futures::stream::futures_unordered::Iter;
 use tracing::{
     debug
 };
@@ -34,6 +35,10 @@ use crate::{
     database::{
         Database
     },
+    helpers::{
+        get_full_user_info_for_identity,
+        get_uuid_from_ident_with_db_check
+    },
     constants::{
         self
     }
@@ -51,7 +56,7 @@ fn get_callback_address(req: &actix_web::HttpRequest) -> String {
 ////////////////////////////////////////////////////////////////////////////////////////////////////////////////
 
 /// Данный метод вызывается при нажатии на кнопку логина в Facebook
-pub async fn login_with_google(req: actix_web::HttpRequest, 
+pub async fn login_with_google(req: actix_web::HttpRequest,
                                google_params: web::Data<GoogleEnvParams>,
                                fb_params: web::Data<GoogleEnvParams>) -> Result<web::HttpResponse, AppError> {
     debug!("Request object: {:?}", req);
@@ -150,11 +155,30 @@ pub async fn google_auth_callback(req: actix_web::HttpRequest,
             identity.remember(user_uuid);
         },
         None => {
-            // Выполняем генерацию UUID и запись в базу
-            let uuid = format!("island_uuid_{}", uuid::Uuid::new_v4());
-            
-            // Сохраняем в базу идентификатор нашего пользователя
-            db.insert_uuid_for_google_user(&uuid, &user_info_data.id).await?;
+            // Если мы залогинились, но у нас есть валидный пользователь в куках, джойним к нему GoogleId
+            let uuid = match identity.identity() {
+                Some(uuid) if db.does_user_uuid_exist(&uuid).await? => {
+                    debug!(uuid = %uuid, "User with identity exists");
+
+                    // Добавляем в базу идентификатор нашего пользователя
+                    db.append_google_user_for_uuid(&uuid, &user_info_data.id).await?;
+
+                    uuid
+                },
+                _ => {
+                    // Сбрасываем если был раньше
+                    identity.forget();
+                    
+                    // TODO: вынести в общую функцию
+                    // Выполняем генерацию нового UUID
+                    let uuid = format!("island_uuid_{}", uuid::Uuid::new_v4());
+
+                    // Сохраняем в базу идентификатор нашего пользователя
+                    db.insert_google_user_with_uuid(&uuid, &user_info_data.id).await?;
+
+                    uuid
+                }
+            };
 
             // Сохраняем идентификатор в куках
             identity.remember(uuid);
