@@ -22,7 +22,7 @@ pub async fn get_uuid_from_ident_with_db_check(id: &Identity,
     // Проверка идентификатора пользователя
     // TODO: приходится делать это здесь, а не в middleware, так как 
     // есть проблемы с асинхронным запросом к базе в middleware
-    if let Some(uuid) = id.identity(){
+    if let Some(uuid) = id.identity() {
         // Проверяем, что у нас валидный пользователь из базы
         let exists = db.does_user_uuid_exist(&uuid).await?;
         if !exists {

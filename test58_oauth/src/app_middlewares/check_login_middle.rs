@@ -51,7 +51,7 @@ use futures::{
         Ready
     }
 };
-use log::{
+use tracing::{
     debug
 };
 use crate::{
@@ -65,15 +65,24 @@ use crate::{
 
 ////////////////////////////////////////////////////////////////////////////
 
-pub fn create_check_login_middleware() -> CheckLogin{
-    CheckLogin::default()
+pub fn create_check_login_middleware<P, F>(patch_check: P,
+                                           path_fail: F) -> CheckLogin
+where
+    P: Fn(&str) -> bool + 'static,
+    F: Fn() -> HttpResponse + 'static
+{
+    CheckLogin{
+        path_check_fn: Arc::new(patch_check),
+        path_fail_response_fn: Arc::new(path_fail)
+    }
 }
 
 ////////////////////////////////////////////////////////////////////////////
 
 // Структура нашего конвертера в миддлевару
-#[derive(Default)]
 pub struct CheckLogin{
+    pub path_check_fn: Arc<dyn Fn(&str) -> bool>, // TODO: в шаблоны?
+    pub path_fail_response_fn: Arc<dyn Fn() -> HttpResponse> // TODO: в шаблоны?
 }
 
 // Реализация трансформа для перехода в Middleware
@@ -81,20 +90,22 @@ impl<S, B> Transform<S> for CheckLogin
 where
     S: Service<Request = ServiceRequest, 
                Response = ServiceResponse<B>, 
-               Error = Error> + 'static,
+               Error = actix_web::Error> + 'static,
     S::Future: 'static,
 {
     type Request = ServiceRequest;
     type Response = ServiceResponse<B>;
-    type Error = Error;
+    type Error = actix_web::Error;
     type InitError = ();
-    type Transform = CheckLoginMiddleware<S>;
+    type Transform = CheckLoginMiddleware<S>;       // Во что трансформируемся
     type Future = Ready<Result<Self::Transform, Self::InitError>>;
 
     fn new_transform(&self, service: S) -> Self::Future {
         // Создаем новую middleware из параметра, обязательно сохраняем наш сервис там
         let middleware = CheckLoginMiddleware{ 
-            service: Arc::new(Mutex::new(service))
+            service: Arc::new(Mutex::new(service)),
+            path_check_fn: self.path_check_fn.clone(),
+            path_fail_response_fn: self.path_fail_response_fn.clone()
         };
         futures::future::ok(middleware)
     }
@@ -102,11 +113,27 @@ where
 
 ////////////////////////////////////////////////////////////////////////////
 
-/// непосредственно сам Middleware, хранящий следующий сервис
+fn get_user_id_from_request(req: ServiceRequest) -> (Option<String>, ServiceRequest) {
+    let (r, mut pl) = req.into_parts();
+    let user_id = Identity::from_request(&r, &mut pl)
+        .into_inner()
+        .ok()
+        .and_then(|identity|{
+            identity.identity()
+        });
+    let req = actix_web::dev::ServiceRequest::from_parts(r, pl)
+        .ok()
+        .unwrap();
+    (user_id, req)
+}
+
+/// Непосредственно сам Middleware, хранящий следующий сервис
 pub struct CheckLoginMiddleware<S> {
     // TODO: Убрать Mutex?
     // https://github.com/casbin-rs/actix-casbin-auth/blob/master/src/middleware.rs
     service: Arc<Mutex<S>>,
+    path_check_fn: Arc<dyn Fn(&str) -> bool>, // TODO: в шаблоны?
+    path_fail_response_fn: Arc<dyn Fn() -> HttpResponse> // TODO: в шаблоны?
 }
 
 /// Реализация работы Middleware сервиса
@@ -114,12 +141,12 @@ impl<S, B> Service for CheckLoginMiddleware<S>
 where
     S: Service<Request = ServiceRequest, 
                Response = ServiceResponse<B>, 
-               Error = Error> + 'static,
+               Error = actix_web::Error> + 'static,
     S::Future: 'static,
 {
     type Request = ServiceRequest;
     type Response = ServiceResponse<B>;
-    type Error = Error;
+    type Error = actix_web::Error;
     type Future = Pin<Box<dyn Future<Output = Result<Self::Response, Self::Error>>>>;
 
     fn poll_ready(&mut self, cx: &mut Context) -> Poll<Result<(), Self::Error>> {
@@ -130,65 +157,38 @@ where
 
     fn call(&mut self, req: ServiceRequest) -> Self::Future {
         let srv = self.service.clone();
+        let path_check_fn = self.path_check_fn.clone();
+        let path_fail_response_fn = self.path_fail_response_fn.clone();
 
         Box::pin(async move {
-            let (r, mut pl) = req.into_parts();
-            let user_id = Identity::from_request(&r, &mut pl)
-                .into_inner()
-                .ok()
-                .and_then(|identity|{
-                    identity.identity()
-                });
-            let req = actix_web::dev::ServiceRequest::from_parts(r, pl)
-                .ok()
-                .unwrap();
+            // Получаем user_id из запроса
+            let (user_id, req) = get_user_id_from_request(req);
 
+            // Получаем базу данных из запроса
             let db = req
                 .app_data::<web::Data<Database>>()
                 .expect("Database manager is missing")
                 .clone();
 
-            let user_info = if let Some(user_id) = user_id{
-                db.try_find_full_user_info_for_uuid(&user_id).await?
-            }else{
-                None
+            let user_info = match user_id {
+                Some(user_id) => db.try_find_full_user_info_for_uuid(&user_id).await?,
+                None => None
             };
 
-            if let Some(user_info) = user_info {                
-                // Если мы залогинены, тогда не пускаем на страницу логина
-                if req.path() == constants::LOGIN_PATH {
-                    // Переходим на главную
-                    let http_redirect_resp = HttpResponse::Found()
-                        .header(http::header::LOCATION, constants::INDEX_PATH)
-                        .finish()
-                        .into_body();
-        
-                    Ok(req.into_response(http_redirect_resp))
-                }else{
+            // Ищем полную информацию о пользователе
+            match user_info {
+                Some(user_info) if path_check_fn(req.path()) => {
                     // Сохраняем расширение для передачи в виде параметра в метод
                     req.extensions_mut().insert(user_info);
 
                     // TODO: Проверить на сколько блокируется
                     let mut guard = srv.lock().expect("CheckLoginMiddleware lock failed");
                     guard.call(req).await
-                }
-            } else {                
-                // Если мы не залогинены, проверяем - может мы уже на странице логина?
-                if req.path() != constants::LOGIN_PATH {
-                    // Переходим на логин
-                    let http_redirect_resp = HttpResponse::Found()
-                        .header(http::header::LOCATION, constants::LOGIN_PATH)
-                        .finish()
-                        .into_body();
-        
+                },
+                _ => {
+                    // Переходим куда надо если нет данных о пользователе
+                    let http_redirect_resp = path_fail_response_fn().into_body();
                     Ok(req.into_response(http_redirect_resp))
-                }else{
-                    // Сохраняем расширение для передачи в виде параметра в метод
-                    req.extensions_mut().insert(user_info);
-
-                    // TODO: Проверить на сколько блокируется
-                    let mut guard = srv.lock().expect("CheckLoginMiddleware lock failed");
-                    guard.call(req).await
                 }
             }
         })

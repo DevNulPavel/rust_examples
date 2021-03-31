@@ -1,6 +1,8 @@
 # Описание командной утилиты по работе с базой данных:
 # https://github.com/launchbadge/sqlx/tree/master/sqlx-cli
 
+.SILENT:
+
 INITIALIZE_DATABASE:
 	export DATABASE_URL=sqlite://oauth_db.sqlite && \
 	sqlx database create

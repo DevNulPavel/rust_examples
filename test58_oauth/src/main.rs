@@ -6,19 +6,19 @@ mod responses;
 mod database;
 mod env_app_params;
 mod helpers;
+mod http_handlers;
 
 use actix_files::{
     Files
 };
-use actix_web::{App, 
-    FromRequest, 
+use actix_web::{
+    App, 
     HttpServer, 
     guard::{
         self
     }, 
     web::{
-        self, 
-        Data
+        self
     }
 };
 use handlebars::{
@@ -29,23 +29,11 @@ use rand::{
 };
 use actix_identity::{
     CookieIdentityPolicy, 
-    Identity, 
-    IdentityService, 
-    RequestIdentity
+    IdentityService
 };
 use tracing::{
-    Instrument, 
-    Value,
     debug_span, 
-    error_span, 
-    info_span, 
-    trace_span,
-    event, 
-    instrument, 
-    debug,
-    error,
-    info,
-    trace
+    instrument
 };
 use tracing_subscriber::{
     prelude::{
@@ -55,108 +43,65 @@ use tracing_subscriber::{
 use tracing_actix_web::{
     TracingLogger
 };
-use tracing_opentelemetry::{
-    OpenTelemetrySpanExt,
-    PreSampledTracer
-};
 use crate::{
-    error::{
-        AppError
-    },
     env_app_params::{
         FacebookEnvParams,
         GoogleEnvParams
     },
     app_middlewares::{
         create_error_middleware,
-        // create_check_login_middleware
+        create_check_login_middleware
     },
     database::{
-        Database,
-        UserInfo
+        Database
     },
-    helpers::{
-        get_full_user_info_for_identity,
-        get_uuid_from_ident_with_db_check
+    http_handlers::{
+        index,
+        login_page,
+        logout
     }
 };
 
 ////////////////////////////////////////////////////////////////////////////////////////////////////////////////
 
-// #[instrument]
-async fn index(handlebars: web::Data<Handlebars<'_>>, 
-               id: Identity,
-               db: web::Data<Database>) -> Result<web::HttpResponse, AppError> {
-    let span = debug_span!("index_page_span", "user" = tracing::field::Empty);
-    let _enter_guard = span.enter();
-
-    // Проверка идентификатора пользователя
-    // TODO: приходится делать это здесь, а не в middleware, так как
-    // есть проблемы с асинхронным запросом к базе в middleware 
-    let full_info = match get_full_user_info_for_identity(&id, &db).await? {
-        Some(full_info) => full_info,
-        None => {
-            debug!("Redirect code from handler");
-            // Возвращаем код 302 и Location в заголовках для перехода
-            return Ok(web::HttpResponse::Found()
-                        .header(actix_web::http::header::LOCATION, constants::LOGIN_PATH)
-                        .finish())
-        }
-    };
-
-    span.record("user", &tracing::field::debug(&full_info));
-
-    let template_data = serde_json::json!({
-        "uuid": full_info.user_uuid,
-        "facebook_uid": full_info.facebook_uid,
-        "google_uid": full_info.google_uid,
-    });
-
-    // Рендерим шаблон
-    let body = handlebars.render(constants::INDEX_TEMPLATE, &template_data)?;
-
-    Ok(web::HttpResponse::Ok()
-        .content_type("text/html; charset=utf-8")
-        .body(body))
+struct LogGuards{
+    _file_appender_guard: tracing_appender::non_blocking::WorkerGuard,
+    _opentelemetry_uninstall: opentelemetry_jaeger::Uninstall
 }
 
-////////////////////////////////////////////////////////////////////////////////////////////////////////////////
+fn initialize_logs() -> LogGuards{
+    let (non_blocking_appender, _file_appender_guard) = 
+        tracing_appender::non_blocking(tracing_appender::rolling::hourly("logs", "app_log"));
+    let file_sub = tracing_subscriber::fmt::layer()
+        .with_ansi(false)
+        .json()
+        .with_writer(non_blocking_appender);
+    let stdoud_sub = tracing_subscriber::fmt::layer()
+        .with_thread_names(true)
+        .with_thread_ids(true)
+        .with_ansi(true)
+        .with_writer(std::io::stdout);
+    let (opentelemetry_tracer, _opentelemetry_uninstall) = opentelemetry_jaeger::new_pipeline()
+        .with_service_name("oauth_server")
+        .install()
+        .unwrap();
+    /*let (opentelemetry_tracer, _un) = opentelemetry::sdk::export::trace::stdout::new_pipeline()
+        .install();*/
+    let opentelemetry_sub = tracing_opentelemetry::layer()
+        .with_tracer(opentelemetry_tracer);
+    let full_subscriber = tracing_subscriber::registry()
+        .with(tracing_subscriber::EnvFilter::from_default_env()
+                .add_directive(tracing::Level::TRACE.into()))
+        .with(file_sub)
+        .with(opentelemetry_sub)
+        .with(tracing_subscriber::EnvFilter::from_default_env()) // Фильтр стоит специально в этом месте, чтобы фильтровать лишь сообщения для терминала
+        .with(stdoud_sub);
+    tracing::subscriber::set_global_default(full_subscriber).unwrap();
 
-// #[instrument]
-async fn login_page(handlebars: web::Data<Handlebars<'_>>,
-                    id: Identity,
-                    db: web::Data<Database>) -> Result<web::HttpResponse, AppError> {
-    let span = debug_span!("login_page_span", "user" = tracing::field::Empty);
-    let _enter_guard = span.enter();
-
-    // Проверка идентификатора пользователя
-    // TODO: приходится делать это здесь, а не в middleware, так как
-    // есть проблемы с асинхронным запросом к базе в middleware 
-    if get_uuid_from_ident_with_db_check(&id, &db).await?.is_some() {
-        debug!("Redirect code from handler");
-        // Возвращаем код 302 и Location в заголовках для перехода
-        return Ok(web::HttpResponse::Found()
-                    .header(actix_web::http::header::LOCATION, constants::INDEX_PATH)
-                    .finish())
+    LogGuards{
+        _file_appender_guard,
+        _opentelemetry_uninstall
     }
-
-    let body = handlebars.render(constants::LOGIN_TEMPLATE, &serde_json::json!({}))?;
-
-    Ok(web::HttpResponse::Ok()
-        .content_type("text/html; charset=utf-8")
-        .body(body))
-}
-
-////////////////////////////////////////////////////////////////////////////////////////////////////////////////
-
-// #[instrument]
-async fn logout(id: Identity) -> Result<web::HttpResponse, AppError> {
-    id.forget();
-
-    // Возвращаем код 302 и Location в заголовках для перехода
-    return Ok(web::HttpResponse::Found()
-                .header(actix_web::http::header::LOCATION, constants::LOGIN_PATH)
-                .finish())
 }
 
 ////////////////////////////////////////////////////////////////////////////////////////////////////////////////
@@ -181,6 +126,8 @@ fn create_templates<'a>() -> Handlebars<'a> {
     handlebars
 }
 
+////////////////////////////////////////////////////////////////////////////////////////////////////////////////
+
 /// Функция непосредственного конфигурирования приложения
 /// Для каждого потока исполнения будет создано свое приложение
 fn configure_new_app(config: &mut web::ServiceConfig) {
@@ -189,6 +136,11 @@ fn configure_new_app(config: &mut web::ServiceConfig) {
 
     config
         .service(web::resource(constants::INDEX_PATH)
+                    .wrap(create_check_login_middleware(
+                        |path| path.eq(constants::INDEX_PATH),
+                        || web::HttpResponse::Found()
+                            .header(actix_web::http::header::LOCATION, constants::LOGIN_PATH)
+                            .finish()))
                     .route(web::route()
                             .guard(guard::Get())
                             .to(index)))
@@ -225,34 +177,9 @@ fn configure_new_app(config: &mut web::ServiceConfig) {
 #[actix_web::main]
 async fn main() -> std::io::Result<()> {
     // Инициализируем менеджер логирования
-    let (non_blocking_appender, _file_appender_guard) = 
-        tracing_appender::non_blocking(tracing_appender::rolling::hourly("logs", "app_log"));
-    let file_sub = tracing_subscriber::fmt::layer()
-        .with_ansi(false)
-        .json()
-        .with_writer(non_blocking_appender);
-    let stdoud_sub = tracing_subscriber::fmt::layer()
-        .with_thread_names(true)
-        .with_thread_ids(true)
-        .with_ansi(true)
-        .with_writer(std::io::stdout);
-    let (opentelemetry_tracer, _opentelemetry_uninstall) = opentelemetry_jaeger::new_pipeline()
-        .with_service_name("oauth_server")
-        .install()
-        .unwrap();
-    /*let (opentelemetry_tracer, _un) = opentelemetry::sdk::export::trace::stdout::new_pipeline()
-        .install();*/
-    let opentelemetry_sub = tracing_opentelemetry::layer()
-        .with_tracer(opentelemetry_tracer);
-    let full_subscriber = tracing_subscriber::registry()
-        .with(tracing_subscriber::EnvFilter::from_default_env()
-                .add_directive(tracing::Level::TRACE.into()))
-        .with(file_sub)
-        .with(opentelemetry_sub)
-        .with(tracing_subscriber::EnvFilter::from_default_env()) // Фильтр стоит специально в этом месте, чтобы фильтровать лишь сообщения для терминала
-        .with(stdoud_sub);
-    tracing::subscriber::set_global_default(full_subscriber).unwrap();
+    let _log_guard = initialize_logs();
 
+    // Базовый span для логирования
     let span = debug_span!("root_span");
     let _span_guard = span.enter();
 
@@ -285,8 +212,6 @@ async fn main() -> std::io::Result<()> {
                     .secure(false);
                 IdentityService::new(policy)
             };
-
-            // TODO: Session middleware
 
             // Приложение создается для каждого потока свое собственное
             // Порядок выполнения Middleware обратный, снизу вверх
