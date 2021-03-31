@@ -11,6 +11,7 @@ use actix_identity::{
     Identity
 };
 use tracing::{
+    instrument,
     debug_span, 
     // debug,
 };
@@ -28,14 +29,9 @@ use crate::{
 
 ////////////////////////////////////////////////////////////////////////////////////////////////////////////////
 
-// #[instrument]
+#[instrument(skip(handlebars), fields(user_id = %full_info.user_uuid))]
 pub async fn index(handlebars: web::Data<Handlebars<'_>>, 
                    full_info: UserInfo) -> Result<web::HttpResponse, AppError> {
-    let span = debug_span!("index_page_span", "user" = tracing::field::Empty);
-    let _enter_guard = span.enter();
-
-    span.record("user", &tracing::field::debug(&full_info));
-
     let template_data = serde_json::json!({
         "uuid": full_info.user_uuid,
         "facebook_uid": full_info.facebook_uid,
@@ -52,11 +48,8 @@ pub async fn index(handlebars: web::Data<Handlebars<'_>>,
 
 ////////////////////////////////////////////////////////////////////////////////////////////////////////////////
 
-// #[instrument]
+#[instrument(skip(handlebars))]
 pub async fn login_page(handlebars: web::Data<Handlebars<'_>>) -> Result<web::HttpResponse, AppError> {
-    let span = debug_span!("login_page_span", "user" = tracing::field::Empty);
-    let _enter_guard = span.enter();
-
     let body = handlebars.render(constants::LOGIN_TEMPLATE, &serde_json::json!({}))?;
 
     Ok(web::HttpResponse::Ok()
@@ -66,7 +59,7 @@ pub async fn login_page(handlebars: web::Data<Handlebars<'_>>) -> Result<web::Ht
 
 ////////////////////////////////////////////////////////////////////////////////////////////////////////////////
 
-// #[instrument]
+#[instrument(skip(id))]
 pub async fn logout(id: Identity) -> Result<web::HttpResponse, AppError> {
     id.forget();
 

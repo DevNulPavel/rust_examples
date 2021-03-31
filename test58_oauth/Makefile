@@ -30,7 +30,8 @@ DECRYPT_GOOGLE_CREDENTIALS:
 	gpg -a -r 0x0BD10E4E6E578FB6 -o test_google_auth_credentials.json -d test_google_auth_credentials.json.asc
 
 RUN_SERVER: DECRYPT_GOOGLE_CREDENTIALS
+	# export RUST_LOG=actix_web=debug,test58_oauth=trace
 	$(shell gpg -a -r 0x0BD10E4E6E578FB6 -d test_environment.env.asc) && \
 	source .env && \
-	export RUST_LOG=actix_web=debug,test58_oauth=trace && \
+	export RUST_LOG=trace && \
 	cargo run

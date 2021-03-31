@@ -54,13 +54,16 @@ fn get_callback_address(req: &actix_web::HttpRequest) -> String {
 ////////////////////////////////////////////////////////////////////////////////////////////////////////////////
 
 /// Данный метод вызывается при нажатии на кнопку логина в Facebook
-#[instrument]
+#[instrument(fields(callback_site_address))]
 pub async fn login_with_facebook(req: actix_web::HttpRequest, 
                                  fb_params: web::Data<FacebookEnvParams>) -> Result<web::HttpResponse, AppError> {
     debug!("Request object: {:?}", req);
 
     // Адрес нашего сайта + адрес коллбека
     let callback_site_address = get_callback_address(&req);
+
+    tracing::Span::current()
+        .record("callback_site_address", &tracing::field::display(&callback_site_address));
 
     // Создаем урл, на который надо будет идти для логина
     // https://www.facebook.com/dialog/oauth\
@@ -97,17 +100,20 @@ pub struct FacebookAuthParams{
     code: String,
     // scope: String
 }
+#[instrument(skip(identity), fields(callback_site_address))]
 pub async fn facebook_auth_callback(req: actix_web::HttpRequest,
                                     query_params: web::Query<FacebookAuthParams>, 
                                     identity: Identity,
                                     fb_params: web::Data<FacebookEnvParams>,
                                     http_client: web::Data<reqwest::Client>,
                                     db: web::Data<Database>) -> Result<web::HttpResponse, AppError> {
-
     debug!("Request object: {:?}", req);
     debug!("Facebook auth callback query params: {:?}", query_params);
 
     let callback_site_address = get_callback_address(&req);
+
+    tracing::Span::current()
+        .record("callback_site_address", &tracing::field::display(&callback_site_address));
 
     // Выполняем запрос для получения токена на основании кода у редиректа
     let response = http_client

@@ -7,6 +7,9 @@ use actix_web::{
 use actix_identity::{
     Identity
 };
+use tracing::{
+    instrument
+};
 
 // #[instrument]
 /*pub async fn get_uuid_from_ident_with_db_check(id: &Identity,
@@ -52,6 +55,7 @@ use actix_identity::{
     }
 }*/
 
+#[instrument]
 pub fn get_user_id_from_request(req: ServiceRequest) -> (Option<String>, ServiceRequest) {
     let (r, mut pl) = req.into_parts();
     let user_id = Identity::from_request(&r, &mut pl)

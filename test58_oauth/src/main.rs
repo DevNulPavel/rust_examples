@@ -91,12 +91,12 @@ fn initialize_logs() -> LogGuards{
     let opentelemetry_sub = tracing_opentelemetry::layer()
         .with_tracer(opentelemetry_tracer);
     let full_subscriber = tracing_subscriber::registry()
-        .with(tracing_subscriber::EnvFilter::from_default_env()
-                .add_directive(tracing::Level::TRACE.into()))
-        .with(file_sub)
-        .with(opentelemetry_sub)
-        .with(tracing_subscriber::EnvFilter::from_default_env()) // Фильтр стоит специально в этом месте, чтобы фильтровать лишь сообщения для терминала
-        .with(stdoud_sub);
+        .with(tracing_subscriber::EnvFilter::default()
+                .add_directive(tracing::Level::TRACE.into())
+                .and_then(file_sub)
+                .and_then(opentelemetry_sub))
+        .with(tracing_subscriber::EnvFilter::from_default_env() // TODO: Почему-то все равно не работает
+                .and_then(stdoud_sub));
     tracing::subscriber::set_global_default(full_subscriber).unwrap();
 
     LogGuards{
@@ -108,7 +108,6 @@ fn initialize_logs() -> LogGuards{
 ////////////////////////////////////////////////////////////////////////////////////////////////////////////////
 
 /// Создаем менеджер шаблонов и регистрируем туда нужные
-#[instrument]
 fn create_templates<'a>() -> Handlebars<'a> {
     let mut handlebars = Handlebars::new();
     handlebars

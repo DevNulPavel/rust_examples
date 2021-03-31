@@ -39,8 +39,7 @@ pub struct Database{
     db: SqlitePool
 }
 impl Database{
-
-    #[instrument]
+    #[instrument(name = "database_open")]
     pub async fn open() -> Database {
         let sqlite_conn = SqlitePool::connect(&env::var("DATABASE_URL")
                                                 .expect("DATABASE_URL env variable is missing"))

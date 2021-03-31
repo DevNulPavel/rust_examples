@@ -4,7 +4,8 @@ use actix_web::{
     }
 };
 use tracing::{
-    debug
+    debug,
+    instrument
 };
 use actix_identity::{
     Identity
@@ -48,6 +49,7 @@ fn get_callback_address(req: &actix_web::HttpRequest) -> String {
 ////////////////////////////////////////////////////////////////////////////////////////////////////////////////
 
 /// Данный метод вызывается при нажатии на кнопку логина в Facebook
+#[instrument(fields(callback_site_address))]
 pub async fn login_with_google(req: actix_web::HttpRequest,
                                google_params: web::Data<GoogleEnvParams>,
                                fb_params: web::Data<GoogleEnvParams>) -> Result<web::HttpResponse, AppError> {
@@ -55,6 +57,9 @@ pub async fn login_with_google(req: actix_web::HttpRequest,
 
     // Адрес нашего сайта + адрес коллбека
     let callback_site_address = get_callback_address(&req);
+
+    tracing::Span::current()
+        .record("callback_site_address", &tracing::field::display(&callback_site_address));
     
     // Создаем урл, на который надо будет идти для логина
     // https://developers.google.com/identity/protocols/oauth2/web-server#httprest
@@ -84,6 +89,7 @@ pub async fn login_with_google(req: actix_web::HttpRequest,
 pub struct GoogleAuthParams{
     code: String
 }
+#[instrument(skip(identity), fields(callback_site_address))]
 pub async fn google_auth_callback(req: actix_web::HttpRequest,
                                   query_params: web::Query<GoogleAuthParams>, 
                                   identity: Identity,
@@ -95,6 +101,9 @@ pub async fn google_auth_callback(req: actix_web::HttpRequest,
     debug!("Google auth callback query params: {:?}", query_params);
 
     let callback_site_address = get_callback_address(&req);
+
+    tracing::Span::current()
+        .record("callback_site_address", &tracing::field::display(&callback_site_address));
 
     // Выполняем запрос для получения токена на основании кода у редиректа
     let response = http_client
