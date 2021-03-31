@@ -1,24 +1,16 @@
 use actix_web::{
-    web::{
-        self
-    }
+    dev::{
+        ServiceRequest
+    },
+    FromRequest
 };
 use actix_identity::{
     Identity
 };
-use crate::{
-    error::{
-        AppError
-    },
-    database::{
-        Database,
-        UserInfo
-    }
-};
 
 // #[instrument]
-pub async fn get_uuid_from_ident_with_db_check(id: &Identity,
-                                           db: &web::Data<Database>) -> Result<Option<String>, AppError>{
+/*pub async fn get_uuid_from_ident_with_db_check(id: &Identity,
+                                               db: &web::Data<Database>) -> Result<Option<String>, AppError>{
     // Проверка идентификатора пользователя
     // TODO: приходится делать это здесь, а не в middleware, так как 
     // есть проблемы с асинхронным запросом к базе в middleware
@@ -36,11 +28,11 @@ pub async fn get_uuid_from_ident_with_db_check(id: &Identity,
     }else{
         return Ok(None);
     }
-}
+}*/
 
 // #[instrument]
-pub async fn get_full_user_info_for_identity(id: &Identity,
-                                         db: &web::Data<Database>) -> Result<Option<UserInfo>, AppError>{
+/*pub async fn get_full_user_info_for_identity(id: &Identity,
+                                             db: &web::Data<Database>) -> Result<Option<UserInfo>, AppError>{
     // Проверка идентификатора пользователя
     // TODO: приходится делать это здесь, а не в middleware, так как 
     // есть проблемы с асинхронным запросом к базе в middleware
@@ -58,4 +50,18 @@ pub async fn get_full_user_info_for_identity(id: &Identity,
     }else{
         return Ok(None);
     }
+}*/
+
+pub fn get_user_id_from_request(req: ServiceRequest) -> (Option<String>, ServiceRequest) {
+    let (r, mut pl) = req.into_parts();
+    let user_id = Identity::from_request(&r, &mut pl)
+        .into_inner()
+        .ok()
+        .and_then(|identity|{
+            identity.identity()
+        });
+    let req = actix_web::dev::ServiceRequest::from_parts(r, pl)
+        .ok()
+        .unwrap();
+    (user_id, req)
 }

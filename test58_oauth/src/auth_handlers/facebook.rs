@@ -19,8 +19,7 @@ use quick_error::{
     ResultExt
 };
 use tracing::{
-    instrument,
-    Instrument
+    instrument
 };
 use crate::{
     error::{

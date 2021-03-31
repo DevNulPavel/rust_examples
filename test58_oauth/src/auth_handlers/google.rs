@@ -3,7 +3,6 @@ use actix_web::{
         self
     }
 };
-use futures::stream::futures_unordered::Iter;
 use tracing::{
     debug
 };
@@ -15,9 +14,6 @@ use serde::{
 };
 use quick_error::{
     ResultExt
-};
-use lazy_static::{
-    lazy_static
 };
 use crate::{
     error::{
@@ -34,10 +30,6 @@ use crate::{
     },
     database::{
         Database
-    },
-    helpers::{
-        get_full_user_info_for_identity,
-        get_uuid_from_ident_with_db_check
     },
     constants::{
         self

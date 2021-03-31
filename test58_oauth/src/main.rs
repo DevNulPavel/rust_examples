@@ -50,7 +50,8 @@ use crate::{
     },
     app_middlewares::{
         create_error_middleware,
-        create_check_login_middleware
+        create_user_info_middleware,
+        create_auth_check_middleware
     },
     database::{
         Database
@@ -136,15 +137,23 @@ fn configure_new_app(config: &mut web::ServiceConfig) {
 
     config
         .service(web::resource(constants::INDEX_PATH)
-                    .wrap(create_check_login_middleware(
-                        |path| path.eq(constants::INDEX_PATH),
-                        || web::HttpResponse::Found()
-                            .header(actix_web::http::header::LOCATION, constants::LOGIN_PATH)
-                            .finish()))
+                    .wrap(create_user_info_middleware(
+                            || {
+                                web::HttpResponse::Found()
+                                    .header(actix_web::http::header::LOCATION, constants::LOGIN_PATH)
+                                    .finish()
+                            }))
                     .route(web::route()
                             .guard(guard::Get())
                             .to(index)))
         .service(web::resource(constants::LOGIN_PATH)
+                    .wrap(create_auth_check_middleware(
+                            false,
+                            || {
+                                web::HttpResponse::Found()
+                                    .header(actix_web::http::header::LOCATION, constants::INDEX_PATH)
+                                    .finish()
+                            }))
                     .route(web::route()
                                 .guard(guard::Get())
                                 .to(login_page)))                         

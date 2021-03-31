@@ -1,3 +1,4 @@
+/*
 use actix_http::{
     body::{
         Body
@@ -29,7 +30,6 @@ use serde_json::{
     json
 };
 
-/*
 /// Функция, которая создает middleware-обработчик ошибки
 pub fn create_redirect_middleware() -> ErrorHandlers<Body> {
     // Для ошибок типа NOT_FOUND назначаем обработчик
