@@ -20,13 +20,13 @@ pub struct GoogleEnvParams{
     pub project_id: String,
     pub redirect_uris: Vec<String>,
 
-    #[serde_as(as = "DisplayFromStr")] // TODO: ???
+    #[serde_as(as = "DisplayFromStr")]
     pub auth_uri: url::Url,
 
-    #[serde_as(as = "DisplayFromStr")] // TODO: ???
+    #[serde_as(as = "DisplayFromStr")]
     pub token_uri: url::Url,
 
-    #[serde_as(as = "DisplayFromStr")] // TODO: ???
+    #[serde_as(as = "DisplayFromStr")]
     pub auth_provider_x509_cert_url: url::Url,
 }
 

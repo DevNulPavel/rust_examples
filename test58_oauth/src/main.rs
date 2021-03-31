@@ -110,9 +110,6 @@ fn initialize_logs() -> LogGuards{
 /// Создаем менеджер шаблонов и регистрируем туда нужные
 #[instrument]
 fn create_templates<'a>() -> Handlebars<'a> {
-    let span = debug_span!("Template engine configure", templates_type = "handlebars");
-    let _g = span.enter();
-
     let mut handlebars = Handlebars::new();
     handlebars
         .register_template_file(constants::INDEX_TEMPLATE, "templates/index.hbs")
@@ -132,9 +129,6 @@ fn create_templates<'a>() -> Handlebars<'a> {
 /// Функция непосредственного конфигурирования приложения
 /// Для каждого потока исполнения будет создано свое приложение
 fn configure_new_app(config: &mut web::ServiceConfig) {
-    let span = debug_span!("Server application configure");
-    let _g = span.enter();
-
     config
         .service(web::resource(constants::INDEX_PATH)
                     .wrap(create_user_info_middleware(
