@@ -215,12 +215,18 @@ async fn main() -> std::io::Result<()> {
                 IdentityService::new(policy)
             };
 
+            // Специальный middleware для возможности работы iframe
+            /*let cors_mid = actix_cors::Cors::default()
+                .allowed_origin("http://localhost:9999")
+                .allowed_origin("http://localhost:8080");*/
+
             // Приложение создается для каждого потока свое собственное
             // Порядок выполнения Middleware обратный, снизу вверх
             App::new()
                 .wrap(identity_middleware)
                 .wrap(create_error_middleware())
                 .wrap(TracingLogger)
+                // .wrap(cors_mid)
                 .app_data(sqlite_conn.clone())
                 .app_data(handlebars.clone())
                 .app_data(facebook_env_params.clone())

@@ -38,5 +38,19 @@
         <form action=/logout method=POST>
             <button type=submit>Logout</button>
         </form>
+
+        {{!-- sandbox="" --}}
+        <iframe name="game_frame" 
+                frameborder="1" 
+                width="1024" 
+                height="768" 
+                style="border: 0"
+                allow="fullscreen" 
+                loading = "lazy"
+                onload="" 
+                onerror=""
+                src="{{game_url}}">
+                <p>The browser does not support iframes</p>
+        </iframe>
     </body>
 </html>

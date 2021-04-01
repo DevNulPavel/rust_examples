@@ -184,7 +184,7 @@ pub async fn facebook_auth_callback(req: actix_web::HttpRequest,
                     
                     // TODO: вынести в общую функцию
                     // Выполняем генерацию нового UUID
-                    let uuid = format!("island_uuid_{}", uuid::Uuid::new_v4());
+                    let uuid = format!("{}", uuid::Uuid::new_v4());
 
                     // Сохраняем в базу идентификатор нашего пользователя
                     db.insert_facebook_user_with_uuid(&uuid, &fb_user_info.id).await?;

@@ -32,10 +32,18 @@ use crate::{
 #[instrument(skip(handlebars), fields(user_id = %full_info.user_uuid))]
 pub async fn index(handlebars: web::Data<Handlebars<'_>>, 
                    full_info: UserInfo) -> Result<web::HttpResponse, AppError> {
+    
+    // TODO: не парсить каждый раз, передавать через окружение
+    let mut game_url = url::Url::parse("http://localhost:9999").unwrap();
+    game_url.query_pairs_mut().append_pair("uuid", &full_info.user_uuid);
+    game_url.query_pairs_mut().append_pair("facebook_uid", &full_info.facebook_uid.as_deref().unwrap_or(""));
+    game_url.query_pairs_mut().append_pair("google_uid", &full_info.google_uid.as_deref().unwrap_or(""));
+                
     let template_data = serde_json::json!({
         "uuid": full_info.user_uuid,
         "facebook_uid": full_info.facebook_uid,
         "google_uid": full_info.google_uid,
+        "game_url": game_url.as_str()
     });
 
     // Рендерим шаблон
