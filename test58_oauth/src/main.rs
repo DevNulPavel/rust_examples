@@ -32,8 +32,7 @@ use actix_identity::{
     IdentityService
 };
 use tracing::{
-    debug_span, 
-    instrument
+    debug_span
 };
 use tracing_subscriber::{
     prelude::{
@@ -173,7 +172,8 @@ fn configure_new_app(config: &mut web::ServiceConfig) {
                                         .guard(guard::Get())
                                         .to(auth_handlers::google_auth_callback))))
         .service(Files::new("static/css", "static/css"))
-        .service(Files::new("static/js", "static/js"));
+        .service(Files::new("static/js", "static/js"))
+        .service(Files::new("static/images", "static/images"));
 }
 
 #[actix_web::main]

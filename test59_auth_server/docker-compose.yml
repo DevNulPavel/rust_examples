@@ -1,0 +1,11 @@
+version: "3.3"
+services:
+  postgres:
+    image: postgres:13.2-alpine
+    restart: always
+    environment:
+      POSTGRES_USER: actix
+      POSTGRES_PASSWORD: actix
+      POSTGRES_DB: actix
+    ports:
+      - 5432:5432

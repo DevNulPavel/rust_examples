@@ -13,10 +13,54 @@
     </head>
 
     <body>
-        <div class="layout">
-            <header>
-                <h3 class="title">Login page</h3>
-            </header>
+        <div id="app">
+            <div class="header">
+            </div>
+
+            <div class="main">
+                {{!-- Форма аутентификации --}}
+                <div class="auth_root">
+                    {{!-- Заголовок аутентификации --}}
+                    <div class="auth_header">
+                        {{!-- <img src="images/game_logo.png" alt="logo.png" class="logo_img"> --}}
+                    </div>
+
+                    {{!-- Середина аутентификации по-высоте --}}
+                    <div class="auth_main">
+                        {{!-- Форма для POST запроса --}}
+                        <form class="form">
+                            {{!-- Блок с горизонтальными кнопками логина --}}
+                            <div class="holder s-block">
+                                {{!-- Надпись над блоком кнопок логина --}}
+                                <div class="s-block-title">Войти через:</div>
+                                {{!-- Блок с кнопками --}}
+                                <div class="buttons">
+                                    {{!-- Кнопка логина в Google --}}
+                                    <div class="button google">
+                                        <div class="icon"></div> 
+                                        <div class="text">Google</div>
+                                    </div> 
+                                    {{!-- Кнопка логина в FB --}}
+                                    <div class="button facebook">
+                                        <div class="icon"></div> 
+                                        <div class="text">Facebook</div>
+                                    </div>
+                                </div>
+                            </div>
+                        </form>
+                    </div>
+
+                    {{!-- Самый низ формы аутентификации --}}
+                    <div class="auth_footer">
+                        {{!-- <img src="images/game_logo.png" alt="logo.png" class="logo_img"> --}}
+                    </div>
+                </div>
+            </div>
+
+            <div class="footer">
+            </div>
+
+            {{!-- ----------------------------------------------------------------- --}}
 
             <form action=/facebook/login method=POST>
                 <button type=submit>Login with Faceboook</button>

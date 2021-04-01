@@ -1,0 +1,21 @@
+{
+    "sqltools.connections": [
+        {
+            "previewLimit": 50,
+            "driver": "SQLite",
+            "name": "oauth_db",
+            "database": "${workspaceFolder:test58_oauth}/oauth_db.sqlite"
+        },
+        {
+            "previewLimit": 50,
+            "server": "localhost",
+            "port": 5432,
+            "driver": "PostgreSQL",
+            "name": "localhost",
+            "database": "actix",
+            "username": "actix",
+            "password": "actix"
+        }
+    ],
+    "sqltools.useNodeRuntime": true
+}

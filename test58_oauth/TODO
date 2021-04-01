@@ -6,3 +6,4 @@
 - Улучшенный способ логирования, чтобы можно было отделять пользователей: https://crates.io/crates/tracing
 - Opentelemetry для статистики и метрик скорости https://crates.io/crates/opentelemetry + tracing-opentelemetry
 - Отдельно логирование ошибок, сейчас ошибки не логируются
+- Заранее компилировать SQL запросы

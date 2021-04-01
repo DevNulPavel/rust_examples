@@ -1,5 +1,24 @@
-.layout {
-    vertical-align: top;
-    max-width: 600px;
-    width: 100%;
+body {
+    line-height: 1.6;
+    font-size:16px;
+    min-width: 320px;
+    min-height: 100vh;
+    position: relative;
+    color: #4a4a4a;
+    overflow-x: hidden;
+    height:auto;
+    box-sizing:border-box;
+    background-color: #000;
+    margin: 0;
+    padding: 0;
+    height:100%;
+    background: #000 url(../images/bg.jpg) no-repeat 50%;
+    background-size:cover
+}
+
+html {
+    background-color: #000;
+    margin: 0;
+    padding: 0;
+    height:100%
 }
