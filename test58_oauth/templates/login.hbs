@@ -22,19 +22,19 @@
                 <div class="auth_root">
                     {{!-- Заголовок аутентификации --}}
                     <div class="auth_header">
-                        {{!-- <img src="images/game_logo.png" alt="logo.png" class="logo_img"> --}}
+                        <img src="static/images/game_logo.png" alt="game_logo.png" class="game_logo_img">
                     </div>
 
                     {{!-- Середина аутентификации по-высоте --}}
                     <div class="auth_main">
                         {{!-- Форма для POST запроса --}}
-                        <form class="form">
+                        <form class="auth_form">
                             {{!-- Блок с горизонтальными кнопками логина --}}
-                            <div class="holder s-block">
+                            <div class="auth_login_buttons_frame">
                                 {{!-- Надпись над блоком кнопок логина --}}
-                                <div class="s-block-title">Войти через:</div>
+                                <div class="auth_login_buttons_title">Войти через:</div>
                                 {{!-- Блок с кнопками --}}
-                                <div class="buttons">
+                                <div class="auth_login_buttons">
                                     {{!-- Кнопка логина в Google --}}
                                     <div class="button google">
                                         <div class="icon"></div> 
@@ -62,6 +62,7 @@
 
             {{!-- ----------------------------------------------------------------- --}}
 
+            {{!--
             <form action=/facebook/login method=POST>
                 <button type=submit>Login with Faceboook</button>
             </form>
@@ -71,6 +72,7 @@
             <form action=/google/login method=POST>
                 <button type=submit>Login with Google</button>
             </form>
+            --}}
         </div>
     </body>
 </html>
