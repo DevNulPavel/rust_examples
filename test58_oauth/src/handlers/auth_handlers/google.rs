@@ -20,7 +20,7 @@ use crate::{
     error::{
         AppError
     },
-    env_app_params::{
+    app_params::{
         GoogleEnvParams
     },
     responses::{

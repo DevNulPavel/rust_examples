@@ -34,4 +34,4 @@ RUN_SERVER: DECRYPT_GOOGLE_CREDENTIALS
 	$(shell gpg -a -r 0x0BD10E4E6E578FB6 -d test_environment.env.asc) && \
 	source .env && \
 	export RUST_LOG=trace && \
-	cargo run
+	cargo run -- --game_url="http://localhost:9999"

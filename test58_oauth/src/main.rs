@@ -1,12 +1,11 @@
 mod error;
-mod auth_handlers;
 mod app_middlewares;
 mod constants;
 mod responses;
 mod database;
-mod env_app_params;
+mod app_params;
 mod helpers;
-mod http_handlers;
+mod handlers;
 
 use actix_files::{
     Files
@@ -43,23 +42,21 @@ use tracing_actix_web::{
     TracingLogger
 };
 use crate::{
-    env_app_params::{
+    app_params::{
         FacebookEnvParams,
-        GoogleEnvParams
+        GoogleEnvParams,
+        AppParameters
     },
     app_middlewares::{
-        create_error_middleware,
-        create_user_info_middleware,
-        create_auth_check_middleware
+        create_error_middleware
     },
     database::{
         Database
     },
-    http_handlers::{
-        index,
-        login_page,
-        logout
-    }
+    handlers::{
+        retup_routes
+    },
+
 };
 
 ////////////////////////////////////////////////////////////////////////////////////////////////////////////////
@@ -124,58 +121,6 @@ fn create_templates<'a>() -> Handlebars<'a> {
 
 ////////////////////////////////////////////////////////////////////////////////////////////////////////////////
 
-/// Функция непосредственного конфигурирования приложения
-/// Для каждого потока исполнения будет создано свое приложение
-fn configure_new_app(config: &mut web::ServiceConfig) {
-    config
-        .service(web::resource(constants::INDEX_PATH)
-                    .wrap(create_user_info_middleware(
-                            || {
-                                web::HttpResponse::Found()
-                                    .header(actix_web::http::header::LOCATION, constants::LOGIN_PATH)
-                                    .finish()
-                            }))
-                    .route(web::route()
-                            .guard(guard::Get())
-                            .to(index)))
-        .service(web::resource(constants::LOGIN_PATH)
-                    .wrap(create_auth_check_middleware(
-                            false,
-                            || {
-                                web::HttpResponse::Found()
-                                    .header(actix_web::http::header::LOCATION, constants::INDEX_PATH)
-                                    .finish()
-                            }))
-                    .route(web::route()
-                                .guard(guard::Get())
-                                .to(login_page)))                         
-        .service(web::resource(constants::LOGOUT_PATH)
-                    .route(web::route()
-                                .guard(guard::Post())
-                                .to(logout))) 
-        .service(web::scope(constants::FACEBOOK_SCOPE_PATH)
-                    .service(web::resource(constants::LOGIN_PATH)
-                                .route(web::route()
-                                        .guard(guard::Post())
-                                        .to(auth_handlers::login_with_facebook)))
-                    .service(web::resource(constants::AUTH_CALLBACK_PATH)
-                                .route(web::route()
-                                        .guard(guard::Get())
-                                        .to(auth_handlers::facebook_auth_callback))))
-        .service(web::scope(constants::GOOGLE_SCOPE_PATH)
-                    .service(web::resource(constants::LOGIN_PATH)
-                                .route(web::route()
-                                        .guard(guard::Post())
-                                        .to(auth_handlers::login_with_google)))
-                    .service(web::resource(constants::AUTH_CALLBACK_PATH)
-                                .route(web::route()
-                                        .guard(guard::Get())
-                                        .to(auth_handlers::google_auth_callback))))
-        .service(Files::new("static/css", "static/css"))
-        .service(Files::new("static/js", "static/js"))
-        .service(Files::new("static/images", "static/images"));
-}
-
 #[actix_web::main]
 async fn main() -> std::io::Result<()> {
     // Инициализируем менеджер логирования
@@ -185,7 +130,8 @@ async fn main() -> std::io::Result<()> {
     let span = debug_span!("root_span");
     let _span_guard = span.enter();
 
-    // Получаем параметры Facebook + Google
+    // Получаем параметры приложения
+    let app_parameters = web::Data::new(AppParameters::parse());
     let facebook_env_params = web::Data::new(FacebookEnvParams::get_from_env());
     let google_env_params = web::Data::new(GoogleEnvParams::get_from_env());
 
@@ -229,10 +175,11 @@ async fn main() -> std::io::Result<()> {
                 // .wrap(cors_mid)
                 .app_data(sqlite_conn.clone())
                 .app_data(handlebars.clone())
+                .app_data(app_parameters.clone())
                 .app_data(facebook_env_params.clone())
                 .app_data(google_env_params.clone())
                 .app_data(http_client.clone())
-                .configure(configure_new_app)
+                .configure(retup_routes)
         }) 
         .bind("127.0.0.1:8080")?
         .run()
