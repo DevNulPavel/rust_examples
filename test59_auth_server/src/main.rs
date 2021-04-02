@@ -1,9 +1,8 @@
 mod handlers;
 mod models;
+mod error;
+mod crypto;
 
-use actix_files::{
-    Files
-};
 use actix_web::{
     App, 
     HttpServer, 
@@ -14,11 +13,12 @@ use actix_web::{
         self
     }
 };
-use handlebars::{
-    Handlebars
-};
 use tracing::{
-    debug_span
+    debug_span,
+    debug,
+    event,
+    instrument,
+    Level
 };
 use tracing_subscriber::{
     prelude::{
@@ -28,9 +28,15 @@ use tracing_subscriber::{
 use tracing_actix_web::{
     TracingLogger
 };
+use sqlx::{
+    PgPool
+};
 use crate::{
     handlers::{
         configure_routes
+    },
+    crypto::{
+        CryptoService
     }
 };
 
@@ -67,10 +73,27 @@ fn initialize_logs() -> LogGuards{
 
 ////////////////////////////////////////////////////////////////////////////////////////////////////////////////
 
-/// Создаем менеджер шаблонов и регистрируем туда нужные
-fn create_templates<'a>() -> Handlebars<'a> {
-    let mut handlebars = Handlebars::new();    
-    handlebars
+#[instrument(name = "database_open")]
+pub async fn open_database() -> PgPool {
+    let pg_conn = PgPool::connect(&std::env::var("DATABASE_URL")
+                                    .expect("DATABASE_URL env variable is missing"))
+        .await
+        .expect("Database connection failed");
+
+    event!(Level::DEBUG, 
+            db_type = %"pg", // Будет отформатировано как Display
+            "Database open success");
+
+    // Включаем все миграции базы данных сразу в наш бинарник, выполняем при старте
+    sqlx::migrate!("./migrations")
+        .run(&pg_conn)
+        .await
+        .expect("Database migration failed");
+
+    debug!(migration_file = ?"./migrations", // Будет отформатировано как debug
+            "Database migration finished");
+
+    pg_conn
 }
 
 ////////////////////////////////////////////////////////////////////////////////////////////////////////////////
@@ -84,19 +107,23 @@ async fn main() -> std::io::Result<()> {
     let span = debug_span!("root_span");
     let _span_guard = span.enter();
 
-    // Создаем шареную ссылку на обработчик шаблонов
-    let handlebars = web::Data::new(create_templates());
-
     // Создаем общего http клиента для разных запросов
     let http_client = web::Data::new(reqwest::Client::new());
+
+    // Создаем объект базы данных
+    let database = web::Data::new(open_database().await);
+
+    // Система для хеширования паролей
+    let crypto =  web::Data::new(CryptoService::new());
 
     HttpServer::new(move ||{
             // Приложение создается для каждого потока свое собственное
             // Порядок выполнения Middleware обратный, снизу вверх
             App::new()
                 .wrap(TracingLogger)
-                .app_data(handlebars.clone())
                 .app_data(http_client.clone())
+                .app_data(database.clone())
+                .app_data(crypto.clone())
                 .configure(configure_routes)
         }) 
         .bind("127.0.0.1:8080")?
