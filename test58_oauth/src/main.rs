@@ -7,15 +7,9 @@ mod app_params;
 mod helpers;
 mod handlers;
 
-use actix_files::{
-    Files
-};
 use actix_web::{
     App, 
-    HttpServer, 
-    guard::{
-        self
-    }, 
+    HttpServer,
     web::{
         self
     }
@@ -46,9 +40,6 @@ use crate::{
         FacebookEnvParams,
         GoogleEnvParams,
         AppParameters
-    },
-    app_middlewares::{
-        create_error_middleware
     },
     database::{
         Database
@@ -170,7 +161,6 @@ async fn main() -> std::io::Result<()> {
             // Порядок выполнения Middleware обратный, снизу вверх
             App::new()
                 .wrap(identity_middleware)
-                .wrap(create_error_middleware())
                 .wrap(TracingLogger)
                 // .wrap(cors_mid)
                 .app_data(sqlite_conn.clone())

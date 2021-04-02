@@ -7,3 +7,4 @@
 - Opentelemetry для статистики и метрик скорости https://crates.io/crates/opentelemetry + tracing-opentelemetry
 - Отдельно логирование ошибок, сейчас ошибки не логируются
 - Заранее компилировать SQL запросы
+- HTTPS

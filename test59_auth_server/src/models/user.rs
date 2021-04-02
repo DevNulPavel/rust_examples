@@ -1,11 +1,8 @@
-use std::{
-    sync::{
-        Arc
-    },
-    borrow::{
+use std::{borrow::{
         Borrow
-    }
-};
+    }, ops::Deref, sync::{
+        Arc
+    }};
 use uuid::{
     Uuid
 };
@@ -33,25 +30,20 @@ use crate::{
 
 /////////////////////////////////////////////////////////////////////////////
 
-#[derive(Debug, Serialize, Deserialize, Validate)]
-pub struct NewUserData {
-    #[validate(length(min = 3))]
+#[derive(Debug)]
+pub struct CreateUserConfig {
     pub user_name: String,
-    #[validate(email)]
     pub email: String,
-    #[validate(length(min = 3))]
     pub password_hash: String,
-    #[validate(length(min = 3))]
     pub password_salt: String
 }
 
 //////////////////////////////////////////////////////////////////////////////
 
-#[derive(Debug, Serialize, Deserialize, Validate)]
-pub struct UpdateProfileData {
+#[derive(Debug)]
+pub struct UpdateUserConfig {
     pub full_name: Option<String>,
     pub bio: Option<String>,
-    #[validate(url)]
     pub image: Option<String>
 }
 
@@ -81,7 +73,7 @@ pub struct User{
 
 impl User {
     #[instrument]
-    pub async fn create_new(db: Arc<PgPool>, info: NewUserData) -> Result<User, AppError>{
+    pub async fn create_new(db: Arc<PgPool>, info: CreateUserConfig) -> Result<User, AppError>{
         // TODO: Где валидировать?
         // info.validate()?;
 
@@ -100,7 +92,7 @@ impl User {
         })
     }
 
-    #[instrument]
+    #[instrument(fields(id = %id.borrow()))]
     pub async fn find_by_uuid<ID: Borrow<Uuid>>(db: Arc<PgPool>, id: ID) -> Result<Option<User>, AppError> {
         let user_opt = sqlx::query_as!(UserData,
                 r#"   
@@ -126,8 +118,8 @@ impl User {
                 r#"   
                     SELECT *
                     FROM users
-                    WHERE id = $1
-                "#, id)
+                    WHERE user_name = $1
+                "#, user_name)
             .fetch_optional(db.as_ref())
             .await
             .map_err(AppError::from)?
@@ -141,7 +133,7 @@ impl User {
     }
 
     #[instrument]
-    pub async fn update_profile_info(&mut self, info: UpdateProfileData) -> Result<(), AppError>{
+    pub async fn update_profile_info(&mut self, info: UpdateUserConfig) -> Result<(), AppError>{
         let new_data = sqlx::query_as!(UserData,
                 r#"   
                     UPDATE users
@@ -154,5 +146,16 @@ impl User {
             .map_err(AppError::from)?;
         self.data = new_data;
         Ok(())
+    }
+
+    pub fn get_data(&self) -> &UserData{
+        &self.deref()
+    }
+}
+
+impl std::ops::Deref for User{
+    type Target = UserData;
+    fn deref(&self) -> &Self::Target {
+        &self.data
     }
 }
