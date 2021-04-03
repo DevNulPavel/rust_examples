@@ -1,8 +1,35 @@
-use std::{borrow::{
+use std::{
+    borrow::{
         Borrow
-    }, ops::Deref, sync::{
+    }, ops::{
+        Deref
+    }, 
+    sync::{
         Arc
-    }};
+    }
+};
+use futures::{
+    future::{
+        BoxFuture
+    }
+};
+use actix_web::{
+    dev::{
+        Payload
+    },
+    web::{
+        self
+    },
+    HttpRequest,
+    FromRequest
+};
+use actix_web_httpauth::{
+    extractors::{
+        bearer::{
+            BearerAuth
+        }
+    }
+};
 use uuid::{
     Uuid
 };
@@ -25,6 +52,9 @@ use sqlx::{
 use crate::{
     error::{
         AppError
+    },
+    crypto::{
+        CryptoService
     }
 };
 
@@ -157,5 +187,34 @@ impl std::ops::Deref for User{
     type Target = UserData;
     fn deref(&self) -> &Self::Target {
         &self.data
+    }
+}
+
+impl FromRequest for User{
+    type Config = ();
+    type Error = AppError;
+    type Future = BoxFuture<'static, Result<Self, Self::Error>>;
+
+    fn from_request(req: &HttpRequest, payload: &mut Payload) -> Self::Future{
+        let auth = BearerAuth::from_request(req, payload).into_inner();
+        let db = web::Data::<PgPool>::from_request(req, payload).into_inner();
+        let crypto = web::Data::<CryptoService>::from_request(req, payload).into_inner();
+
+        Box::pin(async{
+            match (auth, db, crypto) {
+                (Ok(auth), Ok(db), Ok(crypto)) => {
+                    
+
+
+                    Ok(User{
+                        db,
+                        info
+                    })
+                },
+                _ => {
+                    Err(AppError::UnautorisedError("Auth error"))
+                }
+            }
+        })
     }
 }

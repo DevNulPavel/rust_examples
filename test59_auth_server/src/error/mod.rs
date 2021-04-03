@@ -45,12 +45,17 @@ quick_error!{
         }
 
         /// Ошибка при спавне хешировании паролей в потоке
-        PasswordHashSpawnError {
-        }
+        PasswordHashSpawnError(err: actix_web::rt::blocking::BlockingError) {
+            from()
+        }        
 
         /// Ошибка у внутреннего запроса с сервера на какое-то API
         ParamValidationError(context: &'static str, err: validator::ValidationErrors){
             context(context: &'static str, err: validator::ValidationErrors) -> (context, err)
+        }
+
+        /// Пользователь у нас не авторизован на сервере
+        UnautorisedError(info: &'static str){
         }
 
         /// Ошибка с произвольным описанием
@@ -64,7 +69,10 @@ quick_error!{
 impl ResponseError for AppError {
     // Код ошибки
     fn status_code(&self) -> StatusCode {
-        StatusCode::INTERNAL_SERVER_ERROR
+        match self {
+            Self::UnautorisedError(_) => StatusCode::UNAUTHORIZED,
+            _ => StatusCode::INTERNAL_SERVER_ERROR
+        }
     }
 
     // Создаем ответ в виде json

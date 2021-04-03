@@ -23,6 +23,13 @@ use serde::{
     Serialize,
     Deserialize
 };
+use rand::{
+    distributions::{
+        Alphanumeric
+    },
+    Rng,
+    thread_rng
+};
 use crate::{
     error::{
         AppError
@@ -38,9 +45,10 @@ use crate::{
     }
 };
 
+//////////////////////////////////////////////////////////////////////////////////////////
 
 #[derive(Debug, Serialize, Deserialize, Validate)]
-pub struct NewUserReqData {
+pub struct CreateUserReqData {
     #[validate(length(min = 3))]
     pub user_name: String,
     #[validate(email)]
@@ -50,23 +58,43 @@ pub struct NewUserReqData {
 }
 
 #[instrument]
-async fn signup(data: web::Json<NewUserReqData>, 
+async fn signup(req_params: web::Json<CreateUserReqData>, 
                 db: web::Data<PgPool>, 
                 crypto: web::Data<CryptoService>) -> Result<HttpResponse, AppError> {
+
+    let data: CreateUserReqData = req_params.into_inner();
+
     // TODO: Middleware для валидации
     data
         .validate()
         .context("New user data error")?;
     
-    // TODO: Рандомная соль
+    // Рандомная соль
+    let random_salt: String = thread_rng()
+        .sample_iter(&Alphanumeric)
+        .take(30)
+        .map(char::from)
+        .collect();
 
-    // TODO: Запись в базу пользователя
+    // Хешируем
+    let password_hash = crypto
+        .hash_password_with_salt(data.password.into_bytes(), random_salt.as_bytes().to_owned())
+        .await?;
 
-    // TODO: отдать в виде json
+    // Запись в базу пользователя
+    let config = CreateUserConfig{
+        email: data.email,
+        user_name: data.user_name,
+        password_hash: password_hash,
+        password_salt: random_salt
+    };
+    let new_user = User::create_new(db.into_inner(), config).await?;
 
-    Ok(HttpResponse::Ok().finish())
+    // Отдать в виде json
+    Ok(HttpResponse::Ok().json(new_user.get_data()))
 }
 
+//////////////////////////////////////////////////////////////////////////////////////////
 
 #[derive(Debug, Serialize, Deserialize, Validate)]
 pub struct UpdateProfileReqData {
@@ -75,6 +103,15 @@ pub struct UpdateProfileReqData {
     #[validate(url)]
     pub image: Option<String>
 }
+
+#[instrument]
+async fn update_data(req_params: web::Json<CreateUserReqData>, 
+                     db: web::Data<PgPool>, 
+                     crypto: web::Data<CryptoService>) -> Result<HttpResponse, AppError> {
+
+}
+
+//////////////////////////////////////////////////////////////////////////////////////////
 
 /// Функция непосредственного конфигурирования приложения
 /// Для каждого потока исполнения будет создано свое приложение
