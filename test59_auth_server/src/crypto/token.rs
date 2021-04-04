@@ -44,6 +44,14 @@ impl TokenClaims {
 
 /////////////////////////////////////////////////////////////////////////////////
 
+#[derive(Debug, Serialize)]
+pub struct TokenGenerateResult{
+    pub token: String,
+    pub expires_in: i64
+}
+
+/////////////////////////////////////////////////////////////////////////////////
+
 #[derive(Debug, Clone)]
 pub struct TokenService{
     secret_key: String
@@ -56,9 +64,9 @@ impl TokenService {
     }
 
     #[instrument]
-    pub async fn generate_jwt_token(&self, uuid: Uuid) -> Result<String, AppError>{
+    pub async fn generate_jwt_token(&self, uuid: Uuid) -> Result<TokenGenerateResult, AppError>{
         let encoding_key = jsonwebtoken::EncodingKey::from_secret(self.secret_key.as_bytes());
-        actix_web::rt::blocking::run(move || -> Result<String, jsonwebtoken::errors::Error> {
+        actix_web::rt::blocking::run(move || -> Result<TokenGenerateResult, jsonwebtoken::errors::Error> {
                 let header = jsonwebtoken::Header::default();
                 // Время, когда истекает токен
                 let expire_time = Utc::now() + Duration::days(1); // Expires in 1 day
@@ -69,7 +77,10 @@ impl TokenService {
                 };
                 // Генерируем токен
                 let res = jsonwebtoken::encode(&header, &claims, &encoding_key)?;
-                Ok(res)
+                Ok(TokenGenerateResult{
+                    token: res,
+                    expires_in: expire_time.timestamp()
+                })
             })
             .await
             .map_err(AppError::from)
@@ -107,7 +118,7 @@ mod tests{
             .expect("Token generate failed");
 
         let token_claims = service
-            .decode_jwt_token(result_token)
+            .decode_jwt_token(result_token.token)
             .await
             .expect("Decode token failed");
 

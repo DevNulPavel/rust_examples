@@ -3,7 +3,8 @@ mod token;
 
 pub use self::{
     password::{
-        PasswordService
+        hash_password_with_salt,
+        verify_password
     },
     token::{
         TokenService

@@ -7,6 +7,16 @@ use actix_web::{
     },
     HttpResponse
 };
+use actix_web_httpauth::{
+    extractors::{
+        basic::{
+            BasicAuth
+        },
+        bearer::{
+            BearerAuth
+        }
+    }
+};
 use tracing::{
     instrument
 };
@@ -30,6 +40,9 @@ use rand::{
     Rng,
     thread_rng
 };
+use serde_json::{
+    json
+};
 use crate::{
     error::{
         AppError
@@ -41,8 +54,8 @@ use crate::{
         }
     },
     crypto::{
-        PasswordService,
-        TokenService
+        TokenService,
+        hash_password_with_salt
     }
 };
 
@@ -50,8 +63,8 @@ use crate::{
 
 #[derive(Debug, Serialize, Deserialize, Validate)]
 pub struct CreateUserReqData {
-    #[validate(length(min = 3))]
-    pub user_name: String,
+    #[validate(length(min = 3))] // TODO: валидация, чтобы не было пробелов
+    pub user_login: String,
     #[validate(email)]
     pub email: String,
     #[validate(length(min = 3))]
@@ -60,8 +73,7 @@ pub struct CreateUserReqData {
 
 #[instrument]
 async fn signup(req_params: web::Json<CreateUserReqData>, 
-                db: web::Data<PgPool>, 
-                pass_service: web::Data<PasswordService>) -> Result<HttpResponse, AppError> {
+                db: web::Data<PgPool>) -> Result<HttpResponse, AppError> {
 
     let data: CreateUserReqData = req_params.into_inner();
 
@@ -78,14 +90,13 @@ async fn signup(req_params: web::Json<CreateUserReqData>,
         .collect();
 
     // Хешируем
-    let password_hash = pass_service
-        .hash_password_with_salt(data.password.into_bytes(), random_salt.as_bytes().to_owned())
+    let password_hash = hash_password_with_salt(data.password.into_bytes(), random_salt.as_bytes().to_owned())
         .await?;
 
     // Запись в базу пользователя
     let config = CreateUserConfig{
         email: data.email,
-        user_name: data.user_name,
+        user_login: data.user_login,
         password_hash: password_hash,
         password_salt: random_salt
     };
@@ -105,11 +116,58 @@ pub struct UpdateProfileReqData {
     pub image: Option<String>
 }
 
-/*#[instrument]
-async fn update_data(req_params: web::Json<CreateUserReqData>, 
-                     db: web::Data<PgPool>) -> Result<HttpResponse, AppError> {
+#[instrument]
+async fn update_user_data(req_params: web::Json<UpdateProfileReqData>, 
+                          user: User) -> Result<HttpResponse, AppError> {
 
-}*/
+}
+
+//////////////////////////////////////////////////////////////////////////////////////////
+
+#[instrument]
+async fn get_user_data(user: User) -> Result<HttpResponse, AppError> {
+
+}
+
+//////////////////////////////////////////////////////////////////////////////////////////
+
+/// Обработчик аутентификации, принимающий логин и пароль, затем выдающий токен
+#[instrument]
+async fn auth(basic_auth: BasicAuth, 
+              token_service: web::Data<TokenService>, 
+              db: web::Data<PgPool>) -> Result<HttpResponse, AppError> {
+    // Выдергиваем логин из запроса
+    let login = basic_auth
+        .user_id();
+    
+    // Выдергиваем пароль из запроса
+    let password = basic_auth
+        .password()
+        .ok_or_else(|| AppError::UnautorisedError("Password is required for auth"))?;    
+
+    // Находим пользователя
+    let user = User::find_by_login(db, login)
+        .await?
+        .ok_or_else(|| AppError::UnautorisedError("User with login did not found"))?;
+
+    // Сравшиваем пароль и хэш пользователя
+    let valid_password = user
+        .verify_password(password)
+        .await?;
+
+    // Если невалидный пароль, значит выходим
+    if !valid_password{
+        return Err(AppError::UnautorisedError("Wrong password"));
+    }
+
+    // Иначе, выдаем токен
+    let token = token_service
+        .generate_jwt_token(user.id)
+        .await?;
+
+    Ok(HttpResponse::Ok().json(token))
+}
+
 
 //////////////////////////////////////////////////////////////////////////////////////////
 
@@ -120,53 +178,16 @@ pub fn configure_routes(config: &mut web::ServiceConfig) {
         .service(web::resource("/signup")
                     .route(web::route()
                             .guard(guard::Post())
-                            .to(signup)));
-
-    /*config
-        .service(web::resource(constants::INDEX_PATH)
-                    .wrap(create_user_info_middleware(
-                            || {
-                                web::HttpResponse::Found()
-                                    .header(actix_web::http::header::LOCATION, constants::LOGIN_PATH)
-                                    .finish()
-                            }))
+                            .to(signup)))
+        .service(web::resource("/auth")
+                    .route(web::route()
+                    .guard(guard::Post())
+                    .to(auth)))                            
+        .service(web::resource("/user")
+                    .route(web::route()
+                            .guard(guard::Patch())
+                            .to(update_user_data))
                     .route(web::route()
                             .guard(guard::Get())
-                            .to(index)))
-        .service(web::resource(constants::LOGIN_PATH)
-                    .wrap(create_auth_check_middleware(
-                            false,
-                            || {
-                                web::HttpResponse::Found()
-                                    .header(actix_web::http::header::LOCATION, constants::INDEX_PATH)
-                                    .finish()
-                            }))
-                    .route(web::route()
-                                .guard(guard::Get())
-                                .to(login_page)))                         
-        .service(web::resource(constants::LOGOUT_PATH)
-                    .route(web::route()
-                                .guard(guard::Post())
-                                .to(logout))) 
-        .service(web::scope(constants::FACEBOOK_SCOPE_PATH)
-                    .service(web::resource(constants::LOGIN_PATH)
-                                .route(web::route()
-                                        .guard(guard::Post())
-                                        .to(auth_handlers::login_with_facebook)))
-                    .service(web::resource(constants::AUTH_CALLBACK_PATH)
-                                .route(web::route()
-                                        .guard(guard::Get())
-                                        .to(auth_handlers::facebook_auth_callback))))
-        .service(web::scope(constants::GOOGLE_SCOPE_PATH)
-                    .service(web::resource(constants::LOGIN_PATH)
-                                .route(web::route()
-                                        .guard(guard::Post())
-                                        .to(auth_handlers::login_with_google)))
-                    .service(web::resource(constants::AUTH_CALLBACK_PATH)
-                                .route(web::route()
-                                        .guard(guard::Get())
-                                        .to(auth_handlers::google_auth_callback))))
-        .service(Files::new("static/css", "static/css"))
-        .service(Files::new("static/js", "static/js"))
-        .service(Files::new("static/images", "static/images"));*/
+                            .to(get_user_data)));
 }

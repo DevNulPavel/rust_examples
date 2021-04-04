@@ -54,7 +54,7 @@ use crate::{
         AppError
     },
     crypto::{
-        PasswordService,
+        verify_password,
         TokenService
     }
 };
@@ -63,7 +63,7 @@ use crate::{
 
 #[derive(Debug)]
 pub struct CreateUserConfig {
-    pub user_name: String,
+    pub user_login: String,
     pub email: String,
     pub password_hash: String,
     pub password_salt: String
@@ -83,7 +83,7 @@ pub struct UpdateUserConfig {
 #[derive(Debug, Serialize, Deserialize)]
 pub struct UserData {
     pub id: Uuid,
-    pub user_name: String,
+    pub user_login: String,
     pub email: String,
     pub password_hash: String,
     pub password_salt: String,
@@ -110,10 +110,10 @@ impl User {
 
         let data = sqlx::query_as!(UserData,
                 r#"
-                    INSERT INTO users(user_name, email, password_hash, password_salt)
+                    INSERT INTO users(user_login, email, password_hash, password_salt)
                     VALUES ($1, $2, $3, $4) 
                     RETURNING *
-                "#, info.user_name, info.email, info.password_hash, info.password_salt)
+                "#, info.user_login, info.email, info.password_hash, info.password_salt)
             .fetch_one(db.as_ref())
             .await
             .map_err(AppError::from)?;
@@ -144,13 +144,13 @@ impl User {
     }
 
     #[instrument]
-    pub async fn find_by_user_name(db: Arc<PgPool>, user_name: &str) -> Result<Option<User>, AppError> {
+    pub async fn find_by_login(db: Arc<PgPool>, login: &str) -> Result<Option<User>, AppError> {
         let user_opt = sqlx::query_as!(UserData,
                 r#"
                     SELECT *
                     FROM users
-                    WHERE user_name = $1
-                "#, user_name)
+                    WHERE user_login = $1
+                "#, login)
             .fetch_optional(db.as_ref())
             .await
             .map_err(AppError::from)?
@@ -182,6 +182,10 @@ impl User {
     pub fn get_data(&self) -> &UserData{
         &self.deref()
     }
+
+    pub async fn verify_password(&self, password: &str) -> Result<bool, AppError>{
+        verify_password(password.as_bytes().to_owned(), self.data.password_hash.clone()).await
+    }
 }
 
 impl std::ops::Deref for User{
@@ -191,7 +195,7 @@ impl std::ops::Deref for User{
     }
 }
 
-/*impl FromRequest for User{
+impl FromRequest for User{
     type Config = ();
     type Error = AppError;
     type Future = BoxFuture<'static, Result<Self, Self::Error>>;
@@ -199,23 +203,35 @@ impl std::ops::Deref for User{
     fn from_request(req: &HttpRequest, payload: &mut Payload) -> Self::Future{
         let auth = BearerAuth::from_request(req, payload).into_inner();
         let db = web::Data::<PgPool>::from_request(req, payload).into_inner();
-        let crypto = web::Data::<CryptoService>::from_request(req, payload).into_inner();
+        let token_service = web::Data::<TokenService>::from_request(req, payload).into_inner();
 
-        Box::pin(async{
-            match (auth, db, crypto) {
-                (Ok(auth), Ok(db), Ok(crypto)) => {
-                    
+        match (auth, db, token_service) {
+            (Ok(auth), Ok(db), Ok(token_service)) => {
+                Box::pin(async move{
+                    // Декодируем токен
+                    let token_data = token_service
+                        .decode_jwt_token(auth.token().to_string())
+                        .await?;
 
+                    // Проверяем, что токен еще живой
+                    if !token_data.is_not_expired() {
+                        return Err(AppError::UnautorisedError("Token is expired"));
+                    }
 
-                    Ok(User{
-                        db,
-                        info
-                    })
-                },
-                _ => {
+                    let found_user = User::find_by_uuid(db.into_inner(), token_data.uuid)
+                        .await?
+                        .ok_or_else(||{
+                            AppError::UnautorisedError("User is missing in database")
+                        })?;
+
+                    Ok(found_user)
+                })
+            },
+            _ => {
+                Box::pin(async{
                     Err(AppError::UnautorisedError("Auth error"))
-                }
+                })
             }
-        })
+        }
     }
-}*/
+}

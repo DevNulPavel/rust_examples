@@ -6,9 +6,6 @@ mod crypto;
 use actix_web::{
     App, 
     HttpServer, 
-    guard::{
-        self
-    }, 
     web::{
         self
     }
@@ -36,7 +33,6 @@ use crate::{
         configure_routes
     },
     crypto::{
-        PasswordService,
         TokenService
     }
 };
@@ -115,7 +111,6 @@ async fn main() -> std::io::Result<()> {
     let database = web::Data::new(open_database().await);
 
     // Система для хеширования паролей
-    let password =  web::Data::new(PasswordService::new());
     let token =  web::Data::new(TokenService::new("test_secret_key".to_string())); // TODO: Ключ из окружения
 
     HttpServer::new(move ||{
@@ -125,7 +120,6 @@ async fn main() -> std::io::Result<()> {
                 .wrap(TracingLogger)
                 .app_data(http_client.clone())
                 .app_data(database.clone())
-                .app_data(password.clone())
                 .app_data(token.clone())
                 .configure(configure_routes)
         }) 
