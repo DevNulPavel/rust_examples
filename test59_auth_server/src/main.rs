@@ -36,7 +36,8 @@ use crate::{
         configure_routes
     },
     crypto::{
-        CryptoService
+        PasswordService,
+        TokenService
     }
 };
 
@@ -114,7 +115,8 @@ async fn main() -> std::io::Result<()> {
     let database = web::Data::new(open_database().await);
 
     // Система для хеширования паролей
-    let crypto =  web::Data::new(CryptoService::new());
+    let password =  web::Data::new(PasswordService::new());
+    let token =  web::Data::new(TokenService::new("test_secret_key".to_string())); // TODO: Ключ из окружения
 
     HttpServer::new(move ||{
             // Приложение создается для каждого потока свое собственное
@@ -123,7 +125,8 @@ async fn main() -> std::io::Result<()> {
                 .wrap(TracingLogger)
                 .app_data(http_client.clone())
                 .app_data(database.clone())
-                .app_data(crypto.clone())
+                .app_data(password.clone())
+                .app_data(token.clone())
                 .configure(configure_routes)
         }) 
         .bind("127.0.0.1:8080")?

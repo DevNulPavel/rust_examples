@@ -41,7 +41,8 @@ use crate::{
         }
     },
     crypto::{
-        CryptoService
+        PasswordService,
+        TokenService
     }
 };
 
@@ -60,7 +61,7 @@ pub struct CreateUserReqData {
 #[instrument]
 async fn signup(req_params: web::Json<CreateUserReqData>, 
                 db: web::Data<PgPool>, 
-                crypto: web::Data<CryptoService>) -> Result<HttpResponse, AppError> {
+                pass_service: web::Data<PasswordService>) -> Result<HttpResponse, AppError> {
 
     let data: CreateUserReqData = req_params.into_inner();
 
@@ -77,7 +78,7 @@ async fn signup(req_params: web::Json<CreateUserReqData>,
         .collect();
 
     // Хешируем
-    let password_hash = crypto
+    let password_hash = pass_service
         .hash_password_with_salt(data.password.into_bytes(), random_salt.as_bytes().to_owned())
         .await?;
 
@@ -104,12 +105,11 @@ pub struct UpdateProfileReqData {
     pub image: Option<String>
 }
 
-#[instrument]
+/*#[instrument]
 async fn update_data(req_params: web::Json<CreateUserReqData>, 
-                     db: web::Data<PgPool>, 
-                     crypto: web::Data<CryptoService>) -> Result<HttpResponse, AppError> {
+                     db: web::Data<PgPool>) -> Result<HttpResponse, AppError> {
 
-}
+}*/
 
 //////////////////////////////////////////////////////////////////////////////////////////
 

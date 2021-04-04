@@ -54,7 +54,8 @@ use crate::{
         AppError
     },
     crypto::{
-        CryptoService
+        PasswordService,
+        TokenService
     }
 };
 
@@ -108,7 +109,7 @@ impl User {
         // info.validate()?;
 
         let data = sqlx::query_as!(UserData,
-                r#"   
+                r#"
                     INSERT INTO users(user_name, email, password_hash, password_salt)
                     VALUES ($1, $2, $3, $4) 
                     RETURNING *
@@ -125,7 +126,7 @@ impl User {
     #[instrument(fields(id = %id.borrow()))]
     pub async fn find_by_uuid<ID: Borrow<Uuid>>(db: Arc<PgPool>, id: ID) -> Result<Option<User>, AppError> {
         let user_opt = sqlx::query_as!(UserData,
-                r#"   
+                r#"
                     SELECT *
                     FROM users
                     WHERE id = $1
@@ -145,7 +146,7 @@ impl User {
     #[instrument]
     pub async fn find_by_user_name(db: Arc<PgPool>, user_name: &str) -> Result<Option<User>, AppError> {
         let user_opt = sqlx::query_as!(UserData,
-                r#"   
+                r#"
                     SELECT *
                     FROM users
                     WHERE user_name = $1
@@ -165,7 +166,7 @@ impl User {
     #[instrument]
     pub async fn update_profile_info(&mut self, info: UpdateUserConfig) -> Result<(), AppError>{
         let new_data = sqlx::query_as!(UserData,
-                r#"   
+                r#"
                     UPDATE users
                     SET full_name = $1, bio = $2, user_image = $3
                     WHERE id = $4
@@ -190,7 +191,7 @@ impl std::ops::Deref for User{
     }
 }
 
-impl FromRequest for User{
+/*impl FromRequest for User{
     type Config = ();
     type Error = AppError;
     type Future = BoxFuture<'static, Result<Self, Self::Error>>;
@@ -217,4 +218,4 @@ impl FromRequest for User{
             }
         })
     }
-}
+}*/

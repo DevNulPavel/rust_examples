@@ -39,13 +39,8 @@ quick_error!{
             from()
         }
 
-        /// Ошибка при хешировании паролей
-        PasswordHashError(err: argon2::Error){
-            from()
-        }
-
         /// Ошибка при спавне хешировании паролей в потоке
-        PasswordHashSpawnError(err: actix_web::rt::blocking::BlockingError) {
+        PasswordHashSpawnError(err: actix_web::rt::blocking::BlockingError<argon2::Error>) {
             from()
         }        
 
@@ -53,6 +48,11 @@ quick_error!{
         ParamValidationError(context: &'static str, err: validator::ValidationErrors){
             context(context: &'static str, err: validator::ValidationErrors) -> (context, err)
         }
+
+        /// Ошибка при работе с токеном
+        TokenGenerationSpawnError(err: actix_web::rt::blocking::BlockingError<jsonwebtoken::errors::Error>) {
+            from()
+        } 
 
         /// Пользователь у нас не авторизован на сервере
         UnautorisedError(info: &'static str){

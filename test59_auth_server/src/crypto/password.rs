@@ -1,7 +1,5 @@
-use std::{
-    sync::{
-        Arc
-    }
+use tracing::{
+    instrument
 };
 use crate::{
     error::{
@@ -10,6 +8,7 @@ use crate::{
 };
 
 // TODO: Превратить в акторы
+// TODO: Сделать просто функциями
 
 #[derive(Debug, Clone)]
 pub struct PasswordService{
@@ -21,7 +20,7 @@ impl PasswordService {
         }
     }
 
-    // TODO: 
+    #[instrument(skip(password), fields(salt = ?salt.borrow()))]
     pub async fn hash_password_with_salt<V>(&self, password: V, salt: V) -> Result<String, AppError> 
     where 
         V: std::borrow::Borrow<[u8]> + Send + 'static
@@ -29,44 +28,46 @@ impl PasswordService {
         actix_web::rt::blocking::run(move || -> Result<String, argon2::Error> {
                 let config = argon2::Config::default(); // TODO: Configure
                 let res = argon2::hash_encoded(password.borrow(), salt.borrow(), &config)?;
-                // TODO: argon2::verify_encoded(encoded, pwd)
                 Ok(res)
             })
             .await
-            .map_err(|err|{
-                match err {
-                    actix_web::rt::blocking::BlockingError::Canceled => {
-                        AppError::PasswordHashSpawnError
-                    },
-                    actix_web::rt::blocking::BlockingError::Error(e) => {
-                        AppError::from(e)
-                    }
-                }
-            })
+            .map_err(AppError::from)
     }
 
-    pub async fn verify_password_with_salt<V>(&self, password: V, salt: V, password_hash: V) -> Result<bool, AppError> 
+    #[instrument(skip(password))]
+    pub async fn verify_password<V>(&self, password: V, password_hash: String) -> Result<bool, AppError> 
     where 
         V: std::borrow::Borrow<[u8]> + Send + 'static
     {
-        // actix_web::rt::blocking::run(move || -> Result<String, argon2::Error> {
-        //     let config = argon2::Config::default(); // TODO: Configure
-        //     let res = argon2::hash_encoded(password.borrow(), salt.borrow(), &config)?;
-        //     // TODO: argon2::verify_encoded(encoded, pwd)
-        //     Ok(res)
-        // })
-        // .await
-        // .map_err(|err|{
-        //     match err {
-        //         actix_web::rt::blocking::BlockingError::Canceled => {
-        //             AppError::PasswordHashSpawnError
-        //         },
-        //         actix_web::rt::blocking::BlockingError::Error(e) => {
-        //             AppError::from(e)
-        //         }
-        //     }
-        // })
+        actix_web::rt::blocking::run(move || -> Result<bool, argon2::Error> {
+            let res = argon2::verify_encoded(&password_hash, password.borrow())?; // Верификация происходит достаточно быстро
+            Ok(res)
+        })
+        .await
+        .map_err(AppError::from)
     }
 }
 
-// TODO: Unit test
+#[cfg(test)]
+mod tests{
+    use super::*;
+
+    #[actix_rt::test]
+    async fn test_password_service(){
+        let service = PasswordService::new();
+
+        let test_pass = b"asdasdasda".to_vec();
+        let test_salt = b"test_salt_data".to_vec();
+        let result_hash = service
+            .hash_password_with_salt(test_pass.clone(), test_salt.clone())
+            .await
+            .expect("Hash calculate error");
+
+        let pass_is_valid = service
+            .verify_password(test_pass, result_hash)
+            .await
+            .expect("Verify failed");
+
+        assert!(pass_is_valid, "Password verify failed");
+    }
+}
