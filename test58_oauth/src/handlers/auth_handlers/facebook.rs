@@ -26,7 +26,8 @@ use crate::{
         AppError
     },
     app_params::{
-        FacebookEnvParams
+        FacebookEnvParams,
+        AppParameters
     },
     responses::{
         DataOrErrorResponse,
@@ -42,11 +43,17 @@ use crate::{
     }
 };
 
-fn get_callback_address(req: &actix_web::HttpRequest) -> String {
+/*fn get_callback_address(req: &actix_web::HttpRequest) -> String {
     let conn_info = req.connection_info();
     format!("{scheme}://{host}{api}{login}", 
                 scheme = conn_info.scheme(),
                 host = conn_info.host(),
+                api = constants::FACEBOOK_SCOPE_PATH,
+                login = constants::AUTH_CALLBACK_PATH)
+}*/
+fn get_callback_address(base_url: &str) -> String {
+    format!("{base_url}{api}{login}", 
+                base_url = base_url,
                 api = constants::FACEBOOK_SCOPE_PATH,
                 login = constants::AUTH_CALLBACK_PATH)
 }
@@ -56,11 +63,12 @@ fn get_callback_address(req: &actix_web::HttpRequest) -> String {
 /// Данный метод вызывается при нажатии на кнопку логина в Facebook
 #[instrument(fields(callback_site_address))]
 pub async fn login_with_facebook(req: actix_web::HttpRequest, 
+                                 app_params: web::Data<AppParameters>,
                                  fb_params: web::Data<FacebookEnvParams>) -> Result<web::HttpResponse, AppError> {
     debug!("Request object: {:?}", req);
 
     // Адрес нашего сайта + адрес коллбека
-    let callback_site_address = get_callback_address(&req);
+    let callback_site_address = get_callback_address(app_params.app_base_url.as_str());
 
     tracing::Span::current()
         .record("callback_site_address", &tracing::field::display(&callback_site_address));
@@ -102,6 +110,7 @@ pub struct FacebookAuthParams{
 }
 #[instrument(skip(identity), fields(callback_site_address))]
 pub async fn facebook_auth_callback(req: actix_web::HttpRequest,
+                                    app_params: web::Data<AppParameters>,
                                     query_params: web::Query<FacebookAuthParams>, 
                                     identity: Identity,
                                     fb_params: web::Data<FacebookEnvParams>,
@@ -110,7 +119,7 @@ pub async fn facebook_auth_callback(req: actix_web::HttpRequest,
     debug!("Request object: {:?}", req);
     debug!("Facebook auth callback query params: {:?}", query_params);
 
-    let callback_site_address = get_callback_address(&req);
+    let callback_site_address = get_callback_address(app_params.app_base_url.as_str());
 
     tracing::Span::current()
         .record("callback_site_address", &tracing::field::display(&callback_site_address));
