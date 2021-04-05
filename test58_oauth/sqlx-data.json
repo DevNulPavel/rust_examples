@@ -1,0 +1,127 @@
+{
+  "db": "SQLite",
+  "2e2f93f444ec2112c9255e2a3c903bd9868d76f53867846e1f70a1a301c4fc20": {
+    "query": "   \n                            SELECT \n                                app_users.user_uuid, \n                                facebook_users.facebook_uid as 'facebook_uid?',\n                                google_users.google_uid as 'google_uid?'\n                            FROM app_users\n                            LEFT JOIN facebook_users\n                                ON facebook_users.app_user_id = app_users.id\n                            LEFT JOIN google_users\n                                ON google_users.app_user_id = app_users.id                            \n                            WHERE app_users.user_uuid = ?\n                        ",
+    "describe": {
+      "columns": [
+        {
+          "name": "user_uuid",
+          "ordinal": 0,
+          "type_info": "Text"
+        },
+        {
+          "name": "facebook_uid?",
+          "ordinal": 1,
+          "type_info": "Text"
+        },
+        {
+          "name": "google_uid?",
+          "ordinal": 2,
+          "type_info": "Text"
+        }
+      ],
+      "parameters": {
+        "Right": 1
+      },
+      "nullable": [
+        false,
+        false,
+        false
+      ]
+    }
+  },
+  "49ca091203e8fd75b534a65a57e38abf899764925e77d2fe4ac9937ab1b27d32": {
+    "query": "\n                        INSERT INTO app_users(user_uuid)\n                            VALUES (?);\n                        INSERT INTO facebook_users(facebook_uid, app_user_id)\n                            VALUES (?, (SELECT id FROM app_users WHERE user_uuid = ?));\n                    ",
+    "describe": {
+      "columns": [],
+      "parameters": {
+        "Right": 3
+      },
+      "nullable": []
+    }
+  },
+  "78ed2bd111256370d9f639d23cc5bf79eaac60bd5af6f872d2b11adb03278e9c": {
+    "query": "\n                                        INSERT INTO app_users(user_uuid)\n                                        VALUES (?);\n                                        INSERT INTO google_users(google_uid, app_user_id)\n                                        VALUES (?, (SELECT id FROM app_users WHERE user_uuid = ?));\n                                        ",
+    "describe": {
+      "columns": [],
+      "parameters": {
+        "Right": 3
+      },
+      "nullable": []
+    }
+  },
+  "8e46972cfecf74c4226f61e8f7d49305b32d1d521e9c5f429488483266434a6d": {
+    "query": "   \n                            SELECT app_users.user_uuid\n                            FROM app_users \n                            INNER JOIN facebook_users \n                                    ON facebook_users.app_user_id = app_users.id\n                            WHERE facebook_users.facebook_uid = ?\n                        ",
+    "describe": {
+      "columns": [
+        {
+          "name": "user_uuid",
+          "ordinal": 0,
+          "type_info": "Text"
+        }
+      ],
+      "parameters": {
+        "Right": 1
+      },
+      "nullable": [
+        false
+      ]
+    }
+  },
+  "c229c69dad2bc1eef16f79813a90082a10ed3df26bd31a8315c56203422ca2ba": {
+    "query": "\n                                            INSERT INTO facebook_users(facebook_uid, app_user_id)\n                                            VALUES (?, (SELECT id FROM app_users WHERE user_uuid = ?));\n                                        ",
+    "describe": {
+      "columns": [],
+      "parameters": {
+        "Right": 2
+      },
+      "nullable": []
+    }
+  },
+  "e1d381ace2819b1c9e7da8b8ba7a17a3264f2052f9cd01f5c90cc18a1b00b43c": {
+    "query": "   \n                            SELECT app_users.user_uuid\n                            FROM app_users \n                            INNER JOIN google_users \n                                    ON google_users.app_user_id = app_users.id\n                            WHERE google_users.google_uid = ?\n                        ",
+    "describe": {
+      "columns": [
+        {
+          "name": "user_uuid",
+          "ordinal": 0,
+          "type_info": "Text"
+        }
+      ],
+      "parameters": {
+        "Right": 1
+      },
+      "nullable": [
+        false
+      ]
+    }
+  },
+  "eaafa904a3ca4283cb962184c7f5edebac03d5d6d4bd3607b4eaf75a2d56b4a0": {
+    "query": "   \n                                    SELECT user_uuid \n                                    FROM app_users \n                                    WHERE app_users.user_uuid = ?\n                                ",
+    "describe": {
+      "columns": [
+        {
+          "name": "user_uuid",
+          "ordinal": 0,
+          "type_info": "Text"
+        }
+      ],
+      "parameters": {
+        "Right": 1
+      },
+      "nullable": [
+        false
+      ]
+    }
+  },
+  "f0036dd202fa898af84e1f1057b23ed11789844bcfa23b4bfcc5f39da158cefa": {
+    "query": "\n                                        INSERT INTO google_users(google_uid, app_user_id)\n                                        VALUES (?, (SELECT id FROM app_users WHERE user_uuid = ?));\n                                        ",
+    "describe": {
+      "columns": [],
+      "parameters": {
+        "Right": 2
+      },
+      "nullable": []
+    }
+  }
+}

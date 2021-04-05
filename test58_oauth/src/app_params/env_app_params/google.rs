@@ -6,6 +6,9 @@ use std::{
 use serde::{
     Deserialize
 };
+use tracing::{
+    debug
+};
 use serde_with::{
     serde_as,
     DisplayFromStr
@@ -33,7 +36,7 @@ pub struct GoogleEnvParams{
 impl GoogleEnvParams {
     pub fn get_from_env() -> GoogleEnvParams {
         let auth_file_path = std::env::var("GOOGLE_OAUTH_CREDENTIAL_FILE")
-            .expect("GOOGLE_OAUTH_CREDENTIAL_FILE environment variable is missing");
+            .expect("GOOGLE_OAUTH_CREDENTIAL_FILE environment variable is missing");        
 
         let file = File::open(auth_file_path)
             .expect("Google auth file open failed");

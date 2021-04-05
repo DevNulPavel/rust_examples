@@ -1,6 +1,6 @@
 /target
-/*.sqlite*
+db/*.sqlite*
 /logs
 .DS_Store
-test_environment.env
+test_environment*.env
 test_google_auth_credentials.json

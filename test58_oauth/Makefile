@@ -3,35 +3,71 @@
 
 .SILENT:
 
-INITIALIZE_DATABASE:
-	export DATABASE_URL=sqlite://oauth_db.sqlite && \
+DATABASE_INITIALIZE:
+	export DATABASE_URL=sqlite://db/oauth_db.sqlite && \
 	sqlx database create
 
-CREATE_DATABASE_MIGRATION:
-	export DATABASE_URL=sqlite://oauth_db.sqlite && \
+DATABASE_MIGRATION_CREATE:
+	export DATABASE_URL=sqlite://db/oauth_db.sqlite && \
 	sqlx migrate add initialize
 
-PERFORM_DATABASE_MIGRATION:
-	export DATABASE_URL=sqlite://oauth_db.sqlite && \
+DATABASE_MIGRATION_PERFORM:
+	export DATABASE_URL=sqlite://db/oauth_db.sqlite && \
 	sqlx migrate run
 
+########################################################################################
+
 ENCRYPT_TEST_ENV:
-	gpg -a -r 0x0BD10E4E6E578FB6 -o test_environment.env.asc -e test_environment.env
+	gpg -a -r 0x0BD10E4E6E578FB6 -o credentials/test_environment.env.asc -e credentials/test_environment.env
+	gpg -a -r 0x0BD10E4E6E578FB6 -o credentials/test_environment_docker.env.asc -e credentials/test_environment_docker.env
 
 DECRYPT_TEST_ENV:
 	rm -rf test_environment.env
-	gpg -a -r 0x0BD10E4E6E578FB6 -o test_environment.env -d test_environment.env.asc
+	rm -rf test_environment_docker.env
+	gpg -a -r 0x0BD10E4E6E578FB6 -o credentials/test_environment.env -d credentials/test_environment.env.asc
+	gpg -a -r 0x0BD10E4E6E578FB6 -o credentials/test_environment_docker.env -d credentials/test_environment_docker.env.asc
 
 ENCRYPT_GOOGLE_CREDENTIALS:
-	gpg -a -r 0x0BD10E4E6E578FB6 -o test_google_auth_credentials.json.asc -e test_google_auth_credentials.json
+	gpg -a -r 0x0BD10E4E6E578FB6 -o credentials/test_google_auth_credentials.json.asc -e credentials/test_google_auth_credentials.json
 
 DECRYPT_GOOGLE_CREDENTIALS:
 	rm -rf test_google_auth_credentials.json
-	gpg -a -r 0x0BD10E4E6E578FB6 -o test_google_auth_credentials.json -d test_google_auth_credentials.json.asc
+	gpg -a -r 0x0BD10E4E6E578FB6 -o credentials/test_google_auth_credentials.json -d credentials/test_google_auth_credentials.json.asc
 
-RUN_SERVER: DECRYPT_GOOGLE_CREDENTIALS
+########################################################################################
+
+RUN_SERVER:
 	# export RUST_LOG=actix_web=debug,test58_oauth=trace
-	$(shell gpg -a -r 0x0BD10E4E6E578FB6 -d test_environment.env.asc) && \
+	$(shell gpg -a -r 0x0BD10E4E6E578FB6 -d credentials/test_environment.env.asc) && \
 	source .env && \
 	export RUST_LOG=trace && \
-	cargo run -- --game_url="http://localhost:9999"
+	cargo run
+
+########################################################################################
+
+DOCKER_UPDATE_SQLX_OFFLINE_MODE:
+	# https://www.lpalmieri.com/posts/2020-11-01-zero-to-production-5-how-to-deploy-a-rust-application/
+	cargo sqlx prepare
+
+DOCKER_IMAGE_BUILD:
+	docker build -t devnul/test58_oauth .
+
+DOCKER_PUSH_IMAGE: BUILD_DOCKER_IMAGE
+	docker push devnul/test58_oauth
+
+DOCKER_PULL_IMAGE: 
+	docker pull devnul/test58_oauth
+
+DOCKER_RUN_IMAGE:
+	# -it - Interactive mode
+	# -d - Daemon mode
+	docker run \
+		-d \
+		--restart always \
+		--env-file credentials/test_environment_docker.env \
+		--network host \
+		--volume /Users/devnul/projects/Rust_Examples/test58_oauth/credentials:/oauth_server/credentials \
+		--volume /Users/devnul/projects/Rust_Examples/test58_oauth/logs:/oauth_server/logs \
+		--volume /Users/devnul/projects/Rust_Examples/test58_oauth/db:/oauth_server/db \
+		--name test58_oauth \
+		devnul/test58_oauth

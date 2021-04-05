@@ -122,7 +122,7 @@ async fn main() -> std::io::Result<()> {
     let _span_guard = span.enter();
 
     // Получаем параметры приложения
-    let app_parameters = web::Data::new(AppParameters::parse());
+    let app_parameters = web::Data::new(AppParameters::get_from_env());
     let facebook_env_params = web::Data::new(FacebookEnvParams::get_from_env());
     let google_env_params = web::Data::new(GoogleEnvParams::get_from_env());
 
@@ -139,6 +139,9 @@ async fn main() -> std::io::Result<()> {
 
     // Создаем общего http клиента для разных запросов
     let http_client = web::Data::new(reqwest::Client::new());
+
+    // Фактический адрес сервера
+    let server_address = format!("127.0.0.1:{}", app_parameters.http_port);
 
     HttpServer::new(move ||{
             // Настраиваем middleware идентификации пользователя, делает зашифрованную куку у пользователя в браузере,
@@ -170,8 +173,8 @@ async fn main() -> std::io::Result<()> {
                 .app_data(google_env_params.clone())
                 .app_data(http_client.clone())
                 .configure(retup_routes)
-        }) 
-        .bind("127.0.0.1:8080")?
+        })
+        .bind(server_address)?
         .run()
         .await
 }
