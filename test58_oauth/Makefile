@@ -61,11 +61,12 @@ DOCKER_PULL_IMAGE:
 DOCKER_RUN_IMAGE:
 	# -it - Interactive mode
 	# -d - Daemon mode
+	# --network host
 	docker run \
 		-d \
 		--restart unless-stopped \
+		-p 8888:8888 \
 		--env-file credentials/test_environment_docker.env \
-		--network host \
 		--volume /Users/devnul/projects/Rust_Examples/test58_oauth/credentials:/oauth_server/credentials \
 		--volume /Users/devnul/projects/Rust_Examples/test58_oauth/logs:/oauth_server/logs \
 		--volume /Users/devnul/projects/Rust_Examples/test58_oauth/db:/oauth_server/db \
