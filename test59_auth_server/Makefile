@@ -11,4 +11,5 @@ DATABASE_RUN_MIGRATION:
 
 RUN_SERVER:
 	export RUST_LOG=trace && \
+	source .env && \
 	cargo run

@@ -29,11 +29,6 @@ quick_error!{
             from()
         }
 
-        /// Ошибка у внутреннего запроса с сервера на какое-то API
-        InternalReqwestLibraryError(context: &'static str, err: reqwest::Error){
-            context(context: &'static str, err: reqwest::Error) -> (context, err)
-        }
-
         /// Произошла ошибка работы с базой данных
         DatabaseError(err: sqlx::Error){
             from()

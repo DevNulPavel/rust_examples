@@ -104,9 +104,6 @@ async fn main() -> std::io::Result<()> {
     let span = debug_span!("root_span");
     let _span_guard = span.enter();
 
-    // Создаем общего http клиента для разных запросов
-    let http_client = web::Data::new(reqwest::Client::new());
-
     // Создаем объект базы данных
     let database = web::Data::new(open_database().await);
 
@@ -115,10 +112,8 @@ async fn main() -> std::io::Result<()> {
 
     HttpServer::new(move ||{
             // Приложение создается для каждого потока свое собственное
-            // Порядок выполнения Middleware обратный, снизу вверх
             App::new()
                 .wrap(TracingLogger)
-                .app_data(http_client.clone())
                 .app_data(database.clone())
                 .app_data(token.clone())
                 .configure(configure_routes)
@@ -126,4 +121,53 @@ async fn main() -> std::io::Result<()> {
         .bind("127.0.0.1:8080")?
         .run()
         .await
+}
+
+////////////////////////////////////////////////////////////////////////////////////////////////////////////////
+
+#[cfg(test)]
+mod tests{
+    use super::*;
+    use serde_json::{
+        json
+    };
+    use actix_web::{
+        test, 
+        web, 
+        App
+    };
+
+    #[actix_rt::test]
+    async fn test_server() {
+        std::env::set_var("DATABASE_URL", "postgres://actix:actix@localhost:5432/actix");
+
+        // Создаем объект базы данных
+        let database = web::Data::new(open_database().await);
+
+        // Система для хеширования паролей
+        let token =  web::Data::new(TokenService::new("test_secret_key".to_string())); // TODO: Ключ из окружения
+
+        // Тестовое приложение
+        let mut app = test::init_service(App::new()
+                .app_data(database.clone())
+                .app_data(token.clone())
+                .configure(configure_routes))
+            .await;
+        
+        // Валидный запрос логина на сервер
+        let signup_req = test::TestRequest::post()
+            .uri("/signup")
+            .set_json(&json!({
+                "user_login": "test_user",
+                "email": "valid@email.com",
+                "password": "valid_password"
+            }))
+            .to_request();
+        
+        // Ответ на запрос
+        let signup_resp: models::user::UserData = test::read_response_json(&mut app, signup_req)
+            .await;
+            
+        println!("Signup valid response: {:#?}", signup_resp);
+    }
 }

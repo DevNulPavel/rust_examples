@@ -40,9 +40,6 @@ use serde::{
     Serialize,
     Deserialize
 };
-use validator::{
-    Validate
-};
 use tracing::{
     instrument
 };
@@ -75,7 +72,7 @@ pub struct CreateUserConfig {
 pub struct UpdateUserConfig {
     pub full_name: Option<String>,
     pub bio: Option<String>,
-    pub image: Option<String>
+    pub image_url: Option<String>
 }
 
 /////////////////////////////////////////////////////////////////////////////
@@ -171,7 +168,7 @@ impl User {
                     SET full_name = $1, bio = $2, user_image = $3
                     WHERE id = $4
                     RETURNING *
-                "#, info.full_name, info.bio, info.image, self.data.id)
+                "#, info.full_name, info.bio, info.image_url, self.data.id)
             .fetch_one(self.db.as_ref())
             .await
             .map_err(AppError::from)?;

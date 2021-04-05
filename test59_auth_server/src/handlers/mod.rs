@@ -11,9 +11,6 @@ use actix_web_httpauth::{
     extractors::{
         basic::{
             BasicAuth
-        },
-        bearer::{
-            BearerAuth
         }
     }
 };
@@ -40,9 +37,6 @@ use rand::{
     Rng,
     thread_rng
 };
-use serde_json::{
-    json
-};
 use crate::{
     error::{
         AppError
@@ -50,7 +44,8 @@ use crate::{
     models::{
         user::{
             User,
-            CreateUserConfig
+            CreateUserConfig,
+            UpdateUserConfig
         }
     },
     crypto::{
@@ -113,20 +108,33 @@ pub struct UpdateProfileReqData {
     pub full_name: Option<String>,
     pub bio: Option<String>,
     #[validate(url)]
-    pub image: Option<String>
+    pub image_url: Option<String>
 }
 
 #[instrument]
 async fn update_user_data(req_params: web::Json<UpdateProfileReqData>, 
-                          user: User) -> Result<HttpResponse, AppError> {
+                          mut user: User) -> Result<HttpResponse, AppError> {
+    req_params
+        .validate()
+        .context("User update data errors")?;
 
+    let data = req_params.into_inner();
+
+    let config = UpdateUserConfig{
+        bio: data.bio,
+        full_name: data.full_name,
+        image_url: data.image_url
+    };
+    user.update_profile_info(config).await?;
+
+    Ok(HttpResponse::Ok().json(user.get_data()))
 }
 
 //////////////////////////////////////////////////////////////////////////////////////////
 
 #[instrument]
 async fn get_user_data(user: User) -> Result<HttpResponse, AppError> {
-
+    Ok(HttpResponse::Ok().json(user.get_data()))
 }
 
 //////////////////////////////////////////////////////////////////////////////////////////
@@ -146,7 +154,7 @@ async fn auth(basic_auth: BasicAuth,
         .ok_or_else(|| AppError::UnautorisedError("Password is required for auth"))?;    
 
     // Находим пользователя
-    let user = User::find_by_login(db, login)
+    let user = User::find_by_login(db.into_inner(), login)
         .await?
         .ok_or_else(|| AppError::UnautorisedError("User with login did not found"))?;
 
@@ -190,4 +198,26 @@ pub fn configure_routes(config: &mut web::ServiceConfig) {
                     .route(web::route()
                             .guard(guard::Get())
                             .to(get_user_data)));
+}
+
+//////////////////////////////////////////////////////////////////////////////////////////
+
+#[cfg(test)]
+mod tests{
+    use super::*;
+    use actix_web::{
+        http::{
+            self
+        },
+        test::{
+            self
+        }
+    };
+
+    #[actix_rt::test]
+    async fn test_signup_ok() {
+        // let req = test::TestRequest::with_header("content-type", "text/plain").to_http_request();
+        // let resp = index(req).await;
+        // assert_eq!(resp.status(), http::StatusCode::OK);
+    }
 }
