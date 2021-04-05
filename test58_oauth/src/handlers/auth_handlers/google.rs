@@ -49,7 +49,7 @@ use crate::{
 
 fn get_callback_address(base_url: &str) -> String {
     format!("{base_url}{api}{login}", 
-                base_url = base_url,
+                base_url = base_url.trim_end_matches("/"),
                 api = constants::GOOGLE_SCOPE_PATH,
                 login = constants::AUTH_CALLBACK_PATH)
 }
