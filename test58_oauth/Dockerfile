@@ -28,4 +28,4 @@ COPY --from=builder \
 COPY --from=builder \
     /usr/src/test58_oauth/templates \
     templates
-CMD ["test58_oauth"]
+CMD ["./test58_oauth"]

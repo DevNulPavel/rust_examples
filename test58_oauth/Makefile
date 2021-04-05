@@ -52,7 +52,7 @@ DOCKER_UPDATE_SQLX_OFFLINE_MODE:
 DOCKER_IMAGE_BUILD:
 	docker build -t devnul/test58_oauth .
 
-DOCKER_PUSH_IMAGE: BUILD_DOCKER_IMAGE
+DOCKER_PUSH_IMAGE:
 	docker push devnul/test58_oauth
 
 DOCKER_PULL_IMAGE: 
@@ -63,7 +63,7 @@ DOCKER_RUN_IMAGE:
 	# -d - Daemon mode
 	docker run \
 		-d \
-		--restart always \
+		--restart unless-stopped \
 		--env-file credentials/test_environment_docker.env \
 		--network host \
 		--volume /Users/devnul/projects/Rust_Examples/test58_oauth/credentials:/oauth_server/credentials \
