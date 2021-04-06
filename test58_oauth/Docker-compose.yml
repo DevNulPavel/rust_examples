@@ -11,4 +11,5 @@ services:
         - ./logs:/oauth_server/logs
         - ./db/oauth_db.sqlite:/oauth_server/db/oauth_db.sqlite
     ports:
-      - 8080:8080
+        - 8080:8080
+    # network_mode: host
