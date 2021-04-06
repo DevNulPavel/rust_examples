@@ -199,25 +199,3 @@ pub fn configure_routes(config: &mut web::ServiceConfig) {
                             .guard(guard::Get())
                             .to(get_user_data)));
 }
-
-//////////////////////////////////////////////////////////////////////////////////////////
-
-#[cfg(test)]
-mod tests{
-    use super::*;
-    use actix_web::{
-        http::{
-            self
-        },
-        test::{
-            self
-        }
-    };
-
-    #[actix_rt::test]
-    async fn test_signup_ok() {
-        // let req = test::TestRequest::with_header("content-type", "text/plain").to_http_request();
-        // let resp = index(req).await;
-        // assert_eq!(resp.status(), http::StatusCode::OK);
-    }
-}

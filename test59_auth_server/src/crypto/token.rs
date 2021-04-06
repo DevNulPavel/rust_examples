@@ -33,13 +33,14 @@ impl TokenClaims {
         current_ts < self.exp
     }
 
+    #[cfg(test)]
     pub fn is_valid_for_uuid(&self, uuid: &Uuid) -> bool {
         self.uuid.eq(uuid) && self.is_not_expired()
     }
 
-    pub fn get_uuid(&self) -> &Uuid {
+    /*pub fn get_uuid(&self) -> &Uuid {
         &self.uuid
-    }
+    }*/
 }
 
 /////////////////////////////////////////////////////////////////////////////////
@@ -47,6 +48,7 @@ impl TokenClaims {
 #[derive(Debug, Serialize)]
 pub struct TokenGenerateResult{
     pub token: String,
+    pub token_type: String,
     pub expires_in: i64
 }
 
@@ -79,6 +81,7 @@ impl TokenService {
                 let res = jsonwebtoken::encode(&header, &claims, &encoding_key)?;
                 Ok(TokenGenerateResult{
                     token: res,
+                    token_type: "Bearer".to_string(),
                     expires_in: expire_time.timestamp()
                 })
             })

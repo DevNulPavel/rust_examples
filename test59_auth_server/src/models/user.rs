@@ -82,13 +82,16 @@ pub struct UserData {
     pub id: Uuid,
     pub user_login: String,
     pub email: String,
-    pub password_hash: String,
-    pub password_salt: String,
     pub full_name: Option<String>,
     pub bio: Option<String>,
     pub user_image: Option<String>,
     pub create_at: NaiveDateTime,
-    pub updated_at: NaiveDateTime
+    pub updated_at: NaiveDateTime,
+
+    #[serde(skip)]
+    pub password_hash: String,
+    #[serde(skip)]
+    pub password_salt: String,
 }
 
 /////////////////////////////////////////////////////////////////////////////

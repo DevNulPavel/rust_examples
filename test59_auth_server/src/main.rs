@@ -132,10 +132,44 @@ mod tests{
         json
     };
     use actix_web::{
-        test, 
-        web, 
+        test::{
+            self
+        },
+        http::{
+            self
+        },
+        web::{
+            self
+        },
         App
     };
+    use rand::{
+        distributions::{
+            Alphanumeric
+        },
+        thread_rng,
+        Rng
+    };
+    use serde::{
+        Deserialize
+    };
+    use crate::{
+        models::{
+            user::{
+                UserData
+            }
+        }
+    };
+
+    fn generate_rand_string(len: usize) -> String {
+        // Рандомная соль
+        let random: String = thread_rng()
+            .sample_iter(&Alphanumeric)
+            .take(len)
+            .map(char::from)
+            .collect();
+        random
+    }
 
     #[actix_rt::test]
     async fn test_server() {
@@ -154,20 +188,71 @@ mod tests{
                 .configure(configure_routes))
             .await;
         
-        // Валидный запрос логина на сервер
+        // TODO: Нужно дропать тестовую базу данных (создавать пустую), либо генерировать точно уникальные строки
+        // сейчас может повторяться все равно с какой-то вероятностью
+        let login = generate_rand_string(20);
+        let email = format!("{}@email.com", generate_rand_string(20));
+        let pass = generate_rand_string(20);
+        
+        // Валидный запрос регистрации на сервер
         let signup_req = test::TestRequest::post()
             .uri("/signup")
             .set_json(&json!({
-                "user_login": "test_user",
-                "email": "valid@email.com",
-                "password": "valid_password"
+                "user_login": login,
+                "email": email,
+                "password": pass
             }))
             .to_request();
-        
-        // Ответ на запрос
         let signup_resp: models::user::UserData = test::read_response_json(&mut app, signup_req)
             .await;
-            
         println!("Signup valid response: {:#?}", signup_resp);
+
+        // Аутентификация
+        let auth = http_auth_basic::Credentials::new(&login, &pass);
+        let auth_req = test::TestRequest::post()
+            .uri("/auth")
+            .header(http::header::AUTHORIZATION, auth.as_http_header())
+            .to_request();
+        #[derive(Deserialize, Debug)]
+        struct AuthResp {
+            token: String,
+            token_type: String,
+            expires_in: u64
+        }
+        let auth_resp: AuthResp = test::read_response_json(&mut app, auth_req)
+            .await;
+        println!("Auth valid response: {:#?}", auth_resp);
+        
+        // Получение информации о пользователе
+        let user_info_req = test::TestRequest::get()
+            .uri("/user")
+            .header(http::header::AUTHORIZATION, format!("Bearer {}", auth_resp.token))
+            .to_request();
+        let user_info_resp: UserData = test::read_response_json(&mut app, user_info_req)
+            .await;
+        println!("User info valid response: {:#?}", user_info_resp);
+
+        // Получение информации о пользователе
+        let bio = "New bio";
+        let full_name = "New full name";
+        let image_url = "http://test.image.com/qwer.png";
+        let user_info_req = test::TestRequest::patch()
+            .uri("/user")
+            .header(http::header::AUTHORIZATION, format!("Bearer {}", auth_resp.token))
+            .set_json(&json!({
+                "bio": bio,
+                "full_name": full_name,
+                "image_url": image_url
+            }))
+            .to_request();
+        /*let user_info_update_resp = test::read_response(&mut app, user_info_req)
+            .await;
+        println!("User info update response: {:#?}", user_info_update_resp);*/
+        let user_info_update_resp: UserData = test::read_response_json(&mut app, user_info_req)
+            .await;
+        println!("User info update response: {:#?}", user_info_update_resp);
+        assert_eq!(user_info_update_resp.bio.unwrap(), bio);
+        assert_eq!(user_info_update_resp.full_name.unwrap(), full_name);
+        assert_eq!(user_info_update_resp.user_image.unwrap(), image_url);
     }
 }

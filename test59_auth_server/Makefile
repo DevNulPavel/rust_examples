@@ -9,7 +9,14 @@ DATABASE_DOCKER_START:
 DATABASE_RUN_MIGRATION:
 	sqlx migrate run
 
+DATABASE_OFFLINE_MODE_UPDATE:
+	cargo sqlx prepare
+
 RUN_SERVER:
 	export RUST_LOG=trace && \
 	source .env && \
 	cargo run
+
+# Выводить все логи при тесте
+TEST:
+	cargo test -- --nocapture

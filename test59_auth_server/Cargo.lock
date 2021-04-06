@@ -746,6 +746,9 @@ name = "either"
 version = "1.6.1"
 source = "registry+https://github.com/rust-lang/crates.io-index"
 checksum = "e78d4f1cc4ae33bbfc157ed5d5a5ef3bc29227303d595861deb238fcec4e9457"
+dependencies = [
+ "serde",
+]
 
 [[package]]
 name = "encoding_rs"
@@ -1043,6 +1046,15 @@ dependencies = [
  "bytes 1.0.1",
  "fnv",
  "itoa",
+]
+
+[[package]]
+name = "http-auth-basic"
+version = "0.1.2"
+source = "registry+https://github.com/rust-lang/crates.io-index"
+checksum = "887a45f9bf1e5e7023b8c02bcb9494f278dd7c0116a5a9cb6fb0f9952ffe8562"
+dependencies = [
+ "base64 0.12.3",
 ]
 
 [[package]]
@@ -1866,6 +1878,7 @@ version = "1.0.64"
 source = "registry+https://github.com/rust-lang/crates.io-index"
 checksum = "799e97dc9fdae36a5c8b8f2cae9ce2ee9fdce2058c57a93e6099d919fd982f79"
 dependencies = [
+ "indexmap",
  "itoa",
  "ryu",
  "serde",
@@ -2053,6 +2066,7 @@ dependencies = [
  "percent-encoding",
  "rand 0.7.3",
  "rustls",
+ "serde",
  "sha-1",
  "sha2",
  "smallvec",
@@ -2078,9 +2092,12 @@ dependencies = [
  "either",
  "futures",
  "heck",
+ "hex",
  "lazy_static",
  "proc-macro2",
  "quote",
+ "serde",
+ "serde_json",
  "sha2",
  "sqlx-core",
  "sqlx-rt",
@@ -2216,6 +2233,7 @@ dependencies = [
  "actix-web-httpauth",
  "chrono",
  "futures",
+ "http-auth-basic",
  "jsonwebtoken",
  "quick-error 2.0.0",
  "rand 0.8.3",
