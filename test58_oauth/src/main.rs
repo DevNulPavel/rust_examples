@@ -141,7 +141,7 @@ async fn main() -> std::io::Result<()> {
     let http_client = web::Data::new(reqwest::Client::new());
 
     // Фактический адрес сервера
-    let server_address = format!("127.0.0.1:{}", app_parameters.http_port);
+    let server_address = format!("0.0.0.0:{}", app_parameters.http_port);
 
     HttpServer::new(move ||{
             // Настраиваем middleware идентификации пользователя, делает зашифрованную куку у пользователя в браузере,

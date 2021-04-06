@@ -1,11 +1,14 @@
-# version: "3.3"
-# services:
-#   postgres:
-#     image: arm64v8/postgres:13.2-alpine
-#     restart: always
-#     environment:
-#       POSTGRES_USER: actix
-#       POSTGRES_PASSWORD: actix
-#       POSTGRES_DB: actix
-#     ports:
-#       - 5432:5432
+version: "3.8"
+services:
+  app:
+    image: devnul/test58_oauth
+    container_name: test58_oauth
+    restart: always
+    env_file:
+        - credentials/test_environment_docker.env
+    volumes:
+        - ./credentials:/oauth_server/credentials
+        - ./logs:/oauth_server/logs
+        - ./db/oauth_db.sqlite:/oauth_server/db/oauth_db.sqlite
+    ports:
+      - 8080:8080

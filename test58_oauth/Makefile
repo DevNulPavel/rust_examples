@@ -58,17 +58,20 @@ DOCKER_PUSH_IMAGE:
 DOCKER_PULL_IMAGE: 
 	docker pull devnul/test58_oauth
 
+# DOCKER_RUN_IMAGE:
+# 	# -it - Interactive mode
+# 	# -d - Daemon mode
+# 	# --network host
+# 	docker run \
+# 		-d \
+# 		--restart unless-stopped \
+# 		-p 8888:8888 \
+# 		--env-file credentials/test_environment_docker.env \
+# 		--volume /Users/devnul/projects/Rust_Examples/test58_oauth/credentials:/oauth_server/credentials \
+# 		--volume /Users/devnul/projects/Rust_Examples/test58_oauth/logs:/oauth_server/logs \
+# 		--volume /Users/devnul/projects/Rust_Examples/test58_oauth/db:/oauth_server/db \
+# 		--name test58_oauth \
+# 		devnul/test58_oauth
+
 DOCKER_RUN_IMAGE:
-	# -it - Interactive mode
-	# -d - Daemon mode
-	# --network host
-	docker run \
-		-d \
-		--restart unless-stopped \
-		-p 8888:8888 \
-		--env-file credentials/test_environment_docker.env \
-		--volume /Users/devnul/projects/Rust_Examples/test58_oauth/credentials:/oauth_server/credentials \
-		--volume /Users/devnul/projects/Rust_Examples/test58_oauth/logs:/oauth_server/logs \
-		--volume /Users/devnul/projects/Rust_Examples/test58_oauth/db:/oauth_server/db \
-		--name test58_oauth \
-		devnul/test58_oauth
+	docker-compose up
