@@ -1,0 +1,11 @@
+version: "3.3"
+services:
+  postgres:
+    image: arm64v8/postgres:13.2-alpine
+    restart: always
+    environment:
+      POSTGRES_USER: diesel
+      POSTGRES_PASSWORD: diesel
+      POSTGRES_DB: diesel
+    ports:
+      - 5432:5432
