@@ -1,0 +1,28 @@
+version: "3.8"
+services:
+    db:
+        image: arm64v8/postgres:13.2-alpine
+        restart: always
+        environment:
+            POSTGRES_USER: actix
+            POSTGRES_PASSWORD: actix
+            POSTGRES_DB: actix
+        ports:
+            - 5432:5432
+    redis:  
+        image: redis:6.2.1-alpine
+        restart: always
+        ports:
+            - 6379:6379
+    # app:
+    #     # image: rust_actix_rest_api_example
+    #     build: .
+    #     container_name: rust_actix_rest_api_example
+    #     restart: always
+    #     env_file:
+    #         - .env.docker
+    #     ports:
+    #         - 3000:3000
+    #     links:
+    #         - db
+    #         - redis

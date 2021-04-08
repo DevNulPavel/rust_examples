@@ -3,14 +3,7 @@
 FROM rust:1.51.0 as builder
 ENV SQLX_OFFLINE true
 WORKDIR /usr/src/test58_oauth
-COPY ./src ./src
-COPY ./migrations ./migrations
-COPY ./templates ./templates
-COPY ./static ./static
-COPY .env .
-COPY Cargo.toml .
-COPY Cargo.lock .
-COPY sqlx-data.json .
+COPY . ./
 RUN cargo build --release
 
 # Сборка рабочего пакета
