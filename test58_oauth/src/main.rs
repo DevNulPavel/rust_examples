@@ -35,6 +35,10 @@ use tracing_subscriber::{
 use tracing_actix_web::{
     TracingLogger
 };
+use tracing_bunyan_formatter::{
+    JsonStorageLayer, 
+    BunyanFormattingLayer
+};
 use crate::{
     app_params::{
         FacebookEnvParams,
@@ -59,12 +63,12 @@ struct LogGuards{
 
 fn initialize_logs() -> LogGuards{
     // Логирование в файлики
-    let (non_blocking_appender, _file_appender_guard) = 
+    /*let (non_blocking_appender, _file_appender_guard) = 
         tracing_appender::non_blocking(tracing_appender::rolling::hourly("logs", "app_log"));
     let file_sub = tracing_subscriber::fmt::layer()
         .with_ansi(false)
         .json()
-        .with_writer(non_blocking_appender);
+        .with_writer(non_blocking_appender);*/
 
     // Логи в stdout
     let stdoud_sub = tracing_subscriber::fmt::layer()
@@ -83,11 +87,17 @@ fn initialize_logs() -> LogGuards{
     let opentelemetry_sub = tracing_opentelemetry::layer()
         .with_tracer(opentelemetry_tracer);
 
+    // Bunyan 
+    let app_name = concat!(env!("CARGO_PKG_NAME"), "-", env!("CARGO_PKG_VERSION")).to_string();
+    let (non_blocking_appender, _file_appender_guard) = tracing_appender::non_blocking(tracing_appender::rolling::hourly("logs", "app_log"));    
+    let bunyan_formatting_layer = BunyanFormattingLayer::new(app_name, non_blocking_appender);
+
     // Суммарный обработчик
     let full_subscriber = tracing_subscriber::registry()
         .with(tracing_subscriber::EnvFilter::default()
                 .add_directive(tracing::Level::TRACE.into())
-                .and_then(file_sub)
+                .and_then(JsonStorageLayer)
+                .and_then(bunyan_formatting_layer)
                 .and_then(opentelemetry_sub))
         .with(tracing_subscriber::EnvFilter::from_default_env() // TODO: Почему-то все равно не работает
                 .and_then(stdoud_sub));
