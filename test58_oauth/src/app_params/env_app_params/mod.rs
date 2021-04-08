@@ -4,7 +4,7 @@ mod app;
 
 pub use self::{
     app::{
-        AppParameters
+        AppEnvParams
     },
     facebook::{
         FacebookEnvParams

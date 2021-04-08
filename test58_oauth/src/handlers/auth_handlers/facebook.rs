@@ -19,7 +19,8 @@ use quick_error::{
     ResultExt
 };
 use tracing::{
-    instrument
+    instrument,
+    error
 };
 use crate::{
     error::{
@@ -27,7 +28,7 @@ use crate::{
     },
     app_params::{
         FacebookEnvParams,
-        AppParameters
+        AppEnvParams
     },
     responses::{
         DataOrErrorResponse,
@@ -63,7 +64,7 @@ fn get_callback_address(base_url: &str) -> String {
 /// Данный метод вызывается при нажатии на кнопку логина в Facebook
 #[instrument(fields(callback_site_address))]
 pub async fn login_with_facebook(req: actix_web::HttpRequest, 
-                                 app_params: web::Data<AppParameters>,
+                                 app_params: web::Data<AppEnvParams>,
                                  fb_params: web::Data<FacebookEnvParams>) -> Result<web::HttpResponse, AppError> {
     debug!("Request object: {:?}", req);
 
@@ -110,7 +111,7 @@ pub struct FacebookAuthParams{
 }
 #[instrument(skip(identity), fields(callback_site_address))]
 pub async fn facebook_auth_callback(req: actix_web::HttpRequest,
-                                    app_params: web::Data<AppParameters>,
+                                    app_params: web::Data<AppEnvParams>,
                                     query_params: web::Query<FacebookAuthParams>, 
                                     identity: Identity,
                                     fb_params: web::Data<FacebookEnvParams>,
@@ -142,7 +143,12 @@ pub async fn facebook_auth_callback(req: actix_web::HttpRequest,
         .json::<DataOrErrorResponse<FacebookTokenResponse, FacebookErrorResponse>>()
         .await
         .context("Facebook token reqwest parse error")?
-        .into_result()?;
+        .into_result()
+        .map_err(AppError::from)
+        .map_err(|err|{
+            error!("Facebook request failed: {}", err);
+            err
+        })?;
 
     debug!("Facebook token request response: {:?}", response);
 
@@ -160,7 +166,12 @@ pub async fn facebook_auth_callback(req: actix_web::HttpRequest,
         .json::<DataOrErrorResponse<FacebookUserInfoResponse, FacebookErrorResponse>>()
         .await
         .context("Facebook user data reponse parse error")?
-        .into_result()?;
+        .into_result()
+        .map_err(AppError::from)
+        .map_err(|err|{
+            error!("Facebook user info request failed: {}", err);
+            err
+        })?;
 
     debug!("Facebook user info response: {:?}", fb_user_info);
 
@@ -183,7 +194,9 @@ pub async fn facebook_auth_callback(req: actix_web::HttpRequest,
                     debug!(uuid = %uuid, "User with identity exists");
 
                     // Добавляем в базу идентификатор нашего пользователя
-                    db.append_facebook_user_for_uuid(&uuid, &fb_user_info.id).await?;
+                    db
+                        .append_facebook_user_for_uuid(&uuid, &fb_user_info.id)
+                        .await?;
 
                     uuid
                 },
@@ -196,7 +209,9 @@ pub async fn facebook_auth_callback(req: actix_web::HttpRequest,
                     let uuid = format!("{}", uuid::Uuid::new_v4());
 
                     // Сохраняем в базу идентификатор нашего пользователя
-                    db.insert_facebook_user_with_uuid(&uuid, &fb_user_info.id).await?;
+                    db
+                        .insert_facebook_user_with_uuid(&uuid, &fb_user_info.id)
+                        .await?;
 
                     uuid
                 }

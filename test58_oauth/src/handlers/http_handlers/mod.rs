@@ -12,6 +12,7 @@ use actix_identity::{
 };
 use tracing::{
     instrument,
+    error
     // debug_span, 
     // debug,
 };
@@ -23,7 +24,7 @@ use crate::{
         UserInfo
     },
     app_params::{
-        AppParameters
+        AppEnvParams
     },
     constants::{
         self
@@ -34,7 +35,7 @@ use crate::{
 
 #[instrument(skip(handlebars), fields(user_id = %full_info.user_uuid))]
 pub async fn index(handlebars: web::Data<Handlebars<'_>>, 
-                   app_params: web::Data<AppParameters>,
+                   app_params: web::Data<AppEnvParams>,
                    full_info: UserInfo) -> Result<web::HttpResponse, AppError> {
     
     let mut game_url = app_params.game_url.clone();
@@ -50,7 +51,11 @@ pub async fn index(handlebars: web::Data<Handlebars<'_>>,
     });
 
     // Рендерим шаблон
-    let body = handlebars.render(constants::INDEX_TEMPLATE, &template_data)?;
+    let body = handlebars.render(constants::INDEX_TEMPLATE, &template_data)
+        .map_err(|err|{
+            error!("Template render failed: {}", err);
+            err
+        })?;
 
     Ok(web::HttpResponse::Ok()
         .content_type("text/html; charset=utf-8")
@@ -61,7 +66,11 @@ pub async fn index(handlebars: web::Data<Handlebars<'_>>,
 
 #[instrument(skip(handlebars))]
 pub async fn login_page(handlebars: web::Data<Handlebars<'_>>) -> Result<web::HttpResponse, AppError> {
-    let body = handlebars.render(constants::LOGIN_TEMPLATE, &serde_json::json!({}))?;
+    let body = handlebars.render(constants::LOGIN_TEMPLATE, &serde_json::json!({}))
+        .map_err(|err|{
+            error!("Template render failed: {}", err);
+            err
+        })?;
 
     Ok(web::HttpResponse::Ok()
         .content_type("text/html; charset=utf-8")

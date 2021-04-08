@@ -37,10 +37,7 @@ DECRYPT_GOOGLE_CREDENTIALS:
 ########################################################################################
 
 RUN_SERVER:
-	# export RUST_LOG=actix_web=debug,test58_oauth=trace
 	$(shell gpg -a -r 0x0BD10E4E6E578FB6 -d credentials/test_environment.env.asc) && \
-	source .env && \
-	export RUST_LOG=trace && \
 	cargo run
 
 ########################################################################################

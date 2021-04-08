@@ -39,7 +39,7 @@ use crate::{
     app_params::{
         FacebookEnvParams,
         GoogleEnvParams,
-        AppParameters
+        AppEnvParams
     },
     database::{
         Database
@@ -58,17 +58,22 @@ struct LogGuards{
 }
 
 fn initialize_logs() -> LogGuards{
+    // Логирование в файлики
     let (non_blocking_appender, _file_appender_guard) = 
         tracing_appender::non_blocking(tracing_appender::rolling::hourly("logs", "app_log"));
     let file_sub = tracing_subscriber::fmt::layer()
         .with_ansi(false)
         .json()
         .with_writer(non_blocking_appender);
+
+    // Логи в stdout
     let stdoud_sub = tracing_subscriber::fmt::layer()
         .with_thread_names(true)
         .with_thread_ids(true)
         .with_ansi(true)
         .with_writer(std::io::stdout);
+
+    // Логи opentelemetry
     let (opentelemetry_tracer, _opentelemetry_uninstall) = opentelemetry_jaeger::new_pipeline()
         .with_service_name("oauth_server")
         .install()
@@ -77,6 +82,8 @@ fn initialize_logs() -> LogGuards{
         .install();*/
     let opentelemetry_sub = tracing_opentelemetry::layer()
         .with_tracer(opentelemetry_tracer);
+
+    // Суммарный обработчик
     let full_subscriber = tracing_subscriber::registry()
         .with(tracing_subscriber::EnvFilter::default()
                 .add_directive(tracing::Level::TRACE.into())
@@ -84,6 +91,8 @@ fn initialize_logs() -> LogGuards{
                 .and_then(opentelemetry_sub))
         .with(tracing_subscriber::EnvFilter::from_default_env() // TODO: Почему-то все равно не работает
                 .and_then(stdoud_sub));
+
+    // Установка по-умолчанию
     tracing::subscriber::set_global_default(full_subscriber).unwrap();
 
     LogGuards{
@@ -102,10 +111,7 @@ fn create_templates<'a>() -> Handlebars<'a> {
         .unwrap();
     handlebars
         .register_template_file(constants::LOGIN_TEMPLATE, "templates/login.hbs")
-        .unwrap();
-    handlebars
-        .register_template_file(constants::ERROR_TEMPLATE, "templates/error.hbs")
-        .unwrap();   
+        .unwrap();  
     
     handlebars
 }
@@ -114,6 +120,9 @@ fn create_templates<'a>() -> Handlebars<'a> {
 
 #[actix_web::main]
 async fn main() -> std::io::Result<()> {
+    // Вычитывем переменные окружения из файлика .env и добавляем их в окружение
+    dotenv::dotenv().ok();
+
     // Инициализируем менеджер логирования
     let _log_guard = initialize_logs();
 
@@ -122,7 +131,7 @@ async fn main() -> std::io::Result<()> {
     let _span_guard = span.enter();
 
     // Получаем параметры приложения
-    let app_parameters = web::Data::new(AppParameters::get_from_env());
+    let app_env_params = web::Data::new(AppEnvParams::get_from_env());
     let facebook_env_params = web::Data::new(FacebookEnvParams::get_from_env());
     let google_env_params = web::Data::new(GoogleEnvParams::get_from_env());
 
@@ -141,7 +150,7 @@ async fn main() -> std::io::Result<()> {
     let http_client = web::Data::new(reqwest::Client::new());
 
     // Фактический адрес сервера
-    let server_address = format!("0.0.0.0:{}", app_parameters.http_port);
+    let server_address = format!("0.0.0.0:{}", app_env_params.http_port);
 
     HttpServer::new(move ||{
             // Настраиваем middleware идентификации пользователя, делает зашифрованную куку у пользователя в браузере,
@@ -155,20 +164,14 @@ async fn main() -> std::io::Result<()> {
                 IdentityService::new(policy)
             };
 
-            // Специальный middleware для возможности работы iframe
-            /*let cors_mid = actix_cors::Cors::default()
-                .allowed_origin("http://localhost:9999")
-                .allowed_origin("http://localhost:8080");*/
-
             // Приложение создается для каждого потока свое собственное
             // Порядок выполнения Middleware обратный, снизу вверх
             App::new()
                 .wrap(identity_middleware)
                 .wrap(TracingLogger)
-                // .wrap(cors_mid)
                 .app_data(sqlite_conn.clone())
                 .app_data(handlebars.clone())
-                .app_data(app_parameters.clone())
+                .app_data(app_env_params.clone())
                 .app_data(facebook_env_params.clone())
                 .app_data(google_env_params.clone())
                 .app_data(http_client.clone())

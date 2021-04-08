@@ -4,6 +4,6 @@ pub use self::{
     env_app_params::{
         FacebookEnvParams,
         GoogleEnvParams,
-        AppParameters
+        AppEnvParams
     }
 };

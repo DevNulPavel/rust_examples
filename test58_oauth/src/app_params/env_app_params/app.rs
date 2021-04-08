@@ -8,15 +8,15 @@ use url::{
 // }
 
 #[derive(Debug)]
-pub struct AppParameters{
+pub struct AppEnvParams{
     pub app_base_url: Url,
     pub game_url: Url,
     pub http_port: u32,
     //pub https_config: Option<AppParametersHttps>
 }
 
-impl AppParameters {
-    pub fn get_from_env() -> AppParameters {
+impl AppEnvParams {
+    pub fn get_from_env() -> AppEnvParams {
         let app_base_url = std::env::var("APP_URL_ADDR")
             .ok()
             .and_then(|url|{
@@ -34,7 +34,7 @@ impl AppParameters {
             .parse::<u32>()
             .expect("HTTP_PORT parsing failed");
 
-        AppParameters{
+        AppEnvParams{
             app_base_url,
             game_url,
             http_port

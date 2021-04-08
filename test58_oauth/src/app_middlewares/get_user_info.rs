@@ -167,6 +167,8 @@ where
             .clone();
 
         Box::pin(async move {
+            // TODO: Кеширование в redis?
+
             // Дергаем данные
             let user_info = match user_id {
                 Some(user_id) => db.try_find_full_user_info_for_uuid(&user_id).await?,

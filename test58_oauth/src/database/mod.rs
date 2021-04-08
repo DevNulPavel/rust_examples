@@ -5,6 +5,7 @@ use std::{
 };
 use tracing::{
     debug,
+    error,
     event,
     Level,
     instrument
@@ -80,10 +81,17 @@ impl Database{
                         "#, id)
             .fetch_optional(&self.db)
             .await
-            .map_err(AppError::from)?
+            .map_err(AppError::from)
+            .map_err(|err|{
+                error!("Find failed");
+                err
+            })?
             .map(|val|{
                 val.user_uuid
             });
+
+        debug!("User for id = {} found: uuid = {:?}", id, res);
+
         Ok(res)
     }
 
@@ -103,7 +111,11 @@ impl Database{
                             VALUES (?, (SELECT id FROM app_users WHERE user_uuid = ?));
                     "#, uuid, fb_uid, uuid)
             .execute(&self.db)
-            .await?
+            .await
+            .map_err(|err|{
+                error!("Insert facebook user failed: {}", err);
+                err
+            })?
             .last_insert_rowid();
 
         transaction.commit().await?;
@@ -127,7 +139,11 @@ impl Database{
                                             VALUES (?, (SELECT id FROM app_users WHERE user_uuid = ?));
                                         "#, fb_uid, uuid)
             .execute(&self.db)
-            .await?
+            .await
+            .map_err(|err|{
+                error!("Append facebook user failed: {}", err);
+                err
+            })?
             .last_insert_rowid();
 
         transaction.commit().await?;
@@ -153,10 +169,16 @@ impl Database{
                         "#, id)
             .fetch_optional(&self.db)
             .await
-            .map_err(AppError::from)?
+            .map_err(AppError::from)
+            .map_err(|err|{
+                error!("User with google id is not found: {}", err);
+                err
+            })?
             .map(|val|{
                 val.user_uuid
             });
+
+
         Ok(res)
     }
 
@@ -176,7 +198,11 @@ impl Database{
                                         VALUES (?, (SELECT id FROM app_users WHERE user_uuid = ?));
                                         "#, uuid, google_uid, uuid)
             .execute(&self.db)
-            .await?
+            .await
+            .map_err(|err|{
+                error!("User insert failed: {}", err);
+                err
+            })?
             .last_insert_rowid();
 
         transaction.commit().await?;
@@ -200,7 +226,11 @@ impl Database{
                                         VALUES (?, (SELECT id FROM app_users WHERE user_uuid = ?));
                                         "#, google_uid, uuid)
             .execute(&self.db)
-            .await?
+            .await
+            .map_err(|err|{
+                error!("User append failed: {}", err);
+                err
+            })?
             .last_insert_rowid();
 
         transaction.commit().await?;
@@ -234,6 +264,10 @@ impl Database{
             .fetch_optional(&self.db)
             .await
             .map_err(AppError::from)
+            .map_err(|err|{
+                error!("Full user search failed: {}", err);
+                err
+            })
     }
 
     /// Пытаемся найти нового пользователя для FB ID 
@@ -247,7 +281,11 @@ impl Database{
                                 "#, uuid)
             .fetch_optional(&self.db)
             .await
-            .map_err(AppError::from)?;
+            .map_err(AppError::from)
+            .map_err(|err|{
+                error!("User search failed: {}", err);
+                err
+            })?;
         
         Ok(res.is_some())
     }

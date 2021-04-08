@@ -5,6 +5,7 @@ use actix_web::{
 };
 use tracing::{
     debug,
+    error,
     instrument
 };
 use actix_identity::{
@@ -22,7 +23,7 @@ use crate::{
     },
     app_params::{
         GoogleEnvParams,
-        AppParameters
+        AppEnvParams
     },
     responses::{
         DataOrErrorResponse,
@@ -59,7 +60,7 @@ fn get_callback_address(base_url: &str) -> String {
 /// Данный метод вызывается при нажатии на кнопку логина в Facebook
 #[instrument(fields(callback_site_address))]
 pub async fn login_with_google(req: actix_web::HttpRequest,
-                               app_params: web::Data<AppParameters>,
+                               app_params: web::Data<AppEnvParams>,
                                google_params: web::Data<GoogleEnvParams>,
                                fb_params: web::Data<GoogleEnvParams>) -> Result<web::HttpResponse, AppError> {
     debug!("Request object: {:?}", req);
@@ -100,7 +101,7 @@ pub struct GoogleAuthParams{
 }
 #[instrument(skip(identity), fields(callback_site_address))]
 pub async fn google_auth_callback(req: actix_web::HttpRequest,
-                                  app_params: web::Data<AppParameters>,
+                                  app_params: web::Data<AppEnvParams>,
                                   query_params: web::Query<GoogleAuthParams>, 
                                   identity: Identity,
                                   google_params: web::Data<GoogleEnvParams>,
@@ -134,7 +135,12 @@ pub async fn google_auth_callback(req: actix_web::HttpRequest,
         .json::<DataOrErrorResponse<GoogleTokenResponse, GoogleErrorResponse>>()
         .await
         .context("Google token reqwest response parse error")?
-        .into_result()?;
+        .into_result()
+        .map_err(AppError::from)
+        .map_err(|err|{
+            error!("Google user token request failed: {}", err);
+            err
+        })?;
 
     debug!("Google token request response: {:?}", response);
 
@@ -150,12 +156,19 @@ pub async fn google_auth_callback(req: actix_web::HttpRequest,
         .json::<DataOrErrorResponse<GoogleUserInfoResponse, GoogleErrorResponse>>()
         .await
         .context("Google user data reqwest response parse error")?
-        .into_result()?;
+        .into_result()
+        .map_err(AppError::from)
+        .map_err(|err|{
+            error!("Google user info request failed: {}", err);
+            err
+        })?;
 
     debug!("Google user info: {:?}", user_info_data);
 
     // Получили айдишник пользователя на FB, делаем запрос к базе данных, чтобы проверить наличие нашего пользователя
-    let db_res = db.try_to_find_user_uuid_with_google_id(&user_info_data.id).await?;
+    let db_res = db
+        .try_to_find_user_uuid_with_google_id(&user_info_data.id)
+        .await?;
 
     debug!("Google database search result: {:?}", db_res);
     
@@ -173,7 +186,9 @@ pub async fn google_auth_callback(req: actix_web::HttpRequest,
                     debug!(uuid = %uuid, "User with identity exists");
 
                     // Добавляем в базу идентификатор нашего пользователя
-                    db.append_google_user_for_uuid(&uuid, &user_info_data.id).await?;
+                    db
+                        .append_google_user_for_uuid(&uuid, &user_info_data.id)
+                        .await?;
 
                     uuid
                 },
@@ -186,7 +201,9 @@ pub async fn google_auth_callback(req: actix_web::HttpRequest,
                     let uuid = format!("{}", uuid::Uuid::new_v4());
 
                     // Сохраняем в базу идентификатор нашего пользователя
-                    db.insert_google_user_with_uuid(&uuid, &user_info_data.id).await?;
+                    db
+                        .insert_google_user_with_uuid(&uuid, &user_info_data.id)
+                        .await?;
 
                     uuid
                 }
