@@ -1,0 +1,60 @@
+version: '3.3'
+
+services:
+
+  lemmy:
+    image: lemmy-dev:latest
+    ports:
+      - "8536:8536"
+    restart: always
+    environment:
+      - RUST_LOG=debug
+    volumes:
+      - ../lemmy.hjson:/config/config.hjson
+    depends_on: 
+      - pictrs
+      - postgres
+      - iframely
+
+  lemmy-ui:
+    image: dessalines/lemmy-ui:dev
+    ports:
+      - "1235:1234"
+    restart: always
+    environment:
+      - LEMMY_INTERNAL_HOST=lemmy:8536
+      - LEMMY_EXTERNAL_HOST=localhost:8536
+      - LEMMY_HTTPS=false
+    depends_on: 
+      - lemmy
+
+  postgres:
+    image: postgres:12-alpine
+    ports:
+      # use a different port so it doesnt conflict with postgres running on the host
+      - "5433:5432"
+    environment:
+      - POSTGRES_USER=lemmy
+      - POSTGRES_PASSWORD=password
+      - POSTGRES_DB=lemmy
+    volumes:
+      - ./volumes/postgres:/var/lib/postgresql/data
+    restart: always
+
+  pictrs:
+    image: asonix/pictrs:v0.2.6-r1
+    ports: 
+      - "8537:8080"
+    user: 991:991
+    volumes:
+      - ./volumes/pictrs:/mnt
+    restart: always
+
+  iframely:
+    image: dogbin/iframely:latest
+    ports:
+      - "8061:80"
+    volumes:
+      - ../iframely.config.local.js:/iframely/config.local.js:ro
+    restart: always
+    mem_limit: 200m

@@ -1,0 +1,56 @@
+version: '2.2'
+
+services:
+  postgres:
+    image: postgres:12-alpine
+    environment:
+      - POSTGRES_USER=lemmy
+      - POSTGRES_PASSWORD=password
+      - POSTGRES_DB=lemmy
+    volumes:
+      - ./volumes/postgres:/var/lib/postgresql/data
+    restart: always
+
+  lemmy:
+    image: dessalines/lemmy:0.10.3
+    ports:
+      - "127.0.0.1:8536:8536"
+    restart: always
+    environment:
+      - RUST_LOG=error
+    volumes:
+      - ./lemmy.hjson:/config/config.hjson
+    depends_on:
+      - postgres
+      - pictrs
+      - iframely
+
+  lemmy-ui:
+    image: dessalines/lemmy-ui:0.10.3
+    ports:
+      - "127.0.0.1:1235:1234"
+    restart: always
+    environment:
+      - LEMMY_INTERNAL_HOST=lemmy:8536
+      - LEMMY_EXTERNAL_HOST=localhost:8536
+      - LEMMY_HTTPS=false
+    depends_on: 
+      - lemmy
+
+  pictrs:
+    image: asonix/pictrs:v0.2.6-r1
+    ports: 
+      - "127.0.0.1:8537:8080"
+    user: 991:991
+    volumes:
+      - ./volumes/pictrs:/mnt
+    restart: always
+
+  iframely:
+    image: dogbin/iframely:latest
+    ports:
+      - "127.0.0.1:8061:80"
+    volumes:
+      - ./iframely.config.local.js:/iframely/config.local.js:ro
+    restart: always
+    mem_limit: 200m

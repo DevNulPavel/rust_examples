@@ -1,0 +1,11 @@
+version: "3.3"
+services:
+  postgres_test:
+    image: arm64v8/postgres:13.2-alpine
+    restart: always
+    environment:
+      POSTGRES_USER: actix
+      POSTGRES_PASSWORD: actix
+      POSTGRES_DB: actix_test
+    ports:
+      - 127.0.0.1:5432:5432

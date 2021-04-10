@@ -1,0 +1,8 @@
+# Папки в билде, которые не нужны внутри образа докера
+target
+docker
+api_tests
+ansible
+tests
+.git
+*.sh

@@ -173,7 +173,7 @@ mod tests{
 
     #[actix_rt::test]
     async fn test_server() {
-        std::env::set_var("DATABASE_URL", "postgres://actix:actix@localhost:5432/actix");
+        std::env::set_var("DATABASE_URL", "postgres://actix:actix@localhost:5432/actix_test");
 
         // Создаем объект базы данных
         let database = web::Data::new(open_database().await);

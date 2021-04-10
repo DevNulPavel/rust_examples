@@ -19,4 +19,7 @@ RUN_SERVER:
 
 # Выводить все логи при тесте
 TEST:
-	cargo test -- --nocapture
+	docker-compose -f docker-compose-test.yml up -d && \
+	cargo test -- --nocapture;
+	docker-compose -f docker-compose-test.yml stop && \
+	docker-compose -f docker-compose-test.yml rm -f

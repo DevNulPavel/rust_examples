@@ -1,0 +1,21 @@
+# local ansible configuration
+ansible/inventory
+ansible/inventory_dev
+ansible/passwords/
+
+# docker build files
+docker/lemmy_mine.hjson
+docker/dev/env_deploy.sh
+volumes
+
+# ide config
+.idea
+.vscode
+
+# local build files
+target
+env_setup.sh
+query_testing/**/reports/*.json
+
+# API tests
+api_tests/node_modules

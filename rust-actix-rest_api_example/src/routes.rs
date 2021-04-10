@@ -37,7 +37,8 @@ pub fn routes(cfg: &mut web::ServiceConfig) {
         )
         // Serve secure static files from the static-private folder
         .service(
-            web::scope("/secure").wrap(AuthMiddleware).service(
+            web::scope("/secure")
+                .wrap(AuthMiddleware).service(
                 Files::new("", "./static-secure")
                     .index_file("index.html")
                     .use_last_modified(true),
