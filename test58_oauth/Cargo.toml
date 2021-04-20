@@ -32,6 +32,7 @@ url = "2.2.1"
 lazy_static = "1.4.0"
 clap = "2.33.3"
 dotenv = "0.15.0"
+tap = "1.0.1"
 tracing-bunyan-formatter = {version = "0.2.0", default-features = false} # Отключаем, чтобы не было конфликта https://github.com/LukeMathWalker/tracing-bunyan-formatter/issues/3
 uuid = { version = "0.8.2", features = ["v4"] }
 reqwest = { version = "0.10.10", default-features = false, features = [ "json", "rustls-tls"] }

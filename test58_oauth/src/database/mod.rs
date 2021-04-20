@@ -10,6 +10,11 @@ use tracing::{
     Level,
     instrument
 };
+use tap::{
+    prelude::{
+        *
+    }
+};
 use sqlx::{
     // prelude::{
     //     *
@@ -82,9 +87,8 @@ impl Database{
             .fetch_optional(&self.db)
             .await
             .map_err(AppError::from)
-            .map_err(|err|{
-                error!("Find failed");
-                err
+            .tap_err(|e|{ 
+                error!("Find failed: {}", e); 
             })?
             .map(|val|{
                 val.user_uuid
@@ -112,9 +116,8 @@ impl Database{
                     "#, uuid, fb_uid, uuid)
             .execute(&self.db)
             .await
-            .map_err(|err|{
+            .tap_err(|err|{
                 error!("Insert facebook user failed: {}", err);
-                err
             })?
             .last_insert_rowid();
 
@@ -140,9 +143,8 @@ impl Database{
                                         "#, fb_uid, uuid)
             .execute(&self.db)
             .await
-            .map_err(|err|{
+            .tap_err(|err|{
                 error!("Append facebook user failed: {}", err);
-                err
             })?
             .last_insert_rowid();
 
@@ -170,9 +172,8 @@ impl Database{
             .fetch_optional(&self.db)
             .await
             .map_err(AppError::from)
-            .map_err(|err|{
+            .tap_err(|err|{
                 error!("User with google id is not found: {}", err);
-                err
             })?
             .map(|val|{
                 val.user_uuid
@@ -199,9 +200,8 @@ impl Database{
                                         "#, uuid, google_uid, uuid)
             .execute(&self.db)
             .await
-            .map_err(|err|{
+            .tap_err(|err|{
                 error!("User insert failed: {}", err);
-                err
             })?
             .last_insert_rowid();
 
@@ -227,9 +227,8 @@ impl Database{
                                         "#, google_uid, uuid)
             .execute(&self.db)
             .await
-            .map_err(|err|{
+            .tap_err(|err|{
                 error!("User append failed: {}", err);
-                err
             })?
             .last_insert_rowid();
 
@@ -264,9 +263,8 @@ impl Database{
             .fetch_optional(&self.db)
             .await
             .map_err(AppError::from)
-            .map_err(|err|{
+            .tap_err(|err|{
                 error!("Full user search failed: {}", err);
-                err
             })
     }
 
@@ -282,9 +280,8 @@ impl Database{
             .fetch_optional(&self.db)
             .await
             .map_err(AppError::from)
-            .map_err(|err|{
+            .tap_err(|err|{
                 error!("User search failed: {}", err);
-                err
             })?;
         
         Ok(res.is_some())

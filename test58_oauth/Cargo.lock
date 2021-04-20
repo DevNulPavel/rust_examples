@@ -2552,6 +2552,7 @@ dependencies = [
  "serde_json",
  "serde_with",
  "sqlx",
+ "tap",
  "tracing",
  "tracing-actix-web",
  "tracing-appender",

@@ -17,6 +17,11 @@ use serde::{
 use quick_error::{
     ResultExt
 };
+use tap::{
+    prelude::{
+        *
+    }
+};
 use crate::{
     error::{
         AppError
@@ -137,9 +142,8 @@ pub async fn google_auth_callback(req: actix_web::HttpRequest,
         .context("Google token reqwest response parse error")?
         .into_result()
         .map_err(AppError::from)
-        .map_err(|err|{
+        .tap_err(|err|{
             error!("Google user token request failed: {}", err);
-            err
         })?;
 
     debug!("Google token request response: {:?}", response);
@@ -158,9 +162,8 @@ pub async fn google_auth_callback(req: actix_web::HttpRequest,
         .context("Google user data reqwest response parse error")?
         .into_result()
         .map_err(AppError::from)
-        .map_err(|err|{
+        .tap_err(|err|{
             error!("Google user info request failed: {}", err);
-            err
         })?;
 
     debug!("Google user info: {:?}", user_info_data);

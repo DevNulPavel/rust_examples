@@ -18,6 +18,11 @@ use lazy_static::{
 use quick_error::{
     ResultExt
 };
+use tap::{
+    prelude::{
+        *
+    }
+};
 use tracing::{
     instrument,
     error
@@ -145,9 +150,8 @@ pub async fn facebook_auth_callback(req: actix_web::HttpRequest,
         .context("Facebook token reqwest parse error")?
         .into_result()
         .map_err(AppError::from)
-        .map_err(|err|{
+        .tap_err(|err|{
             error!("Facebook request failed: {}", err);
-            err
         })?;
 
     debug!("Facebook token request response: {:?}", response);
@@ -168,9 +172,8 @@ pub async fn facebook_auth_callback(req: actix_web::HttpRequest,
         .context("Facebook user data reponse parse error")?
         .into_result()
         .map_err(AppError::from)
-        .map_err(|err|{
+        .tap_err(|err|{
             error!("Facebook user info request failed: {}", err);
-            err
         })?;
 
     debug!("Facebook user info response: {:?}", fb_user_info);

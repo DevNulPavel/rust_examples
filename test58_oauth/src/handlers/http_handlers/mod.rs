@@ -10,6 +10,11 @@ use handlebars::{
 use actix_identity::{
     Identity
 };
+use tap::{
+    prelude::{
+        *
+    }
+};
 use tracing::{
     instrument,
     error
@@ -52,9 +57,8 @@ pub async fn index(handlebars: web::Data<Handlebars<'_>>,
 
     // Рендерим шаблон
     let body = handlebars.render(constants::INDEX_TEMPLATE, &template_data)
-        .map_err(|err|{
+        .tap_err(|err|{
             error!("Template render failed: {}", err);
-            err
         })?;
 
     Ok(web::HttpResponse::Ok()
@@ -67,9 +71,8 @@ pub async fn index(handlebars: web::Data<Handlebars<'_>>,
 #[instrument(skip(handlebars))]
 pub async fn login_page(handlebars: web::Data<Handlebars<'_>>) -> Result<web::HttpResponse, AppError> {
     let body = handlebars.render(constants::LOGIN_TEMPLATE, &serde_json::json!({}))
-        .map_err(|err|{
+        .tap_err(|err|{
             error!("Template render failed: {}", err);
-            err
         })?;
 
     Ok(web::HttpResponse::Ok()
