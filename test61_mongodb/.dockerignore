@@ -1,0 +1,6 @@
+target/
+.git/
+*.env
+*.asc
+docker*
+.DS_Store
