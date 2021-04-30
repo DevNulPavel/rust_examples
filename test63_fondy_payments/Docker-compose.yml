@@ -1,0 +1,25 @@
+version: "3.3"
+services:
+  postgres:
+    container_name: postgres
+    image: postgres:13.2-alpine
+    restart: always
+    environment:
+      POSTGRES_USER: pg
+      POSTGRES_PASSWORD: pg
+      POSTGRES_DB: pg
+    ports:
+      - 5432:5432
+    volumes:
+      - $PWD/db:/var/lib/postgresql/data
+  # postgres_admin:
+  #   container_name: postgres_admin
+  #   image: dpage/pgadmin4:latest
+  #   restart: always
+  #   links:
+  #     - cources_postgres
+  #   environment:
+  #     PGADMIN_DEFAULT_EMAIL: pg@pg.com
+  #     PGADMIN_DEFAULT_PASSWORD: pg
+  #   ports:
+  #     - 8080:80
