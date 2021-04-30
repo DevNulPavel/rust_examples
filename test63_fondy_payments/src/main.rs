@@ -1,7 +1,14 @@
 mod error;
 mod http;
 mod database;
+mod application;
 
+
+use std::{
+    sync::{
+        Arc
+    }
+};
 use tracing::{
     debug_span,
     debug,
@@ -31,6 +38,9 @@ use crate::{
     database::{
         Database
     },
+    application::{
+        Application
+    },
     error::{
         FondyError
     }
@@ -55,9 +65,6 @@ fn initialize_logs() {
         .unwrap();
 }
 
-////////////////////////////////////////////////////////////////////////////////////////////////////////////////
-
-
 #[tokio::main]
 async fn main() -> Result<(), FondyError> {
     // Подтягиваем окружение из файлика .env
@@ -70,8 +77,21 @@ async fn main() -> Result<(), FondyError> {
     let db = Database::open_database()
         .await;
 
+    // Шаблоны HTML
+    let mut templates = handlebars::Handlebars::new();
+    {
+        templates.register_template_file("index", "templates/index.hbs")
+            .expect("Index template read failed");
+    }
+
+    // Приложение со всеми нужными нам менеджерами
+    let app = Arc::new(Application{
+        db,
+        templates
+    });
+
     // Стартуем сервер
-    start_server()
+    start_server(app)
         .await;
     
     Ok(())

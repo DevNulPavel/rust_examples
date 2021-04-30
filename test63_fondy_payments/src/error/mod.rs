@@ -13,7 +13,8 @@ quick_error!{
             from()
         }
 
-        InternalError{
+        TemplateRenderError(err: handlebars::RenderError){
+            from()
         }
     }
 }
