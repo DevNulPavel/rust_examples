@@ -1,5 +1,5 @@
 [package]
-name = "oauth_server"
+name = "test58_postgres"
 version = "0.1.0"
 authors = ["Pavel Ershov <devnulpavel@gmail.com>"]
 edition = "2018"
