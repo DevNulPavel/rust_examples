@@ -18,6 +18,7 @@ default = ["console_error_panic_hook", "tiny_allocator"]
 tiny_allocator = ["wee_alloc"]
 
 [dependencies]
+js-sys = "0.3.50"
 wasm-bindgen = "0.2.63"
 # Специальный пакет предоставляет лучшую отладку паники в wasm, 
 # прокидывая пакику в станадртную JS консоль
