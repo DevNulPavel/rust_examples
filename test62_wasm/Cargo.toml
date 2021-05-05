@@ -1,0 +1,34 @@
+[package]
+name = "test62_wasm"
+version = "0.1.0"
+authors = ["Pavel Ershov <devnulpavel@gmail.com>"]
+edition = "2018"
+
+[package.metadata.wasm-pack.profile.dev]
+wasm-opt = false
+
+[package.metadata.wasm-pack.profile.release]
+wasm-opt = false
+
+[lib]
+crate-type = ["cdylib", "rlib"]
+
+[features]
+default = ["console_error_panic_hook", "tiny_allocator"]
+tiny_allocator = ["wee_alloc"]
+
+[dependencies]
+wasm-bindgen = "0.2.63"
+# Специальный пакет предоставляет лучшую отладку паники в wasm, 
+# прокидывая пакику в станадртную JS консоль
+console_error_panic_hook = { version = "0.1.6", optional = true }
+# Крошечный аллокатор для WASM, который весит лишь 1Kb кода, а не 10Kb как обычный
+# Но он требует nightly компилятора
+wee_alloc = { version = "0.4.5", optional = true }
+
+[dev-dependencies]
+wasm-bindgen-test = "0.3.13"
+
+[profile.release]
+# Коворим компилятору оптимизировать размер бинарника
+opt-level = "s"
