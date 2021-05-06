@@ -20,16 +20,14 @@ tiny_allocator = ["wee_alloc"]
 [dependencies]
 js-sys = "0.3.50"
 wasm-bindgen = "0.2.63"
-# Специальный пакет предоставляет лучшую отладку паники в wasm, 
-# прокидывая пакику в станадртную JS консоль
-console_error_panic_hook = { version = "0.1.6", optional = true }
-# Крошечный аллокатор для WASM, который весит лишь 1Kb кода, а не 10Kb как обычный
-# Но он требует nightly компилятора
-wee_alloc = { version = "0.4.5", optional = true }
+console_error_panic_hook = { version = "0.1.6", optional = true } # Специальный пакет предоставляет лучшую отладку паники в wasm, прокидывая пакику в станадртную JS консоль
+wee_alloc = { version = "0.4.5", optional = true }  # Крошечный аллокатор для WASM, который весит лишь 1Kb кода, а не 10Kb как обычный, но он требует nightly компилятора
+web-sys = { version = "0.3.50", features = ["console"] }
 
 [dev-dependencies]
 wasm-bindgen-test = "0.3.13"
 
 [profile.release]
-# Коворим компилятору оптимизировать размер бинарника
+# Говорим компилятору оптимизировать размер бинарника
 opt-level = "s"
+debug = true # Включает отладочные символы в релизный билд

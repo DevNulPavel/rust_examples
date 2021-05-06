@@ -1,7 +1,7 @@
 .PHONY:
 
 BUILD_CODE:
-	wasm-pack build --no-typescript --target bundler
+	wasm-pack build --release --no-typescript --target bundler
 
 TEST_CODE:
 	wasm-pack test --headless --safari
