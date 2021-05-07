@@ -6,7 +6,7 @@ edition = "2018"
 
 [dependencies]
 tokio = { version = "~1.5.0", features = ["full"] }
-zeromq = { version = "~0.2.0", features = ["default"] }
+zeromq = { version = "0.2.0", features = ["default"] }
 tracing = "~0.1.26"
 tracing-subscriber = "~0.2.18"
 tracing-futures = "~0.2.5"

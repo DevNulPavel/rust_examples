@@ -23,12 +23,25 @@ use tracing_subscriber::{
     }
 };
 use zeromq::{
+    prelude::{
+        *
+    },
     BlockingSend,
     BlockingRecv,
+    NonBlockingSend,
+    NonBlockingRecv,
+    MultiPeerBackend,
+    SocketBackend,
     Socket,
     ReqSocket,
     RepSocket,
+    PushSocket,
+    PullSocket,
+    DealerSocket,
     ZmqMessage
+};
+use futures::{
+    StreamExt
 };
 use self::{
     error::{
@@ -76,19 +89,19 @@ macro_rules! ok_or {
 }
 
 #[instrument]
-async fn consume_data(){
-    // Reply server socket
-    let mut rep_socket = RepSocket::new();
-    rep_socket
-        .connect("tcp://0.0.0.0:5555")
+async fn consume_data(addr: &str){
+    // Забиндиться мы можем лишь на один единстенный адрес??
+    let mut receive_socket = RepSocket::new();
+    receive_socket
+        .bind(addr)
         .await
         .tap_err(|err|{
-            error!(%err, "Reply socket connect failed");
+            error!(%err, "Pull socket connect failed");
         })
-        .unwrap();
+        .unwrap();  
 
     loop {
-        let received_data = unwrap_or!(rep_socket.recv().await, err => {
+        let received_data = unwrap_or!(receive_socket.recv().await, err => {
             error!(%err, "Data receive");
             continue;
         });
@@ -98,35 +111,49 @@ async fn consume_data(){
             continue;
         });
 
-        let response = text.to_uppercase();
-        tokio::time::sleep(std::time::Duration::from_millis(500))
+        // info!(%text, "Received");
+
+        let response = format!("From {}: {}", addr, text.to_uppercase());
+
+        tokio::time::sleep(std::time::Duration::from_millis(200))
             .await;
 
-        ok_or!(rep_socket.send(response.into()).await, err => {
+        ok_or!(receive_socket.send(response.into()).await, err => {
             error!(%err, "Response send failed");
             continue;
         });
     }
 }
 
-#[instrument(err)]
-async fn request_sender() -> Result<(), AppError>{
-    // Creates request socket
-    let mut req_socket = ReqSocket::new();
-    req_socket
-        .connect("tcp://127.0.0.1:5555")
-        .await
-        .tap_err(|err|{
-            error!(%err, "Request socket connect failed");
-        })?;
+#[instrument(skip(addresses))]
+async fn request_sender(addresses: &[&str]) {
+    assert!(addresses.len() > 0, "Consumers coount must be greater than 1");
+
+    // Создаем сокет запроса
+    let mut send_socket = ReqSocket::new();
+
+    // Подключаться мы можем к любому количеству клиентов
+    // запросы будут обрабатываться по алгоритму round-robin
+    for addr in addresses.iter() {
+        send_socket
+            .connect(addr)
+            .await
+            .tap_err(|err|{
+                error!(%err, "Request socket connect failed");
+            })
+            .unwrap();
+    }
 
     loop {
-        ok_or!(req_socket.send("Test data".into()).await, err => {
+        tokio::time::sleep(std::time::Duration::from_millis(200))
+            .await;
+
+        ok_or!(send_socket.send("Test data".into()).await, err => {
             error!(%err, "Data send");
             continue;
         });
 
-        let result: ZmqMessage = unwrap_or!(req_socket.recv().await, err => {
+        let result: ZmqMessage = unwrap_or!(send_socket.recv().await, err => {
             error!(%err, "Response receive");
             continue;
         });
@@ -147,20 +174,20 @@ async fn main() -> Result<(), AppError> {
     initialize_logs();
 
     // Producers and consumers
-    let join_res = tokio::join!(consume_data()
-                                    .instrument(info_span!("consumer_1")), 
-                                consume_data()
-                                    .instrument(info_span!("consumer_2")),
-                                consume_data()
-                                    .instrument(info_span!("consumer_3")),
-                                request_sender());
+    let addresses = [
+        "tcp://127.0.0.1:5551",
+        "tcp://127.0.0.1:5552",
+        "tcp://127.0.0.1:5553",
+    ];
+    tokio::join!(consume_data(addresses[0])
+                    .instrument(info_span!("consumer_1")),
+                 consume_data(addresses[1])
+                    .instrument(info_span!("consumer_2")),
+                 consume_data(addresses[2])
+                    .instrument(info_span!("consumer_3")),
+                 request_sender(&addresses)
+                    .instrument(info_span!("sender_1")));
     info!("Consumers and producers finished");
-
-    // Check results
-    join_res.3
-        .tap_err(|err|{
-            error!(%err, "Sender error")
-        })?;
 
     Ok(())
 }
