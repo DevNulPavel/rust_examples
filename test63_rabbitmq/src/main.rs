@@ -1,7 +1,6 @@
 #[macro_use] mod macroses;
 mod error;
-mod consume_produce;
-mod publish_subscribe;
+mod examples;
 
 use tracing_subscriber::{
     prelude::{
@@ -13,15 +12,15 @@ use tracing_subscriber::{
         }
     }
 };
+use crate::examples::routing_example;
+
 #[allow(unused_imports)]
 use self::{
     error::{
         RabbitError
     },
-    consume_produce::{
-        produce_consume_example
-    },
-    publish_subscribe::{
+    examples::{
+        produce_consume_example,
         pub_sub_example
     }
 };
@@ -56,7 +55,9 @@ async fn main() -> Result<(), RabbitError> {
     // Examples
     // produce_consume_example()
     //     .await;
-    pub_sub_example()
+    // pub_sub_example()
+    //     .await;
+    routing_example()
         .await;
 
     Ok(())
