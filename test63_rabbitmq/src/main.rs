@@ -1,6 +1,7 @@
+#[macro_use] mod macroses;
 mod error;
 mod consume_produce;
-#[macro_use] mod macroses;
+mod publish_subscribe;
 
 use tracing_subscriber::{
     prelude::{
@@ -12,12 +13,16 @@ use tracing_subscriber::{
         }
     }
 };
+#[allow(unused_imports)]
 use self::{
     error::{
         RabbitError
     },
     consume_produce::{
         produce_consume_example
+    },
+    publish_subscribe::{
+        pub_sub_example
     }
 };
 
@@ -49,7 +54,9 @@ async fn main() -> Result<(), RabbitError> {
     initialize_logs();
 
     // Examples
-    produce_consume_example()
+    // produce_consume_example()
+    //     .await;
+    pub_sub_example()
         .await;
 
     Ok(())
