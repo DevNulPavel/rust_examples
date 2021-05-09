@@ -12,7 +12,6 @@ use tracing_subscriber::{
         }
     }
 };
-use crate::examples::routing_example;
 
 #[allow(unused_imports)]
 use self::{
@@ -21,7 +20,9 @@ use self::{
     },
     examples::{
         produce_consume_example,
-        pub_sub_example
+        pub_sub_example,
+        routing_example,
+        topic_example
     }
 };
 
@@ -57,7 +58,9 @@ async fn main() -> Result<(), RabbitError> {
     //     .await;
     // pub_sub_example()
     //     .await;
-    routing_example()
+    // routing_example()
+    //     .await;
+    topic_example()
         .await;
 
     Ok(())

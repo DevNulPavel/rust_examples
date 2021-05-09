@@ -1,6 +1,7 @@
 mod consume_produce;
 mod publish_subscribe;
 mod routing;
+mod topics;
 
 pub use self::{
     consume_produce::{
@@ -11,5 +12,8 @@ pub use self::{
     },
     routing::{
         routing_example
+    },
+    topics::{
+        topic_example
     }
 };
