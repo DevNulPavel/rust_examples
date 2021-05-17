@@ -1,0 +1,14 @@
+[workspace]
+
+members = [
+    "tunnelto_lib",
+    "tunnelto",
+    "tunnelto_server",
+]
+
+exclude = [
+    "tunnelto_proxy"
+]
+
+[profile.dev]
+split-debuginfo = "unpacked"

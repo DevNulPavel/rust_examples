@@ -1,0 +1,113 @@
+name: Build and Release
+
+on:
+  push:
+    tags:
+      - '*'
+
+jobs:
+  build:
+    runs-on: ${{ matrix.os }}
+
+    strategy:
+      matrix:
+        os: [ubuntu-latest, macOS-latest]
+
+    steps:
+      - name: Cache cargo registry
+        uses: actions/cache@v1
+        with:
+          path: ~/.cargo/registry
+          key: ${{ runner.os }}-cargo-registry-${{ hashFiles('**/Cargo.lock') }}
+      - name: Cache cargo index
+        uses: actions/cache@v1
+        with:
+          path: ~/.cargo/git
+          key: ${{ runner.os }}-cargo-index-${{ hashFiles('**/Cargo.lock') }}
+      - name: Cache cargo build
+        uses: actions/cache@v1
+        with:
+          path: target
+          key: ${{ runner.os }}-cargo-build-target-${{ hashFiles('**/Cargo.lock') }}
+
+      - uses: actions/checkout@v2
+      - name: Build Client
+        run: cargo build --release --bin tunnelto --verbose
+      - name: Compress
+        run: tar -czvf tunnelto-${{ matrix.os }}.tar.gz target/release/tunnelto
+      - name: Upload Client Binary
+        uses: actions/upload-artifact@v1
+        with:
+          name: tunnelto-${{ matrix.os }}
+          path: target/release/tunnelto
+
+  build_win:
+    runs-on: windows-latest
+    steps:
+      - name: Cache cargo registry
+        uses: actions/cache@v1
+        with:
+          path: ~/.cargo/registry
+          key: ${{ runner.os }}-cargo-registry-${{ hashFiles('**/Cargo.lock') }}
+      - name: Cache cargo index
+        uses: actions/cache@v1
+        with:
+          path: ~/.cargo/git
+          key: ${{ runner.os }}-cargo-index-${{ hashFiles('**/Cargo.lock') }}
+      - name: Cache cargo build
+        uses: actions/cache@v1
+        with:
+          path: target
+          key: ${{ runner.os }}-cargo-build-target-${{ hashFiles('**/Cargo.lock') }}
+
+      - uses: actions/checkout@v2
+      - name: Build Client
+        run: cargo build --release --bin tunnelto --verbose
+      - name: Upload Client Binary
+        uses: actions/upload-artifact@v1
+        with:
+          name: tunnelto-windows-latest.exe
+          path: target/release/tunnelto.exe
+
+  publish:
+    needs: [build, build_win]
+    runs-on: ubuntu-latest
+    steps:
+      - name: Get the version
+        id: get_version
+        run: echo ::set-output name=VERSION::${GITHUB_REF#refs/tags/}    
+        
+      - name: Download macOS
+        uses: actions/download-artifact@v1
+        with:
+          name: tunnelto-macOS-latest
+          path: macOS/tunnelto/${{ steps.get_version.outputs.VERSION }}/bin/
+
+      - name: Download ubuntu
+        uses: actions/download-artifact@v1
+        with:
+          name: tunnelto-ubuntu-latest
+          path: linux/
+
+      - name: Download windows
+        uses: actions/download-artifact@v1
+        with:
+          name: tunnelto-windows-latest.exe
+          path: windows/
+
+      - name: Compress
+        run: |
+          chmod +x macOS/tunnelto/${{ steps.get_version.outputs.VERSION }}/bin/tunnelto
+          chmod +x linux/tunnelto
+          export TAG="${{ steps.get_version.outputs.VERSION }}"
+          cp windows/tunnelto.exe tunnelto-windows.exe
+          tar -C macOS/ -czvf "tunnelto-$TAG.catalina.bottle.tar.gz" tunnelto/${{ steps.get_version.outputs.VERSION }}/bin/tunnelto
+          cp "tunnelto-$TAG.catalina.bottle.tar.gz" "tunnelto-$TAG.big_sur.bottle.tar.gz"
+          tar -C linux/ -czvf tunnelto-linux.tar.gz tunnelto
+
+      - name: Create Release
+        uses: ncipollo/release-action@v1
+        with:
+          allowUpdates: true
+          artifacts: "tunnelto-${{ steps.get_version.outputs.VERSION }}.big_sur.bottle.tar.gz,tunnelto-${{ steps.get_version.outputs.VERSION }}.catalina.bottle.tar.gz,tunnelto-linux.tar.gz,tunnelto-windows.exe"
+          token: ${{ secrets.GITHUB_TOKEN }}

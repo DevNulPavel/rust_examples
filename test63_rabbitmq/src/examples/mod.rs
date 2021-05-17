@@ -2,6 +2,7 @@ mod consume_produce;
 mod publish_subscribe;
 mod routing;
 mod topics;
+mod rpc;
 
 pub use self::{
     consume_produce::{
