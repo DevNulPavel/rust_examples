@@ -1,9 +1,25 @@
-use crate::introspect::IntrospectionAddrs;
-use crate::Config;
-use cli_table::format::Padding;
-use cli_table::{format::Justify, print_stderr, Cell, Table};
-use colored::Colorize;
-use indicatif::{ProgressBar, ProgressStyle};
+use cli_table::{
+    format::{
+        Padding,
+        Justify
+    },
+    print_stderr, 
+    Cell, 
+    Table
+};
+use colored::{
+    Colorize
+};
+use indicatif::{
+    ProgressBar, 
+    ProgressStyle
+};
+use crate::{
+    introspect::{
+        IntrospectionAddrs
+    },
+    Config
+};
 
 pub struct CliInterface {
     spinner: ProgressBar,
@@ -36,21 +52,30 @@ impl CliInterface {
         }
     }
 
+    /// Сообщение с успешным подключением
     pub fn did_connect(&self, sub_domain: &str) {
+        // Спиннер отключаем
         self.spinner
             .finish_with_message("Success! Remote tunnel is now open.\n".green().as_ref());
 
+        // Если это было переподключение, то выходим
         if !self.config.first_run {
             return;
         }
 
+        // Генерируем правильный url для соединения
         let public_url = self.config.activation_url(&sub_domain).bold().green();
+        
+        // Внутренний адрес
         let forward_url = self.config.forward_url();
+        
+        // Адрес для мониторинга
         let inspect = format!(
             "http://localhost:{}",
             self.introspect.web_explorer_address.port()
         );
 
+        // Содержимое таблицы
         let table = vec![
             vec![
                 "Public tunnel URL".green().cell(),
@@ -78,7 +103,8 @@ impl CliInterface {
         ];
 
         let table = table.table();
-        print_stderr(table).expect("failed to generate starting terminal user interface");
+        print_stderr(table)
+            .expect("failed to generate starting terminal user interface");
 
         if let Some(notice) = self.get_sub_domain_notice(sub_domain) {
             eprintln!("\n{}: {}\n", ">>> Notice".yellow(), notice);
@@ -86,15 +112,14 @@ impl CliInterface {
     }
 }
 
+/// Спиннер с сообщением
 fn new_spinner(message: &str) -> ProgressBar {
     let pb = ProgressBar::new_spinner();
     pb.enable_steady_tick(150);
-    pb.set_style(
-        ProgressStyle::default_spinner()
-            // .tick_strings(&["⣾", "⣽", "⣻", "⢿", "⡿", "⣟", "⣯", "⣷"])
-            .tick_strings(&["🌎", "🌍", "🌏"])
-            .template("{spinner:.blue} {msg}"),
-    );
+    pb.set_style(ProgressStyle::default_spinner()
+                    // .tick_strings(&["⣾", "⣽", "⣻", "⢿", "⡿", "⣟", "⣯", "⣷"])
+                    .tick_strings(&["🌎", "🌍", "🌏"])
+                    .template("{spinner:.blue} {msg}"));
     pb.set_message(message);
     pb
 }

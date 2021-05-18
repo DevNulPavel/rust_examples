@@ -127,28 +127,29 @@ pub fn start_introspection_server(config: Config) -> IntrospectionAddrs {
         .and(warp::body::stream())
         // http клиент
         .and(get_client())
+        // Сам обработчик
         .and_then(forward);
 
     // Маршрут для WS данных, которые надо пробрасывать
     let intercept_ws = warp::any()
+        // Прокидываем адрес, куда надо перенаправлять
         .and(warp::any().map(move || {
             local_ws_addr.clone()
         }))
+        // Заголовок должен быть update
         .and(warp::header("upgrade"))
+        // Пробрасываем метод
         .and(warp::method())
+        // Заголовки
         .and(warp::header::headers_cloned())
+        // Полный путь
         .and(warp::path::full())
+        // Сырой запрос
         .and(opt_raw_query())
         // Непосредственно сам websocket
         .and(warp::ws())
-        .map(
-            move |addr: String,
-                  _upgrade: String,
-                  method: Method,
-                  headers: HeaderMap,
-                  path: FullPath,
-                  query: Option<String>,
-                  ws: Ws| {
+        .map(move |addr: String, _upgrade: String, method: Method, headers: HeaderMap, 
+                   path: FullPath, query: Option<String>, ws: Ws| {
                 // Обработчик перехода в режим WS
                 ws.on_upgrade(move |w: WebSocket| async {
                     forward_websocket(addr, path, method, headers, query, w).await
@@ -175,6 +176,7 @@ pub fn start_introspection_server(config: Config) -> IntrospectionAddrs {
                         warp::http::header::HeaderValue::from_static("text/css"));
             res
         }));
+
     // Обработчик картинки логотипа
     let logo = warp::get()
         .and(warp::path!("static" / "img" / "logo.png")
@@ -188,7 +190,8 @@ pub fn start_introspection_server(config: Config) -> IntrospectionAddrs {
                         warp::http::header::HeaderValue::from_static("image/png"));
             res
         }));
-    let forward_clone = forward_address.clone();
+
+    let forward_addr_clone = forward_address.clone();
 
     // Обработчик индекса
     let index = warp::get()
@@ -201,12 +204,12 @@ pub fn start_introspection_server(config: Config) -> IntrospectionAddrs {
         .and(warp::path::param())
         .and_then(request_detail);
 
-    // Обработчик replay
+    // Обработчик повторного запроса
     let replay = warp::post()
         .and(warp::path("replay"))
         .and(warp::path::param())
         .and(get_client())
-        .and_then(move |id, client| replay_request(id, client, forward_clone.clone()));
+        .and_then(move |id, client| replay_request(id, client, forward_addr_clone.clone()));
     
     // Суммарный обработчик
     let web_explorer = index
@@ -396,28 +399,39 @@ async fn forward_websocket(local_addr: String,
                            websocket: WebSocket) {
     log::debug!("connecting to websocket");
 
+    // Строка запроса
     let query_str = if let Some(query) = query.as_ref() {
         format!("?{}", query)
     } else {
         String::new()
     };
 
+    // Урл, куда пробрасываем
     let url = format!("{}{}{}", local_addr, path.as_str(), query_str);
     log::debug!("forwarding to: {}", &url);
 
+    // id запроса
     let request_id = Uuid::new_v4();
 
+    // Перегоняем все заголовки запроса
     let mut request_headers = HashMap::new();
-    headers.keys().for_each(|k| {
-        let values = headers
-            .get_all(k)
-            .iter()
-            .filter_map(|v| v.to_str().ok())
-            .map(|s| s.to_owned())
-            .collect();
-        request_headers.insert(k.as_str().to_owned(), values);
-    });
+    headers
+        .keys()
+        .for_each(|k| {
+            let values = headers
+                .get_all(k)
+                .iter()
+                .filter_map(|v| {
+                    v.to_str().ok()
+                })
+                .map(|s| {
+                    s.to_owned()
+                })
+                .collect();
+            request_headers.insert(k.as_str().to_owned(), values);
+        });
 
+    // Объект запроса
     let stored_request = Request {
         id: request_id.to_string(),
         status: 101,
@@ -433,11 +447,13 @@ async fn forward_websocket(local_addr: String,
         is_replay: false,
     };
 
+    // Сохраняем запрос в список
     REQUESTS
         .write()
         .unwrap()
         .insert(request_id.to_string(), stored_request);
 
+    // Непосредственно проброс запроса
     let _ = forward_websocket_inner(request_id, url, websocket)
         .await
         .map_err(|e| {
@@ -445,20 +461,26 @@ async fn forward_websocket(local_addr: String,
         });
 }
 
-async fn forward_websocket_inner(
-    request_id: Uuid,
-    url: String,
-    incoming: WebSocket,
-) -> Result<(), Box<dyn std::error::Error>> {
-    let (local, _) = tokio_tungstenite::connect_async(&url).await?;
-    let (mut local_sink, mut local_stream) = local.split();
-    let (mut incoming_sink, mut incoming_stream) = incoming.split();
+async fn forward_websocket_inner(request_id: Uuid,
+                                 url: String,
+                                 incoming: WebSocket) -> Result<(), Box<dyn std::error::Error>> {
+    // Локально подключаемся к локальному url
+    let (local, _) = tokio_tungstenite::connect_async(&url)
+        .await?;
+    // Разделение на входящий и исходящий потоки у локального адреса
+    let (mut local_send, mut local_receive) = local.split();
+    // Входящий поток данных снаружи
+    let (mut incoming_send, mut incoming_receive) = incoming.split();
 
     // incoming_r -> local_w
+    // Запуск обработки входящего внешнего во входящий внутренний поток
     tokio::spawn(async move {
-        while let Some(Ok(next)) = incoming_stream.next().await {
+        // Читаем в цикле
+        while let Some(Ok(next)) = incoming_receive.next().await {
+            // Отладочный вывод данных
             let debug_data = vec!["\n\nIncoming data => ".as_bytes(), next.as_bytes()].concat();
 
+            // Конвертируем сообщение из warp библиотеки в tung
             let message = match ws_util::warp_to_tung(next) {
                 Ok(m) => m,
                 Err(e) => {
@@ -467,12 +489,13 @@ async fn forward_websocket_inner(
                 }
             };
 
-            if let Err(e) = local_sink.send(message.clone()).await {
+            // Отсылаем локальному серверу
+            if let Err(e) = local_send.send(message.clone()).await {
                 error!("failed to write to local websocket: {:?}", e);
                 break;
             }
 
-            // update our introspection
+            // Для нашего сохраненного запроса расширяем отгруженные данные
             REQUESTS
                 .write()
                 .unwrap()
@@ -483,9 +506,10 @@ async fn forward_websocket_inner(
         }
     });
 
-    // local_r -> incoming_w
+    // Отправляем данные из внутреннего сервера во внешний получатель
     tokio::spawn(async move {
-        while let Some(Ok(next)) = local_stream.next().await {
+        while let Some(Ok(next)) = local_receive.next().await {
+            // Конвертация сообщения одной библиотеки в другую
             let message = match ws_util::tung_to_warp(next) {
                 Ok(m) => m,
                 Err(e) => {
@@ -494,14 +518,16 @@ async fn forward_websocket_inner(
                 }
             };
 
+            // Сообщение для отладки
             let debug_data = vec!["\n\nOutgoing data => ".as_bytes(), message.as_bytes()].concat();
 
-            if let Err(e) = incoming_sink.send(message).await {
+            // Выгружаем
+            if let Err(e) = incoming_send.send(message).await {
                 error!("failed to write to incoming websocket: {:?}", e);
                 break;
             }
 
-            // update our introspection
+            // В сохраненном запросе расширяем данные нашей отгрузкой
             REQUESTS
                 .write()
                 .unwrap()
@@ -514,6 +540,8 @@ async fn forward_websocket_inner(
 
     Ok(())
 }
+
+////////////////////////////////////////////////////////////////////////////////////////////////
 
 #[derive(Debug, Clone, askama::Template)]
 #[template(path = "index.html")]
@@ -528,6 +556,8 @@ struct InspectorDetail {
     incoming: BodyData,
     response: BodyData,
 }
+
+////////////////////////////////////////////////////////////////////////////////////////////////
 
 #[derive(Debug, Clone)]
 struct BodyData {
@@ -548,22 +578,43 @@ enum DataType {
     Unknown,
 }
 
+////////////////////////////////////////////////////////////////////////////////////////////////
+
+/// Обработчик индекса
 async fn inspector() -> Result<Page<Inspector>, warp::reject::Rejection> {
+    // Делаем копии всех запросов
+    // TODO: Может не делать копии? Просто использовать Arc?
     let mut requests: Vec<Request> = REQUESTS
         .read()
         .unwrap()
         .values()
-        .map(|r| r.clone())
+        .map(|r| {
+            r.clone()
+        })
         .collect();
-    requests.sort_by(|a, b| b.completed.cmp(&a.completed));
+    
+    // Сортировка по дате завершения
+    requests.sort_by(|a, b| {
+        b.completed.cmp(&a.completed)
+    });
+
+    // Генерируем страничку
     let inspect = Inspector { requests };
+
     Ok(Page(inspect))
 }
 
+////////////////////////////////////////////////////////////////////////////////////////////////
+
+/// Запрос деталей конкретного запроса
 async fn request_detail(rid: String) -> Result<Page<InspectorDetail>, warp::reject::Rejection> {
     let request: Request = match REQUESTS.read().unwrap().get(&rid) {
-        Some(r) => r.clone(),
-        None => return Err(warp::reject::not_found()),
+        Some(r) => {
+            r.clone()
+        },
+        None => {
+            return Err(warp::reject::not_found());
+        },
     };
 
     let detail = InspectorDetail {
@@ -580,10 +631,13 @@ fn get_body_data(input: &[u8]) -> BodyData {
         data_type: DataType::Unknown,
         content: None,
         raw: std::str::from_utf8(input)
-            .map(|s| s.to_string())
-            .unwrap_or("No UTF-8 Data".to_string()),
+                .map(|s| {
+                    s.to_string()
+                })
+                .unwrap_or("No UTF-8 Data".to_string()),
     };
 
+    // Пытаемся распарсить как json
     match serde_json::from_slice::<serde_json::Value>(input) {
         Ok(serde_json::Value::Object(map)) => {
             body.data_type = DataType::Json;
@@ -599,43 +653,53 @@ fn get_body_data(input: &[u8]) -> BodyData {
     body
 }
 
-async fn replay_request(
-    rid: String,
-    client: HttpClient,
-    addr: SocketAddr,
-) -> Result<Box<dyn warp::Reply>, warp::reject::Rejection> {
+////////////////////////////////////////////////////////////////////////////////////////////////
+
+// Обработчик повторения запроса
+async fn replay_request(rid: String,
+                        client: HttpClient,
+                        addr: SocketAddr) -> Result<Box<dyn warp::Reply>, warp::reject::Rejection> {
+    // Находим запрос
     let request: Request = match REQUESTS.read().unwrap().get(&rid) {
         Some(r) => r.clone(),
         None => return Err(warp::reject::not_found()),
     };
 
+    // Строка запроса
     let query_str = if let Some(query) = request.query.as_ref() {
         format!("?{}", query)
     } else {
         String::new()
     };
 
-    let url = format!(
-        "http://localhost:{}{}{}",
+    // Полный адрес внутренний
+    let url = format!("http://localhost:{}{}{}",
         addr.port(),
         &request.path,
         query_str
     );
 
+    let uri = url
+        .parse::<hyper::Uri>()
+        .map_err(|e| {
+            log::error!("invalid incoming url: {}, error: {:?}", url, e);
+            warp::reject::custom(ForwardError::InvalidURL)
+        })?;
+
+    // Сам запрос
     let mut new_request = hyper::Request::builder()
         .method(request.method)
         .version(hyper::Version::HTTP_11)
-        .uri(url.parse::<hyper::Uri>().map_err(|e| {
-            log::error!("invalid incoming url: {}, error: {:?}", url, e);
-            warp::reject::custom(ForwardError::InvalidURL)
-        })?);
+        .uri(uri);
 
+    // Заголовки запроса
     for (header, values) in &request.headers {
         for v in values {
             new_request = new_request.header(header, v)
         }
     }
 
+    // Body
     let new_request = new_request
         .body(hyper::Body::from(request.body_data))
         .map_err(|e| {
@@ -643,11 +707,13 @@ async fn replay_request(
             warp::reject::custom(ForwardError::InvalidRequest)
         })?;
 
+    // Выполняем запрос
     let _ = client.request(new_request).await.map_err(|e| {
         log::error!("local server error: {:?}", e);
         warp::reject::custom(ForwardError::LocalServerError)
     })?;
 
+    // Отвечаем необходимостью перехода в корень
     let response = warp::http::Response::builder()
         .status(warp::http::StatusCode::SEE_OTHER)
         .header(warp::http::header::LOCATION, "/")
@@ -656,6 +722,9 @@ async fn replay_request(
     Ok(Box::new(response))
 }
 
+/////////////////////////////////////////////////////////////////////////////
+
+// Тип страницы
 struct Page<T>(T);
 
 impl<T> warp::reply::Reply for Page<T>
@@ -672,6 +741,8 @@ where
             .unwrap()
     }
 }
+
+/////////////////////////////////////////////////////////////////////////////
 
 fn opt_raw_query() -> impl Filter<Extract = (Option<String>,), Error = Infallible> + Copy {
     warp::filters::query::raw()
