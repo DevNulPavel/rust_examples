@@ -198,28 +198,35 @@ async fn run_wormhole(config: Config,
     // Здесь будем читать из внешнего сокета и писать в канал внутренний
     loop {
         match external_ws_receiver.next().await {
+            // Получили сообщение закрытия вебсокета
             Some(Ok(message)) if message.is_close() => {
                 debug!("got close message");
+                // Пишем в канал сообщение для рестарта
                 let _ = restart_tx.send(None).await;
                 return Ok(());
             }
+
+            // Просто сообщение какое-то
             Some(Ok(message)) => {
-                let packet = process_control_flow_message(
-                    &introspect,
-                    tunnel_tx.clone(),
-                    message.into_data(),
-                )
-                .await
-                .map_err(|e| {
-                    error!("Malformed protocol control packet: {:?}", e);
-                    Error::MalformedMessageFromServer
-                })?;
+                // Обрабатываем сообщение
+                let packet = process_control_flow_message(&introspect,
+                                                          tunnel_tx.clone(),
+                                                          message.into_data())
+                    .await
+                    .map_err(|e| {
+                        error!("Malformed protocol control packet: {:?}", e);
+                        Error::MalformedMessageFromServer
+                    })?;
                 debug!("Processed packet: {:?}", packet.packet_type());
             }
+
+            // Ошибка
             Some(Err(e)) => {
                 warn!("websocket read error: {:?}", e);
                 return Err(Error::Timeout);
             }
+
+            // Данных нету
             None => {
                 warn!("websocket sent none");
                 return Err(Error::Timeout);
@@ -299,63 +306,93 @@ async fn connect_to_wormhole(config: &Config) -> Result<(WebSocketStream<MaybeTl
     Ok((websocket, sub_domain))
 }
 
-async fn process_control_flow_message(
-    introspect: &IntrospectionAddrs,
-    mut tunnel_tx: UnboundedSender<ControlPacket>,
-    payload: Vec<u8>,
-) -> Result<ControlPacket, Box<dyn std::error::Error>> {
+/// Обработка входного сообщения из внешнего вебсоката
+async fn process_control_flow_message(introspect: &IntrospectionAddrs,
+                                      mut tunnel_tx: UnboundedSender<ControlPacket>,
+                                      payload: Vec<u8>) -> Result<ControlPacket, Box<dyn std::error::Error>> {
+    // Парсим 
     let control_packet = ControlPacket::deserialize(&payload)?;
 
     match &control_packet {
+        // Начало потока
         ControlPacket::Init(stream_id) => {
             info!("stream[{:?}] -> init", stream_id.to_string());
         }
+
+        // Ping
         ControlPacket::Ping(reconnect_token) => {
             log::info!("got ping. reconnect_token={}", reconnect_token.is_some());
 
+            // Если получили токен переподключения, тогда сохраняем его
             if let Some(reconnect) = reconnect_token {
-                let _ = RECONNECT_TOKEN.lock().await.replace(reconnect.clone());
+                let _ = RECONNECT_TOKEN
+                    .lock()
+                    .await
+                    .replace(reconnect.clone());
             }
-            let _ = tunnel_tx.send(ControlPacket::Ping(None)).await;
+
+            // А в канал передаем сообщение пинга
+            let _ = tunnel_tx
+                .send(ControlPacket::Ping(None))
+                .await;
         }
-        ControlPacket::Refused(_) => return Err("unexpected control packet".into()),
+
+        // Ошибка
+        ControlPacket::Refused(_) => {
+            return Err("unexpected control packet".into());
+        },
+
+        // Конец стрима
         ControlPacket::End(stream_id) => {
-            // find the stream
+            // Айдишник стрима
             let stream_id = stream_id.clone();
 
             info!("got end stream [{:?}]", &stream_id);
 
             tokio::spawn(async move {
-                let stream = ACTIVE_STREAMS.read().unwrap().get(&stream_id).cloned();
+                // Получаем сохраненный стрим
+                let stream = ACTIVE_STREAMS
+                    .read()
+                    .unwrap()
+                    .get(&stream_id)
+                    .cloned();
+                
+                // Если стрим валидный
                 if let Some(mut tx) = stream {
+                    // Ждем 5 секунд
                     tokio::time::sleep(Duration::from_secs(5)).await;
+
+                    // Отправляем в стрим сообщение закрытия
                     let _ = tx.send(StreamMessage::Close).await.map_err(|e| {
                         error!("failed to send stream close: {:?}", e);
                     });
+
+                    // Удаляем из списка данный стрим
                     ACTIVE_STREAMS.write().unwrap().remove(&stream_id);
                 }
             });
         }
+
+        // Полезные данные
         ControlPacket::Data(stream_id, data) => {
-            info!(
-                "stream[{:?}] -> new data: {:?}",
+            info!("stream[{:?}] -> new data: {:?}",
                 stream_id.to_string(),
                 data.len()
             );
 
+            // Проверяем, есть ли такой стрим?
             if !ACTIVE_STREAMS.read().unwrap().contains_key(&stream_id) {
-                local::setup_new_stream(
-                    introspect.forward_address.port(),
-                    tunnel_tx.clone(),
-                    stream_id.clone(),
-                )
-                .await;
+                // Создаем стрим если его нету
+                local::setup_new_stream(introspect.forward_address.port(),
+                                        tunnel_tx.clone(),
+                                        stream_id.clone())
+                    .await;
             }
 
-            // find the right stream
+            // Находим нужный стрим
             let active_stream = ACTIVE_STREAMS.read().unwrap().get(&stream_id).cloned();
 
-            // forward data to it
+            // Прокидываем данные в него
             if let Some(mut tx) = active_stream {
                 tx.send(StreamMessage::Data(data.clone())).await?;
                 info!("forwarded to local tcp ({})", stream_id.to_string());

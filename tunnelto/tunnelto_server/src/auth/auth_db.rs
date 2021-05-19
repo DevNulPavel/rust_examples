@@ -1,54 +1,49 @@
-use rusoto_core::{Client, HttpClient, Region};
-use rusoto_dynamodb::{AttributeValue, DynamoDb, DynamoDbClient, GetItemError, GetItemInput};
-
-use super::AuthResult;
-use crate::auth::AuthService;
-use async_trait::async_trait;
-use rusoto_credential::EnvironmentProvider;
-use sha2::Digest;
-use std::collections::HashMap;
-use std::str::FromStr;
-use thiserror::Error;
-use uuid::Uuid;
-
-pub struct AuthDbService {
-    client: DynamoDbClient,
-}
-
-impl AuthDbService {
-    pub fn new() -> Result<Self, Box<dyn std::error::Error>> {
-        let provider = EnvironmentProvider::default();
-        let http_client = HttpClient::new()?;
-        let client = Client::new_with(provider, http_client);
-
-        Ok(Self {
-            client: DynamoDbClient::new_with_client(client, Region::UsEast1),
-        })
+use std::{
+    str::{
+        FromStr
+    },
+    collections::{
+        HashMap
     }
-}
+};
+use rusoto_core::{
+    Client, 
+    HttpClient, 
+    Region
+};
+use rusoto_dynamodb::{
+    AttributeValue, 
+    DynamoDb, 
+    DynamoDbClient, 
+    GetItemError, 
+    GetItemInput
+};
+use rusoto_credential::{
+    EnvironmentProvider
+};
+use async_trait::{
+    async_trait
+};
+use sha2::{
+    Digest
+};
+use thiserror::{
+    Error
+};
+use uuid::{
+    Uuid
+};
+use super::{
+    AuthResult
+};
+use crate::{
+    auth::{
+        AuthService
+    }
+};
 
-mod domain_db {
-    pub const TABLE_NAME: &'static str = "tunnelto_domains";
-    pub const PRIMARY_KEY: &'static str = "subdomain";
-    pub const ACCOUNT_ID: &'static str = "account_id";
-}
 
-mod key_db {
-    pub const TABLE_NAME: &'static str = "tunnelto_auth";
-    pub const PRIMARY_KEY: &'static str = "auth_key_hash";
-    pub const ACCOUNT_ID: &'static str = "account_id";
-}
-
-mod record_db {
-    pub const TABLE_NAME: &'static str = "tunnelto_record";
-    pub const PRIMARY_KEY: &'static str = "account_id";
-    pub const SUBSCRIPTION_ID: &'static str = "subscription_id";
-}
-
-fn key_id(auth_key: &str) -> String {
-    let hash = sha2::Sha256::digest(auth_key.as_bytes()).to_vec();
-    base64::encode_config(&hash, base64::URL_SAFE_NO_PAD)
-}
+/////////////////////////////////////////////////////////////////////////////
 
 #[derive(Error, Debug)]
 pub enum Error {
@@ -61,52 +56,35 @@ pub enum Error {
     #[error("The authentication key is invalid")]
     InvalidAccountId(#[from] uuid::Error),
 
-    #[error("The subdomain is not authorized")]
-    SubdomainNotAuthorized,
+    // #[error("The subdomain is not authorized")]
+    // SubdomainNotAuthorized,
 }
 
-#[async_trait]
-impl AuthService for AuthDbService {
-    type Error = Error;
-    type AuthKey = String;
+/////////////////////////////////////////////////////////////////////////////
 
-    async fn auth_sub_domain(
-        &self,
-        auth_key: &String,
-        subdomain: &str,
-    ) -> Result<AuthResult, Error> {
-        let authenticated_account_id = self.get_account_id_for_auth_key(auth_key).await?;
-        let is_pro_account = self
-            .is_account_in_good_standing(authenticated_account_id)
-            .await?;
+fn key_id(auth_key: &str) -> String {
+    let hash = sha2::Sha256::digest(auth_key.as_bytes()).to_vec();
+    base64::encode_config(&hash, base64::URL_SAFE_NO_PAD)
+}
 
-        tracing::info!(account=%authenticated_account_id.to_string(), requested_subdomain=%subdomain, is_pro=%is_pro_account, "authenticated client");
+/////////////////////////////////////////////////////////////////////////////
 
-        if let Some(account_id) = self.get_account_id_for_subdomain(subdomain).await? {
-            // check you reserved it
-            if authenticated_account_id != account_id {
-                tracing::info!(account=%authenticated_account_id.to_string(), "reserved by other");
-                return Ok(AuthResult::ReservedByOther);
-            }
-
-            // next ensure that the account is in good standing
-            if !is_pro_account {
-                tracing::warn!(account=%authenticated_account_id.to_string(), "delinquent");
-                return Ok(AuthResult::ReservedByYouButDelinquent);
-            }
-
-            return Ok(AuthResult::ReservedByYou);
-        }
-
-        if is_pro_account {
-            Ok(AuthResult::Available)
-        } else {
-            Ok(AuthResult::PaymentRequired)
-        }
-    }
+pub struct AuthDbService {
+    client: DynamoDbClient,
 }
 
 impl AuthDbService {
+    pub fn new() -> Result<Self, Box<dyn std::error::Error>> {
+        let provider = EnvironmentProvider::default();
+        let http_client = HttpClient::new()?;
+        let client = Client::new_with(provider, http_client);
+
+        // Создаем подключение к базе данных DynamoDB
+        Ok(Self {
+            client: DynamoDbClient::new_with_client(client, Region::UsEast1),
+        })
+    }
+
     async fn get_account_id_for_auth_key(&self, auth_key: &str) -> Result<Uuid, Error> {
         let auth_key_hash = key_id(auth_key);
 
@@ -202,5 +180,66 @@ impl AuthDbService {
         } else {
             Ok(None)
         }
+    }    
+}
+
+
+#[async_trait]
+impl AuthService for AuthDbService {
+    type Error = Error;
+    type AuthKey = String;
+
+    async fn auth_sub_domain(&self,
+                             auth_key: &String,
+                             subdomain: &str) -> Result<AuthResult, Error> {
+
+        let authenticated_account_id = self.get_account_id_for_auth_key(auth_key).await?;
+        let is_pro_account = self
+            .is_account_in_good_standing(authenticated_account_id)
+            .await?;
+
+        tracing::info!(account=%authenticated_account_id.to_string(), requested_subdomain=%subdomain, is_pro=%is_pro_account, "authenticated client");
+
+        if let Some(account_id) = self.get_account_id_for_subdomain(subdomain).await? {
+            // check you reserved it
+            if authenticated_account_id != account_id {
+                tracing::info!(account=%authenticated_account_id.to_string(), "reserved by other");
+                return Ok(AuthResult::ReservedByOther);
+            }
+
+            // next ensure that the account is in good standing
+            if !is_pro_account {
+                tracing::warn!(account=%authenticated_account_id.to_string(), "delinquent");
+                return Ok(AuthResult::ReservedByYouButDelinquent);
+            }
+
+            return Ok(AuthResult::ReservedByYou);
+        }
+
+        if is_pro_account {
+            Ok(AuthResult::Available)
+        } else {
+            Ok(AuthResult::PaymentRequired)
+        }
     }
+}
+
+/////////////////////////////////////////////////////////////////////////////
+
+mod domain_db {
+    pub const TABLE_NAME: &'static str = "tunnelto_domains";
+    pub const PRIMARY_KEY: &'static str = "subdomain";
+    pub const ACCOUNT_ID: &'static str = "account_id";
+}
+
+mod key_db {
+    pub const TABLE_NAME: &'static str = "tunnelto_auth";
+    pub const PRIMARY_KEY: &'static str = "auth_key_hash";
+    pub const ACCOUNT_ID: &'static str = "account_id";
+}
+
+mod record_db {
+    pub const TABLE_NAME: &'static str = "tunnelto_record";
+    pub const PRIMARY_KEY: &'static str = "account_id";
+    pub const SUBSCRIPTION_ID: &'static str = "subscription_id";
 }

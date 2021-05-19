@@ -9,32 +9,43 @@ use tokio::io::{split, AsyncReadExt, AsyncWriteExt};
 use crate::introspect;
 
 /// Establish a new local stream and start processing messages to it
-pub async fn setup_new_stream(local_port: u16, mut tunnel_tx: UnboundedSender<ControlPacket>, stream_id: StreamId) {
+/// Формирует новый локальный стрим и начинает пробрасывать сообщения в него
+pub async fn setup_new_stream(local_port: u16, 
+                              mut tunnel_tx: UnboundedSender<ControlPacket>, 
+                              stream_id: StreamId) {
     info!("setting up local stream: {}", &stream_id.to_string());
 
+    // Подключаемся к локальному порту
     let local_tcp = match TcpStream::connect(format!("localhost:{}", local_port)).await {
-        Ok(s) => s,
+        Ok(s) => {
+            s
+        },
         Err(e) => {
             warn!("failed to connect to local service: {:?}", e);
             introspect::connect_failed();
+
+            // Пишем в канал, что не смогли
             let _ = tunnel_tx.send(ControlPacket::Refused(stream_id)).await;
             return
         }
     };
-    let (stream, sink) = split(local_tcp);
+    let (tcp_read, tcp_write) = split(local_tcp);
 
-    // Read local tcp bytes, send them tunnel
+    // Читаем из сокета и пишем в туннель
     let stream_id_clone = stream_id.clone();
     tokio::spawn(async move {
-        process_local_tcp(stream, tunnel_tx, stream_id_clone).await;
+        process_local_tcp(tcp_read, tunnel_tx, stream_id_clone).await;
     });
 
     // Forward remote packets to local tcp
     let (tx, rx) = unbounded();
-    ACTIVE_STREAMS.write().unwrap().insert(stream_id.clone(), tx.clone());
+    ACTIVE_STREAMS
+        .write()
+        .unwrap()
+        .insert(stream_id.clone(), tx.clone());
 
     tokio::spawn(async move {
-        forward_to_local_tcp(stream_id, sink, rx).await;
+        forward_to_local_tcp(stream_id, tcp_write, rx).await;
     });
 }
 
