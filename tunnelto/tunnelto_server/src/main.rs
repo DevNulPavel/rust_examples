@@ -143,28 +143,35 @@ async fn main() {
     control_server::spawn(([0, 0, 0, 0], CONFIG.control_port));
     info!("started tunnelto server on 0.0.0.0:{}", CONFIG.control_port);
 
+    // Запуск внутренней сети между серверами
     network::spawn(([0, 0, 0, 0, 0, 0, 0, 0], CONFIG.internal_network_port));
     info!("start network service on [::]:{}", CONFIG.internal_network_port);
 
+    // Создаем слушающий сокет
     let listen_addr = format!("[::]:{}", CONFIG.remote_port);
-    info!("listening on: {}", &listen_addr);
-
-    // create our accept any server
-    let listener = TcpListener::bind(listen_addr)
+    let listener = TcpListener::bind(&listen_addr)
         .await
         .expect("failed to bind");
+    info!("listening on: {}", &listen_addr);        
 
     loop {
+        // Прилетело подключение
         let socket = match listener.accept().await {
-            Ok((socket, _)) => socket,
+            Ok((socket, _)) => {
+                socket
+            },
             _ => {
                 error!("failed to accept socket");
                 continue;
             }
         };
 
-        tokio::spawn(async move {
+        // Запускаем обработку данных
+        tokio::spawn({
+            let fut = async move {
                 remote::accept_connection(socket).await;
-            }.instrument(observability::remote_trace("remote_connect")));
+            };
+            fut.instrument(observability::remote_trace("remote_connect"))
+        });
     }
 }

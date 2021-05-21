@@ -1,9 +1,9 @@
+use tokio::{
+    io::{ AsyncReadExt, AsyncWriteExt, ReadHalf, WriteHalf },
+    net::TcpStream,
+};
+use tracing::{ debug, error, Instrument };
 use super::*;
-use tokio::io::{AsyncReadExt, AsyncWriteExt};
-use tokio::io::{ReadHalf, WriteHalf};
-use tokio::net::TcpStream;
-use tracing::debug;
-use tracing::{error, Instrument};
 
 async fn direct_to_control(mut incoming: TcpStream) {
     let mut control_socket =
@@ -29,18 +29,21 @@ async fn direct_to_control(mut incoming: TcpStream) {
     }
 }
 
+/// Обработка нового подключения к серверу
 #[tracing::instrument(skip(socket))]
 pub async fn accept_connection(socket: TcpStream) {
     // peek the host of the http request
     // if health check, then handle it and return
-    let StreamWithPeekedHost {
-        mut socket,
-        host,
-        forwarded_for,
-    } = match peek_http_request_host(socket).await {
-        Some(s) => s,
-        None => return,
+    // 
+    let s = match peek_http_request_host(socket).await {
+        Some(s) => {
+            s
+        },
+        None => {
+            return;
+        }
     };
+    let StreamWithPeekedHost{ mut socket, host, forwarded_for } = s;
 
     tracing::info!(%host, %forwarded_for, "new remote connection");
 
@@ -159,12 +162,15 @@ const HTTP_TUNNEL_REFUSED_RESPONSE: &'static [u8] =
 const HTTP_OK_RESPONSE: &'static [u8] = b"HTTP/1.1 200 OK\r\nContent-Length: 2\r\n\r\nok";
 const HEALTH_CHECK_PATH: &'static [u8] = b"/0xDEADBEEF_HEALTH_CHECK";
 
+////////////////////////////////////////////////////////////////////////////////////////////////////////////////////////////////
+
 struct StreamWithPeekedHost {
     socket: TcpStream,
     host: String,
     forwarded_for: String,
 }
-/// Filter incoming remote streams
+
+/// Фильтрация входящих внешних потоков
 #[tracing::instrument(skip(socket))]
 async fn peek_http_request_host(mut socket: TcpStream) -> Option<StreamWithPeekedHost> {
     /// Note we return out if the host header is not found

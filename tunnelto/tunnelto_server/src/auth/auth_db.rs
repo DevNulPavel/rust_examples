@@ -206,6 +206,7 @@ impl AuthDbService {
     }    
 }
 
+/////////////////////////////////////////////////////////////////////////////
 
 #[async_trait]
 impl AuthService for AuthDbService {
@@ -216,12 +217,16 @@ impl AuthService for AuthDbService {
                              auth_key: &String,
                              subdomain: &str) -> Result<AuthResult, Error> {
 
-        let authenticated_account_id = self.get_account_id_for_auth_key(auth_key).await?;
+        let authenticated_account_id = self
+            .get_account_id_for_auth_key(auth_key)
+            .await?;
         let is_pro_account = self
             .is_account_in_good_standing(authenticated_account_id)
             .await?;
 
-        tracing::info!(account=%authenticated_account_id.to_string(), requested_subdomain=%subdomain, is_pro=%is_pro_account, "authenticated client");
+        tracing::info!(account = %authenticated_account_id.to_string(), 
+                       requested_subdomain = %subdomain, 
+                       is_pro = %is_pro_account, "authenticated client");
 
         if let Some(account_id) = self.get_account_id_for_subdomain(subdomain).await? {
             // check you reserved it

@@ -1,41 +1,65 @@
-use crate::auth::SigKey;
-use std::net::IpAddr;
-use std::str::FromStr;
-use uuid::Uuid;
+use std::{
+    net::{
+        IpAddr
+    },
+    str::{
+        FromStr
+    }
+};
+use uuid::{
+    Uuid
+};
+use crate::{
+    auth::{
+        SigKey
+    }
+};
 
-/// Global service configuration
+fn get_port(var: &'static str, default: u16) -> u16 {
+    if let Ok(port) = std::env::var(var) {
+        port
+            .parse()
+            .unwrap_or_else(|_| {
+                panic!("invalid port ENV {}={}", var, port);
+            })
+    } else {
+        default
+    }
+}
+
+/// Глобальные настройки сервиса
 pub struct Config {
-    /// What hosts do we allow tunnels on:
+    /// На каких хостах разрешаютс туннели:
     /// i.e:    baz.com => *.baz.com
     ///         foo.bar => *.foo.bar
     pub allowed_hosts: Vec<String>,
 
-    /// What sub-domains do we always block:
+    /// Какие поддомены мы всегда блокируем
     /// i.e:    dashboard.tunnelto.dev
     pub blocked_sub_domains: Vec<String>,
 
-    /// port for remote streams (end users)
+    /// Порт для удаленных потоков (конечных пользователей)
     pub remote_port: u16,
 
-    /// port for the control server
+    /// Порт управления сервером
     pub control_port: u16,
 
-    /// internal port for instance-to-instance gossip coms
+    /// Внутренний порт для сообщений от сервера к серверу
     pub internal_network_port: u16,
 
-    /// our signature key
+    /// Наш ключ подписи
     pub master_sig_key: SigKey,
 
-    /// Instance DNS discovery domain for gossip protocol
+    /// Днс адрес для обнаружения внутренних связей
     pub gossip_dns_host: Option<String>,
 
-    /// Observability API key
+    // Ключ для мониторинга Honeycomb
     pub honeycomb_api_key: Option<String>,
 
-    /// The identifier for this instance of the server
+    /// Идентификатор данного экземпляра сервера
     pub instance_id: String,
 
-    /// Blocked IP addresses
+    /// Заблокированные адреса
     pub blocked_ips: Vec<IpAddr>,
 }
 
@@ -83,15 +107,5 @@ impl Config {
             instance_id,
             blocked_ips,
         }
-    }
-}
-
-fn get_port(var: &'static str, default: u16) -> u16 {
-    if let Ok(port) = std::env::var(var) {
-        port.parse().unwrap_or_else(|_| {
-            panic!("invalid port ENV {}={}", var, port);
-        })
-    } else {
-        default
     }
 }
