@@ -62,8 +62,10 @@ pub enum Error {
 
 /////////////////////////////////////////////////////////////////////////////
 
+/// Base64 от SHA256 для переданного ключа
 fn key_id(auth_key: &str) -> String {
-    let hash = sha2::Sha256::digest(auth_key.as_bytes()).to_vec();
+    let hash = sha2::Sha256::digest(auth_key.as_bytes())
+        .to_vec();
     base64::encode_config(&hash, base64::URL_SAFE_NO_PAD)
 }
 
@@ -85,46 +87,56 @@ impl AuthDbService {
         })
     }
 
+    /// Получаем id аккаунта для ключа аутентификации
     async fn get_account_id_for_auth_key(&self, auth_key: &str) -> Result<Uuid, Error> {
         let auth_key_hash = key_id(auth_key);
 
-        let mut input = GetItemInput {
-            table_name: key_db::TABLE_NAME.to_string(),
-            ..Default::default()
-        };
-        input.key = {
+        // Создаем ключ
+        let key_map = {
+            let value = AttributeValue {
+                s: Some(auth_key_hash),
+                ..Default::default()
+            };
             let mut item = HashMap::new();
-            item.insert(
-                key_db::PRIMARY_KEY.to_string(),
-                AttributeValue {
-                    s: Some(auth_key_hash),
-                    ..Default::default()
-                },
-            );
+            item.insert(key_db::PRIMARY_KEY.to_string(), value);
             item
         };
 
-        let result = self.client.get_item(input).await?;
+        // Входные значения для DynamoDB
+        let input = GetItemInput {
+            table_name: key_db::TABLE_NAME.to_string(),
+            key: key_map,
+            ..Default::default()
+        };
+
+        // Запрашиваем данные
+        let result = self
+            .client
+            .get_item(input)
+            .await?;
+        
+        // Получаем поле AccountID
         let account_str = result
             .item
-            .unwrap_or(HashMap::new())
-            .get(key_db::ACCOUNT_ID)
-            .cloned()
-            .unwrap_or(AttributeValue::default())
-            .s
-            .ok_or(Error::AccountNotFound)?;
+            .as_ref()
+            .and_then(|item|{
+                item.get(key_db::ACCOUNT_ID)
+            })
+            .and_then(|id|{
+                id.s.as_ref()
+            })
+            .ok_or_else(||{
+                Error::AccountNotFound
+            })?;
 
+        // Создаем uuid из полученной строки
         let uuid = Uuid::from_str(&account_str)?;
 
         Ok(uuid)
     }
 
     async fn is_account_in_good_standing(&self, account_id: Uuid) -> Result<bool, Error> {
-        let mut input = GetItemInput {
-            table_name: record_db::TABLE_NAME.to_string(),
-            ..Default::default()
-        };
-        input.key = {
+        let key = {
             let mut item = HashMap::new();
             item.insert(
                 record_db::PRIMARY_KEY.to_string(),
@@ -136,8 +148,19 @@ impl AuthDbService {
             item
         };
 
-        let result = self.client.get_item(input).await?;
-        let result = result.item.unwrap_or(HashMap::new());
+        let input = GetItemInput {
+            table_name: record_db::TABLE_NAME.to_string(),
+            key,
+            ..Default::default()
+        };
+        let result = self
+            .client
+            .get_item(input)
+            .await?;
+            
+        let result = result
+            .item
+            .unwrap_or(HashMap::new());
 
         let subscription_id = result
             .get(record_db::SUBSCRIPTION_ID)
