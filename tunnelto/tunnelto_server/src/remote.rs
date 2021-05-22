@@ -29,12 +29,115 @@ async fn direct_to_control(mut incoming: TcpStream) {
     }
 }
 
+////////////////////////////////////////////////////////////////////////////////////////////////////////////////////////////////
+
+struct StreamWithPeekedHost {
+    socket: TcpStream,
+    host: String,
+    forwarded_for: String,
+}
+
+/// Фильтрация входящих внешних потоков
+#[tracing::instrument(skip(socket))]
+async fn peek_http_request_host(mut socket: TcpStream) -> Option<StreamWithPeekedHost> {
+    // Заметим, что возвращаемся если, не нашли заголовок хоста в первых 4Kb
+    const MAX_HEADER_PEAK: usize = 4096;
+    let mut buf = vec![0; MAX_HEADER_PEAK]; // 4kb
+
+    tracing::debug!("checking stream headers");
+
+    // Вычитываем данные без очистки буффера в сокете для повторного чтения
+    let n = match socket.peek(&mut buf).await {
+        Ok(n) => {
+            n
+        },
+        Err(e) => {
+            error!("failed to read from tcp socket to determine host: {:?}", e);
+            return None;
+        }
+    };
+
+    // Удостоверимся, что мы вычитали действительно данные
+    if n == 0 {
+        tracing::debug!("unable to peek header bytes");
+        return None;
+    }
+    tracing::debug!("peeked {} stream bytes ", n);
+
+    // Буффер для заголовков и зам объект запроса, буффер просто в виде контейнера
+    let mut headers = [httparse::EMPTY_HEADER; 64]; // 30 seems like a generous # of headers
+    let mut req = httparse::Request::new(&mut headers);
+
+    // Парсим прилетевшие данные
+    if let Err(e) = req.parse(&buf[..n]) {
+        error!("failed to parse incoming http bytes: {:?}", e);
+        return None;
+    }
+
+    // Обрабатываем маршрут проверки доступности
+    if req.path.map(|s| s.as_bytes()) == Some(HEALTH_CHECK_PATH) {
+        // Пишем в сокет ответ
+        let _ = socket.write_all(HTTP_OK_RESPONSE).await.map_err(|e| {
+            error!("failed to write health_check: {:?}", e);
+        });
+
+        return None;
+    }
+
+    // Ищем ип адрес для кого данный пакет
+    // Адрес будет в заголовке запроса, который начинается на x: x-forwarded-for
+    let headers_iter = req
+        .headers
+        .iter()
+        .filter(|h| {
+            let name = h.name.to_lowercase();
+            name.as_str().eq("x-forwarded-for")
+        })
+        .map(|h| {
+            std::str::from_utf8(h.value)
+        })
+        .next();
+    let forwarded_for = if let Some(Ok(forwarded_for)) = headers_iter {
+        forwarded_for.to_string()
+    } else {
+        String::default()
+    };
+
+    // Ищем адрес целевого хоста в заголовке
+    let address = req
+        .headers
+        .iter()
+        .filter(|h| {
+            h
+                .name
+                .to_lowercase()
+                .as_str()
+                .eq("host")
+        })
+        .map(|h| {
+            std::str::from_utf8(h.value)
+        })
+        .next();
+    if let Some(Ok(host)) = address {
+        // Все нашли, можно вернуть
+        return Some(StreamWithPeekedHost {
+            socket,
+            host: host.to_string(),
+            forwarded_for,
+        });
+    }
+
+    tracing::info!("found no host header, dropping connection.");
+    None
+}
+
+////////////////////////////////////////////////////////////////////////////////////////////////////////////////////////////////
+
 /// Обработка нового подключения к серверу
 #[tracing::instrument(skip(socket))]
 pub async fn accept_connection(socket: TcpStream) {
-    // peek the host of the http request
-    // if health check, then handle it and return
-    // 
+    // Прочитаем из сокета хост, и для кого предназначено
+    // Но без фактической очистки буффера в сокете
     let s = match peek_http_request_host(socket).await {
         Some(s) => {
             s
@@ -44,15 +147,18 @@ pub async fn accept_connection(socket: TcpStream) {
         }
     };
     let StreamWithPeekedHost{ mut socket, host, forwarded_for } = s;
-
     tracing::info!(%host, %forwarded_for, "new remote connection");
 
-    // parse the host string and find our client
+    // Парсим строчку хоста и ищем нашего клиента
     if CONFIG.allowed_hosts.contains(&host) {
+        // Если в списке разрешенных, значит отвечаем сообщением с редиректом
+        // на коренной сайт https://tunnelto.dev/
         error!("redirect to homepage");
         let _ = socket.write_all(HTTP_REDIRECT_RESPONSE).await;
         return;
     }
+
+    // Проверяем префикс хоста
     let host = match validate_host_prefix(&host) {
         Some(sub_domain) => sub_domain,
         None => {
@@ -62,28 +168,33 @@ pub async fn accept_connection(socket: TcpStream) {
         }
     };
 
-    // Special case -- we redirect this tcp connection to the control server
+    // Если целевой хост - сервер управления - перенаправляем в него
     if host.as_str() == "wormhole" {
         direct_to_control(socket).await;
         return;
     }
 
-    // find the client listening for this host
+    // Ищем клиент, слушающего данный хост
     let client = match Connections::find_by_host(&host) {
-        Some(client) => client.clone(),
+        Some(client) => {
+            client.clone()
+        },
         None => {
-            // check other instances that may be serving this host
+            // Проверяем другие экземпляры сервера, слушающие данный хост
             match network::instance_for_host(&host).await {
                 Ok((instance, _)) => {
+                    // Если нашли другой инстанс, перенаправляем в него
                     network::proxy_stream(instance, socket).await;
                     return;
                 }
                 Err(network::Error::DoesNotServeHost) => {
+                    // Не нашли, пишем в ответ
                     error!(%host, "no tunnel found");
                     let _ = socket.write_all(HTTP_NOT_FOUND_RESPONSE).await;
                     return;
                 }
                 Err(error) => {
+                    // Не нашли хост
                     error!(%host, ?error, "failed to find instance");
                     let _ = socket.write_all(HTTP_ERROR_LOCATING_HOST_RESPONSE).await;
                     return;
@@ -92,20 +203,18 @@ pub async fn accept_connection(socket: TcpStream) {
         }
     };
 
-    // allocate a new stream for this request
+    // Создаем новый стрим для данного запроса
     let (active_stream, queue_rx) = ActiveStream::new(client.clone());
     let stream_id = active_stream.id.clone();
-
-    tracing::debug!(
-        stream_id = %active_stream.id.to_string(),
-        "new stream connected"
-    );
+    tracing::debug!(stream_id = %active_stream.id.to_string(), 
+                    "new stream connected");
+                    
     let (stream, sink) = tokio::io::split(socket);
 
-    // add our stream
+    // Сохраняем стрим
     ACTIVE_STREAMS.insert(stream_id.clone(), active_stream.clone());
 
-    // read from socket, write to client
+    // Запускаем обработку данных из потока и запись в клиента
     let span = observability::remote_trace("process_tcp_stream");
     tokio::spawn(
         async move {
@@ -114,7 +223,7 @@ pub async fn accept_connection(socket: TcpStream) {
         .instrument(span),
     );
 
-    // read from client, write to socket
+    // Читаем клиента и пишем в сокет
     let span = observability::remote_trace("tunnel_to_stream");
     tokio::spawn(
         async move {
@@ -124,14 +233,26 @@ pub async fn accept_connection(socket: TcpStream) {
     );
 }
 
+////////////////////////////////////////////////////////////////////////////////////////////////////////////////////////////////
+
 fn validate_host_prefix(host: &str) -> Option<String> {
     let url = format!("http://{}", host);
 
-    let host = match url::Url::parse(&url)
-        .map(|u| u.host().map(|h| h.to_owned()))
-        .unwrap_or(None)
+    let host = url::Url::parse(&url)
+        .ok()
+        .and_then(|u| {
+            u
+                .host()
+                .map(|h| {
+                    h.to_owned()
+                })
+        });
+
+    let host = match host
     {
-        Some(domain) => domain.to_string(),
+        Some(domain) => {
+            domain.to_string()
+        },
         None => {
             error!("invalid host header");
             return None;
@@ -149,6 +270,8 @@ fn validate_host_prefix(host: &str) -> Option<String> {
     }
 }
 
+////////////////////////////////////////////////////////////////////////////////////////////////////////////////////////////////
+
 /// Response Constants
 const HTTP_REDIRECT_RESPONSE:&'static [u8] = b"HTTP/1.1 301 Moved Permanently\r\nLocation: https://tunnelto.dev/\r\nContent-Length: 20\r\n\r\nhttps://tunnelto.dev";
 const HTTP_INVALID_HOST_RESPONSE: &'static [u8] =
@@ -163,87 +286,6 @@ const HTTP_OK_RESPONSE: &'static [u8] = b"HTTP/1.1 200 OK\r\nContent-Length: 2\r
 const HEALTH_CHECK_PATH: &'static [u8] = b"/0xDEADBEEF_HEALTH_CHECK";
 
 ////////////////////////////////////////////////////////////////////////////////////////////////////////////////////////////////
-
-struct StreamWithPeekedHost {
-    socket: TcpStream,
-    host: String,
-    forwarded_for: String,
-}
-
-/// Фильтрация входящих внешних потоков
-#[tracing::instrument(skip(socket))]
-async fn peek_http_request_host(mut socket: TcpStream) -> Option<StreamWithPeekedHost> {
-    /// Note we return out if the host header is not found
-    /// within the first 4kb of the request.
-    const MAX_HEADER_PEAK: usize = 4096;
-    let mut buf = vec![0; MAX_HEADER_PEAK]; //1kb
-
-    tracing::debug!("checking stream headers");
-
-    let n = match socket.peek(&mut buf).await {
-        Ok(n) => n,
-        Err(e) => {
-            error!("failed to read from tcp socket to determine host: {:?}", e);
-            return None;
-        }
-    };
-
-    // make sure we're not peeking the same header bytes
-    if n == 0 {
-        tracing::debug!("unable to peek header bytes");
-        return None;
-    }
-
-    tracing::debug!("peeked {} stream bytes ", n);
-
-    let mut headers = [httparse::EMPTY_HEADER; 64]; // 30 seems like a generous # of headers
-    let mut req = httparse::Request::new(&mut headers);
-
-    if let Err(e) = req.parse(&buf[..n]) {
-        error!("failed to parse incoming http bytes: {:?}", e);
-        return None;
-    }
-
-    // Handle the health check route
-    if req.path.map(|s| s.as_bytes()) == Some(HEALTH_CHECK_PATH) {
-        let _ = socket.write_all(HTTP_OK_RESPONSE).await.map_err(|e| {
-            error!("failed to write health_check: {:?}", e);
-        });
-
-        return None;
-    }
-
-    // get the ip addr in the header
-    let forwarded_for = if let Some(Ok(forwarded_for)) = req
-        .headers
-        .iter()
-        .filter(|h| h.name.to_lowercase() == "x-forwarded-for".to_string())
-        .map(|h| std::str::from_utf8(h.value))
-        .next()
-    {
-        forwarded_for.to_string()
-    } else {
-        String::default()
-    };
-
-    // look for a host header
-    if let Some(Ok(host)) = req
-        .headers
-        .iter()
-        .filter(|h| h.name.to_lowercase() == "host".to_string())
-        .map(|h| std::str::from_utf8(h.value))
-        .next()
-    {
-        return Some(StreamWithPeekedHost {
-            socket,
-            host: host.to_string(),
-            forwarded_for,
-        });
-    }
-
-    tracing::info!("found no host header, dropping connection.");
-    None
-}
 
 /// Process Messages from the control path in & out of the remote stream
 #[tracing::instrument(skip(tunnel_stream, tcp_stream))]
@@ -299,6 +341,8 @@ async fn process_tcp_stream(mut tunnel_stream: ActiveStream, mut tcp_stream: Rea
         }
     }
 }
+
+////////////////////////////////////////////////////////////////////////////////////////////////////////////////////////////////
 
 #[tracing::instrument(skip(sink, stream_id, queue))]
 async fn tunnel_to_stream(
