@@ -1,9 +1,8 @@
-use eyre::Context;
-use rusoto_core::Region;
-use rusoto_dynamodb::{DynamoDb, DynamoDbClient, ListTablesInput};
-use tracing::{error, info, instrument};
+mod dynamodb;
+
+use crate::dynamodb::test_dynamo_db;
+use tracing::error;
 use tracing_error::ErrorLayer;
-// use tracing_futures::Instrument;
 use tracing_log::LogTracer;
 use tracing_subscriber::prelude::*;
 
@@ -32,29 +31,6 @@ fn initialize_logs() {
     tracing::subscriber::set_global_default(full_subscriber).unwrap();
 }
 
-#[instrument]
-async fn test_dynamodb() -> Result<(), eyre::Error> {
-    let client = DynamoDbClient::new(Region::UsEast1);
-    let list_tables_input: ListTablesInput = Default::default();
-
-    let output = client
-        .list_tables(list_tables_input)
-        .await
-        .context("Tables list request")?;
-
-    match output.table_names {
-        Some(table_name_list) => {
-            info!(tables = ?table_name_list, "Tables in database");
-        }
-        None => {
-            info!("No tables in database!")
-        }
-    }
-
-    Ok(())
-}
-
-
 #[tokio::main]
 async fn main() {
     // Настройка поддержки бектрейсов в ошибках
@@ -70,7 +46,7 @@ async fn main() {
     initialize_logs();
 
     // Test DynamoDB
-    if let Err(err) = test_dynamodb().await {
-        error!("Dynamo error -> {:?}", err);
+    if let Err(err) = test_dynamo_db().await {
+        error!("{:?}", err);
     }
 }

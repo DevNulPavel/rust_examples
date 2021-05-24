@@ -17,9 +17,11 @@ tracing-futures = "0.2"
 tracing-log = "0.1"
 tracing-error = "0.1"
 human-panic = "1.0"
-tokio = { version = "1.6", features = ["full"] }
+tokio = { version = "0.2", features = ["full"] }
 dotenv = "0.15"
-rusoto_core = {version = "0.46", default_features = false, features = ["rustls"] }
-rusoto_dynamodb = {version = "0.46", default_features = false, features = ["rustls"] }
+rusoto_core = { version = "0.45" } # default_features = false, features = ["rustls"] 
+rusoto_dynamodb = { version = "0.45" } # default_features = false, features = ["rustls"] 
+dynomite = { version = "0.10" } # features = ["rustls"]
+uuid = { version = "0.8", features = ["v4"] }
 
 [dev-dependencies]

@@ -1,0 +1,16 @@
+version: "3.3"
+services:
+    dynamodb:
+        container_name: dynamodb
+        image: amazon/dynamodb-local:latest
+        restart: unless-stopped
+        environment:
+            POSTGRES_USER: pg
+            POSTGRES_PASSWORD: pg
+            POSTGRES_DB: pg
+        ports:
+            - 8000:8000
+        # volumes:
+        #     - $PWD/db:/var/lib/postgresql/data
+        # links:
+        #     - cources_postgres
