@@ -20,8 +20,11 @@ human-panic = "1.0"
 tokio = { version = "0.2", features = ["full"] }
 dotenv = "0.15"
 rusoto_core = { version = "0.45" } # default_features = false, features = ["rustls"] 
-rusoto_dynamodb = { version = "0.45" } # default_features = false, features = ["rustls"] 
-dynomite = { version = "0.10" } # features = ["rustls"]
+rusoto_dynamodb = { version = "0.45" }
+dynomite = { version = "0.10" }
+# rusoto_core = { version = "0.45", default_features = false, features = ["rustls"]  }
+# rusoto_dynamodb = { version = "0.45", default_features = false, features = ["rustls"] }
+# dynomite = { version = "0.10", features = ["rustls"] }
 uuid = { version = "0.8", features = ["v4"] }
 
 [dev-dependencies]
