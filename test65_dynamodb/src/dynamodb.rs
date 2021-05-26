@@ -1,7 +1,11 @@
 use dynomite::{attr_map, retry::Policy, Attribute, Attributes, DynamoDbExt, FromAttributes, Item, Retries};
 use eyre::WrapErr;
 use rusoto_core::{Region, RusotoError};
-use rusoto_dynamodb::{AttributeDefinition, CreateTableError, CreateTableInput, DescribeTableError, DescribeTableInput, DynamoDb, DynamoDbClient, GetItemInput, GlobalSecondaryIndex, KeySchemaElement, ListTablesInput, LocalSecondaryIndex, Projection, ProvisionedThroughput, PutItemInput, QueryInput};
+use rusoto_dynamodb::{
+    AttributeDefinition, CreateTableError, CreateTableInput, DescribeTableError, DescribeTableInput, DynamoDb,
+    DynamoDbClient, GetItemInput, GlobalSecondaryIndex, KeySchemaElement, ListTablesInput, LocalSecondaryIndex,
+    Projection, ProvisionedThroughput, PutItemInput, QueryInput, UpdateItemInput,
+};
 use tracing::{debug, error, info, instrument, warn};
 use uuid::Uuid;
 
@@ -97,13 +101,13 @@ async fn create_table_if_needed(client: &impl DynamoDb, table_name: String) -> R
             },
         ],
         // Глобальные вторичные индексы нужны для поиска по главному ключу и по какому-то еще полю??
-        global_secondary_indexes: Some(vec![GlobalSecondaryIndex{
+        global_secondary_indexes: Some(vec![GlobalSecondaryIndex {
             index_name: "year_index".to_owned(),
-            key_schema: vec![KeySchemaElement{
+            key_schema: vec![KeySchemaElement {
                 attribute_name: "book_year".to_owned(),
-                key_type: "HASH".to_owned()
+                key_type: "HASH".to_owned(),
             }],
-            projection: Projection{
+            projection: Projection {
                 projection_type: Some("ALL".to_owned()), // Можно указать лишь нужные нам поля из исходной таблицы
                 ..Default::default()
             },
@@ -274,6 +278,40 @@ async fn query_books_with_year_greater(
 
 ////////////////////////////////////////////////////////////////////////////////////////////////////////////
 
+#[instrument(skip(client, book_key), fields(book_title))]
+async fn update_book_year(
+    client: &impl DynamoDb,
+    table_name: String,
+    book_key: Attributes,
+    year: u64,
+) -> Result<(), eyre::Error> {
+    {
+        let book_title = book_key
+            .get("book_title")
+            .and_then(|title| title.s.as_ref())
+            .ok_or_else(|| eyre::eyre!("book_title value is missing"))?;
+        tracing::span::Span::current().record("book_title", &book_title.as_str());
+    }
+
+    let res = client
+        .update_item(UpdateItemInput {
+            table_name,
+            key: book_key,
+            update_expression: Some("SET book_year = :y".to_owned()),
+            expression_attribute_values: Some(attr_map! {
+                ":y" => year
+            }),
+            ..Default::default()
+        })
+        .await?;
+
+    info!(book_update_res = ?res, "Book year updated:");
+
+    Ok(())
+}
+
+////////////////////////////////////////////////////////////////////////////////////////////////////////////
+
 #[instrument]
 pub async fn test_dynamo_db() -> Result<(), eyre::Error> {
     // Создаем клиента с определенным регионом
@@ -303,12 +341,16 @@ pub async fn test_dynamo_db() -> Result<(), eyre::Error> {
     insert_book(&client, table_name.to_owned(), book).await?;
 
     // Пытаемся получить эту книжку
-    let received_book = get_book_with_title(&client, table_name.to_owned(), new_book_key).await?;
+    let received_book = get_book_with_title(&client, table_name.to_owned(), new_book_key.clone()).await?;
     info!(?received_book, "Book received:");
 
-    // Делаем запрос списка
-    let query_res = query_books_with_year_greater(&client, table_name.to_owned(), "year_index".to_owned(), 1999_u64).await?;
+    // Делаем запрос на основании года
+    let query_res =
+        query_books_with_year_greater(&client, table_name.to_owned(), "year_index".to_owned(), 1999_u64).await?;
     info!(?query_res, "Book search received:");
+
+    // Обновление года у конкретной книги
+    update_book_year(&client, table_name.to_owned(), new_book_key.clone(), 2005).await?;
 
     Ok(())
 }
