@@ -2,8 +2,11 @@ mod app_arguments;
 
 use eyre::Context;
 use image::{GenericImageView, ImageDecoder, ImageDecoderExt};
+use lazy_static::lazy;
+use lazy_static::lazy_static;
 use log::{debug, error, info, trace};
 use rayon::{iter::split, prelude::*};
+use regex::Regex;
 use serde::Serialize;
 use std::{
     collections::hash_map::HashMap,
@@ -14,6 +17,11 @@ use std::{
 };
 use structopt::StructOpt;
 use walkdir::WalkDir;
+
+struct CliAppPaths {
+    identify_path: Option<PathBuf>,
+    webpinfo_path: Option<PathBuf>,
+}
 
 #[derive(Debug, Serialize)]
 struct ImageSize {
@@ -35,9 +43,13 @@ fn get_file_type(file: &mut File) -> Result<Option<infer::Type>, eyre::Error> {
     Ok(infer::get(&start_data_buffer))
 }
 
+lazy_static! {
+    static ref RE: Regex = Regex::new(r#"Width:\s*(\d+)[\s\S]*Height:\s*(\d+)"#).unwrap();
+}
+
 fn try_get_image_size(
     path: &Path,
-    identity_app_path: &Path,
+    cli_paths: &CliAppPaths,
 ) -> Result<Option<ImageSize>, eyre::Error> {
     if !path.is_file() {
         return Ok(None);
@@ -87,88 +99,86 @@ fn try_get_image_size(
                 .to_str()
                 .ok_or_else(|| eyre::eyre!("Cannot convert path to string"))?;
 
-            let child = Command::new(identity_app_path)
-                .args(&["-format", "%w,%h", file_path_str])
-                .stdin(Stdio::null())
-                .stderr(Stdio::piped())
-                .stdout(Stdio::piped())
-                .spawn()
-                .wrap_err("Webp identity spawn")?;
+            if let Some(webpinfo_path) = &cli_paths.webpinfo_path {
+                let output = Command::new(webpinfo_path)
+                    .arg(file_path_str)
+                    .stdin(Stdio::null())
+                    .stderr(Stdio::piped())
+                    .stdout(Stdio::piped())
+                    .output()
+                    .wrap_err("Webp info spawn")?;
 
-            let output = child.wait_with_output().wrap_err("Webp identity wait")?;
-            if output.status.success() {
-                let output_str =
-                    std::str::from_utf8(&output.stdout).wrap_err("Webp stdout parse")?;
-                let mut split_iter = output_str.split(",");
-                let width = split_iter
-                    .next()
-                    .ok_or_else(|| eyre::eyre!("WebP width read failed: {}", output_str))?
-                    .parse::<u32>()
-                    .wrap_err_with(|| eyre::eyre!("WebP width parse failed: {}", output_str))?;
-                let height = split_iter
-                    .next()
-                    .ok_or_else(|| eyre::eyre!("WebP out parse failed: {}", output_str))?
-                    .parse::<u32>()
-                    .wrap_err_with(|| eyre::eyre!("WebP width parse failed: {}", output_str))?;
+                if output.status.success() {
+                    let output_str =
+                        std::str::from_utf8(&output.stdout).wrap_err("Webp stdout parse")?;
 
-                Ok(Some(ImageSize { width, height }))
+                    let cap = RE
+                        .captures(output_str)
+                        .ok_or_else(|| eyre::eyre!("Regex capture"))?;
+                    let width = cap
+                        .get(1)
+                        .ok_or_else(|| eyre::eyre!("WebP width read failed: {}", output_str))?
+                        .as_str()
+                        .parse::<u32>()
+                        .wrap_err_with(|| eyre::eyre!("WebP width parse failed: {}", output_str))?;
+
+                    let height = cap
+                        .get(2)
+                        .ok_or_else(|| eyre::eyre!("WebP width read failed: {}", output_str))?
+                        .as_str()
+                        .parse::<u32>()
+                        .wrap_err_with(|| eyre::eyre!("WebP width parse failed: {}", output_str))?;
+
+                    Ok(Some(ImageSize { width, height }))
+                } else {
+                    let output_str =
+                        std::str::from_utf8(&output.stderr).wrap_err("Webp stderr parse")?;
+                    Err(eyre::eyre!(
+                        "WebP wait failed with status {} and stderr: {}",
+                        output.status,
+                        output_str
+                    ))
+                }
+            } else if let Some(identify_path) = &cli_paths.identify_path {
+                let output = Command::new(identify_path)
+                    .args(&["-ping", "-format", "%w,%h", file_path_str])
+                    .stdin(Stdio::null())
+                    .stderr(Stdio::piped())
+                    .stdout(Stdio::piped())
+                    .output()
+                    .wrap_err("Webp identify spawn")?;
+
+                if output.status.success() {
+                    let output_str =
+                        std::str::from_utf8(&output.stdout).wrap_err("Webp stdout parse")?;
+                    let mut split_iter = output_str.split(",");
+                    let width = split_iter
+                        .next()
+                        .ok_or_else(|| eyre::eyre!("WebP width read failed: {}", output_str))?
+                        .parse::<u32>()
+                        .wrap_err_with(|| eyre::eyre!("WebP width parse failed: {}", output_str))?;
+                    let height = split_iter
+                        .next()
+                        .ok_or_else(|| eyre::eyre!("WebP out parse failed: {}", output_str))?
+                        .parse::<u32>()
+                        .wrap_err_with(|| eyre::eyre!("WebP width parse failed: {}", output_str))?;
+
+                    Ok(Some(ImageSize { width, height }))
+                } else {
+                    let output_str =
+                        std::str::from_utf8(&output.stderr).wrap_err("Webp stderr parse")?;
+                    Err(eyre::eyre!(
+                        "WebP wait failed with status {} and stderr: {}",
+                        output.status,
+                        output_str
+                    ))
+                }
             } else {
-                let output_str =
-                    std::str::from_utf8(&output.stderr).wrap_err("Webp stderr parse")?;
-                Err(eyre::eyre!(
-                    "WebP spawn failed with status {} and stderr: {}",
-                    output.status,
-                    output_str
-                ))
+                Err(eyre::eyre!("Webp analyze application is missing"))
             }
         }
         _ => Ok(None),
     }
-
-    // if infer::image::is_webp(&start_data_buffer) {
-    //     let reader = BufReader::new(file);
-    //     let decoder = image::webp::WebPDecoder::new(reader)?;
-
-    //     let size = decoder.dimensions();
-
-    //     Ok(Some(ImageResult {
-    //         path,
-    //         width: size.0,
-    //         height: size.1,
-    //     }))
-    // } else {
-    //     Ok(None)
-    // }
-
-    // let reader = BufReader::new(file);
-    // reader.re
-
-    // infer::image::is_webp(buf)
-
-    // match file_extention {
-    //     "png" => {
-    //         let file = File::open(&path)
-    //             .wrap_err_with(||{
-    //                 format!("Read file {:?}", path)
-    //             })?;
-    //         let reader = BufReader::new(file);
-    //         let decoder = image::webp::WebPDecoder::new(reader)?;
-    //         let size = decoder.dimensions();
-    //         Ok(Some(ImageResult {
-    //             path,
-    //             width: size.0,
-    //             height: size.1
-    //         }))
-
-    //         // let image = image::open(&path)?;
-    //         // Ok(Some(ImageResult {
-    //         //     path,
-    //         //     width: image.width(),
-    //         //     height: image.height(),
-    //         // }))
-    //     }
-    //     _ => Ok(None),
-    // }
 }
 
 fn main() {
@@ -193,8 +203,10 @@ fn main() {
         "Input directory is not a folder"
     );
 
-    let identity_app_path =
-        which::which("identify").expect("ImageMagic's identity application is missing");
+    let cli_app_paths = CliAppPaths {
+        identify_path: which::which("identify").ok(),
+        webpinfo_path: which::which("webpinfo").ok(),
+    };
 
     let mut result: String = WalkDir::new(&arguments.input_directory)
         .into_iter()
@@ -209,7 +221,7 @@ fn main() {
             !ignored
         })
         .filter_map(
-            |entry_path| match try_get_image_size(&entry_path, &identity_app_path) {
+            |entry_path| match try_get_image_size(&entry_path, &cli_app_paths) {
                 Ok(Some(size)) => Some((entry_path, size)),
                 Ok(None) => None,
                 Err(err) => {
@@ -217,28 +229,34 @@ fn main() {
                 }
             },
         )
-        .fold_with("{".to_owned(), |mut prev, (path, size)| {
+        .map(|(path, size)| {
             let val_str = serde_json::to_string(&size).expect("Serialize error");
-            let new_line = format!(
+            format!(
                 "\"{key}\":{val},",
                 key = path.to_str().unwrap(),
                 val = val_str
-            );
-            prev.push_str(&new_line);
-            prev
+            )
         })
-        .collect();
+        // Сборка идет по колонкам, поэтому начинаем просто с пустой строки, а не с '{'
+        .reduce(
+            || String::new(),
+            |mut prev, next| {
+                prev.push_str(&next);
+                prev
+            },
+        );
 
     if result.ends_with(',') {
         // TODO: Может быть оптимальнее заменить последний символ?
         result.pop();
-        result.push('}');
-    } else {
-        result.push_str("}");
     }
 
-    let mut out_file = File::open(arguments.output_file).expect("Output file open failed");
+    let mut out_file = File::create(arguments.output_file).expect("Output file open failed");
+    out_file.write_all(&[b'{']).expect("Result write failed");
     out_file
         .write_all(result.as_bytes())
         .expect("Result write failed");
+    out_file.write_all(&[b'}']).expect("Result write failed");
+
+    // TODO: Validate result
 }
