@@ -1,185 +1,146 @@
 mod app_arguments;
 
 use eyre::Context;
-use image::{GenericImageView, ImageDecoder, ImageDecoderExt};
-use lazy_static::lazy;
-use lazy_static::lazy_static;
-use log::{debug, error, info, trace};
-use rayon::{iter::split, prelude::*};
-use regex::Regex;
-use serde::Serialize;
+use flate2::read::GzDecoder;
+use rayon::prelude::*;
+use scopeguard::defer;
 use std::{
-    collections::hash_map::HashMap,
     fs::File,
-    io::{BufRead, BufReader, Read, Seek, Write},
+    io::{BufReader, Write},
     path::{Path, PathBuf},
-    process::{Command, ExitStatus, Stdio},
+    process::{Command, Stdio},
 };
 use structopt::StructOpt;
 use walkdir::WalkDir;
 
+////////////////////////////////////////////////////////////////////////////////////////////////////////////////////////
+
 struct CliAppPaths {
-    identify_path: Option<PathBuf>,
-    webpinfo_path: Option<PathBuf>,
+    pvr_tex_tool_path: PathBuf,
 }
 
-#[derive(Debug, Serialize)]
-struct ImageSize {
-    #[serde(rename = "w")]
-    width: u32,
+////////////////////////////////////////////////////////////////////////////////////////////////////////////////////////
 
-    #[serde(rename = "h")]
+#[derive(Debug)]
+struct ImageSize {
+    width: u32,
     height: u32,
 }
 
-fn get_file_type(file: &mut File) -> Result<Option<infer::Type>, eyre::Error> {
-    let mut start_data_buffer = [0_u8; 16];
-    if let Err(_) = file.read_exact(&mut start_data_buffer) {
-        return Ok(None);
+////////////////////////////////////////////////////////////////////////////////////////////////////////////////////////
+
+/// Декомпрессия pvrgz -> pvr
+fn decompress_pvrgz_to_pvr(pvrgz_file_path: &Path, pvr_file_path: &Path) -> Result<(), eyre::Error> {
+    let gz_file = File::open(pvrgz_file_path).wrap_err("Pvrgz open")?;
+    let gz_reader = BufReader::new(gz_file);
+    let mut gz_decoder = GzDecoder::new(gz_reader);
+
+    let mut pvr_file = File::create(&pvr_file_path).wrap_err_with(|| format!("Temp PVR create failed: {:?}", pvr_file_path))?;
+
+    std::io::copy(&mut gz_decoder, &mut pvr_file)
+        .wrap_err_with(|| format!("Unzip failed from {:?} to {:?}", pvrgz_file_path, pvr_file_path))?;
+
+    Ok(())
+}
+
+////////////////////////////////////////////////////////////////////////////////////////////////////////////////////////
+
+fn pvrgz_image_size(pvrgz_file_path: &Path, temp_folder: &Path, cli_paths: &CliAppPaths) -> Result<ImageSize, eyre::Error> {
+    // Имя временного PVR файлика в папке TMP
+    let tmp_pvr_file_path = {
+        let tmp = pvrgz_file_path.with_extension("pvr");
+        let pvr_filename = tmp.file_name().unwrap();
+        temp_folder.join(pvr_filename)
+    };
+
+    // Сразу планируем удаление
+    defer!({
+        std::fs::remove_file(tmp_pvr_file_path.clone()).ok();
+    });
+
+    // Распаковка PVRGZ в PVR во временной папке + чистка
+    decompress_pvrgz_to_pvr(&pvrgz_file_path, &tmp_pvr_file_path)?;
+
+    // Пути к временным png + out.pvr
+    let tmp_pvr_file_decompressed_path = tmp_pvr_file_path.with_extension("out.pvr");
+    let tmp_png_file_path = tmp_pvr_file_path.with_extension("png");
+
+    // Сразу планируем удаление
+    defer!({
+        std::fs::remove_file(tmp_png_file_path.clone()).ok();
+        std::fs::remove_file(tmp_pvr_file_decompressed_path.clone()).ok();
+    });
+
+    // Конвертация в png + out.pvr
+    let output = Command::new(&cli_paths.pvr_tex_tool_path)
+        .args(&[
+            "-i",
+            tmp_pvr_file_path.to_str().unwrap(),
+            "-d",
+            tmp_png_file_path.to_str().unwrap(),
+            "-o",
+            tmp_pvr_file_decompressed_path.to_str().unwrap(),
+            "-f",
+            "r4g4b4a4",
+        ])
+        .stderr(Stdio::piped())
+        .stdout(Stdio::null())
+        .stdin(Stdio::null())
+        .output()
+        .wrap_err("PVRTexTool spawn")?;
+
+    // Проверка результатов вызова
+    if !output.status.success() {
+        let stderr_text = std::str::from_utf8(&output.stderr).wrap_err("PVRTexTool stderr parse")?;
+        return Err(eyre::eyre!(
+            "PVRTexTool failed with status '{}' and err: {}",
+            output.status,
+            stderr_text
+        ));
     }
-    file.seek(std::io::SeekFrom::Start(0))
-        .wrap_err("Cannot seek file")?;
 
-    Ok(infer::get(&start_data_buffer))
+    // Чтобы точно закрыть дочерний процесс
+    drop(output);
+
+    // Размер из получившейся PNG
+    let size = imagesize::size(&tmp_png_file_path)?;
+
+    Ok(ImageSize {
+        width: size.width as u32,
+        height: size.height as u32,
+    })
 }
 
-lazy_static! {
-    static ref RE: Regex = Regex::new(r#"Width:\s*(\d+)[\s\S]*Height:\s*(\d+)"#).unwrap();
-}
+////////////////////////////////////////////////////////////////////////////////////////////////////////////////////////
 
-fn try_get_image_size(
-    path: &Path,
-    cli_paths: &CliAppPaths,
-) -> Result<Option<ImageSize>, eyre::Error> {
+// Попытка получения размера файлика
+fn try_get_image_size(path: &Path, cli_paths: &CliAppPaths, temp_folder: &Path) -> Result<Option<ImageSize>, eyre::Error> {
     if !path.is_file() {
         return Ok(None);
     }
 
-    let mut file = File::open(&path).wrap_err_with(|| format!("Read file {:?}", path))?;
-
-    let file_type = match get_file_type(&mut file).wrap_err("File type detection")? {
-        Some(res) => res,
+    let file_ext = match path.extension().and_then(|ext| ext.to_str()) {
+        Some(ext) => ext.to_lowercase(),
         None => return Ok(None),
     };
 
-    //trace!("Image {:?} type: {:?}", path, infer_res);
-
-    let file_ext = file_type.extension();
-
-    match file_ext {
-        "jpg" | "png" => {
-            let reader = BufReader::new(file);
-
-            let size = match file_ext {
-                "jpg" => {
-                    let decoder =
-                        image::jpeg::JpegDecoder::new(reader).wrap_err("Decode jpeg file")?;
-                    decoder.dimensions()
-                }
-                "png" => {
-                    let decoder =
-                        image::png::PngDecoder::new(reader).wrap_err("Decode png file")?;
-                    decoder.dimensions()
-                }
-                _ => {
-                    // TODO: Как-то лучше сделать, чтобы не надо было в рантайме
-                    unreachable!("Must be valid type");
-                }
-            };
-
+    match file_ext.as_str() {
+        "jpg" | "png" | "webp" | "jpeg" => {
+            let size = imagesize::size(path)?;
             Ok(Some(ImageSize {
-                width: size.0,
-                height: size.1,
+                width: size.width as u32,
+                height: size.height as u32,
             }))
         }
-        "webp" => {
-            drop(file);
-
-            let file_path_str = path
-                .to_str()
-                .ok_or_else(|| eyre::eyre!("Cannot convert path to string"))?;
-
-            if let Some(webpinfo_path) = &cli_paths.webpinfo_path {
-                let output = Command::new(webpinfo_path)
-                    .arg(file_path_str)
-                    .stdin(Stdio::null())
-                    .stderr(Stdio::piped())
-                    .stdout(Stdio::piped())
-                    .output()
-                    .wrap_err("Webp info spawn")?;
-
-                if output.status.success() {
-                    let output_str =
-                        std::str::from_utf8(&output.stdout).wrap_err("Webp stdout parse")?;
-
-                    let cap = RE
-                        .captures(output_str)
-                        .ok_or_else(|| eyre::eyre!("Regex capture"))?;
-                    let width = cap
-                        .get(1)
-                        .ok_or_else(|| eyre::eyre!("WebP width read failed: {}", output_str))?
-                        .as_str()
-                        .parse::<u32>()
-                        .wrap_err_with(|| eyre::eyre!("WebP width parse failed: {}", output_str))?;
-
-                    let height = cap
-                        .get(2)
-                        .ok_or_else(|| eyre::eyre!("WebP width read failed: {}", output_str))?
-                        .as_str()
-                        .parse::<u32>()
-                        .wrap_err_with(|| eyre::eyre!("WebP width parse failed: {}", output_str))?;
-
-                    Ok(Some(ImageSize { width, height }))
-                } else {
-                    let output_str =
-                        std::str::from_utf8(&output.stderr).wrap_err("Webp stderr parse")?;
-                    Err(eyre::eyre!(
-                        "WebP wait failed with status {} and stderr: {}",
-                        output.status,
-                        output_str
-                    ))
-                }
-            } else if let Some(identify_path) = &cli_paths.identify_path {
-                let output = Command::new(identify_path)
-                    .args(&["-ping", "-format", "%w,%h", file_path_str])
-                    .stdin(Stdio::null())
-                    .stderr(Stdio::piped())
-                    .stdout(Stdio::piped())
-                    .output()
-                    .wrap_err("Webp identify spawn")?;
-
-                if output.status.success() {
-                    let output_str =
-                        std::str::from_utf8(&output.stdout).wrap_err("Webp stdout parse")?;
-                    let mut split_iter = output_str.split(",");
-                    let width = split_iter
-                        .next()
-                        .ok_or_else(|| eyre::eyre!("WebP width read failed: {}", output_str))?
-                        .parse::<u32>()
-                        .wrap_err_with(|| eyre::eyre!("WebP width parse failed: {}", output_str))?;
-                    let height = split_iter
-                        .next()
-                        .ok_or_else(|| eyre::eyre!("WebP out parse failed: {}", output_str))?
-                        .parse::<u32>()
-                        .wrap_err_with(|| eyre::eyre!("WebP width parse failed: {}", output_str))?;
-
-                    Ok(Some(ImageSize { width, height }))
-                } else {
-                    let output_str =
-                        std::str::from_utf8(&output.stderr).wrap_err("Webp stderr parse")?;
-                    Err(eyre::eyre!(
-                        "WebP wait failed with status {} and stderr: {}",
-                        output.status,
-                        output_str
-                    ))
-                }
-            } else {
-                Err(eyre::eyre!("Webp analyze application is missing"))
-            }
+        "pvrgz" => {
+            let res = pvrgz_image_size(path, temp_folder, cli_paths).wrap_err("Pvrgz convert")?;
+            Ok(Some(res))
         }
         _ => Ok(None),
     }
 }
+
+////////////////////////////////////////////////////////////////////////////////////////////////////////////////////////
 
 fn main() {
     human_panic::setup_panic!();
@@ -187,32 +148,32 @@ fn main() {
 
     let arguments = app_arguments::AppArguments::from_args();
 
-    let filter_level = if arguments.verbose {
-        log::LevelFilter::Trace
-    } else {
-        log::LevelFilter::Info
-    };
-    env_logger::builder().filter_level(filter_level).init();
-
-    assert!(
-        arguments.input_directory.exists(),
-        "Input directory does not exist"
-    );
-    assert!(
-        arguments.input_directory.is_dir(),
-        "Input directory is not a folder"
-    );
+    assert!(arguments.input_directory.exists(), "Input directory does not exist");
+    assert!(arguments.input_directory.is_dir(), "Input directory is not a folder");
 
     let cli_app_paths = CliAppPaths {
-        identify_path: which::which("identify").ok(),
-        webpinfo_path: which::which("webpinfo").ok(),
+        pvr_tex_tool_path: which::which("PVRTexToolCLI").expect("PVRTexToolCLI application is missing"),
     };
 
-    let mut result: String = WalkDir::new(&arguments.input_directory)
+    let temp_folder = {
+        let app_run_uuid = uuid::Uuid::new_v4().to_string();
+        let temp_folder = std::env::temp_dir().join("images_info").join(app_run_uuid);
+        if !temp_folder.exists() {
+            std::fs::create_dir_all(&temp_folder).expect("Temp dir create failed");
+        }
+        temp_folder
+    };
+
+    defer!({
+        std::fs::remove_dir(temp_folder.clone()).ok();
+    });
+
+    let result: String = WalkDir::new(&arguments.input_directory)
         .into_iter()
         .par_bridge()
         .filter_map(|entry| entry.ok())
         .map(|entry| entry.into_path())
+        // Фильтрация игнорируемых директорий
         .filter(|entry_path| {
             let ignored = arguments
                 .ignore_directories
@@ -220,21 +181,21 @@ fn main() {
                 .any(|ignore_dir| entry_path.starts_with(ignore_dir));
             !ignored
         })
-        .filter_map(
-            |entry_path| match try_get_image_size(&entry_path, &cli_app_paths) {
-                Ok(Some(size)) => Some((entry_path, size)),
-                Ok(None) => None,
-                Err(err) => {
-                    panic!("Image info error: {:?} for file: {:?}", err, entry_path);
-                }
-            },
-        )
+        // Попытка получения размера + прерывание работы в случае ошибки
+        .filter_map(|entry_path| match try_get_image_size(&entry_path, &cli_app_paths, &temp_folder) {
+            Ok(Some(size)) => Some((entry_path, size)),
+            Ok(None) => None,
+            Err(err) => {
+                panic!("Image {:?} error: {:?} ", entry_path, err);
+            }
+        })
+        // Конвертация в строку JSON
         .map(|(path, size)| {
-            let val_str = serde_json::to_string(&size).expect("Serialize error");
             format!(
-                "\"{key}\":{val},",
+                "\"{key}\":{{\"w\":{w},\"h\":{h}}}",
                 key = path.to_str().unwrap(),
-                val = val_str
+                w = size.width,
+                h = size.height
             )
         })
         // Сборка идет по колонкам, поэтому начинаем просто с пустой строки, а не с '{'
@@ -246,15 +207,11 @@ fn main() {
             },
         );
 
-    if result.ends_with(',') {
-        // TODO: Может быть оптимальнее заменить последний символ?
-        result.pop();
-    }
-
+    // Пишем результат в файлик
     let mut out_file = File::create(arguments.output_file).expect("Output file open failed");
     out_file.write_all(&[b'{']).expect("Result write failed");
     out_file
-        .write_all(result.as_bytes())
+        .write_all(result.trim_end_matches(',').as_bytes())
         .expect("Result write failed");
     out_file.write_all(&[b'}']).expect("Result write failed");
 
