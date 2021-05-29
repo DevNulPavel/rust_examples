@@ -13,17 +13,20 @@ use walkdir::WalkDir;
 
 // Попытка получения размера файлика
 fn try_get_image_size(path: &Path) -> Result<Option<ImageSize>, eyre::Error> {
+    // Файлик?
     if !path.is_file() {
         return Ok(None);
     }
 
-    let file_ext = match path.extension().and_then(|ext| ext.to_str()) {
-        Some(ext) => ext.to_lowercase(),
+    // Палучаем расширение с нижнем регистре, либо выходим с None
+    let file_ext = match path.extension().and_then(|ext| ext.to_str()).map(|ext| ext.to_lowercase()) {
+        Some(ext) => ext,
         None => return Ok(None),
     };
 
     match file_ext.as_str() {
         "jpg" | "png" | "webp" | "jpeg" => {
+            // Получаем размер картинки для файлика
             let size = imagesize::size(path)?;
             Ok(Some(ImageSize {
                 width: size.width as u32,
@@ -31,6 +34,7 @@ fn try_get_image_size(path: &Path) -> Result<Option<ImageSize>, eyre::Error> {
             }))
         }
         "pvrgz" => {
+            // Нашим собстенным способом читаем размер картинки из PVRGZ
             let res = pvrgz_image_size(path).wrap_err("Pvrgz convert")?;
             Ok(Some(res))
         }
@@ -76,7 +80,7 @@ fn main() {
             Ok(Some(size)) => Some((entry_path, size)),
             Ok(None) => None,
             Err(err) => {
-                panic!("\nImage {:?} error: {:?} ", entry_path, err);
+                panic!("\nImage {:?} error: {:?}\n", entry_path, err);
             }
         })
         // Конвертация в строку JSON
@@ -93,7 +97,7 @@ fn main() {
             prev.push_str(&next);
             prev
         });*/
-        // Сборка идет по колонкам, поэтому начинаем просто с пустой строки, а не с '{'
+        // Сборка идет группами в виде дерева, поэтому начинаем просто с пустой строки, а не с '{'
         .reduce(
             || String::new(),
             |mut prev, next| {
@@ -105,11 +109,11 @@ fn main() {
     // Пишем результат в файлик
     {
         let mut out_file = File::create(arguments.output_file).expect("Output file open failed");
-        out_file.write_all(&[b'{']).expect("Result write failed");
+        out_file.write_all(b"{").expect("Result write failed");
         out_file
             .write_all(result.trim_end_matches(',').as_bytes())
             .expect("Result write failed");
-        out_file.write_all(&[b'}']).expect("Result write failed");
+        out_file.write_all(b"}").expect("Result write failed");
     }
 
     // TODO: Validate result

@@ -15,10 +15,5 @@ pub struct AppArguments {
 
     /// Output file path
     #[structopt(long, parse(from_os_str))]
-    pub output_file: PathBuf,
-
-    // The number of occurrences of the `v/verbose` flag
-    /// Verbose mode (-v, -vv, -vvv, etc.)
-    #[structopt(short, long)]
-    pub verbose: bool
+    pub output_file: PathBuf
 }
