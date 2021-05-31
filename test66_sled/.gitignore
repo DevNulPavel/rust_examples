@@ -1,0 +1,5 @@
+/target
+**/*.rs.bk
+env/*.env
+.DS_Store
+db/
