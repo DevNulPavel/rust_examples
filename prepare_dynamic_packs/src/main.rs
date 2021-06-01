@@ -8,7 +8,12 @@ use crate::{
 use fancy_regex::Regex;
 use log::{debug, error, info, trace, warn};
 use rayon::prelude::*;
-use std::{collections::HashMap, fs::File, io::Write, path::Path};
+use std::{
+    collections::HashMap,
+    fs::File,
+    io::Write,
+    path::{Path, PathBuf},
+};
 use structopt::StructOpt;
 
 ////////////////////////////////////////////////////////////////////////////////////////////////////////////////////////
@@ -48,7 +53,75 @@ fn validate_arguments(arguments: &AppArguments) {
     assert!(arguments.resources_directory.is_dir(), "Resources directory is not a directory");
 }
 
-fn pack_info_for_config(max_pack_size: u64, resources_root_folder: &Path, pack_config: &PackConfig) -> Vec<PackData> {
+struct PackIter<'a, I: Iterator<Item = PathBuf>> {
+    source: I,
+    sub_pack_number: u32,
+    max_pack_size: u64,
+    pack_config: &'a PackConfig,
+}
+impl<'a, I: Iterator<Item = PathBuf>> Iterator for PackIter<'a, I> {
+    type Item = PackData;
+    fn next(&mut self) -> Option<Self::Item> {
+        // Список файликов пака
+        let mut pack_files = Vec::new();
+        // Размер пака
+        let mut cur_pack_size = 0;
+
+        'internal_loop: loop {
+            // Получаем из итератора путь к файлику, но не изымаем из итератора
+            let file_full_path = match self.source.next() {
+                Some(path) => {
+                    // trace!("Peek path: {:?}", path);
+                    path
+                }
+                None => {
+                    // trace!("All files iter break");
+                    // break 'top_loop;
+                    return None;
+                }
+            };
+
+            // Читаем метаданные файлика
+            let meta = std::fs::metadata(&file_full_path).expect("Metadata read failed");
+
+            // Увеличиваем размер
+            cur_pack_size = cur_pack_size + meta.len();
+
+            // Записываем
+            pack_files.push(file_full_path);
+
+            // Если размер уже переполнен, тогда прерываем внутренний цикл
+            if cur_pack_size >= self.max_pack_size {
+                break 'internal_loop;
+            }
+        }
+
+        // Пустой пак?
+        // if pack_files.len() == 0 {
+        //     continue 'top_loop;
+        // }
+
+        // Записываем информацию о паке
+        let res = PackData {
+            files_full_paths: pack_files,
+            pack_name: format!("{}_{}", self.pack_config.name, self.sub_pack_number),
+            required: self.pack_config.required,
+            priority: self.pack_config.priority,
+            pack_size: cur_pack_size,
+        };
+
+        // Номер под-пака увеличиваем на 1
+        self.sub_pack_number = self.sub_pack_number + 1;
+
+        Some(res)
+    }
+}
+
+fn pack_info_for_config<'a>(
+    max_pack_size: u64,
+    resources_root_folder: &'a Path,
+    pack_config: &'a PackConfig,
+) -> impl 'a + Iterator<Item = PackData> {
     // Компилируем переданные регулярные выражения
     let resource_regex_filters: Vec<Regex> = pack_config
         .resources
@@ -57,12 +130,11 @@ fn pack_info_for_config(max_pack_size: u64, resources_root_folder: &Path, pack_c
         .collect();
 
     // На основании регулярок получаем список подходящих директорий
-    let mut all_files_iter = walkdir::WalkDir::new(resources_root_folder)
+    let all_files_iter = walkdir::WalkDir::new(resources_root_folder)
         .into_iter()
-        // .par_bridge()
         .map(|entry| entry.expect("WalkDir entry unwrap failed"))
         .filter(|entry| entry.path().is_dir())
-        .filter(|entry| {
+        .filter(move |entry| {
             // trace!("Folder check: {:?}", entry.path());
             let entry_path_str = entry
                 .path()
@@ -77,76 +149,44 @@ fn pack_info_for_config(max_pack_size: u64, resources_root_folder: &Path, pack_c
         // Итератор списка всех файликов в директориях конфига пака
         .map(|entry| walkdir::WalkDir::new(entry.path()))
         .flatten()
-        .map(|entry|{
-            entry.expect("WalkDir entry unwrap failed").into_path()
-        })
-        .filter(|path| path.is_file() );
+        .map(|entry| entry.expect("WalkDir entry unwrap failed").into_path())
+        .filter(|path| path.is_file());
 
-    // Результат
-    let mut result = Vec::new();
-    let mut sub_pack_number = 0;
-    'top_loop: loop {
-        // Список файликов пака
-        let mut pack_files = Vec::new();
-        // Размер пака
-        let mut cur_pack_size = 0;
-
-        'internal_loop: loop {
-            // Получаем из итератора путь к файлику, но не изымаем из итератора
-            let file_path = match all_files_iter.next() {
-                Some(path) => {
-                    trace!("Peek path: {:?}", path);
-                    path
-                },
-                None => {
-                    trace!("All files iter break");
-                    break 'top_loop;
-                }
-            };
-
-            // Читаем метаданные файлика
-            let meta = std::fs::metadata(&file_path).expect("Metadata read failed");
-
-            // Увеличиваем размер
-            cur_pack_size = cur_pack_size + meta.len();
-
-            // Записываем
-            pack_files.push(file_path);
-
-            // Если размер уже переполнен, тогда прерываем внутренний цикл
-            if cur_pack_size >= max_pack_size {
-                break 'internal_loop;
-            }
-        }
-
-        // Пустой пак?
-        if pack_files.len() == 0 {
-            continue 'top_loop;
-        }
-
-        // Записываем информацию о паке
-        result.push(PackData {
-            files: pack_files,
-            pack_name: format!("{}_{}", pack_config.name, sub_pack_number),
-            required: pack_config.required,
-            priority: pack_config.priority,
-            pack_size: cur_pack_size,
-        });
-
-        // Номер под-пака увеличиваем на 1
-        sub_pack_number = sub_pack_number + 1;
+    PackIter {
+        max_pack_size,
+        pack_config,
+        source: all_files_iter,
+        sub_pack_number: 0,
     }
-
-    result
 }
 
-/// На основании списка конфигов для паков формируем хэшмап с информацией о паках
-fn generate_pack_infos(max_pack_size: u64, resources_root_folder: &Path, pack_configs: Vec<PackConfig>) -> Vec<PackData> {
-    pack_configs
-        .par_iter()
-        .map(|pack_config| pack_info_for_config(max_pack_size, resources_root_folder, pack_config))
-        .flatten()
-        .collect()
+fn create_pack_zip(resources_root_folder: &Path, result_packs_folder: &Path, pack: &PackData) {
+    let result_pack_path = result_packs_folder.join(format!("{}.dpk", pack.pack_name));
+    trace!(
+        "Zip file write (thread {:?}): {:?}",
+        rayon::current_thread_index(),
+        result_pack_path
+    );
+
+    let file = File::create(result_pack_path).expect("Result file open failed");
+    let mut zip = zip::ZipWriter::new(file);
+
+    // TODO: Defer delete if error
+
+    pack.files_full_paths.iter().for_each(|file_path| {
+        let options = zip::write::FileOptions::default().compression_method(zip::CompressionMethod::Deflated); // TODO: Params
+        let relative_path = file_path
+            .strip_prefix(resources_root_folder)
+            .expect("File prefix strip")
+            .to_str()
+            .expect("Path to string conver err");
+        zip.start_file(relative_path, options).expect("Create zip file err");
+
+        let mut original_file = File::open(file_path).expect("Original file open err");
+        std::io::copy(&mut original_file, &mut zip).expect("File copy failed");
+    });
+
+    zip.finish().expect("Zip file write failed");
 }
 
 fn main() {
@@ -166,11 +206,16 @@ fn main() {
     validate_arguments(&arguments);
 
     // Пасим json конфиг
-    let config_file = File::open(arguments.dynamic_packs_config_path).expect("Dynamic packs config file open failed");
+    let config_file = File::open(&arguments.dynamic_packs_config_path).expect("Dynamic packs config file open failed");
     let packs_configs: Vec<PackConfig> = serde_json::from_reader(config_file).expect("Dynamic packs config parse failed");
     debug!("Packs config: {:#?}", packs_configs);
 
     // Делим переданные нам конфиги на паки
-    let pack_infos = generate_pack_infos(arguments.max_pack_size, &arguments.resources_directory, packs_configs);
-    debug!("Packs infos: {:#?}", pack_infos);
+    packs_configs
+        .par_iter()
+        .flat_map(|pack_config| pack_info_for_config(arguments.max_pack_size, &arguments.resources_directory, pack_config).par_bridge())
+        .for_each(|pack_info| {
+            // debug!("Pack info: {:#?}", pack_info);
+            create_pack_zip(&arguments.resources_directory, &arguments.output_dynamic_packs_dir, &pack_info)
+        });
 }

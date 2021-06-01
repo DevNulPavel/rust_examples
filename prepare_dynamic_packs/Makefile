@@ -11,7 +11,7 @@ TEST_APP:
 		--resources-directory "/Users/devnul/projects/island2/build/Emscripten_Standalone/res_to_server" \
 		--output-resources-config-path "/Users/devnul/projects/island2/build/Emscripten_Standalone/res_to_server/packResources.json" \
 		--output-dynamic-packs-dir "/Users/devnul/projects/island2/build/Emscripten_Standalone/res_to_server/res/dynamicPacks" \
-		-vv
+		-vvv
 
 # Могут быть проблемы со сборкой для Linux
 BUILD_UNIVERSAL_APP_NATIVE:
