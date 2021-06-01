@@ -18,7 +18,7 @@ fn try_get_image_size(path: &Path) -> Result<Option<ImageSize>, eyre::Error> {
         return Ok(None);
     }
 
-    // Палучаем расширение с нижнем регистре, либо выходим с None
+    // Получаем расширение с нижнем регистре, либо выходим с None
     let file_ext = match path.extension().and_then(|ext| ext.to_str()).map(|ext| ext.to_lowercase()) {
         Some(ext) => ext,
         None => return Ok(None),
