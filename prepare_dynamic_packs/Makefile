@@ -2,15 +2,16 @@
 .SILENT:
 
 TEST_APP:
+	# --resources-directory "/Users/devnul/projects/island2/build/Emscripten_Standalone/res_to_server
 	export RUST_BACKTRACE=1 && \
 	export RUST_LOG=error && \
 	cargo build --release && \
-	target/release/prepare_dynamic_packs \
-		--dynamic-packs-config-path "/Users/devnul/projects/island2/project/targets/Emscripten/prepare_res/dynamic_packs.json" \
+	time target/release/prepare_dynamic_packs \
+		--dynamic-packs-config-path "test_config/dynamic_packs.json" \
 		--resources-directory "/Users/devnul/projects/island2/build/Emscripten_Standalone/res_to_server" \
 		--output-resources-config-path "/Users/devnul/projects/island2/build/Emscripten_Standalone/res_to_server/packResources.json" \
 		--output-dynamic-packs-dir "/Users/devnul/projects/island2/build/Emscripten_Standalone/res_to_server/res/dynamicPacks" \
-		-vvv
+		-vv
 
 # Могут быть проблемы со сборкой для Linux
 BUILD_UNIVERSAL_APP_NATIVE:

@@ -23,7 +23,7 @@ pub struct AppArguments {
 
     /// Max pack size
     #[structopt(long, default_value = "512000")] // 500 * 1024 = 512000
-    pub max_pack_size: u32,
+    pub max_pack_size: u64,
 
     /// Verbose
     #[structopt(short, long, parse(from_occurrences))]
