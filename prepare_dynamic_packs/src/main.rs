@@ -228,16 +228,15 @@ fn main() {
     // Делим переданные нам конфиги на паки
     let result_packs_infos: Vec<PackData> = packs_configs
         .par_iter()
-        .flat_map_iter(|pack_config| pack_info_for_config(arguments.max_pack_size, &arguments.resources_directory, pack_config) )
+        .flat_map(|pack_config| pack_info_for_config(arguments.max_pack_size, &arguments.resources_directory, pack_config).par_bridge() )
+        // Создаем .dpk архивы в процессе
+        .inspect(|pack_info|{
+            // debug!("Pack info: {:#?}", pack_info);
+            create_pack_zip(&arguments.output_dynamic_packs_dir, pack_info)
+        })
         .collect();
     drop(packs_configs);
     debug!("Result packs infos: {:?}", result_packs_infos);
-
-    // Создаем .dpk архивы
-    result_packs_infos.par_iter().for_each(|pack_info| {
-        // debug!("Pack info: {:#?}", pack_info);
-        create_pack_zip(&arguments.output_dynamic_packs_dir, &pack_info)
-    });
 
     // Создаем директорию для конечного конфига
     if let Some(parent) = arguments.output_resources_config_path.parent() {
