@@ -10,9 +10,15 @@ pub struct PackConfig{
 }
 
 #[derive(Debug)]
+pub struct PackFilePathInfo{
+    pub absolute: PathBuf,
+    pub relative: String
+}
+
+#[derive(Debug)]
 pub struct PackData {
     pub pack_name: String,
-    pub files_full_paths: Vec<PathBuf>,
+    pub files_paths: Vec<PackFilePathInfo>,
     pub priority: i32,
     pub required: bool,
     pub pack_size: u64

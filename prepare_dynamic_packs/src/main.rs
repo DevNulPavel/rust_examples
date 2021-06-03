@@ -3,13 +3,14 @@ mod types;
 
 use crate::{
     app_arguments::AppArguments,
-    types::{PackConfig, PackData},
+    types::{PackConfig, PackData, PackFilePathInfo},
 };
 use fancy_regex::Regex;
 use log::{debug, error, info, trace, warn};
 use rayon::prelude::*;
 use std::{
     collections::HashMap,
+    fmt::format,
     fs::File,
     io::Write,
     path::{Path, PathBuf},
@@ -58,6 +59,7 @@ struct PackIter<'a, I: Iterator<Item = PathBuf>> {
     sub_pack_number: u32,
     max_pack_size: u64,
     pack_config: &'a PackConfig,
+    resources_root_folder: &'a Path,
 }
 impl<'a, I: Iterator<Item = PathBuf>> Iterator for PackIter<'a, I> {
     type Item = PackData;
@@ -87,8 +89,19 @@ impl<'a, I: Iterator<Item = PathBuf>> Iterator for PackIter<'a, I> {
             // Увеличиваем размер
             cur_pack_size = cur_pack_size + meta.len();
 
+            // Закешируем относительный путь
+            let relative_path = file_full_path
+                .strip_prefix(self.resources_root_folder)
+                .expect("Resources root strip failed")
+                .to_str()
+                .expect("Convert to string failed")
+                .to_owned();
+
             // Записываем
-            pack_files.push(file_full_path);
+            pack_files.push(PackFilePathInfo {
+                absolute: file_full_path,
+                relative: relative_path,
+            });
 
             // Если размер уже переполнен, тогда прерываем внутренний цикл
             if cur_pack_size >= self.max_pack_size {
@@ -103,7 +116,7 @@ impl<'a, I: Iterator<Item = PathBuf>> Iterator for PackIter<'a, I> {
 
         // Записываем информацию о паке
         let res = PackData {
-            files_full_paths: pack_files,
+            files_paths: pack_files,
             pack_name: format!("{}_{}", self.pack_config.name, self.sub_pack_number),
             required: self.pack_config.required,
             priority: self.pack_config.priority,
@@ -153,6 +166,7 @@ fn pack_info_for_config<'a>(
         .filter(|path| path.is_file());
 
     PackIter {
+        resources_root_folder,
         max_pack_size,
         pack_config,
         source: all_files_iter,
@@ -160,7 +174,7 @@ fn pack_info_for_config<'a>(
     }
 }
 
-fn create_pack_zip(resources_root_folder: &Path, result_packs_folder: &Path, pack: &PackData) {
+fn create_pack_zip(result_packs_folder: &Path, pack: &PackData) {
     let result_pack_path = result_packs_folder.join(format!("{}.dpk", pack.pack_name));
     trace!(
         "Zip file write (thread {:?}): {:?}",
@@ -168,22 +182,20 @@ fn create_pack_zip(resources_root_folder: &Path, result_packs_folder: &Path, pac
         result_pack_path
     );
 
-    let file = File::create(result_pack_path).expect("Result file open failed");
+    let file = File::create(&result_pack_path).expect("Result file open failed");
     let mut zip = zip::ZipWriter::new(file);
 
-    // TODO: Defer delete if error
+    // Defer delete if error
+    scopeguard::defer_on_unwind!({
+        std::fs::remove_file(result_pack_path).ok();
+    });
 
-    pack.files_full_paths.iter().for_each(|file_path| {
+    pack.files_paths.iter().for_each(|path_info| {
         let options = zip::write::FileOptions::default().compression_method(zip::CompressionMethod::Deflated); // TODO: Params
-        let relative_path = file_path
-            .strip_prefix(resources_root_folder)
-            .expect("File prefix strip")
-            .to_str()
-            .expect("Path to string conver err");
-        zip.start_file(relative_path, options).expect("Create zip file err");
+        zip.start_file(&path_info.relative, options).expect("Create zip file err");
 
-        let mut original_file = File::open(file_path).expect("Original file open err");
-        std::io::copy(&mut original_file, &mut zip).expect("File copy failed");
+        let mut original_file = File::open(&path_info.absolute).expect("Original file open err");
+        std::io::copy(&mut original_file, &mut zip).expect("File copy failed"); // TODO: Bufffer size
     });
 
     zip.finish().expect("Zip file write failed");
@@ -210,12 +222,59 @@ fn main() {
     let packs_configs: Vec<PackConfig> = serde_json::from_reader(config_file).expect("Dynamic packs config parse failed");
     debug!("Packs config: {:#?}", packs_configs);
 
+    // Создаем директорию для паков если надо
+    std::fs::create_dir_all(&arguments.output_dynamic_packs_dir).expect("Output packs directory create failed");
+
     // Делим переданные нам конфиги на паки
-    packs_configs
+    let result_packs_infos: Vec<PackData> = packs_configs
         .par_iter()
-        .flat_map(|pack_config| pack_info_for_config(arguments.max_pack_size, &arguments.resources_directory, pack_config).par_bridge())
-        .for_each(|pack_info| {
-            // debug!("Pack info: {:#?}", pack_info);
-            create_pack_zip(&arguments.resources_directory, &arguments.output_dynamic_packs_dir, &pack_info)
-        });
+        .flat_map_iter(|pack_config| pack_info_for_config(arguments.max_pack_size, &arguments.resources_directory, pack_config) )
+        .collect();
+    drop(packs_configs);
+    debug!("Result packs infos: {:?}", result_packs_infos);
+
+    // Создаем .dpk архивы
+    result_packs_infos.par_iter().for_each(|pack_info| {
+        // debug!("Pack info: {:#?}", pack_info);
+        create_pack_zip(&arguments.output_dynamic_packs_dir, &pack_info)
+    });
+
+    // Создаем директорию для конечного конфига
+    if let Some(parent) = arguments.output_resources_config_path.parent() {
+        std::fs::create_dir_all(parent).expect("Output resources config create failed");
+    }
+
+    // Создаем конечный конфиг
+    let mut result_config_file = File::create(&arguments.output_resources_config_path).expect("Result config file open failed");
+    let resources_str: String = result_packs_infos
+        .par_iter()
+        .fold_with(String::new(), |mut prev, config| {
+            config.files_paths.iter().for_each(|path_info| {
+                let line = format!(r#""{}":"{}","#, path_info.relative, config.pack_name);
+                prev.push_str(&line);
+            });
+            prev
+        })
+        .collect();
+    result_config_file.write_all(br#"{"resources":{"#).unwrap();
+    result_config_file
+        .write_all(resources_str.trim_end_matches(",").as_bytes())
+        .unwrap();
+    drop(resources_str);
+    result_config_file.write_all(br#"},"packs":["#).unwrap();
+    let packs_str: String = result_packs_infos
+        .par_iter()
+        .fold_with(String::new(), |mut prev, config| {
+            let dpk_path = arguments.config_pack_file_dir.join(format!("{}.dpk", config.pack_name));
+            let line = format!(
+                r#"{{"name":"{}","path":"{}","priority":{},"required":{}}},"#,
+                config.pack_name, dpk_path.to_str().unwrap(), config.priority, config.required
+            );
+            prev.push_str(&line);
+            prev
+        })
+        .collect();
+    result_config_file.write_all(packs_str.trim_end_matches(",").as_bytes()).unwrap();
+    drop(packs_str);
+    result_config_file.write_all(br#"]}"#).unwrap();
 }

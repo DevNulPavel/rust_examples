@@ -17,6 +17,10 @@ pub struct AppArguments {
     #[structopt(long, parse(from_os_str))]
     pub output_resources_config_path: PathBuf,
 
+    /// .dpk file path prefix in config
+    #[structopt(long, parse(from_os_str))]
+    pub config_pack_file_dir: PathBuf,
+
     /// Output dynamic packs dir
     #[structopt(long, parse(from_os_str))]
     pub output_dynamic_packs_dir: PathBuf,

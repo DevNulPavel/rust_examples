@@ -362,6 +362,7 @@ dependencies = [
  "log",
  "pretty_env_logger",
  "rayon",
+ "scopeguard",
  "serde",
  "serde_json",
  "structopt",
