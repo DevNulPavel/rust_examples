@@ -5,7 +5,7 @@ mod types;
 use crate::{pvr::pvrgz_image_size, types::ImageSize};
 use eyre::Context;
 use rayon::prelude::*;
-use std::{fs::File, io::Write, path::Path};
+use std::{fmt::Write as FmtWrite, fs::File, io::Write as IoWrite, path::Path};
 use structopt::StructOpt;
 use walkdir::WalkDir;
 
@@ -83,28 +83,24 @@ fn main() {
                 panic!("\nImage {:?} error: {:?}\n", entry_path, err);
             }
         })
-        // Конвертация в строку JSON
-        .map(|(path, size)| {
-            format!(
-                "\"{key}\":{{\"w\":{w},\"h\":{h}}},",
-                key = path.to_str().unwrap(),
-                w = size.width,
-                h = size.height
-            )
-        })
-        // Вариант однопоточный
-        /*.fold(String::new(), |mut prev, next| {
-            prev.push_str(&next);
-            prev
-        });*/
         // Сборка идет группами в виде дерева, поэтому начинаем просто с пустой строки, а не с '{'
-        .reduce(
+        .fold(
             || String::new(),
-            |mut prev, next| {
-                prev.push_str(&next);
+            |mut prev, (path, size)| {
+                // Конвертация в строку JSON с добавлением к прошлой строке
+                write!(
+                    prev,
+                    "\"{key}\":{{\"w\":{w},\"h\":{h}}},",
+                    key = path.to_str().unwrap(),
+                    w = size.width,
+                    h = size.height
+                )
+                .expect("Result string append failed");
+                // prev.push_str(&next);
                 prev
             },
-        );
+        )
+        .collect();
 
     // Пишем результат в файлик
     {
