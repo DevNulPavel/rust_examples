@@ -7,7 +7,7 @@ TEST_APP:
 	cargo build --release && \
 	time target/release/pvrgz_to_webp_atlas_converter \
 		--atlasses-directory "/Users/devnul/projects/island2/project/res/images/buildings/atlases" \
-		-vvv
+		-v
 
 # Могут быть проблемы со сборкой для Linux
 BUILD_UNIVERSAL_APP_NATIVE:

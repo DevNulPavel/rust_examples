@@ -24,11 +24,12 @@ fn setup_logging(arguments: &AppArguments) {
     // Настройка логирования на основании количества флагов verbose
     let level = match arguments.verbose {
         0 => log::LevelFilter::Error,
-        1 => log::LevelFilter::Info,
-        2 => log::LevelFilter::Debug,
-        3 => log::LevelFilter::Trace,
+        1 => log::LevelFilter::Warn,
+        2 => log::LevelFilter::Info,
+        3 => log::LevelFilter::Debug,
+        4 => log::LevelFilter::Trace,
         _ => {
-            panic!("Verbose level must be in [0, 3] range");
+            panic!("Verbose level must be in [0, 4] range");
         }
     };
     pretty_env_logger::formatted_builder()
@@ -196,12 +197,29 @@ fn correct_file_name_in_json(json_file_path: &Path) -> Result<(), eyre::Error> {
     struct AtlasMeta {
         texture: Option<AtlasTextureMeta>,
         metadata: Option<AtlasMetadata>,
+        frames: Value,
         #[serde(flatten)]
         other: Value,
     }
+    #[derive(Debug, Deserialize)]
+    struct EmptyAtlasMeta {
+    }
+    #[derive(Debug, Deserialize)]
+    #[serde(untagged)]
+    enum FullMeta{
+        Full(AtlasMeta),
+        Empty(EmptyAtlasMeta),
+    }
+
     let json_file = File::open(json_file_path).wrap_err("Json file open")?;
 
-    let mut meta: AtlasMeta = serde_json::from_reader(json_file).wrap_err("Json deserealize")?;
+    let mut meta: AtlasMeta = match serde_json::from_reader(json_file).wrap_err("Json deserealize")?{
+        FullMeta::Full(meta) => meta,
+        FullMeta::Empty(_) => {
+            warn!("Empty metadata at: {:?}", json_file_path);
+            return Ok(());
+        }
+    };
 
     // eyre::ensure!(meta.texture.file_name.ends_with(".pvrgz"), "Json texture name must ends with .pvrgz");
 
