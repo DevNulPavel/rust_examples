@@ -2,7 +2,8 @@ mod app_arguments;
 
 use crate::app_arguments::AppArguments;
 use eyre::WrapErr;
-use log::{debug, trace, warn};
+// use log::{debug, trace, warn};
+use tracing::{debug, trace, warn, Level, instrument};
 use rayon::prelude::*;
 use scopeguard::defer;
 use serde::{Deserialize, Serialize};
@@ -19,7 +20,7 @@ use walkdir::WalkDir;
 ////////////////////////////////////////////////////////////////////////////////////////////////////////////////////////
 
 /// Настойка уровня логирования
-fn setup_logging(arguments: &AppArguments) {
+/*fn setup_logging(arguments: &AppArguments) {
     // Настройка логирования на основании количества флагов verbose
     let level = match arguments.verbose {
         0 => log::LevelFilter::Error,
@@ -35,6 +36,25 @@ fn setup_logging(arguments: &AppArguments) {
         .filter_level(level)
         .try_init()
         .expect("Logger init failed");
+}*/
+
+/// Настойка уровня логирования
+fn setup_logging(arguments: &AppArguments) {
+    // Настройка логирования на основании количества флагов verbose
+    let level = match arguments.verbose {
+        0 => Level::WARN,
+        1 => Level::INFO,
+        2 => Level::DEBUG,
+        3 => Level::TRACE,
+        _ => {
+            panic!("Verbose level must be in [0, 3] range");
+        }
+    };
+    tracing_subscriber::fmt()
+        .with_target(false)
+        .with_max_level(level)
+        .try_init()
+        .expect("Tracing init failed");
 }
 
 /// Выполняем валидацию переданных аргументов приложения
@@ -59,6 +79,7 @@ pub struct AtlasInfo {
     json_path: PathBuf,
 }
 
+#[instrument(level = "info")]
 fn extract_pvrgz_to_pvr(pvrgz_file_path: &Path, pvr_file_path: &Path) -> Result<(), eyre::Error> {
     trace!("Extract {:?} to {:?}", pvrgz_file_path, pvr_file_path);
 
@@ -79,6 +100,7 @@ fn extract_pvrgz_to_pvr(pvrgz_file_path: &Path, pvr_file_path: &Path) -> Result<
     Ok(())
 }
 
+#[instrument(level = "info")]
 fn pvr_to_png(pvr_tex_tool_path: &Path, pvr_file_path: &Path, png_file_path: &Path) -> Result<(), eyre::Error> {
     let pvr_tex_tool_output = Command::new(pvr_tex_tool_path)
         .args(&[
@@ -103,6 +125,7 @@ fn pvr_to_png(pvr_tex_tool_path: &Path, pvr_file_path: &Path, png_file_path: &Pa
     Ok(())
 }
 
+#[instrument(level = "info")]
 fn png_to_webp(cwebp_path: &Path, png_file_path: &Path, webp_file_path: &Path) -> Result<(), eyre::Error> {
     let webp_tool_output = Command::new(&cwebp_path)
         .args(&[
@@ -128,6 +151,7 @@ fn png_to_webp(cwebp_path: &Path, png_file_path: &Path, webp_file_path: &Path) -
 }
 
 /// Возвращает путь к новому .webp файлику
+#[instrument(level = "info", skip(utils_pathes))]
 fn pvrgz_to_webp(utils_pathes: &UtilsPathes, pvrgz_file_path: &Path) -> Result<(), eyre::Error> {
     // TODO: Использовать папку tmp?? Или не усложнять?
 
@@ -162,6 +186,7 @@ fn pvrgz_to_webp(utils_pathes: &UtilsPathes, pvrgz_file_path: &Path) -> Result<(
     Ok(())
 }
 
+#[instrument(level = "debug")]
 fn pvrgz_ext_to_webp(name: &mut String) -> Result<(), eyre::Error> {
     let mut new_file_name = name
         .strip_suffix(".pvrgz")
@@ -175,6 +200,7 @@ fn pvrgz_ext_to_webp(name: &mut String) -> Result<(), eyre::Error> {
     Ok(())
 }
 
+#[instrument(level = "info")]
 fn correct_file_name_in_json(json_file_path: &Path) -> Result<(), eyre::Error> {
     #[derive(Debug, Deserialize, Serialize)]
     struct AtlasTextureMeta {
@@ -214,7 +240,7 @@ fn correct_file_name_in_json(json_file_path: &Path) -> Result<(), eyre::Error> {
     let mut meta: AtlasMeta = match serde_json::from_reader(json_file).wrap_err("Json deserealize")? {
         FullMeta::Full(meta) => meta,
         FullMeta::Empty(_) => {
-            warn!("Empty metadata at: {:?}", json_file_path);
+            warn!(?json_file_path, "Empty metadata at");
             return Ok(());
         }
     };
@@ -240,15 +266,16 @@ fn correct_file_name_in_json(json_file_path: &Path) -> Result<(), eyre::Error> {
     Ok(())
 }
 
+#[instrument(level = "info", skip(utils_pathes))]
 fn convert_pvrgz_atlas_to_webp(utils_pathes: &UtilsPathes, info: AtlasInfo) -> Result<(), eyre::Error> {
     // Из .pvrgz в .webp
-    pvrgz_to_webp(utils_pathes, &info.pvrgz_path).wrap_err_with(|| format!("Pvrgz to webp convert: {:?}", info.pvrgz_path))?;
+    pvrgz_to_webp(utils_pathes, &info.pvrgz_path).wrap_err("Pvrgz to webp convert")?;
 
     // Удаляем старый .pvrgz
-    remove_file(&info.pvrgz_path).wrap_err_with(|| format!("Pvrgz delete failed: {:?}", info.pvrgz_path))?;
+    remove_file(&info.pvrgz_path).wrap_err("Pvrgz delete failed")?;
 
     // Правим содержимое .json файлика, прописывая туда .новое имя файла
-    correct_file_name_in_json(&info.json_path).wrap_err_with(|| format!("Json fix: {:?}", info.json_path))?;
+    correct_file_name_in_json(&info.json_path).wrap_err("Json fix")?;
 
     Ok(())
 }
@@ -267,7 +294,7 @@ fn main() {
     setup_logging(&arguments);
 
     // Display arguments
-    debug!("App arguments: {:#?}", arguments);
+    debug!(?arguments, "App arguments");
 
     // Валидация параметров приложения
     validate_arguments(&arguments);
@@ -277,7 +304,7 @@ fn main() {
         pvr_tex_tool: which::which("PVRTexToolCLI").expect("PVRTexTool application not found"),
         cwebp: which::which("cwebp").expect("PVRTexTool application not found"),
     };
-    debug!("Utils pathes: {:?}", utils_pathes);
+    debug!(?utils_pathes, "Utils pathes");
 
     WalkDir::new(&arguments.atlasses_directory)
         // Параллельное итерирование
@@ -316,7 +343,7 @@ fn main() {
         })
         // Непосредственно конвертация
         .for_each(|info| {
-            debug!("Found atlas entry: {:?}", info);
+            debug!(?info, "Found atlas entry");
 
             if let Err(err) = convert_pvrgz_atlas_to_webp(&utils_pathes, info) {
                 // При ошибке не паникуем, а спокойно выводим сообщение и завершаем приложение с кодом ошибки
