@@ -2,17 +2,16 @@ mod app_arguments;
 
 use crate::app_arguments::AppArguments;
 use eyre::WrapErr;
-use log::{debug, error, info, trace, warn};
+use log::{debug, trace, warn};
 use rayon::prelude::*;
 use scopeguard::defer;
 use serde::{Deserialize, Serialize};
 use serde_json::Value;
 use std::{
-    fmt::{format, Write as FmtWrite},
-    fs::{metadata, remove_file, File},
-    io::{copy, Write as IoWrite},
+    fs::{remove_file, File},
+    io::copy,
     path::{Path, PathBuf},
-    process::{Command, ExitStatus, Stdio},
+    process::{Command, Stdio},
 };
 use structopt::StructOpt;
 use walkdir::WalkDir;
@@ -163,7 +162,7 @@ fn pvrgz_to_webp(utils_pathes: &UtilsPathes, pvrgz_file_path: &Path) -> Result<(
     Ok(())
 }
 
-fn pvrgz_ext_to_webp(name: &mut String) -> Result<(), eyre::Error>{
+fn pvrgz_ext_to_webp(name: &mut String) -> Result<(), eyre::Error> {
     let mut new_file_name = name
         .strip_suffix(".pvrgz")
         .ok_or_else(|| eyre::eyre!("Json texture name must ends with .pvrgz"))?
@@ -202,18 +201,17 @@ fn correct_file_name_in_json(json_file_path: &Path) -> Result<(), eyre::Error> {
         other: Value,
     }
     #[derive(Debug, Deserialize)]
-    struct EmptyAtlasMeta {
-    }
+    struct EmptyAtlasMeta {}
     #[derive(Debug, Deserialize)]
     #[serde(untagged)]
-    enum FullMeta{
+    enum FullMeta {
         Full(AtlasMeta),
         Empty(EmptyAtlasMeta),
     }
 
     let json_file = File::open(json_file_path).wrap_err("Json file open")?;
 
-    let mut meta: AtlasMeta = match serde_json::from_reader(json_file).wrap_err("Json deserealize")?{
+    let mut meta: AtlasMeta = match serde_json::from_reader(json_file).wrap_err("Json deserealize")? {
         FullMeta::Full(meta) => meta,
         FullMeta::Empty(_) => {
             warn!("Empty metadata at: {:?}", json_file_path);
@@ -221,20 +219,18 @@ fn correct_file_name_in_json(json_file_path: &Path) -> Result<(), eyre::Error> {
         }
     };
 
-    // eyre::ensure!(meta.texture.file_name.ends_with(".pvrgz"), "Json texture name must ends with .pvrgz");
-
     // Может быть либо одно, либо другое
     if let Some(texture_info) = meta.texture.as_mut() {
         if let Some(name) = texture_info.file_name.as_mut() {
             pvrgz_ext_to_webp(name)?;
         } else if let Some(name) = texture_info.rel_file_name.as_mut() {
             pvrgz_ext_to_webp(name)?;
-        }else{
+        } else {
             return Err(eyre::eyre!("Absolute or relative texture name must be specified"));
         }
-    }else if let Some(metadata) = meta.metadata.as_mut() {
+    } else if let Some(metadata) = meta.metadata.as_mut() {
         pvrgz_ext_to_webp(&mut metadata.texture_file_name)?;
-    }else{
+    } else {
         return Err(eyre::eyre!("Teture info or texture meta must be specified"));
     }
 
@@ -249,7 +245,7 @@ fn convert_pvrgz_atlas_to_webp(utils_pathes: &UtilsPathes, info: AtlasInfo) -> R
     pvrgz_to_webp(utils_pathes, &info.pvrgz_path).wrap_err_with(|| format!("Pvrgz to webp convert: {:?}", info.pvrgz_path))?;
 
     // Удаляем старый .pvrgz
-    remove_file(&info.pvrgz_path).wrap_err("Pvrgz delete failed")?;
+    remove_file(&info.pvrgz_path).wrap_err_with(|| format!("Pvrgz delete failed: {:?}", info.pvrgz_path))?;
 
     // Правим содержимое .json файлика, прописывая туда .новое имя файла
     correct_file_name_in_json(&info.json_path).wrap_err_with(|| format!("Json fix: {:?}", info.json_path))?;
@@ -284,6 +280,7 @@ fn main() {
     debug!("Utils pathes: {:?}", utils_pathes);
 
     WalkDir::new(&arguments.atlasses_directory)
+        // Параллельное итерирование
         .into_iter()
         // Параллелизация по потокам
         .par_bridge()

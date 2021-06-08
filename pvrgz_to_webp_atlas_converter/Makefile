@@ -25,9 +25,9 @@ BUILD_UNIVERSAL_APP_NATIVE:
 		target/x86_64-apple-darwin/release/pvrgz_to_webp_atlas_converter \
 		-output \
 		target/pvrgz_to_webp_atlas_converter_osx
-
-	#cargo build --release --target x86_64-unknown-linux-gnu && \
-	#cp target/x86_64-unknown-linux-gnu/release/pvrgz_to_webp_atlas_converter target/pvrgz_to_webp_atlas_converter_linux
+		
+	# cargo build --release --target x86_64-unknown-linux-gnu && \
+	# cp target/x86_64-unknown-linux-gnu/release/pvrgz_to_webp_atlas_converter target/pvrgz_to_webp_atlas_converter_linux
 
 # Нужен docker для запуска
 BUILD_UNIVERSAL_APP_CROSS:
