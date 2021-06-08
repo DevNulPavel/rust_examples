@@ -41,6 +41,8 @@ use walkdir::WalkDir;
 
 /// Настойка уровня логирования
 fn setup_logging(arguments: &AppArguments) {
+    use tracing_subscriber::prelude::*;
+
     // Настройка логирования на основании количества флагов verbose
     let level = match arguments.verbose {
         0 => Level::WARN,
@@ -51,9 +53,15 @@ fn setup_logging(arguments: &AppArguments) {
             panic!("Verbose level must be in [0, 3] range");
         }
     };
-    tracing_subscriber::fmt()
-        .with_target(false)
-        .with_max_level(level)
+    // tracing_subscriber::fmt()
+    //     .with_target(false)
+    //     .with_max_level(level)
+    //     .try_init()
+    //     .expect("Tracing init failed");
+    tracing_subscriber::registry()
+        .with(tracing_subscriber::filter::LevelFilter::from_level(level))
+        .with(tracing_subscriber::fmt::layer())
+        .with(tracing_error::ErrorLayer::default()) // Для поддержки захватывания SpanTrace в eyre
         .try_init()
         .expect("Tracing init failed");
 }
@@ -66,6 +74,7 @@ fn validate_arguments(arguments: &AppArguments) {
         "Atlasses directory does not exist at path: {:?}",
         arguments.atlases_images_directory
     );
+    assert!(arguments.target_webp_quality <= 100, "Target webp quality must be from 0 to 100");
     if let Some(alternative_atlases_json_directory) = arguments.alternative_atlases_json_directory.as_ref() {
         assert!(
             alternative_atlases_json_directory.exists(),
@@ -87,7 +96,7 @@ pub struct AtlasInfo {
     json_path: PathBuf,
 }
 
-#[instrument(level = "info")]
+#[instrument(level = "error")]
 fn extract_pvrgz_to_pvr(pvrgz_file_path: &Path, pvr_file_path: &Path) -> Result<(), eyre::Error> {
     trace!(from = ?pvrgz_file_path, to = ?pvr_file_path, "Extract");
 
@@ -108,11 +117,12 @@ fn extract_pvrgz_to_pvr(pvrgz_file_path: &Path, pvr_file_path: &Path) -> Result<
     Ok(())
 }
 
-#[instrument(level = "info")]
+#[instrument(level = "error")]
 fn pvr_to_png(pvr_tex_tool_path: &Path, pvr_file_path: &Path, png_file_path: &Path) -> Result<(), eyre::Error> {
     let pvr_tex_tool_output = Command::new(pvr_tex_tool_path)
         .args(&[
-            "-ics", "sRGB",
+            "-ics",
+            "sRGB",
             // "-f", "R4G4B4A4,USN",
             "-flip",
             "y",
@@ -138,7 +148,7 @@ fn pvr_to_png(pvr_tex_tool_path: &Path, pvr_file_path: &Path, png_file_path: &Pa
     Ok(())
 }
 
-/*#[instrument(level = "info")]
+/*#[instrument(level = "error")]
 fn png_premultiply_alpha(png_file_path: &Path) -> Result<(), eyre::Error> {
     let mut image = match image::open(png_file_path).wrap_err("Image open")? {
         image::DynamicImage::ImageRgba8(image) => image,
@@ -161,12 +171,12 @@ fn png_premultiply_alpha(png_file_path: &Path) -> Result<(), eyre::Error> {
     Ok(())
 }*/
 
-#[instrument(level = "info")]
-fn png_to_webp(cwebp_path: &Path, png_file_path: &Path, webp_file_path: &Path) -> Result<(), eyre::Error> {
+#[instrument(level = "error")]
+fn png_to_webp(cwebp_path: &Path, target_webp_quality: u8, png_file_path: &Path, webp_file_path: &Path) -> Result<(), eyre::Error> {
     let webp_tool_output = Command::new(&cwebp_path)
         .args(&[
             "-q",
-            "80",
+            target_webp_quality.to_string().as_str(), // TODO: Optimize allocations
             "-o",
             webp_file_path.to_str().ok_or_else(|| eyre::eyre!("Webp path err"))?,
             png_file_path.to_str().ok_or_else(|| eyre::eyre!("Png path err"))?,
@@ -187,8 +197,8 @@ fn png_to_webp(cwebp_path: &Path, png_file_path: &Path, webp_file_path: &Path) -
 }
 
 /// Возвращает путь к новому .webp файлику
-#[instrument(level = "info", skip(utils_pathes))]
-fn pvrgz_to_webp(utils_pathes: &UtilsPathes, pvrgz_file_path: &Path) -> Result<(), eyre::Error> {
+#[instrument(level = "error", skip(utils_pathes))]
+fn pvrgz_to_webp(utils_pathes: &UtilsPathes, target_webp_quality: u8, pvrgz_file_path: &Path) -> Result<(), eyre::Error> {
     // TODO: Использовать папку tmp?? Или не усложнять?
 
     // Путь к временному .pvr
@@ -219,7 +229,7 @@ fn pvrgz_to_webp(utils_pathes: &UtilsPathes, pvrgz_file_path: &Path) -> Result<(
     let webp_file_path = png_file_path.with_extension("webp");
 
     // Конвертация .png -> .webp
-    png_to_webp(&utils_pathes.cwebp, &png_file_path, &webp_file_path)
+    png_to_webp(&utils_pathes.cwebp, target_webp_quality, &png_file_path, &webp_file_path)
         .wrap_err_with(|| format!("{:?} -> {:?}", &png_file_path, &webp_file_path))?;
 
     Ok(())
@@ -239,7 +249,7 @@ fn pvrgz_ext_to_webp(name: &mut String) -> Result<(), eyre::Error> {
     Ok(())
 }
 
-#[instrument(level = "info")]
+#[instrument(level = "error")]
 fn correct_file_name_in_json(json_file_path: &Path) -> Result<(), eyre::Error> {
     #[derive(Debug, Deserialize, Serialize)]
     struct AtlasTextureMeta {
@@ -305,16 +315,16 @@ fn correct_file_name_in_json(json_file_path: &Path) -> Result<(), eyre::Error> {
     Ok(())
 }
 
-#[instrument(level = "info", skip(utils_pathes))]
-fn convert_pvrgz_atlas_to_webp(utils_pathes: &UtilsPathes, info: AtlasInfo) -> Result<(), eyre::Error> {
+#[instrument(level = "error", skip(utils_pathes))]
+fn convert_pvrgz_atlas_to_webp(utils_pathes: &UtilsPathes, target_webp_quality: u8, info: AtlasInfo) -> Result<(), eyre::Error> {
     // Из .pvrgz в .webp
-    pvrgz_to_webp(utils_pathes, &info.pvrgz_path).wrap_err("Pvrgz to webp convert")?;
+    pvrgz_to_webp(utils_pathes, target_webp_quality, &info.pvrgz_path).wrap_err("Pvrgz to webp convert")?;
 
     // Удаляем старый .pvrgz
     remove_file(&info.pvrgz_path).wrap_err("Pvrgz delete failed")?;
 
     // Правим содержимое .json файлика, прописывая туда .новое имя файла
-    correct_file_name_in_json(&info.json_path).wrap_err("Json fix")?;
+    correct_file_name_in_json(&info.json_path).wrap_err("Json fix failed")?;
 
     Ok(())
 }
@@ -399,7 +409,7 @@ fn main() {
         .for_each(|info| {
             debug!(?info, "Found atlas entry");
 
-            if let Err(err) = convert_pvrgz_atlas_to_webp(&utils_pathes, info) {
+            if let Err(err) = convert_pvrgz_atlas_to_webp(&utils_pathes, arguments.target_webp_quality, info) {
                 // При ошибке не паникуем, а спокойно выводим сообщение и завершаем приложение с кодом ошибки
                 eprint!("Error! Failed with: {:?}", err);
                 std::process::exit(1);

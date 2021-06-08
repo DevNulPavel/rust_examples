@@ -13,8 +13,12 @@ pub struct AppArguments {
     #[structopt(long, parse(from_os_str))]
     pub alternative_atlases_json_directory: Option<PathBuf>,
 
+    /// Target webp quality
+    #[structopt(long)]
+    pub target_webp_quality: u8,
+
     /// Minimum pvrgz size for convert
-    #[structopt(short, long)]
+    #[structopt(long)]
     pub minimum_pvrgz_size: u64,
 
     /// Verbose
