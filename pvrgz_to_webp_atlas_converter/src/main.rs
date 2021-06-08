@@ -3,7 +3,6 @@ mod app_arguments;
 use crate::app_arguments::AppArguments;
 use eyre::WrapErr;
 // use log::{debug, trace, warn};
-use tracing::{debug, trace, warn, Level, instrument};
 use rayon::prelude::*;
 use scopeguard::defer;
 use serde::{Deserialize, Serialize};
@@ -15,6 +14,7 @@ use std::{
     process::{Command, Stdio},
 };
 use structopt::StructOpt;
+use tracing::{debug, instrument, trace, warn, Level};
 use walkdir::WalkDir;
 
 ////////////////////////////////////////////////////////////////////////////////////////////////////////////////////////
@@ -61,10 +61,17 @@ fn setup_logging(arguments: &AppArguments) {
 fn validate_arguments(arguments: &AppArguments) {
     // Валидация параметров приложения
     assert!(
-        arguments.atlasses_directory.exists(),
+        arguments.atlases_images_directory.exists(),
         "Atlasses directory does not exist at path: {:?}",
-        arguments.atlasses_directory
+        arguments.atlases_images_directory
     );
+    if let Some(alternative_atlases_json_directory) = arguments.alternative_atlases_json_directory.as_ref() {
+        assert!(
+            alternative_atlases_json_directory.exists(),
+            "Atlasses alternative json directory does not exist at path: {:?}",
+            alternative_atlases_json_directory
+        );
+    }
 }
 
 #[derive(Debug)]
@@ -81,7 +88,7 @@ pub struct AtlasInfo {
 
 #[instrument(level = "info")]
 fn extract_pvrgz_to_pvr(pvrgz_file_path: &Path, pvr_file_path: &Path) -> Result<(), eyre::Error> {
-    trace!("Extract {:?} to {:?}", pvrgz_file_path, pvr_file_path);
+    trace!(from = ?pvrgz_file_path, to = ?pvr_file_path, "Extract");
 
     // .pvrgz файлики
     let pvrgz_file = File::open(&pvrgz_file_path).wrap_err("Pvrgz open failed")?;
@@ -306,7 +313,7 @@ fn main() {
     };
     debug!(?utils_pathes, "Utils pathes");
 
-    WalkDir::new(&arguments.atlasses_directory)
+    WalkDir::new(&arguments.atlases_images_directory)
         // Параллельное итерирование
         .into_iter()
         // Параллелизация по потокам
@@ -323,23 +330,38 @@ fn main() {
                 _ => return None,
             }
 
-            // Размер файла не нулевой? Такие файлы для совместимости были нужны
+            // Размер файла слишком мелкий? Тогда не трогаем - это может быть заглушка, либо это бессмысленно
             let meta = std::fs::metadata(&path).expect("File metadata read failed");
-            if meta.len() == 0_u64 {
+            if meta.len() < arguments.minimum_pvrgz_size {
                 return None;
             }
 
             // Рядом с ним есть такой же .json?
-            let atlas_json_file = path.with_extension("json");
-            if atlas_json_file.exists() {
+            let same_folder_atlas_json_file = path.with_extension("json");
+            if same_folder_atlas_json_file.exists() {
                 // Возвращаем
-                Some(AtlasInfo {
+                return Some(AtlasInfo {
                     pvrgz_path: path,
-                    json_path: atlas_json_file,
-                })
-            } else {
-                None
+                    json_path: same_folder_atlas_json_file,
+                });
             }
+
+            // Может быть есть .json в отдельной директории?
+            if let Some(alternative_atlases_json_directory) = arguments.alternative_atlases_json_directory.as_ref() {
+                let relative_json_atlas_path = same_folder_atlas_json_file
+                    .strip_prefix(&arguments.atlases_images_directory)
+                    .expect("Images json prefix strip failed");
+                let external_folder_atlas_json_file = alternative_atlases_json_directory.join(relative_json_atlas_path);
+                if external_folder_atlas_json_file.exists() {
+                    // Возвращаем
+                    return Some(AtlasInfo {
+                        pvrgz_path: path,
+                        json_path: external_folder_atlas_json_file,
+                    });
+                }
+            }
+
+            None
         })
         // Непосредственно конвертация
         .for_each(|info| {
