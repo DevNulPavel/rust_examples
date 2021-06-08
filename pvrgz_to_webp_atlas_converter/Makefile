@@ -6,6 +6,7 @@ TEST_APP:
 	export RUST_LOG=error && \
 	cargo build --release && \
 	time target/release/pvrgz_to_webp_atlas_converter \
+		-v \
 		--minimum-pvrgz-size 2048 \
 		--atlases-images-directory "/Users/devnul/projects/island2/project/res/images/buildings/atlases"
 		# --alternative-atlases-json-directory ""

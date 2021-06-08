@@ -12,6 +12,7 @@ use std::{
     io::copy,
     path::{Path, PathBuf},
     process::{Command, Stdio},
+    u8,
 };
 use structopt::StructOpt;
 use tracing::{debug, instrument, trace, warn, Level};
@@ -111,6 +112,11 @@ fn extract_pvrgz_to_pvr(pvrgz_file_path: &Path, pvr_file_path: &Path) -> Result<
 fn pvr_to_png(pvr_tex_tool_path: &Path, pvr_file_path: &Path, png_file_path: &Path) -> Result<(), eyre::Error> {
     let pvr_tex_tool_output = Command::new(pvr_tex_tool_path)
         .args(&[
+            "-ics", "sRGB",
+            // "-f", "R4G4B4A4,USN",
+            "-flip",
+            "y",
+            // "-p",
             "-i",
             pvr_file_path.to_str().ok_or_else(|| eyre::eyre!("Pvr path err"))?,
             "-d",
@@ -131,6 +137,29 @@ fn pvr_to_png(pvr_tex_tool_path: &Path, pvr_file_path: &Path, png_file_path: &Pa
 
     Ok(())
 }
+
+/*#[instrument(level = "info")]
+fn png_premultiply_alpha(png_file_path: &Path) -> Result<(), eyre::Error> {
+    let mut image = match image::open(png_file_path).wrap_err("Image open")? {
+        image::DynamicImage::ImageRgba8(image) => image,
+        _ => {
+            warn!(path = ?png_file_path, "Is not RGBA8 image");
+            return Ok(());
+        }
+    };
+
+    debug!(?png_file_path, "Premultiply image alpha");
+    image.pixels_mut().for_each(|pixel| {
+        let alpha = (pixel[3] as f32) / 255.0_f32;
+        pixel[0] = (pixel[0] as f32 * alpha) as u8;
+        pixel[1] = (pixel[1] as f32 * alpha) as u8;
+        pixel[2] = (pixel[2] as f32 * alpha) as u8;
+    });
+
+    image.save(png_file_path).wrap_err("Png save")?;
+
+    Ok(())
+}*/
 
 #[instrument(level = "info")]
 fn png_to_webp(cwebp_path: &Path, png_file_path: &Path, webp_file_path: &Path) -> Result<(), eyre::Error> {
@@ -182,6 +211,9 @@ fn pvrgz_to_webp(utils_pathes: &UtilsPathes, pvrgz_file_path: &Path) -> Result<(
     // Запуск конвертации .pvr в .png
     pvr_to_png(&utils_pathes.pvr_tex_tool, &pvr_file_path, &png_file_path)
         .wrap_err_with(|| format!("{:?} -> {:?}", &pvr_file_path, &png_file_path))?;
+
+    // Для .png выполняем домножение альфы
+    //png_premultiply_alpha(&png_file_path).wrap_err("Alpha premultiply")?;
 
     // Путь к файлику .webp
     let webp_file_path = png_file_path.with_extension("webp");
