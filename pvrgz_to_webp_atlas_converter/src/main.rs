@@ -205,7 +205,9 @@ fn pvrgz_to_webp(utils_pathes: &UtilsPathes, target_webp_quality: u8, pvrgz_file
     let pvr_file_path = pvrgz_file_path.with_extension("pvr");
     defer!({
         // Запланируем сразу удаление файлика .pvr заранее
-        remove_file(&pvr_file_path).expect("Temp pvr file remove failed");
+        if let Err(err) = remove_file(&pvr_file_path){
+            warn!(%err, "Temp pvr file remove failed: {:?}", pvr_file_path);
+        }
     });
 
     // Извлекаем из .pvrgz в .pvr
@@ -215,7 +217,9 @@ fn pvrgz_to_webp(utils_pathes: &UtilsPathes, target_webp_quality: u8, pvrgz_file
     let png_file_path = pvr_file_path.with_extension("png");
     defer!({
         // Запланируем сразу удаление файлика .png заранее
-        remove_file(&png_file_path).expect("Temp png file delete failed");
+        if let Err(err) = remove_file(&png_file_path){
+            warn!(%err, "Temp png file delete failed: {:?}", png_file_path);
+        }
     });
 
     // Запуск конвертации .pvr в .png
