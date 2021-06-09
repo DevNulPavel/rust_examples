@@ -21,25 +21,6 @@ use walkdir::WalkDir;
 ////////////////////////////////////////////////////////////////////////////////////////////////////////////////////////
 
 /// Настойка уровня логирования
-/*fn setup_logging(arguments: &AppArguments) {
-    // Настройка логирования на основании количества флагов verbose
-    let level = match arguments.verbose {
-        0 => log::LevelFilter::Error,
-        1 => log::LevelFilter::Warn,
-        2 => log::LevelFilter::Info,
-        3 => log::LevelFilter::Debug,
-        4 => log::LevelFilter::Trace,
-        _ => {
-            panic!("Verbose level must be in [0, 4] range");
-        }
-    };
-    pretty_env_logger::formatted_builder()
-        .filter_level(level)
-        .try_init()
-        .expect("Logger init failed");
-}*/
-
-/// Настойка уровня логирования
 fn setup_logging(arguments: &AppArguments) {
     use tracing_subscriber::prelude::*;
 
@@ -53,13 +34,9 @@ fn setup_logging(arguments: &AppArguments) {
             panic!("Verbose level must be in [0, 3] range");
         }
     };
-    // tracing_subscriber::fmt()
-    //     .with_target(false)
-    //     .with_max_level(level)
-    //     .try_init()
-    //     .expect("Tracing init failed");
     tracing_subscriber::registry()
         .with(tracing_subscriber::filter::LevelFilter::from_level(level))
+        // TODO: Логи только от текущего приложения
         .with(tracing_subscriber::fmt::layer())
         .with(tracing_error::ErrorLayer::default()) // Для поддержки захватывания SpanTrace в eyre
         .try_init()
@@ -463,12 +440,10 @@ fn main() {
     let cache_db = sled::Config::default()
         .path(&arguments.cache_path.join("hashes"))
         .mode(sled::Mode::HighThroughput)
-        .open().expect("Cache db open failed");
+        .open()
+        .expect("Cache db open failed");
     std::fs::create_dir_all(&files_cache_dir).expect("Cache dir create failed");
-    let cache_info = CacheInfo {
-        cache_db,
-        files_cache_dir
-    };
+    let cache_info = CacheInfo { cache_db, files_cache_dir };
 
     WalkDir::new(&arguments.atlases_images_directory)
         // Параллельное итерирование
