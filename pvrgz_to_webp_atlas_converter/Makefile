@@ -8,7 +8,8 @@ TEST_APP:
 	time target/release/pvrgz_to_webp_atlas_converter \
 		--minimum-pvrgz-size 2048 \
 		--target-webp-quality 75 \
-		--atlases-images-directory "/Users/devnul/projects/island2/project/res/images/buildings/atlases"
+		--atlases-images-directory "/Users/devnul/projects/island2/project/res/images/buildings/atlases" \
+		--cache-path "./cache"
 		# --alternative-atlases-json-directory ""
 		# -vvv
 

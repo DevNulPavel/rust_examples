@@ -13,6 +13,10 @@ pub struct AppArguments {
     #[structopt(long, parse(from_os_str))]
     pub alternative_atlases_json_directory: Option<PathBuf>,
 
+    /// pvrgz cache path
+    #[structopt(long, parse(from_os_str))]
+    pub cache_path: PathBuf,
+
     /// Target webp quality
     #[structopt(long)]
     pub target_webp_quality: u8,

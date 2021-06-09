@@ -9,7 +9,7 @@ use serde::{Deserialize, Serialize};
 use serde_json::Value;
 use std::{
     fs::{remove_file, File},
-    io::copy,
+    io::{copy, Read},
     path::{Path, PathBuf},
     process::{Command, Stdio},
     u8,
@@ -196,16 +196,71 @@ fn png_to_webp(cwebp_path: &Path, target_webp_quality: u8, png_file_path: &Path,
     Ok(())
 }
 
+#[instrument(level = "error")]
+fn get_md5_for_file(path: &Path) -> Result<md5::Digest, eyre::Error> {
+    let mut md5 = md5::Context::new();
+    let mut file = File::open(path).wrap_err("File open")?;
+    let mut buffer = [0_u8; 4096];
+    loop {
+        let read_count = file.read(&mut buffer)?;
+        if read_count == 0 {
+            break;
+        }
+        md5.consume(&buffer[0..read_count]);
+    }
+    Ok(md5.compute())
+}
+
+pub fn create_dir_for_file(file_path: &Path) -> Result<(), eyre::Error> {
+    if let Some(parent) = file_path.parent() {
+        std::fs::create_dir_all(parent).wrap_err_with(|| format!("target dir create failed: {:?}", parent))?;
+    }
+    Ok(())
+}
+
+#[derive(Debug)]
+struct CacheInfo {
+    cache_db: sled::Db,
+    files_cache_dir: PathBuf,
+}
+
 /// Возвращает путь к новому .webp файлику
-#[instrument(level = "error", skip(utils_pathes))]
-fn pvrgz_to_webp(utils_pathes: &UtilsPathes, target_webp_quality: u8, pvrgz_file_path: &Path) -> Result<(), eyre::Error> {
+#[instrument(level = "error", skip(cache_info, utils_pathes))]
+fn pvrgz_to_webp(
+    cache_info: &CacheInfo,
+    utils_pathes: &UtilsPathes,
+    target_webp_quality: u8,
+    pvrgz_file_path: &Path,
+) -> Result<(), eyre::Error> {
     // TODO: Использовать папку tmp?? Или не усложнять?
+
+    let pvrgz_md5 = get_md5_for_file(pvrgz_file_path).wrap_err("MD5 calculate")?;
+    let full_path = pvrgz_file_path.to_str().ok_or_else(|| eyre::eyre!("Pvrgz full path str"))?;
+    let cache_key = format!("file:{}_md5:{:x}_q:{}", full_path, pvrgz_md5, target_webp_quality);
+    if let Some(cached_file_name) = cache_info.cache_db.get(&cache_key).wrap_err("Db read error")? {
+        // TODO: При ошибке просто конвертировать файлик, удалять старый и обновлять в базе данные
+
+        // Путь к файлику кеша
+        let cached_file_name_str = std::str::from_utf8(&cached_file_name)?;
+        let cached_file_path = cache_info.files_cache_dir.join(cached_file_name_str);
+
+        // Путь к файлику .webp
+        let target_webp_file_path = pvrgz_file_path.with_extension("webp");
+        create_dir_for_file(&target_webp_file_path).wrap_err("Target file dir create error")?;
+
+        // Копирование из кеша в нужную директорию
+        std::fs::copy(cached_file_path, target_webp_file_path).wrap_err("Cached file copy")?;
+
+        debug!(?pvrgz_file_path, "Cache hit for file");
+
+        return Ok(());
+    }
 
     // Путь к временному .pvr
     let pvr_file_path = pvrgz_file_path.with_extension("pvr");
     defer!({
         // Запланируем сразу удаление файлика .pvr заранее
-        if let Err(err) = remove_file(&pvr_file_path){
+        if let Err(err) = remove_file(&pvr_file_path) {
             warn!(%err, "Temp pvr file remove failed: {:?}", pvr_file_path);
         }
     });
@@ -217,7 +272,7 @@ fn pvrgz_to_webp(utils_pathes: &UtilsPathes, target_webp_quality: u8, pvrgz_file
     let png_file_path = pvr_file_path.with_extension("png");
     defer!({
         // Запланируем сразу удаление файлика .png заранее
-        if let Err(err) = remove_file(&png_file_path){
+        if let Err(err) = remove_file(&png_file_path) {
             warn!(%err, "Temp png file delete failed: {:?}", png_file_path);
         }
     });
@@ -235,6 +290,15 @@ fn pvrgz_to_webp(utils_pathes: &UtilsPathes, target_webp_quality: u8, pvrgz_file
     // Конвертация .png -> .webp
     png_to_webp(&utils_pathes.cwebp, target_webp_quality, &png_file_path, &webp_file_path)
         .wrap_err_with(|| format!("{:?} -> {:?}", &png_file_path, &webp_file_path))?;
+
+    // Копируем файлик в кеш и записываем в базу его uuid
+    let uuid = uuid::Uuid::new_v4().to_string();
+    let cached_file_path = cache_info.files_cache_dir.join(&uuid);
+    std::fs::copy(webp_file_path, cached_file_path).wrap_err("Copy file to cache")?;
+    cache_info
+        .cache_db
+        .insert(&cache_key, uuid.as_str())
+        .wrap_err("Cache write failed")?;
 
     Ok(())
 }
@@ -254,7 +318,7 @@ fn pvrgz_ext_to_webp(name: &mut String) -> Result<(), eyre::Error> {
 }
 
 #[instrument(level = "error")]
-fn correct_file_name_in_json(json_file_path: &Path) -> Result<(), eyre::Error> {
+fn correct_file_name_in_json(cache_info: &CacheInfo, json_file_path: &Path) -> Result<(), eyre::Error> {
     #[derive(Debug, Deserialize, Serialize)]
     struct AtlasTextureMeta {
         #[serde(rename = "fileName")]
@@ -288,6 +352,27 @@ fn correct_file_name_in_json(json_file_path: &Path) -> Result<(), eyre::Error> {
         Empty(EmptyAtlasMeta),
     }
 
+    let json_md5 = get_md5_for_file(json_file_path).wrap_err("MD5 calculate")?;
+    let full_path = json_file_path.to_str().ok_or_else(|| eyre::eyre!("Json full path str"))?;
+    let cache_key = format!("file:{}_md5:{:x}", full_path, json_md5);
+    if let Some(cached_file_name) = cache_info.cache_db.get(&cache_key).wrap_err("Db read error")? {
+        // TODO: При ошибке просто конвертировать файлик, удалять старый и обновлять в базе данные
+
+        // Путь к файлику кеша
+        let cached_file_name_str = std::str::from_utf8(&cached_file_name)?;
+        let cached_file_path = cache_info.files_cache_dir.join(cached_file_name_str);
+
+        // Путь к файлику .webp
+        create_dir_for_file(&json_file_path).wrap_err("Target file dir create error")?;
+
+        // Копирование из кеша в нужную директорию
+        std::fs::copy(cached_file_path, json_file_path).wrap_err("Cached file copy")?;
+
+        debug!(?json_file_path, "Cache hit for file");
+
+        return Ok(());
+    }
+
     let json_file = File::open(json_file_path).wrap_err("Json file open")?;
 
     let mut meta: AtlasMeta = match serde_json::from_reader(json_file).wrap_err("Json deserealize")? {
@@ -316,19 +401,33 @@ fn correct_file_name_in_json(json_file_path: &Path) -> Result<(), eyre::Error> {
     let new_json_file = File::create(json_file_path).wrap_err("Result json file open")?;
     serde_json::to_writer(new_json_file, &meta).wrap_err("New json write failed")?;
 
+    // Копируем файлик в кеш и записываем в базу его uuid
+    let uuid = uuid::Uuid::new_v4().to_string();
+    let cached_file_path = cache_info.files_cache_dir.join(&uuid);
+    std::fs::copy(json_file_path, cached_file_path).wrap_err("Copy file to cache")?;
+    cache_info
+        .cache_db
+        .insert(&cache_key, uuid.as_str())
+        .wrap_err("Cache write failed")?;
+
     Ok(())
 }
 
-#[instrument(level = "error", skip(utils_pathes))]
-fn convert_pvrgz_atlas_to_webp(utils_pathes: &UtilsPathes, target_webp_quality: u8, info: AtlasInfo) -> Result<(), eyre::Error> {
+#[instrument(level = "error", skip(cache_info, utils_pathes))]
+fn convert_pvrgz_atlas_to_webp(
+    cache_info: &CacheInfo,
+    utils_pathes: &UtilsPathes,
+    target_webp_quality: u8,
+    info: AtlasInfo,
+) -> Result<(), eyre::Error> {
     // Из .pvrgz в .webp
-    pvrgz_to_webp(utils_pathes, target_webp_quality, &info.pvrgz_path).wrap_err("Pvrgz to webp convert")?;
+    pvrgz_to_webp(cache_info, utils_pathes, target_webp_quality, &info.pvrgz_path).wrap_err("Pvrgz to webp convert")?;
 
     // Удаляем старый .pvrgz
     remove_file(&info.pvrgz_path).wrap_err("Pvrgz delete failed")?;
 
     // Правим содержимое .json файлика, прописывая туда .новое имя файла
-    correct_file_name_in_json(&info.json_path).wrap_err("Json fix failed")?;
+    correct_file_name_in_json(cache_info, &info.json_path).wrap_err("Json fix failed")?;
 
     Ok(())
 }
@@ -358,6 +457,18 @@ fn main() {
         cwebp: which::which("cwebp").expect("PVRTexTool application not found"),
     };
     debug!(?utils_pathes, "Utils pathes");
+
+    std::fs::create_dir_all(&arguments.cache_path).expect("Cache dir create failed");
+    let files_cache_dir = arguments.cache_path.join("files");
+    let cache_db = sled::Config::default()
+        .path(&arguments.cache_path.join("hashes"))
+        .mode(sled::Mode::HighThroughput)
+        .open().expect("Cache db open failed");
+    std::fs::create_dir_all(&files_cache_dir).expect("Cache dir create failed");
+    let cache_info = CacheInfo {
+        cache_db,
+        files_cache_dir
+    };
 
     WalkDir::new(&arguments.atlases_images_directory)
         // Параллельное итерирование
@@ -413,7 +524,7 @@ fn main() {
         .for_each(|info| {
             debug!(?info, "Found atlas entry");
 
-            if let Err(err) = convert_pvrgz_atlas_to_webp(&utils_pathes, arguments.target_webp_quality, info) {
+            if let Err(err) = convert_pvrgz_atlas_to_webp(&cache_info, &utils_pathes, arguments.target_webp_quality, info) {
                 // При ошибке не паникуем, а спокойно выводим сообщение и завершаем приложение с кодом ошибки
                 eprint!("Error! Failed with: {:?}", err);
                 std::process::exit(1);
