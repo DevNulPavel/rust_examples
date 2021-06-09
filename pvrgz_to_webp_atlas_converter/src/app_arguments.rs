@@ -5,17 +5,13 @@ use structopt::StructOpt;
 #[derive(StructOpt, Debug)]
 #[structopt(name = "basic")]
 pub struct AppArguments {
-    /// Source directory
+    /// pvrgz atlas images directory
     #[structopt(long, parse(from_os_str))]
-    pub source_directory: PathBuf,
+    pub atlases_images_directory: PathBuf,
 
-    /// Target directory
+    /// pvrgz atlas' json directory
     #[structopt(long, parse(from_os_str))]
-    pub target_directory: PathBuf,
-
-    /// Hashes database path
-    #[structopt(long, parse(from_os_str))]
-    pub hashes_db_path: PathBuf,
+    pub alternative_atlases_json_directory: Option<PathBuf>,
 
     /// Target webp quality
     #[structopt(long)]
