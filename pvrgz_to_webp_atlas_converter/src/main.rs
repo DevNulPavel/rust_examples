@@ -27,12 +27,13 @@ fn setup_logging(arguments: &AppArguments) {
 
     // Настройка логирования на основании количества флагов verbose
     let level = match arguments.verbose {
-        0 => Level::WARN,
-        1 => Level::INFO,
-        2 => Level::DEBUG,
-        3 => Level::TRACE,
+        0 => Level::ERROR,
+        1 => Level::WARN,
+        2 => Level::INFO,
+        3 => Level::DEBUG,
+        4 => Level::TRACE,
         _ => {
-            panic!("Verbose level must be in [0, 3] range");
+            panic!("Verbose level must be in [0, 4] range");
         }
     };
     tracing_subscriber::registry()
