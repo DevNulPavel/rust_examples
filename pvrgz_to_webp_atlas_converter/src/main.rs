@@ -13,7 +13,6 @@ use crate::{
     types::{AtlasInfo, UtilsPathes},
 };
 use eyre::WrapErr;
-// use log::{debug, trace, warn};
 use rayon::prelude::*;
 use std::fs::remove_file;
 use structopt::StructOpt;
@@ -38,7 +37,7 @@ fn setup_logging(arguments: &AppArguments) {
     };
     tracing_subscriber::registry()
         .with(tracing_subscriber::filter::LevelFilter::from_level(level))
-        // TODO: Логи только от текущего приложения
+        .with(tracing_subscriber::filter::EnvFilter::new(env!("CARGO_PKG_NAME"))) // Логи только от текущего приложения, без библиотек
         .with(tracing_subscriber::fmt::layer())
         .with(tracing_error::ErrorLayer::default()) // Для поддержки захватывания SpanTrace в eyre
         .try_init()

@@ -61,12 +61,11 @@ pub fn correct_file_name_in_json(cache_info: &CacheInfo, json_file_path: &Path) 
     // Проверяем кеш файликов
     let json_md5 = get_md5_for_path(json_file_path).wrap_err("MD5 calculate")?;
     let full_json_path_str = json_file_path.to_str().ok_or_else(|| eyre::eyre!("Pvrgz full path str"))?;
-    let cache_key = format!("file:{}_md5:{:x}", full_json_path_str, json_md5);
+    let cache_key = format!("{:x}_{}", json_md5, full_json_path_str);
     if cache_info.try_restore_file_from_cache(&cache_key, &json_file_path)? {
         return Ok(());
     }
 
-    // TODO: Не открывать повторно файлик
     let json_file = File::open(json_file_path).wrap_err("Json file open")?;
 
     let mut meta: AtlasMeta = match serde_json::from_reader(json_file).wrap_err("Json deserealize")? {
@@ -92,6 +91,7 @@ pub fn correct_file_name_in_json(cache_info: &CacheInfo, json_file_path: &Path) 
         return Err(eyre::eyre!("Teture info or texture meta must be specified"));
     }
 
+    // TODO: Не открывать повторно файлик
     let new_json_file = File::create(json_file_path).wrap_err("Result json file open")?;
     serde_json::to_writer(new_json_file, &meta).wrap_err("New json write failed")?;
 

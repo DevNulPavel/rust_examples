@@ -9,7 +9,7 @@ TEST_APP:
 		--minimum-pvrgz-size 2048 \
 		--target-webp-quality 75 \
 		--atlases-images-directory "/Users/devnul/projects/island2/project/res/images/buildings/atlases" \
-		--cache-path "./cache"
+		--cache-path "./test_cache"
 		# --alternative-atlases-json-directory ""
 		# -vvv
 

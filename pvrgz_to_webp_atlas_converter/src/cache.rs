@@ -27,6 +27,8 @@ impl CacheInfo {
             .open()
             .expect("Cache db open failed");
 
+        // TODO: Выполнить очистку старых файлов, которыми очень давно не пользовались
+
         CacheInfo { cache_db, files_cache_dir }
     }
 
@@ -55,7 +57,7 @@ impl CacheInfo {
             create_dir_for_file(&target_file_path).wrap_err("Target file dir create error")?;
 
             // Копирование из кеша в нужную директорию
-            std::fs::copy(cached_file_path, target_file_path).wrap_err("Cached file copy")?;
+            copy(cached_file_path, target_file_path).wrap_err("Cached file copy")?;
 
             debug!(?target_file_path, "Cache hit for file");
 

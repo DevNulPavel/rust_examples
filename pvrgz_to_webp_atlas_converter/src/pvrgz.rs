@@ -125,7 +125,7 @@ pub fn pvrgz_to_webp(
     // Проверяем кеш файликов
     let pvrgz_md5 = get_md5_for_path(pvrgz_file_path).wrap_err("MD5 calculate")?;
     let full_pvrgz_path_str = pvrgz_file_path.to_str().ok_or_else(|| eyre::eyre!("Pvrgz full path str"))?;
-    let cache_key = format!("file:{}_md5:{:x}_q:{}", full_pvrgz_path_str, pvrgz_md5, target_webp_quality);
+    let cache_key = format!("{:x}_{}_{}", pvrgz_md5, full_pvrgz_path_str, target_webp_quality);
     if cache_info.try_restore_file_from_cache(&cache_key, &webp_file_path)? {
         return Ok(());
     }
