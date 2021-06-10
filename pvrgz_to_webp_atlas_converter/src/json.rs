@@ -56,7 +56,7 @@ fn pvrgz_ext_to_webp(name: &mut String) -> Result<(), eyre::Error> {
     Ok(())
 }
 
-#[instrument(level = "error")]
+#[instrument(level = "error", skip(cache_info))]
 pub fn correct_file_name_in_json(cache_info: &CacheInfo, json_file_path: &Path) -> Result<(), eyre::Error> {
     // Проверяем кеш файликов
     let json_md5 = get_md5_for_path(json_file_path).wrap_err("MD5 calculate")?;
