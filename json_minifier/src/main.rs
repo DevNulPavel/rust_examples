@@ -53,45 +53,63 @@ fn validate_arguments(arguments: &AppArguments) {
     );
 }
 
+fn encode_buffer(data: &mut [u8]) {
+    data.iter_mut().for_each(|val| {
+        *val = *val ^ 0xA5_u8;
+    });
+}
+
 #[instrument(level = "error")]
 fn minify_json(json_info: JsonInfo) -> Result<(), eyre::Error> {
     let mut src_file = File::open(&json_info.path)?;
 
-    match json_info.json_type {
+    let result_json_data = match json_info.json_type {
         JsonType::Encoded => {
+            // Читаем побайтово закодированный файлик
             let mut src_data_buffer = Vec::new();
             src_file.read_to_end(&mut src_data_buffer)?;
+
+            // Закрываем файлик
             drop(src_file);
 
-            src_data_buffer.iter_mut().for_each(|val| {
-                *val = *val ^ 0xA5_u8;
-            });
+            // Ксорим данные
+            encode_buffer(&mut src_data_buffer);
 
-            let source_text = std::str::from_utf8(&src_data_buffer)?;
+            // Перегоняем в utf8 текст с проверкой символов
+            let source_text = std::str::from_utf8(&src_data_buffer).wrap_err("Utf8 parse")?;
 
+            // Минификация
             let result_json_text = minifier::json::minify(&source_text);
             drop(src_data_buffer);
 
+            // Перегоняем в vec байтов
             let mut result_json_data = result_json_text.into_bytes();
 
-            result_json_data.iter_mut().for_each(|val| {
-                *val = *val ^ 0xA5_u8;
-            });
+            // Ксорим данные
+            encode_buffer(&mut result_json_data);
 
-            let mut res_file = File::create(&json_info.path)?;
-            res_file.write_all(&result_json_data)?;
+            result_json_data
         }
         JsonType::Raw => {
+            // Читаем просто в строку все содержимое файлика
             let mut src_data_buffer = String::new();
             src_file.read_to_string(&mut src_data_buffer)?;
+
+            // Закрываем файлик
             drop(src_file);
 
+            // Минификация строки
             let result_data_buffer = minifier::json::minify(&src_data_buffer);
+            drop(src_data_buffer);
 
-            let mut res_file = File::create(&json_info.path)?;
-            res_file.write_all(result_data_buffer.as_bytes())?;
+            // Перегоняем в vec байтов
+            result_data_buffer.into_bytes()
         }
-    }
+    };
+
+    // Пишем результат в файлик
+    let mut res_file = File::create(&json_info.path)?;
+    res_file.write_all(&result_json_data)?;
 
     Ok(())
 }
@@ -128,21 +146,26 @@ fn main() {
         .filter_map(|path| {
             // trace!(?path, "Check entry");
 
+            // Получаем расширение файлика, если нету - пропускаем
             let ext = match path.extension().and_then(|ext| ext.to_str()) {
                 Some(ext) => ext,
                 None => return None,
             };
 
+            // Анализируем расширение
             match ext {
+                // Обычный .json
                 "json" => {
                     return Some(JsonInfo {
                         path,
                         json_type: JsonType::Raw,
                     });
                 }
+                // Кодированный .json
                 "code" => {
-                    let full_name = path.to_str().expect("Full path unwrap err");
-                    if full_name.ends_with(".json.code") {
+                    // Проверяем, что файлик является именно .json.code
+                    let path_str = path.to_str().expect("Full path unwrap err");
+                    if path_str.ends_with(".json.code") {
                         return Some(JsonInfo {
                             path,
                             json_type: JsonType::Encoded,

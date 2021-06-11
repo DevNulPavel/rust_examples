@@ -7,7 +7,6 @@ TEST_APP:
 	cargo build --release && \
 	time target/release/json_minifier \
 		--input-folder "/Users/devnul/projects/island2/project/res" \
-		--cache-path "./test_cache" \
 		-vvvv
 
 # Могут быть проблемы со сборкой для Linux
