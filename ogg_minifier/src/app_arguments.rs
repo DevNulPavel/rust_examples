@@ -21,8 +21,8 @@ pub struct AppArguments {
     pub ogg_files_directory: PathBuf,
 
     /// Cache path
-    #[structopt(long, parse(from_os_str))]
-    pub cache_path: PathBuf,
+    // #[structopt(long, parse(from_os_str))]
+    // pub cache_path: PathBuf,
 
     // TODO: Flatten params
     #[structopt(flatten)]
