@@ -427,7 +427,7 @@ dependencies = [
 ]
 
 [[package]]
-name = "ogg_converter"
+name = "ogg_minifier"
 version = "0.1.0"
 dependencies = [
  "color-backtrace",

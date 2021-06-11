@@ -1,5 +1,5 @@
 [package]
-name = "ogg_converter"
+name = "ogg_minifier"
 version = "0.1.0"
 authors = ["Pavel Ershov <devnulpavel@gmail.com>"]
 edition = "2018"
