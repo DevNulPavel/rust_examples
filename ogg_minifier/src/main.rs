@@ -1,11 +1,9 @@
 mod app_arguments;
-mod cache;
 mod helpers;
 mod types;
 
 use crate::{
     app_arguments::{AppArguments, TargetParams},
-    cache::CacheInfo,
     types::UtilsPathes,
 };
 use eyre::WrapErr;
@@ -17,7 +15,7 @@ use std::{
     process::{Command, Stdio},
 };
 use structopt::StructOpt;
-use tracing::{debug, instrument, warn, Level};
+use tracing::{debug, instrument, Level};
 use walkdir::WalkDir;
 
 ////////////////////////////////////////////////////////////////////////////////////////////////////////////////////////
@@ -56,13 +54,8 @@ fn validate_arguments(arguments: &AppArguments) {
     );
 }
 
-#[instrument(level = "error", skip(cache_info, utils_pathes))]
-fn convert_ogg_file(
-    cache_info: &CacheInfo,
-    utils_pathes: &UtilsPathes,
-    params: &TargetParams,
-    ogg_file_path: PathBuf,
-) -> Result<(), eyre::Error> {
+#[instrument(level = "error", skip(utils_pathes))]
+fn convert_ogg_file(utils_pathes: &UtilsPathes, params: &TargetParams, ogg_file_path: PathBuf) -> Result<(), eyre::Error> {
     // Читаем метаинформацию о файлике .ogg
     let ogg_file = File::open(&ogg_file_path).wrap_err("Ogg file first open")?;
     let mut ogg_reader = ogg::PacketReader::new(ogg_file);
@@ -166,9 +159,6 @@ fn main() {
     };
     debug!(?utils_pathes, "Utils pathes");
 
-    // Создаем директории для кеша и открываем базу для хешей
-    let cache_info = CacheInfo::open(&arguments.cache_path);
-
     WalkDir::new(&arguments.ogg_files_directory)
         // Параллельное итерирование
         .into_iter()
@@ -190,7 +180,7 @@ fn main() {
         .for_each(|path| {
             debug!(?path, "Found entry");
 
-            if let Err(err) = convert_ogg_file(&cache_info, &utils_pathes, &arguments.target_params, path) {
+            if let Err(err) = convert_ogg_file(&utils_pathes, &arguments.target_params, path) {
                 // При ошибке не паникуем, а спокойно выводим сообщение и завершаем приложение с кодом ошибки
                 eprint!("Error! Failed with: {:?}", err);
                 std::process::exit(1);
