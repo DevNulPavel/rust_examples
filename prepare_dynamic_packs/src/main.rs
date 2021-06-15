@@ -9,8 +9,6 @@ use fancy_regex::Regex;
 use log::{debug, error, info, trace, warn};
 use rayon::prelude::*;
 use std::{
-    collections::HashMap,
-    fmt::format,
     fs::File,
     io::Write,
     path::{Path, PathBuf},
@@ -130,11 +128,7 @@ impl<'a, I: Iterator<Item = PathBuf>> Iterator for PackIter<'a, I> {
     }
 }
 
-fn pack_info_for_config<'a>(
-    max_pack_size: u64,
-    resources_root_folder: &'a Path,
-    pack_config: &'a PackConfig,
-) -> impl 'a + Iterator<Item = PackData> {
+fn pack_info_for_config<'a>(max_pack_size: u64, resources_root_folder: &'a Path, pack_config: &'a PackConfig) -> impl 'a + Iterator<Item = PackData> {
     // Компилируем переданные регулярные выражения
     let resource_regex_filters: Vec<Regex> = pack_config
         .resources
@@ -176,11 +170,7 @@ fn pack_info_for_config<'a>(
 
 fn create_pack_zip(result_packs_folder: &Path, pack: &PackData) {
     let result_pack_path = result_packs_folder.join(format!("{}.dpk", pack.pack_name));
-    trace!(
-        "Zip file write (thread {:?}): {:?}",
-        rayon::current_thread_index(),
-        result_pack_path
-    );
+    trace!("Zip file write (thread {:?}): {:?}", rayon::current_thread_index(), result_pack_path);
 
     let file = File::create(&result_pack_path).expect("Result file open failed");
     let mut zip = zip::ZipWriter::new(file);
@@ -199,6 +189,43 @@ fn create_pack_zip(result_packs_folder: &Path, pack: &PackData) {
     });
 
     zip.finish().expect("Zip file write failed");
+}
+
+fn save_config_to_file(result_packs_infos: Vec<PackData>, result_json_file_path: &Path, result_pack_dir: &Path) {
+    // Создаем конечный конфиг
+    let mut result_config_file = File::create(result_json_file_path).expect("Result config file open failed");
+    let resources_str: String = result_packs_infos
+        .par_iter()
+        .fold_with(String::new(), |mut prev, config| {
+            config.files_paths.iter().for_each(|path_info| {
+                let line = format!(r#""{}":"{}","#, path_info.relative, config.pack_name);
+                prev.push_str(&line);
+            });
+            prev
+        })
+        .collect();
+    result_config_file.write_all(br#"{"resources":{"#).unwrap();
+    result_config_file.write_all(resources_str.trim_end_matches(",").as_bytes()).unwrap();
+    drop(resources_str);
+    result_config_file.write_all(br#"},"packs":["#).unwrap();
+    let packs_str: String = result_packs_infos
+        .par_iter()
+        .fold_with(String::new(), |mut prev, config| {
+            let dpk_path = result_pack_dir.join(format!("{}.dpk", config.pack_name));
+            let line = format!(
+                r#"{{"name":"{}","path":"{}","priority":{},"required":{}}},"#,
+                config.pack_name,
+                dpk_path.to_str().unwrap(),
+                config.priority,
+                config.required
+            );
+            prev.push_str(&line);
+            prev
+        })
+        .collect();
+    result_config_file.write_all(packs_str.trim_end_matches(",").as_bytes()).unwrap();
+    drop(packs_str);
+    result_config_file.write_all(br#"]}"#).unwrap();
 }
 
 fn main() {
@@ -228,9 +255,9 @@ fn main() {
     // Делим переданные нам конфиги на паки
     let result_packs_infos: Vec<PackData> = packs_configs
         .par_iter()
-        .flat_map(|pack_config| pack_info_for_config(arguments.max_pack_size, &arguments.resources_directory, pack_config).par_bridge() )
+        .flat_map(|pack_config| pack_info_for_config(arguments.max_pack_size, &arguments.resources_directory, pack_config).par_bridge())
         // Создаем .dpk архивы в процессе
-        .inspect(|pack_info|{
+        .inspect(|pack_info| {
             // debug!("Pack info: {:#?}", pack_info);
             create_pack_zip(&arguments.output_dynamic_packs_dir, pack_info)
         })
@@ -244,36 +271,9 @@ fn main() {
     }
 
     // Создаем конечный конфиг
-    let mut result_config_file = File::create(&arguments.output_resources_config_path).expect("Result config file open failed");
-    let resources_str: String = result_packs_infos
-        .par_iter()
-        .fold_with(String::new(), |mut prev, config| {
-            config.files_paths.iter().for_each(|path_info| {
-                let line = format!(r#""{}":"{}","#, path_info.relative, config.pack_name);
-                prev.push_str(&line);
-            });
-            prev
-        })
-        .collect();
-    result_config_file.write_all(br#"{"resources":{"#).unwrap();
-    result_config_file
-        .write_all(resources_str.trim_end_matches(",").as_bytes())
-        .unwrap();
-    drop(resources_str);
-    result_config_file.write_all(br#"},"packs":["#).unwrap();
-    let packs_str: String = result_packs_infos
-        .par_iter()
-        .fold_with(String::new(), |mut prev, config| {
-            let dpk_path = arguments.config_pack_file_dir.join(format!("{}.dpk", config.pack_name));
-            let line = format!(
-                r#"{{"name":"{}","path":"{}","priority":{},"required":{}}},"#,
-                config.pack_name, dpk_path.to_str().unwrap(), config.priority, config.required
-            );
-            prev.push_str(&line);
-            prev
-        })
-        .collect();
-    result_config_file.write_all(packs_str.trim_end_matches(",").as_bytes()).unwrap();
-    drop(packs_str);
-    result_config_file.write_all(br#"]}"#).unwrap();
+    save_config_to_file(
+        result_packs_infos,
+        &arguments.output_resources_config_path,
+        &arguments.config_pack_file_dir,
+    );
 }

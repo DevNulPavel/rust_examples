@@ -1,18 +1,18 @@
-use std::path::{PathBuf, Path};
 use serde::Deserialize;
+use std::path::PathBuf;
 
 #[derive(Debug, Deserialize)]
-pub struct PackConfig{
+pub struct PackConfig {
     pub name: String,
     pub resources: Vec<String>,
     pub priority: i32,
-    pub required: bool
+    pub required: bool,
 }
 
 #[derive(Debug)]
-pub struct PackFilePathInfo{
+pub struct PackFilePathInfo {
     pub absolute: PathBuf,
-    pub relative: String
+    pub relative: String,
 }
 
 #[derive(Debug)]
@@ -21,5 +21,5 @@ pub struct PackData {
     pub files_paths: Vec<PackFilePathInfo>,
     pub priority: i32,
     pub required: bool,
-    pub pack_size: u64
+    pub pack_size: u64,
 }
