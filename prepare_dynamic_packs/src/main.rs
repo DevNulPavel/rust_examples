@@ -6,7 +6,7 @@ use crate::{
     types::{PackConfig, PackData, PackFilePathInfo},
 };
 use fancy_regex::Regex;
-use log::{debug, error, info, trace, warn};
+use log::{debug, trace};
 use rayon::prelude::*;
 use std::{
     collections::HashSet,
@@ -58,7 +58,7 @@ struct PackIter<'a, I: Iterator<Item = PathBuf>> {
     source: I,
     sub_pack_number: u32,
     max_pack_size: u64,
-    pack_config: &'a PackConfig,
+    pack_config: PackConfig,
     resources_root_folder: &'a Path,
     processed_files_index: &'a Mutex<HashSet<PathBuf>>,
 }
@@ -144,7 +144,7 @@ impl<'a, I: Iterator<Item = PathBuf>> Iterator for PackIter<'a, I> {
 fn pack_info_for_config<'a>(
     max_pack_size: u64,
     resources_root_folder: &'a Path,
-    pack_config: &'a PackConfig,
+    pack_config: PackConfig,
     processed_files_index: &'a Mutex<HashSet<PathBuf>>,
 ) -> impl 'a + Iterator<Item = PackData> {
     // Компилируем переданные регулярные выражения
@@ -152,18 +152,15 @@ fn pack_info_for_config<'a>(
         .resources
         .iter()
         .map(|resource_regex| {
+            // Strip для завершающего /
+            // let resource_regex = resource_regex.strip_suffix("/").unwrap_or(resource_regex.as_ref());
+
             // Принудительно вставляем в начало символ начала строки если нету
             let buf: String;
-            let reg = if resource_regex.starts_with('^') && resource_regex.ends_with("$") {
-                &resource_regex
-            } else if resource_regex.ends_with("$") {
+            let reg = if resource_regex.starts_with('^') {
+                resource_regex
+            } else {
                 buf = format!("^{}", resource_regex);
-                &buf
-            } else if resource_regex.starts_with("^") {
-                buf = format!("{}$", resource_regex);
-                &buf
-            }else{
-                buf = format!("^{}$", resource_regex);
                 &buf
             };
             debug!("Result regex: {}", reg);
@@ -174,11 +171,9 @@ fn pack_info_for_config<'a>(
     // На основании регулярок получаем список подходящих директорий
     let all_files_iter = walkdir::WalkDir::new(resources_root_folder)
         .into_iter()
-        .map(|entry| entry.expect("WalkDir entry unwrap failed"))
-        .filter(|entry| entry.path().is_dir())
-        .filter(move |entry| {
-            let entry_path_str = entry
-                .path()
+        .map(|entry| entry.expect("WalkDir entry unwrap failed").into_path())
+        .filter(move |path| {
+            let entry_path_str = path
                 .strip_prefix(resources_root_folder)
                 .expect("Strip prefix error")
                 .to_str()
@@ -188,14 +183,6 @@ fn pack_info_for_config<'a>(
                 .iter()
                 .any(|regex| regex.is_match(entry_path_str).expect("Regex check failed"))
         })
-        // Итератор списка всех файликов в директориях конфига пака
-        .map(|entry| {
-            let path = entry.path();
-            debug!("Found valid folder: {:?}", path);
-            walkdir::WalkDir::new(path)
-        })
-        .flatten()
-        .map(|entry| entry.expect("WalkDir entry unwrap failed").into_path())
         .filter(|path| path.is_file());
 
     PackIter {
@@ -299,7 +286,8 @@ fn main() {
 
     // Делим переданные нам конфиги на паки
     let result_packs_infos: Vec<PackData> = packs_configs
-        .par_iter()
+        // .into_iter()
+        .into_par_iter()
         .flat_map(|pack_config| {
             pack_info_for_config(
                 arguments.max_pack_size,
@@ -315,7 +303,6 @@ fn main() {
             create_pack_zip(&arguments.output_dynamic_packs_dir, pack_info)
         })
         .collect();
-    drop(packs_configs);
     debug!("Result packs infos: {:?}", result_packs_infos);
 
     // Создаем директорию для конечного конфига
