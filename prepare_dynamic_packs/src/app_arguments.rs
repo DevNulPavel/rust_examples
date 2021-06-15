@@ -26,7 +26,7 @@ pub struct AppArguments {
     pub output_dynamic_packs_dir: PathBuf,
 
     /// Max pack size
-    #[structopt(long, default_value = "512000")] // 500 * 1024 = 512000
+    #[structopt(long, default_value = "4194304")] // 1024*1024*4 = 4194304, 500 * 1024 = 512000
     pub max_pack_size: u64,
 
     /// Verbose

@@ -1,18 +1,26 @@
 .PHONY:
 .SILENT:
 
+TEST_ORIGINAL_SCRIPT:
+	python2 \
+		/Users/devnul/projects/island2/project/targets/Emscripten/prepare_res/prepare_dynamic_packs.py \
+		"./test_config/dynamic_packs.json" \
+		"/Users/devnul/projects/island2/project" \
+		"./test_script_output/packResources.json" \
+		"./test_script_output/"
+
 TEST_APP:
 	# --resources-directory "/Users/devnul/projects/island2/build/Emscripten_Standalone/res_to_server
 	export RUST_BACKTRACE=1 && \
 	export RUST_LOG=error && \
 	cargo build --release && \
 	time target/release/prepare_dynamic_packs \
-		--dynamic-packs-config-path "test_config/dynamic_packs.json" \
-		--resources-directory "/Users/devnul/projects/island2/build/Emscripten_Standalone/res_to_server" \
-		--output-resources-config-path "/Users/devnul/projects/island2/build/Emscripten_Standalone/res_to_server/packResources.json" \
-		--output-dynamic-packs-dir "/Users/devnul/projects/island2/build/Emscripten_Standalone/res_to_server/res/dynamicPacks" \
+		--dynamic-packs-config-path "./test_config/dynamic_packs.json" \
+		--resources-directory "/Users/devnul/projects/island2/project" \
+		--output-resources-config-path "./test_app_output/packResources.json" \
+		--output-dynamic-packs-dir "./test_app_output/" \
 		--config-pack-file-dir "res/dynamicPacks/" \
-		-vvv
+		-v
 
 # Могут быть проблемы со сборкой для Linux
 BUILD_UNIVERSAL_APP_NATIVE:
