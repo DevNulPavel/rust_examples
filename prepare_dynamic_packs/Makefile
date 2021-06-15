@@ -6,8 +6,8 @@ TEST_ORIGINAL_SCRIPT:
 		/Users/devnul/projects/island2/project/targets/Emscripten/prepare_res/prepare_dynamic_packs.py \
 		"./test_config/dynamic_packs.json" \
 		"/Users/devnul/projects/island2/project" \
-		"./test_script_output/packResources.json" \
-		"./test_script_output/"
+		"./test_output_script/packResources.json" \
+		"./test_output_script/"
 
 TEST_APP:
 	# --resources-directory "/Users/devnul/projects/island2/build/Emscripten_Standalone/res_to_server
@@ -17,8 +17,8 @@ TEST_APP:
 	time target/release/prepare_dynamic_packs \
 		--dynamic-packs-config-path "./test_config/dynamic_packs.json" \
 		--resources-directory "/Users/devnul/projects/island2/project" \
-		--output-resources-config-path "./test_app_output/packResources.json" \
-		--output-dynamic-packs-dir "./test_app_output/" \
+		--output-resources-config-path "./test_output_app/packResources.json" \
+		--output-dynamic-packs-dir "./test_output_app/" \
 		--config-pack-file-dir "res/dynamicPacks/" \
 		-v
 

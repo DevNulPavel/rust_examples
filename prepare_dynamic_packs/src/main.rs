@@ -9,9 +9,11 @@ use fancy_regex::Regex;
 use log::{debug, error, info, trace, warn};
 use rayon::prelude::*;
 use std::{
+    collections::HashSet,
     fs::File,
     io::Write,
     path::{Path, PathBuf},
+    sync::Mutex,
 };
 use structopt::StructOpt;
 
@@ -58,6 +60,7 @@ struct PackIter<'a, I: Iterator<Item = PathBuf>> {
     max_pack_size: u64,
     pack_config: &'a PackConfig,
     resources_root_folder: &'a Path,
+    processed_files_index: &'a Mutex<HashSet<PathBuf>>,
 }
 impl<'a, I: Iterator<Item = PathBuf>> Iterator for PackIter<'a, I> {
     type Item = PackData;
@@ -71,15 +74,25 @@ impl<'a, I: Iterator<Item = PathBuf>> Iterator for PackIter<'a, I> {
             // Получаем из итератора путь к файлику, но не изымаем из итератора
             let file_full_path = match self.source.next() {
                 Some(path) => {
-                    // trace!("Peek path: {:?}", path);
+                    debug!("Get file at path: {:?}", path);
                     path
                 }
                 None => {
                     // trace!("All files iter break");
-                    // break 'top_loop;
-                    return None;
+                    break 'internal_loop;
                 }
             };
+
+            // Проверяем, не был ли данный файлик обработан где-то еще
+            // Если не был - все норм, если был - пропускаем его
+            {
+                let mut index_guard = self.processed_files_index.lock().expect("Mutex lock failed");
+                if index_guard.contains(&file_full_path) {
+                    continue 'internal_loop;
+                } else {
+                    index_guard.insert(file_full_path.clone());
+                }
+            }
 
             // Читаем метаданные файлика
             let meta = std::fs::metadata(&file_full_path).expect("Metadata read failed");
@@ -107,10 +120,10 @@ impl<'a, I: Iterator<Item = PathBuf>> Iterator for PackIter<'a, I> {
             }
         }
 
-        // Пустой пак?
-        // if pack_files.len() == 0 {
-        //     continue 'top_loop;
-        // }
+        // Пустой пак? Значит ничего не нашлось больше подходящего
+        if pack_files.len() == 0 {
+            return None;
+        }
 
         // Записываем информацию о паке
         let res = PackData {
@@ -128,12 +141,34 @@ impl<'a, I: Iterator<Item = PathBuf>> Iterator for PackIter<'a, I> {
     }
 }
 
-fn pack_info_for_config<'a>(max_pack_size: u64, resources_root_folder: &'a Path, pack_config: &'a PackConfig) -> impl 'a + Iterator<Item = PackData> {
+fn pack_info_for_config<'a>(
+    max_pack_size: u64,
+    resources_root_folder: &'a Path,
+    pack_config: &'a PackConfig,
+    processed_files_index: &'a Mutex<HashSet<PathBuf>>,
+) -> impl 'a + Iterator<Item = PackData> {
     // Компилируем переданные регулярные выражения
     let resource_regex_filters: Vec<Regex> = pack_config
         .resources
         .iter()
-        .map(|resource_regex| Regex::new(&resource_regex).expect("Regex create failed"))
+        .map(|resource_regex| {
+            // Принудительно вставляем в начало символ начала строки если нету
+            let buf: String;
+            let reg = if resource_regex.starts_with('^') && resource_regex.ends_with("$") {
+                &resource_regex
+            } else if resource_regex.ends_with("$") {
+                buf = format!("^{}", resource_regex);
+                &buf
+            } else if resource_regex.starts_with("^") {
+                buf = format!("{}$", resource_regex);
+                &buf
+            }else{
+                buf = format!("^{}$", resource_regex);
+                &buf
+            };
+            debug!("Result regex: {}", reg);
+            Regex::new(reg).expect("Regex create failed")
+        })
         .collect();
 
     // На основании регулярок получаем список подходящих директорий
@@ -142,19 +177,23 @@ fn pack_info_for_config<'a>(max_pack_size: u64, resources_root_folder: &'a Path,
         .map(|entry| entry.expect("WalkDir entry unwrap failed"))
         .filter(|entry| entry.path().is_dir())
         .filter(move |entry| {
-            // trace!("Folder check: {:?}", entry.path());
             let entry_path_str = entry
                 .path()
                 .strip_prefix(resources_root_folder)
                 .expect("Strip prefix error")
                 .to_str()
                 .expect("Entry to string convert error");
+            // trace!("Folder check: {}", entry_path_str);
             resource_regex_filters
                 .iter()
                 .any(|regex| regex.is_match(entry_path_str).expect("Regex check failed"))
         })
         // Итератор списка всех файликов в директориях конфига пака
-        .map(|entry| walkdir::WalkDir::new(entry.path()))
+        .map(|entry| {
+            let path = entry.path();
+            debug!("Found valid folder: {:?}", path);
+            walkdir::WalkDir::new(path)
+        })
         .flatten()
         .map(|entry| entry.expect("WalkDir entry unwrap failed").into_path())
         .filter(|path| path.is_file());
@@ -165,6 +204,7 @@ fn pack_info_for_config<'a>(max_pack_size: u64, resources_root_folder: &'a Path,
         pack_config,
         source: all_files_iter,
         sub_pack_number: 0,
+        processed_files_index,
     }
 }
 
@@ -246,16 +286,29 @@ fn main() {
 
     // Пасим json конфиг
     let config_file = File::open(&arguments.dynamic_packs_config_path).expect("Dynamic packs config file open failed");
-    let packs_configs: Vec<PackConfig> = serde_json::from_reader(config_file).expect("Dynamic packs config parse failed");
+    let mut packs_configs: Vec<PackConfig> = serde_json::from_reader(config_file).expect("Dynamic packs config parse failed");
     debug!("Packs config: {:#?}", packs_configs);
+
+    // Выполняем сортировку по приоритетам паков, большие значения в начале
+    packs_configs.sort_by(|a, b| b.priority.cmp(&a.priority));
 
     // Создаем директорию для паков если надо
     std::fs::create_dir_all(&arguments.output_dynamic_packs_dir).expect("Output packs directory create failed");
 
+    let processed_files_index: Mutex<HashSet<PathBuf>> = Default::default();
+
     // Делим переданные нам конфиги на паки
     let result_packs_infos: Vec<PackData> = packs_configs
         .par_iter()
-        .flat_map(|pack_config| pack_info_for_config(arguments.max_pack_size, &arguments.resources_directory, pack_config).par_bridge())
+        .flat_map(|pack_config| {
+            pack_info_for_config(
+                arguments.max_pack_size,
+                &arguments.resources_directory,
+                pack_config,
+                &processed_files_index,
+            )
+            .par_bridge()
+        })
         // Создаем .dpk архивы в процессе
         .inspect(|pack_info| {
             // debug!("Pack info: {:#?}", pack_info);

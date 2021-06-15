@@ -1,0 +1,10 @@
+[
+    {
+        "name": "ach_icons",
+        "resources": [
+            "res/images/icons/achievementsIcons"
+        ],
+        "priority": 500,
+        "required": false
+    }
+]
