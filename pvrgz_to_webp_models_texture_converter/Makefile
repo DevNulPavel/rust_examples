@@ -6,11 +6,11 @@ TEST_APP:
 	export RUST_LOG=error && \
 	cargo build --release && \
 	time target/release/pvrgz_to_webp_models_texture_converter \
-		--minimum-pvrgz-size 2048 \
+		--minimum-pvrgz-size 128 \
 		--target-webp-quality 75 \
-		--atlases-images-directory "/Users/devnul/projects/island2/project/res/images/buildings/atlases" \
+		--models-config-json "/Users/devnul/projects/island2/build/Emscripten_Standalone/res/models/models.json" \
+		--pvrgz-directories "/Users/devnul/projects/island2/build/Emscripten_Standalone/res/models" "/Users/devnul/projects/island2/build/Emscripten_Standalone/res_to_server/res/models" \
 		--cache-path "./test_cache"
-		# --alternative-atlases-json-directory ""
 		# -vvv
 
 # Могут быть проблемы со сборкой для Linux
