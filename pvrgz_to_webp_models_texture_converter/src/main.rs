@@ -48,6 +48,10 @@ fn validate_arguments(arguments: &AppArguments) {
     arguments.pvrgz_directories.iter().for_each(|dir| {
         assert!(dir.exists(), "Images directory does not exist at path: {:?}", dir);
     });
+    if let Some(ignore_path) = &arguments.ignore_config_path {
+        assert!(ignore_path.exists(), "Ignore config json file does not exist: {:?}", ignore_path);
+        assert!(ignore_path.is_file(), "Ignore config must be file: {:?}", ignore_path);
+    }
     assert!(arguments.target_webp_quality <= 100, "Target webp quality must be from 0 to 100");
 }
 
@@ -122,6 +126,12 @@ fn main() {
     };
     debug!(?utils_pathes, "Utils pathes");
 
+    // Читаем список для игнорирования из файлика если надо
+    let ignore_list = arguments.ignore_config_path.as_ref().map(|path| {
+        let file = File::open(path).expect("Ignore file open failed");
+        serde_json::from_reader::<_, Vec<String>>(file).expect("Ignore list parse failed")
+    });
+
     // Создаем директории для кеша и открываем базу для хешей
     let cache_info = CacheInfo::open(&arguments.cache_path);
 
@@ -165,21 +175,30 @@ fn main() {
                 return false;
             }
 
+            // Относительный путь к файлу
+            // TODO: Повторно вычисляется ниже, не дублировать?
+            let relative_path_str = path
+                .strip_prefix(root)
+                .expect("Root strip error")
+                .to_str()
+                .expect("Path to str err");
+
+            // В списке игнора?
+            if let Some(ignore_list) = ignore_list.as_ref() {
+                let contains_ignore = ignore_list.into_iter().any(|item| relative_path_str.starts_with(item));
+                if contains_ignore {
+                    return false;
+                }
+            }
+
             // Проверим сначала, что данная текстура у нас встречается вообще в файлике json
             {
-                // TODO: Повторно вычисляется ниже, не дублировать?
-                let old_relative_path_str = path
-                    .strip_prefix(root)
-                    .expect("Root strip error")
-                    .to_str()
-                    .expect("Path to str err");
-
                 // Получаем блокировку на строке
                 let data_guard = json_file_data.read().expect("Mutex lock failed");
 
                 // Если не нашли, выходим с выводом предупреждения
-                if data_guard.find(old_relative_path_str).is_none() {
-                    // warn!(path = old_relative_path_str, "File not found in models.json");
+                if data_guard.find(relative_path_str).is_none() {
+                    // warn!(path = relative_path_str, "File not found in models.json");
                     return false;
                 }
             }

@@ -17,6 +17,10 @@ pub struct AppArguments {
     #[structopt(long, parse(from_os_str))]
     pub cache_path: PathBuf,
 
+    /// Ignore json array file
+    #[structopt(long, parse(from_os_str))]
+    pub ignore_config_path: Option<PathBuf>,
+
     /// Target webp quality
     #[structopt(long)]
     pub target_webp_quality: u8,

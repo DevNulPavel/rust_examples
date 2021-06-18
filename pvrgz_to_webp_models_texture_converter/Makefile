@@ -10,7 +10,8 @@ TEST_APP:
 		--target-webp-quality 75 \
 		--models-config-json "/Users/devnul/projects/island2/build/Emscripten_Standalone/res/models/models.json" \
 		--pvrgz-directories "/Users/devnul/projects/island2/build/Emscripten_Standalone/res/models" "/Users/devnul/projects/island2/build/Emscripten_Standalone/res_to_server/res/models" \
-		--cache-path "./test_cache"
+		--cache-path "./test_cache" \
+		--ignore-config-path "./test_ignore_images.json"
 		# -vvv
 
 # Могут быть проблемы со сборкой для Linux
@@ -45,7 +46,6 @@ BUILD_UNIVERSAL_APP_CROSS:
 		target/aarch64-apple-darwin/release/pvrgz_to_webp_models_texture_converter \
 		target/x86_64-apple-darwin/release/pvrgz_to_webp_models_texture_converter \
 		-output \
-		target/pvrgz_to_webp_models_texture_converter_osx
-
-	#cross build --release --target x86_64-unknown-linux-gnu && \
-	#cp target/x86_64-unknown-linux-gnu/release/pvrgz_to_webp_models_texture_converter target/pvrgz_to_webp_models_texture_converter_linux
+		target/pvrgz_to_webp_models_texture_converter_osx && \
+	cross build --release --target x86_64-unknown-linux-gnu && \
+	cp target/x86_64-unknown-linux-gnu/release/pvrgz_to_webp_models_texture_converter target/pvrgz_to_webp_models_texture_converter_linux
