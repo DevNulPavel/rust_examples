@@ -213,6 +213,10 @@ fn create_pack_zip(result_packs_folder: &Path, pack: &PackData) {
 
         let mut original_file = File::open(&path_info.absolute).expect("Original file open err");
         std::io::copy(&mut original_file, &mut zip).expect("File copy failed"); // TODO: Bufffer size
+        drop(original_file);
+
+        // Удалим старый файлик, который мы сохранили в наш .zip
+        std::fs::remove_file(&path_info.absolute).expect("Source file remove failed");
     });
 
     zip.finish().expect("Zip file write failed");
