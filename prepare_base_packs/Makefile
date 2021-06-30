@@ -2,17 +2,15 @@
 .SILENT:
 
 TEST_APP:
+	# --other-source-directories "./target"
 	export RUST_BACKTRACE=0 && \
 	export RUST_LOG=error && \
 	cargo build --release && \
 	time target/release/prepare_base_packs \
-		--minimum-pvrgz-size 128 \
-		--target-webp-quality 75 \
-		--models-config-json "/Users/devnul/projects/island2/build/Emscripten_Standalone/res/models/models.json" \
-		--pvrgz-directories "/Users/devnul/projects/island2/build/Emscripten_Standalone/res/models" "/Users/devnul/projects/island2/build/Emscripten_Standalone/res_to_server/res/models" \
-		--cache-path "./test_cache" \
-		--ignore-config-path "./test_ignore_images.json"
-		# -vvv
+		--config-json "test_config.json" \
+		--packs-directory "/Users/devnul/projects/island2/project/download/pack_sources" \
+		--packs-directory-prefixes "pack_base_" "pack_common_all_" \
+		-vvv
 
 # Могут быть проблемы со сборкой для Linux
 BUILD_UNIVERSAL_APP_NATIVE:

@@ -4,18 +4,23 @@ mod types;
 
 use crate::{app_arguments::AppArguments, types::UtilsPathes};
 use eyre::WrapErr;
-use itertools::Itertools;
+// use fancy_regex::Regex;
+use fancy_regex::Regex;
 use rayon::prelude::*;
-use serde::Deserialize;
+use serde::{de::Visitor, Deserialize, Deserializer};
 use std::{
+    borrow::Cow,
+    convert::TryInto,
     fs::{remove_file, File},
     io::{Read, Write},
-    path::{Path, PathBuf},
+    ops::Deref,
+    path::{Iter, Path, PathBuf},
     sync::RwLock,
 };
 use structopt::StructOpt;
 use tracing::{debug, instrument, Level};
 use walkdir::WalkDir;
+// use itertools::Itertools;
 // use fallible_iterator::{FallibleIterator, IntoFallibleIterator, FromFallibleIterator};
 
 ////////////////////////////////////////////////////////////////////////////////////////////////////////////////////////
@@ -79,12 +84,113 @@ fn validate_arguments(arguments: &AppArguments) -> Result<(), eyre::Error> {
     Ok(())
 }
 
+#[derive(Debug)]
+pub struct Re(pub Regex);
+
+impl<'de> Deserialize<'de> for Re {
+    fn deserialize<D>(deserializer: D) -> Result<Self, D::Error>
+    where
+        D: Deserializer<'de>,
+    {
+        let s = String::deserialize(deserializer)?;
+        let regex = Regex::new(&s).map_err(serde::de::Error::custom)?;
+        Ok(Re(regex))
+    }
+}
+impl Into<Regex> for Re {
+    fn into(self) -> Regex {
+        self.0
+    }
+}
+impl Deref for Re {
+    type Target = Regex;
+    fn deref(&self) -> &Self::Target {
+        &self.0
+    }
+}
+
 #[derive(Debug, Deserialize)]
 pub struct Config {
-    pub ignore_dirs: Vec<String>,
-    pub ignore_files: Vec<String>,
-    pub exclude_files_from_build: Vec<String>,
-    pub forced_include_files_in_build: Vec<String>,
+    pub ignore_dirs: Vec<Re>,
+    pub ignore_files: Vec<Re>,
+    pub exclude_files_from_build: Vec<Re>,
+    pub forced_include_files_in_build: Vec<Re>,
+}
+
+struct FoundEntry<'a> {
+    root: Cow<'a, Path>,
+    full_path: PathBuf,
+}
+
+#[instrument(level = "error", skip(entry))]
+fn process_found_entry(config: &Config, entry: FoundEntry) -> Result<(), eyre::Error> {
+    // Относительные пути
+    let relative_path = entry.full_path.strip_prefix(&entry.root).wrap_err("Prefix strip error")?;
+    let relative_path_str = relative_path.to_str().ok_or_else(|| eyre::eyre!("Path to string convert failed"))?;
+
+    // Определяем, не является ли данный итем в списке игнора
+    let ignored = config
+        .ignore_dirs
+        .iter()
+        .any(|ignore_regex| ignore_regex.is_match(relative_path_str).unwrap_or(false));
+    if ignored {
+        return Ok(());
+    }
+
+    Ok(())
+}
+
+#[instrument(level = "error", skip(packs_directory, valid_prefixes))]
+fn get_pack_directories(packs_directory: &Path, valid_prefixes: &[impl AsRef<str> + Sync + Send]) -> Result<Vec<PathBuf>, eyre::Error> {
+    // Сначала получим директории паков
+    let mut packs_directories: Vec<PathBuf> = WalkDir::new(packs_directory)
+        .min_depth(1)
+        .max_depth(1)
+        .into_iter()
+        .par_bridge()
+        .map(|entry| -> Result<Option<PathBuf>, eyre::Error> {
+            let _span = tracing::error_span!("Packs filter", full_path = tracing::field::Empty);
+            let _span_guard = _span.enter();
+
+            // Полный путь к директории
+            let full_path = entry?.into_path();
+
+            _span.record("full_path", &tracing::field::debug(&full_path));
+
+            // Только директории
+            if !full_path.is_dir() {
+                return Ok(None);
+            }
+
+            // Относительный путь
+            let relative_path = full_path.strip_prefix(packs_directory)?;
+
+            // Получаем имя этой самой директории как первый компонент
+            let dir_name_str = relative_path
+                .components()
+                .next()
+                .ok_or_else(|| eyre::eyre!("Component is missing"))?
+                .as_os_str()
+                .to_str()
+                .ok_or_else(|| eyre::eyre!("Component convert to string failed"))?;
+
+            // Директория относится к префиксамвалидным?
+            let is_found_prefix = valid_prefixes.iter().any(|prefix| dir_name_str.starts_with(prefix.as_ref()));
+
+            if is_found_prefix {
+                Ok(Some(packs_directory.join(dir_name_str)))
+            } else {
+                Ok(None)
+            }
+        })
+        .filter_map(|entry| entry.transpose())
+        .panic_fuse()
+        .collect::<Result<Vec<PathBuf>, eyre::Error>>()?;
+
+    // Выполним сортировку полученных директорий
+    packs_directories.par_sort_unstable_by(PathBuf::cmp);
+
+    Ok(packs_directories)
 }
 
 #[instrument(level = "error")]
@@ -102,75 +208,63 @@ fn execute_app() -> Result<(), eyre::Error> {
     validate_arguments(&arguments).wrap_err("Validate arguments")?;
 
     // Открываем файлик конфига и парсим данные из него
-    let config = {
+    let config: Config = {
         let file = File::open(&arguments.config_json).wrap_err("Config file open failed")?;
-        serde_json::from_reader::<_, Config>(file).wrap_err("Parse config failed")?
+        let raw_conf = serde_json::from_reader::<_, Config>(file).wrap_err("Parse config failed")?;
+        raw_conf.try_into()?
     };
+    // debug!(?config, "Config");
 
-    struct FoundEntry<'a> {
-        root: &'a Path,
-        full_path: PathBuf,
-    }
+    // Результаты
+    let packs_directories = get_pack_directories(&arguments.packs_directory, &arguments.packs_directory_prefixes)?;
+    // debug!(?packs_directories, "Found pack's directories");
 
-    // Сначала идем по директории с паками
-    WalkDir::new(&arguments.packs_directory)
-        .into_iter()
-        .par_bridge()
-        .map(|entry| -> Result<Option<FoundEntry>, eyre::Error> {
-            let full_path = entry?.into_path();
-            let relative_path_str = full_path
-                .strip_prefix(&arguments.packs_directory)?
-                .to_str()
-                .ok_or_else(|| eyre::eyre!("Path to string convert failed"))?;
+    // Обходим ПОСЛЕДОВАТЕЛЬНО (не параллельно) директории, так как нам важен порядок
+    packs_directories
+        .iter()
+        .chain(arguments.other_source_directories.iter())
+        .try_for_each(|dir_root_path| -> Result<(), eyre::Error> {
+            WalkDir::new(dir_root_path)
+                .into_iter()
+                .par_bridge()
+                .filter_map(|entry| entry.ok().map(|entry| entry.into_path()))
+                .filter(|path| {
+                    // Работаем только с файликами
+                    if !path.is_file() {
+                        return false;
+                    }
 
-            let valid = arguments
-                .packs_directory_prefixes
-                .iter()
-                .any(|prefix| relative_path_str.starts_with(prefix));
+                    // Получаем относительный путь
+                    let relative_path = path.strip_prefix(&dir_root_path).expect("Invalid prefix");
 
-            if valid {
-                Ok(Some(FoundEntry {
-                    full_path,
-                    root: &arguments.packs_directory,
-                }))
-            } else {
-                Ok(None)
-            }
-        })
-        .filter_map(|entry| entry.transpose())
-        .try_for_each(|entry| {
-            Ok(())
-        });
+                    // Файл в папке, которую мы игнорируем?
+                    let ignore_dir = match relative_path.parent().and_then(|p| p.to_str()) {
+                        Some(parent_path_str) => {
+                            // debug!(?parent, "Parent check");
+                            config
+                                .ignore_dirs
+                                .iter()
+                                .any(|regex| regex.is_match(parent_path_str).unwrap_or(false))
+                        }
+                        None => false,
+                    };
 
-    arguments.other_source_directories.iter().try_for_each(|dir| {
-        WalkDir::new(dir)
-            .into_iter()
-            .par_bridge()
-            .map(move |entry| -> Result<FoundEntry, eyre::Error> {
-                let full_path = entry?.into_path();
-                Ok(FoundEntry { full_path, root: &dir })
-            });
+                    // Файлик относится к игнорируемым?
+                    let ignore_file = match relative_path.to_str() {
+                        Some(file_path_str) => config
+                            .ignore_files
+                            .iter()
+                            .any(|regex| regex.is_match(file_path_str).unwrap_or(false)),
+                        None => false,
+                    };
 
-        Ok(())
-    });
-
-    // std::iter::once(packs_iter).chain(other_source_iterators);
-
-    // // Идем по всем нашим директориям
-    // arguments
-    //     .source_directories
-    //     // Параллельный незаимствующий итератор
-    //     .par_iter()
-    //     // Для полного параллелизма между итераторами по директориям используем flat_map + par_bridge
-    //     .flat_map(|dir| std::iter::repeat(dir).zip(WalkDir::new(&dir).into_iter()).par_bridge())
-    //     // Только валидные папки и файлики
-    //     .filter_map(|(root, entry)| (root, entry.expect("Entry path err").into_path()))
-    //     // Если кто-то запаниковал, тогда останавливаем работу остальных потоков
-    //     .panic_fuse()
-    //     // Непосредственно конвертация
-    //     .for_each(|(root, path)| {
-
-    //     });
+                    !ignore_dir && !ignore_file
+                })
+                .try_for_each(|path| -> Result<(), eyre::Error> {
+                    // debug!(?path, "Valid");
+                    Ok(())
+                })
+        })?;
 
     Ok(())
 }

@@ -1,0 +1,191 @@
+{
+    "ignore_dirs": [
+        "^res/models/meshes/svd",
+        ".*/hd$"
+        ,"^res/html"
+        ,"^res/images/faq"
+        ,"^res/images/socialNetwork/background"
+        ,"^res/sounds"
+    ],
+    "ignore_files": [
+        "res/images/loadscreens/loadingbg.jpg"
+        ,"res/images/loadscreens/bar_fill2.png"
+        ,"res/images/loadscreens/loadingbg_960x640.jpg"
+        ,"res/images/loadscreens/loadingbg_1920x1080.jpg",
+        "res/models/meshes/svd/love_princess/love_princess.x"
+    ],
+    "exclude_files_from_build":[
+        ".*\\.(png|jpg|pvrgz)$",
+        "^res/images/buildings/atlases/(?!.*\\.json$)",
+        "^res/particles",
+        "^res/match3/particles",
+        "^res/models/meshes/chibics",
+        "^res/models/meshes/chibics",
+        "^res/models/meshes/new_year",
+        "^res/models/meshes/svd",
+        "^res/models/meshes/tday",
+        "^res/models/meshes/dsp",
+        "^res/models/meshes/china",
+        "^res/models/meshes/halloween",
+        "^res/models/meshes/lao_dao",
+        "^res/models/meshes/submodels",
+        "^res/models/meshes/alien1\\.x",
+        "^res/models/meshes/snowman_.+",
+        "^res/models/meshes/pirate_.+",
+        "^res/models/meshes/scientist.+",
+        "^res/models/meshes/case_.+\\.x",
+        "^res/models/meshes/cat_space\\.x",
+        "^res/models/meshes/fennec_fox\\.x",
+        "^res/models/meshes/gorilla\\.x",
+        "^res/models/meshes/human_afro\\.x",
+        "^res/models/meshes/human_elena\\.x",
+        "^res/models/meshes/human_gman_2\\.x",
+        "^res/models/meshes/human_gman\\.x",
+        "^res/models/meshes/human_maid\\.x",
+        "^res/models/meshes/human_rasta\\.x",
+        "^res/models/meshes/human_surfer\\.x",
+        "^res/models/meshes/human_woman_with_boy\\.x",
+        "^res/models/meshes/human_woman_with_girl\\.x",
+        "^res/models/meshes/human_woman\\.x",
+        "^res/models/meshes/human_worker_2\\.x",
+        "^res/models/meshes/human_worker\\.x",
+        "^res/models/meshes/panda.+",
+        "^res/models/meshes/parrot.+",
+        "^res/models/meshes/rabbit\\.x",
+        "^res/models/meshes/robot_cat\\.x",
+        "^res/models/meshes/rchameleon\\.x",
+        "^res/models/meshes/rdolphin\\.x",
+        "^res/models/meshes/rfennec_fox\\.x",
+        "^res/models/meshes/rleopard\\.x",
+        "^res/models/meshes/rred_panda\\.x",
+        "^res/models/meshes/rptero\\.x",
+        "^res/models/meshes/rpanda\\.x",
+        "^res/models/meshes/rparrot\\.x",
+        "^res/models/meshes/rparrot_sit\\.x",
+        "^res/models/meshes/rseagull\\.x",
+        "^res/models/meshes/rseagull_walk\\.x",
+        "^res/models/meshes/rgiraffe\\.x"
+    ],
+    "forced_include_files_in_build":[
+        "^res/dragonbones/"
+        
+        ,"^res/match3/armatures"
+        ,"^res/match3/models"
+        ,"^res/match3/skins"
+        ,"^res/match3/fx.json"
+        ,"^res/match3/placeholder.png"
+
+        ,"^res/spine/"
+
+        ,"^res/images/socialNetwork/postingFrames"
+        ,"^res/images/placing_cells/green_3\\.png"
+
+        ,"^res/images/tile/sky/low/"
+        ,"^res/images/tile/(map|ocean)/(sub|low)/"
+        ,"^res/images/tile/ocean/ocean_nmap\\."
+
+        ,"^res/images/interface/shop/(arrow/)"
+        ,"^res/images/interface/shop/(ui_shop_panel_money1|shop_bg_|ui_shop_panel_bg_|ui_shop_panel_money[12]|ui_shop_panel_top)"
+        ,"^res/images/interface/shop/(ui_shop_panel_ground|ui_shop_panel_coast)"
+
+        ,"^res/images/interface/mainScreen/ui_main_button_shop.*\\."
+        ,"^res/images/interface/tutorial"
+
+        ,"^res/images/icons/buildingsShopIcons/hotel_bungalow_2_st1\\."
+        ,"^res/images/icons/buildingsShopIcons/hotel_bungalow_st1\\."
+        ,"^res/images/icons/buildingsShopIcons/hotel_island_st1\\."
+        ,"^res/images/icons/buildingsShopIcons/hotel_palace_st1\\."
+        ,"^res/images/icons/buildingsShopIcons/decor_parking_for_bicycle\\."
+        ,"^res/images/icons/buildingsShopIcons/gift_shop_st1\\."
+        ,"^res/images/icons/buildingsShopIcons/decor_pavilion\\."
+        ,"^res/images/icons/buildingsShopIcons/cafeicescream_st1\\."
+        ,"^res/images/icons/buildingsShopIcons/fireworks_st1\\."
+        ,"^res/images/icons/buildingsShopIcons/springboard1\\."
+
+        ,"^res/images/icons/resourcesIcons/res_(money|exp|xp|tourists|staff|tape)?"
+        ,"^res/images/icons/resourcesIcons/attr_energy"
+        ,"^res/images/icons/resourcesIcons/ribbon_"
+        ,"^res/images/icons/resourcesIcons/icon_pvp_shield_03"
+        ,"^res/images/icons/resourcesIcons/contract_(coffee|ball|smile)\\."
+        ,"^res/images/icons/resourcesIcons/res_(electricity|bed)\\."
+        ,"^res/images/icons/resourcesIcons/res_chest_treasure"
+
+        ,"^res/images/interface/mainScreen/bar/(?!ui_main_bg_level_02)"
+        ,"^res/images/interface/mainScreen/infoPanel/(arrow_(bg|down)|toppanel_(tap-energy|energy|tourist|icon_(electricity|energy|tourist)))\\."
+        ,"^res/images/interface/mainScreen/friendScreen/icon_handshake"
+        ,"^res/images/interface/mainScreen/questPanel/(?!(quest_timer_red|limiter_.*|quest_givers/quest_icon_elena)\\.)"
+        ,"^res/images/interface/windows/dialogScreen/bubble.*\\."
+        ,"^res/images/interface/buttons/orangeButton/bttn_orange"
+        ,"^res/images/interface/buttons/buttons_55/bttn_110_orange_"
+        ,"^res/images/interface/windows/alertWindow/naomi_\\d\\."
+        ,"^res/images/interface/windows/alertWindow/pebbles_\\d\\."
+        ,"^res/images/interface/windows/chestOpenWindow/chest_[04]"
+        ,"^res/images/interface/buttons/icon_cancel_128x128\\."
+        ,"^res/images/interface/buildingMenu/icon_watch_event"
+        ,"^res/images/interface/buildingMenu/icon_crystals_60x60"
+
+        ,"^res/images/icons/questIcons/icon_quest_(wheel|tools)\\."
+        ,"^res/images/icons/questIcons/quest_icon_elena\\."
+        ,"^res/images/icons/questIcons/icon_quest_mini_upgrade"
+        ,"^res/images/icons/questIcons/icon_quest_gamepairs"
+
+        ,"^res/images/buildings/atlases/other/islands/"
+        ,"^res/images/buildings/atlases/other/road_atlas_"
+        ,"^res/images/buildings/atlases/other/r_arrows\\."
+        ,"^res/images/buildings/atlases/other/relocate_res/grounds_atlases/ground_12"
+        ,"^res/images/buildings/atlases/(tent|tents_water)/"
+
+        ,"^res/models/meshes/helicopter/helicopter_difuse-512\\."
+        ,"^res/models/meshes/mountain/"
+        ,"^res/models/skins/generator1_"
+        ,"^res/models/skins/(barrel|bouy|gear)"
+        ,"^res/models/meshes/boat/"
+        ,"^res/models/(meshes|skins)/(?!human_.*_sub).*(_sub|_fm)\\."
+
+        ,"^res/images/icons/buildingInfo/"
+        ,"^res/images/icons/clans/icon_crown.png"
+        ,"^res/images/interface/bubbles/icon_lock"
+        ,"^res/images/minigames/caskets/icon_timer"
+        ,"^res/images/minigames/ratingWindow/icon_clock"
+        ,"^res/images/interface/windows/raft/icon_clock"
+        ,"^res/images/interface/windows/clans/icon_crown"
+        ,"^res/images/interface/windows/clans/clans_battle/icon_clock_48_white"
+        ,"^res/images/interface/bubbles/icon_magnifier"
+        ,"^res/images/special/(?!.*/)fog\\."
+        ,"^res/images/special/lens/"
+
+        ,"^res/images/loadscreens/(logo_gi|pi2_logo|bar_(bg|fill)|bttn|bttn_over|settings_(bg|button_gear))\\."
+        ,"^res/images/particles/"
+        ,"^res/images/minigames/efp/tiles/"
+        ,"^res/images/minigames/pairs/card_"
+        ,"^res/images/icons/clans/icon_crown_alltime"
+        ,"^res/images/interface/windows/competitions/tab_icons/icon_achievepoints"
+        ,"^res/images/interface/windows/leaderboardWindow/iconRiches"
+        ,"^res/images/interface/windows/leaderboardWindow/iconLuxury"
+        ,"^res/images/interface/windows/leaderboardWindow/iconExperience"
+        ,"^res/images/interface/windows/leaderboardWindow/iconAchievements"
+        ,"^res/images/interface/windows/optionsWindow/icon_daily"
+        ,"^res/images/interface/windows/levelUp/icon_coins_100x100"
+
+        ,"^res/images/interface/windows/raft/chest_treasure_i"
+        ,"^res/images/shaders/snow_texture.png"
+        ,"^res/images/special/fogNew.png"
+        ,"^res/models/meshes/seaModel/oceanPi2.png"
+        ,"^res/models/meshes/seaModel/seaMask.png"
+
+        ,"^res/images/minigames/efp/gui/pic_boat_mode2.png"
+        ,"^res/images/interface/windows/boat/glare.png"
+        ,"^res/images/interface/windows/alertWindow/bubble.png"
+        ,"^res/images/interface/windows/fbevent/bg.png"
+        ,"^res/images/interface/windows/luckyStarWindow/bg.png"
+        ,"^res/images/interface/windows/marathon2/bg.png"
+        ,"^res/images/interface/windows/moneyBonusPack/chest.png"
+        ,"^res/images/interface/windows/purchaseBuildingWindow/bg.png"
+        ,"^res/images/interface/windows/purchaseBuildingWindow/bg_size.png"
+        ,"^res/images/interface/windows/registrationWindow/bg.png"
+        ,"^res/images/interface/windows/variousStuffPackWindow/bg.png"
+        ,"^res/images/interface/common/backgrounds/bg_280.png"
+
+        ,"^res/images/minigames/match3"
+    ]
+}
