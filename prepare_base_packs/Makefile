@@ -44,7 +44,9 @@ BUILD_UNIVERSAL_APP_NATIVE:
 
 # Нужен docker для запуска
 BUILD_UNIVERSAL_APP_CROSS:
-	cargo install cross && \
+	# cargo install cross
+	# cargo install --git https://github.com/rust-embedded/cross.git
+	
 	rm -rf target/prepare_base_packs_osx && \
 	rm -rf target/prepare_base_packs_linux && \
 	cross build --release --target aarch64-apple-darwin && \
