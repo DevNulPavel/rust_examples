@@ -9,17 +9,17 @@ pub struct AppArguments {
     #[structopt(long, parse(from_os_str))]
     pub config_json: PathBuf,
 
-    /// Pack directories with res subfolders folders
+    /// Source directories with res folder
+    #[structopt(long, parse(from_os_str))]
+    pub source_directories: Vec<PathBuf>,
+
+    /// Pack directories with res subfolders
     #[structopt(long, parse(from_os_str))]
     pub packs_directory: PathBuf,
 
     /// Pack directory prefixes
     #[structopt(long)]
     pub packs_directory_prefixes: Vec<String>,
-
-    /// Other source directories with res folder
-    #[structopt(long, parse(from_os_str))]
-    pub other_source_directories: Vec<PathBuf>,
 
     /// Target client res directory
     #[structopt(long, parse(from_os_str))]

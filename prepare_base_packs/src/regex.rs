@@ -26,3 +26,8 @@ impl Deref for Re {
         &self.0
     }
 }
+impl AsRef<Regex> for Re {
+    fn as_ref(&self) -> &Regex {
+        &self.0
+    }
+}

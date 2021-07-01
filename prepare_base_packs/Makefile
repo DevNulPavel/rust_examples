@@ -10,14 +10,17 @@ TEST_APP: CLEAR_TEST_DATA
 	cargo build --release && \
 	time target/release/prepare_base_packs \
 		--config-json "test_config.json" \
+		--source-directories "/Users/devnul/projects/island2/project" \
+							 "/Users/devnul/projects/island2/project/patched_res/base" \
+							 "/Users/devnul/projects/island2/project/targets/Emscripten" \
 		--packs-directory "/Users/devnul/projects/island2/project/download/pack_sources" \
 		--packs-directory-prefixes "pack_base_" "pack_common_all_" \
-		--other-source-directories "/Users/devnul/projects/island2/project/targets/Emscripten" \
-								   "/Users/devnul/projects/island2/project/patched_res/base" \
-								   "/Users/devnul/projects/island2/project" \
 		--target-client-res-directory "./test_client_res" \
-		--target-server-res-directory "./test_server_res" \
-		-vvv
+		--target-server-res-directory "./test_server_res"
+		# -vvv
+
+COMPARE_RESULTS_EXAMPLE:
+	diff  -x '.*' -r -q folder2 folder1 
 
 # Могут быть проблемы со сборкой для Linux
 BUILD_UNIVERSAL_APP_NATIVE:

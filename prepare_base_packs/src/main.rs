@@ -8,7 +8,9 @@ use crate::{
     helpers::create_dir_for_file,
     types::{ConvertConfig, FoundEntry},
 };
-use eyre::WrapErr;
+use eyre::{ContextCompat, WrapErr};
+// use fallible_iterator::{FallibleIterator, FromFallibleIterator, IntoFallibleIterator};
+// use itertools::Itertools;
 use rayon::prelude::*;
 use std::{
     convert::TryInto,
@@ -18,8 +20,6 @@ use std::{
 use structopt::StructOpt;
 use tracing::{debug, instrument, Level};
 use walkdir::WalkDir;
-// use itertools::Itertools;
-// use fallible_iterator::{FallibleIterator, IntoFallibleIterator, FromFallibleIterator};
 
 ////////////////////////////////////////////////////////////////////////////////////////////////////////////////////////
 
@@ -52,7 +52,7 @@ fn setup_logging(arguments: &AppArguments) -> Result<(), eyre::Error> {
 /// Выполняем валидацию переданных аргументов приложения
 #[instrument(level = "error", skip(arguments))]
 fn validate_arguments(arguments: &AppArguments) -> Result<(), eyre::Error> {
-    for dir in arguments.other_source_directories.iter() {
+    for dir in arguments.source_directories.iter() {
         eyre::ensure!(dir.is_dir(), "Source directory must be directory at path: {:?}", dir);
         eyre::ensure!(dir.exists(), "Source directory does not exist at path: {:?}", dir);
     }
@@ -135,54 +135,55 @@ fn get_pack_directories(packs_directory: &Path, valid_prefixes: &[impl AsRef<str
     Ok(packs_directories)
 }
 
-#[instrument(level = "error")]
-fn filter_found_path(arguments: &AppArguments, config: &ConvertConfig, root: &Path, path: PathBuf) -> Option<FoundEntry> {
+#[instrument(level = "error", skip(regexes, text))]
+fn check_string_match(regexes: &[impl AsRef<fancy_regex::Regex>], text: &str) -> Result<bool, eyre::Error> {
+    for re in regexes.iter() {
+        if re.as_ref().is_match(text)? {
+            return Ok(true);
+        }
+    }
+    return Ok(false);
+}
+
+#[instrument(level = "error", skip(arguments, config))]
+fn filter_found_path(
+    arguments: &AppArguments,
+    config: &ConvertConfig,
+    root: &Path,
+    path: PathBuf,
+) -> Result<Option<FoundEntry>, eyre::Error> {
     // Работаем только с файликами
     if !path.is_file() {
-        return None;
+        return Ok(None);
     }
 
     // Получаем относительный путь
-    let relative_path = path.strip_prefix(&root).expect("Invalid prefix");
+    let relative_path = path.strip_prefix(&root).wrap_err("Invalid prefix")?;
 
     // Относительный путь начинается с res?
     if !relative_path.starts_with("res") {
-        return None;
+        return Ok(None);
     }
 
     // Файл в папке, которую мы игнорируем?
-    let parent_relative_path_str = relative_path.parent().and_then(|p| p.to_str())?;
-    if config
-        .ignore_dirs
-        .iter()
-        .any(|regex| regex.is_match(parent_relative_path_str).unwrap_or(false))
-    {
-        return None;
+    let parent_relative_path_str = relative_path.parent().and_then(|p| p.to_str());
+    if let Some(parent_relative_path_str) = parent_relative_path_str {
+        if check_string_match(&config.ignore_dirs, parent_relative_path_str)? {
+            return Ok(None);
+        }
     }
 
     // Файлик относится к игнорируемым?
-    let relative_path_str = relative_path.to_str()?;
-    if config
-        .ignore_files
-        .iter()
-        .any(|regex| regex.is_match(relative_path_str).unwrap_or(false))
-    {
-        return None;
-    };
+    let relative_path_str = relative_path.to_str().ok_or_else(|| eyre::eyre!("To string convert failed"))?;
+    if check_string_match(&config.ignore_files, relative_path_str)? {
+        return Ok(None);
+    }
 
     // Проверяем куда совать файлик
-    let target_dir = if config
-        .forced_include_files_in_build
-        .iter()
-        .any(|re| re.is_match(relative_path_str).unwrap_or(false))
-    {
+    let target_dir = if check_string_match(&config.forced_include_files_in_build, relative_path_str)? {
         // Файлик из разряда обязательных клиенту
         &arguments.target_client_res_directory
-    } else if config
-        .exclude_files_from_build
-        .iter()
-        .any(|re| re.is_match(relative_path_str).unwrap_or(false))
-    {
+    } else if check_string_match(&config.exclude_files_from_build, relative_path_str)? {
         // Файлик из разряда для сервера
         &arguments.target_server_res_directory
     } else {
@@ -192,10 +193,10 @@ fn filter_found_path(arguments: &AppArguments, config: &ConvertConfig, root: &Pa
 
     // Результат
     let full_target_path = target_dir.join(relative_path);
-    return Some(FoundEntry {
+    return Ok(Some(FoundEntry {
         full_source_path: path,
         full_target_path,
-    });
+    }));
 }
 
 #[instrument(level = "error")]
@@ -218,31 +219,40 @@ fn execute_app() -> Result<(), eyre::Error> {
         let raw_conf = serde_json::from_reader::<_, ConvertConfig>(file).wrap_err("Parse config failed")?;
         raw_conf.try_into()?
     };
-    // debug!(?config, "Config");
+    debug!(?config, "Config");
 
     // Результаты
     let packs_directories = get_pack_directories(&arguments.packs_directory, &arguments.packs_directory_prefixes)?;
-    // debug!(?packs_directories, "Found pack's directories");
+    debug!(?packs_directories, "Found pack's directories");
 
     // Обходим ПОСЛЕДОВАТЕЛЬНО (не параллельно) директории, так как нам важен порядок
-    packs_directories
+    arguments
+        .source_directories
         .iter()
-        // Прицепляем переданные в виде параметров директории
-        .chain(arguments.other_source_directories.iter())
+        // Прицепляем директории из паков
+        .chain(packs_directories.iter())
         // Обрабатываем последовательно каждую найденную директорию
         .try_for_each(|dir_root_path| -> Result<(), eyre::Error> {
+            // Обходим список файлов директории
             WalkDir::new(dir_root_path)
                 .into_iter()
                 .par_bridge()
                 // Фильтруем
-                .filter_map(|entry| {
-                    let path = entry.ok().map(|entry| entry.into_path())?;
+                .map(|entry| -> Result<Option<FoundEntry>, eyre::Error> {
+                    let path = entry
+                        .ok()
+                        .map(|entry| entry.into_path())
+                        .wrap_err_with(|| eyre::eyre!("Invalid entry"))?;
                     filter_found_path(&arguments, &config, dir_root_path, path)
                 })
                 // Непосредственно копируем результаты
                 .try_for_each(|result| -> Result<(), eyre::Error> {
-                    create_dir_for_file(&result.full_target_path)?;
-                    std::fs::copy(result.full_source_path, result.full_target_path)?;
+                    if let Some(result) = result? {
+                        // Создаем директорию если еще не было
+                        create_dir_for_file(&result.full_target_path)?;
+                        // Копируем файлик
+                        std::fs::copy(result.full_source_path, result.full_target_path)?;
+                    }
                     Ok(())
                 })
         })?;
