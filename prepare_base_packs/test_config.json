@@ -1,6 +1,5 @@
 {
     "ignore_dirs": [
-        "^res/models/meshes/svd",
         ".*/hd$"
         ,"^res/html"
         ,"^res/images/faq"
@@ -11,8 +10,7 @@
         "res/images/loadscreens/loadingbg.jpg"
         ,"res/images/loadscreens/bar_fill2.png"
         ,"res/images/loadscreens/loadingbg_960x640.jpg"
-        ,"res/images/loadscreens/loadingbg_1920x1080.jpg",
-        "res/models/meshes/svd/love_princess/love_princess.x"
+        ,"res/images/loadscreens/loadingbg_1920x1080.jpg"
     ],
     "exclude_files_from_build":[
         ".*\\.(png|jpg|pvrgz)$",

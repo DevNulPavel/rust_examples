@@ -1,21 +1,19 @@
 mod app_arguments;
 mod helpers;
+mod regex;
 mod types;
 
-use crate::{app_arguments::AppArguments, types::UtilsPathes};
+use crate::{
+    app_arguments::AppArguments,
+    helpers::create_dir_for_file,
+    types::{ConvertConfig, FoundEntry},
+};
 use eyre::WrapErr;
-// use fancy_regex::Regex;
-use fancy_regex::Regex;
 use rayon::prelude::*;
-use serde::{de::Visitor, Deserialize, Deserializer};
 use std::{
-    borrow::Cow,
     convert::TryInto,
-    fs::{remove_file, File},
-    io::{Read, Write},
-    ops::Deref,
-    path::{Iter, Path, PathBuf},
-    sync::RwLock,
+    fs::File,
+    path::{Path, PathBuf},
 };
 use structopt::StructOpt;
 use tracing::{debug, instrument, Level};
@@ -84,62 +82,6 @@ fn validate_arguments(arguments: &AppArguments) -> Result<(), eyre::Error> {
     Ok(())
 }
 
-#[derive(Debug)]
-pub struct Re(pub Regex);
-
-impl<'de> Deserialize<'de> for Re {
-    fn deserialize<D>(deserializer: D) -> Result<Self, D::Error>
-    where
-        D: Deserializer<'de>,
-    {
-        let s = String::deserialize(deserializer)?;
-        let regex = Regex::new(&s).map_err(serde::de::Error::custom)?;
-        Ok(Re(regex))
-    }
-}
-impl Into<Regex> for Re {
-    fn into(self) -> Regex {
-        self.0
-    }
-}
-impl Deref for Re {
-    type Target = Regex;
-    fn deref(&self) -> &Self::Target {
-        &self.0
-    }
-}
-
-#[derive(Debug, Deserialize)]
-pub struct Config {
-    pub ignore_dirs: Vec<Re>,
-    pub ignore_files: Vec<Re>,
-    pub exclude_files_from_build: Vec<Re>,
-    pub forced_include_files_in_build: Vec<Re>,
-}
-
-struct FoundEntry<'a> {
-    root: Cow<'a, Path>,
-    full_path: PathBuf,
-}
-
-#[instrument(level = "error", skip(entry))]
-fn process_found_entry(config: &Config, entry: FoundEntry) -> Result<(), eyre::Error> {
-    // Относительные пути
-    let relative_path = entry.full_path.strip_prefix(&entry.root).wrap_err("Prefix strip error")?;
-    let relative_path_str = relative_path.to_str().ok_or_else(|| eyre::eyre!("Path to string convert failed"))?;
-
-    // Определяем, не является ли данный итем в списке игнора
-    let ignored = config
-        .ignore_dirs
-        .iter()
-        .any(|ignore_regex| ignore_regex.is_match(relative_path_str).unwrap_or(false));
-    if ignored {
-        return Ok(());
-    }
-
-    Ok(())
-}
-
 #[instrument(level = "error", skip(packs_directory, valid_prefixes))]
 fn get_pack_directories(packs_directory: &Path, valid_prefixes: &[impl AsRef<str> + Sync + Send]) -> Result<Vec<PathBuf>, eyre::Error> {
     // Сначала получим директории паков
@@ -194,6 +136,69 @@ fn get_pack_directories(packs_directory: &Path, valid_prefixes: &[impl AsRef<str
 }
 
 #[instrument(level = "error")]
+fn filter_found_path(arguments: &AppArguments, config: &ConvertConfig, root: &Path, path: PathBuf) -> Option<FoundEntry> {
+    // Работаем только с файликами
+    if !path.is_file() {
+        return None;
+    }
+
+    // Получаем относительный путь
+    let relative_path = path.strip_prefix(&root).expect("Invalid prefix");
+
+    // Относительный путь начинается с res?
+    if !relative_path.starts_with("res") {
+        return None;
+    }
+
+    // Файл в папке, которую мы игнорируем?
+    let parent_relative_path_str = relative_path.parent().and_then(|p| p.to_str())?;
+    if config
+        .ignore_dirs
+        .iter()
+        .any(|regex| regex.is_match(parent_relative_path_str).unwrap_or(false))
+    {
+        return None;
+    }
+
+    // Файлик относится к игнорируемым?
+    let relative_path_str = relative_path.to_str()?;
+    if config
+        .ignore_files
+        .iter()
+        .any(|regex| regex.is_match(relative_path_str).unwrap_or(false))
+    {
+        return None;
+    };
+
+    // Проверяем куда совать файлик
+    let target_dir = if config
+        .forced_include_files_in_build
+        .iter()
+        .any(|re| re.is_match(relative_path_str).unwrap_or(false))
+    {
+        // Файлик из разряда обязательных клиенту
+        &arguments.target_client_res_directory
+    } else if config
+        .exclude_files_from_build
+        .iter()
+        .any(|re| re.is_match(relative_path_str).unwrap_or(false))
+    {
+        // Файлик из разряда для сервера
+        &arguments.target_server_res_directory
+    } else {
+        // По-умолчанию попадает в клиент
+        &arguments.target_client_res_directory
+    };
+
+    // Результат
+    let full_target_path = target_dir.join(relative_path);
+    return Some(FoundEntry {
+        full_source_path: path,
+        full_target_path,
+    });
+}
+
+#[instrument(level = "error")]
 fn execute_app() -> Result<(), eyre::Error> {
     // Аргументы коммандной строки
     let arguments = app_arguments::AppArguments::from_args_safe().wrap_err("Arguments parsing")?;
@@ -208,9 +213,9 @@ fn execute_app() -> Result<(), eyre::Error> {
     validate_arguments(&arguments).wrap_err("Validate arguments")?;
 
     // Открываем файлик конфига и парсим данные из него
-    let config: Config = {
+    let config: ConvertConfig = {
         let file = File::open(&arguments.config_json).wrap_err("Config file open failed")?;
-        let raw_conf = serde_json::from_reader::<_, Config>(file).wrap_err("Parse config failed")?;
+        let raw_conf = serde_json::from_reader::<_, ConvertConfig>(file).wrap_err("Parse config failed")?;
         raw_conf.try_into()?
     };
     // debug!(?config, "Config");
@@ -222,46 +227,22 @@ fn execute_app() -> Result<(), eyre::Error> {
     // Обходим ПОСЛЕДОВАТЕЛЬНО (не параллельно) директории, так как нам важен порядок
     packs_directories
         .iter()
+        // Прицепляем переданные в виде параметров директории
         .chain(arguments.other_source_directories.iter())
+        // Обрабатываем последовательно каждую найденную директорию
         .try_for_each(|dir_root_path| -> Result<(), eyre::Error> {
             WalkDir::new(dir_root_path)
                 .into_iter()
                 .par_bridge()
-                .filter_map(|entry| entry.ok().map(|entry| entry.into_path()))
-                .filter(|path| {
-                    // Работаем только с файликами
-                    if !path.is_file() {
-                        return false;
-                    }
-
-                    // Получаем относительный путь
-                    let relative_path = path.strip_prefix(&dir_root_path).expect("Invalid prefix");
-
-                    // Файл в папке, которую мы игнорируем?
-                    let ignore_dir = match relative_path.parent().and_then(|p| p.to_str()) {
-                        Some(parent_path_str) => {
-                            // debug!(?parent, "Parent check");
-                            config
-                                .ignore_dirs
-                                .iter()
-                                .any(|regex| regex.is_match(parent_path_str).unwrap_or(false))
-                        }
-                        None => false,
-                    };
-
-                    // Файлик относится к игнорируемым?
-                    let ignore_file = match relative_path.to_str() {
-                        Some(file_path_str) => config
-                            .ignore_files
-                            .iter()
-                            .any(|regex| regex.is_match(file_path_str).unwrap_or(false)),
-                        None => false,
-                    };
-
-                    !ignore_dir && !ignore_file
+                // Фильтруем
+                .filter_map(|entry| {
+                    let path = entry.ok().map(|entry| entry.into_path())?;
+                    filter_found_path(&arguments, &config, dir_root_path, path)
                 })
-                .try_for_each(|path| -> Result<(), eyre::Error> {
-                    // debug!(?path, "Valid");
+                // Непосредственно копируем результаты
+                .try_for_each(|result| -> Result<(), eyre::Error> {
+                    create_dir_for_file(&result.full_target_path)?;
+                    std::fs::copy(result.full_source_path, result.full_target_path)?;
                     Ok(())
                 })
         })?;

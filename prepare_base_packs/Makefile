@@ -1,8 +1,10 @@
 .PHONY:
 .SILENT:
 
-TEST_APP:
-	# --other-source-directories "./target"
+CLEAR_TEST_DATA:
+	rm -rf test_*_res
+
+TEST_APP: CLEAR_TEST_DATA
 	export RUST_BACKTRACE=0 && \
 	export RUST_LOG=error && \
 	cargo build --release && \
@@ -10,6 +12,11 @@ TEST_APP:
 		--config-json "test_config.json" \
 		--packs-directory "/Users/devnul/projects/island2/project/download/pack_sources" \
 		--packs-directory-prefixes "pack_base_" "pack_common_all_" \
+		--other-source-directories "/Users/devnul/projects/island2/project/targets/Emscripten" \
+								   "/Users/devnul/projects/island2/project/patched_res/base" \
+								   "/Users/devnul/projects/island2/project" \
+		--target-client-res-directory "./test_client_res" \
+		--target-server-res-directory "./test_server_res" \
 		-vvv
 
 # Могут быть проблемы со сборкой для Linux
