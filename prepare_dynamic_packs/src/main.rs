@@ -6,17 +6,14 @@ use crate::{
     types::{PackConfig, PackData, PackFilePathInfo},
 };
 use fancy_regex::Regex;
-use log::{debug, trace};
+use log::debug;
 use rayon::prelude::*;
 use std::{
-    borrow::BorrowMut,
-    cell::{Cell, RefCell},
+    cell::RefCell,
     collections::HashSet,
     fs::File,
     io::Write,
-    ops::DerefMut,
     path::{Path, PathBuf},
-    sync::Mutex,
 };
 use structopt::StructOpt;
 
@@ -77,7 +74,7 @@ impl<'a, I: Iterator<Item = PathBuf>> Iterator for PackIter<'a, I> {
             // Получаем из итератора путь к файлику, но не изымаем из итератора
             let file_full_path = match self.source.next() {
                 Some(path) => {
-                    debug!("Get file at path: {:?}", path);
+                    // debug!("Get file at path: {:?}", path);
                     path
                 }
                 None => {
@@ -144,7 +141,8 @@ impl<'a, I: Iterator<Item = PathBuf>> Iterator for PackIter<'a, I> {
     }
 }
 
-fn pack_files_for_config<'a>(resources_root_folder: &'a Path, pack_config: &PackConfig) -> Vec<PathBuf> {
+/// Для конфига и коренной директории находим все подходящие файлики
+fn pack_files_for_config<'a>(resources_root_folder: &'a Path, all_files: &[PathBuf], pack_config: &PackConfig) -> Vec<PathBuf> {
     // Компилируем переданные регулярные выражения
     let resource_regex_filters: Vec<Regex> = pack_config
         .resources
@@ -154,23 +152,19 @@ fn pack_files_for_config<'a>(resources_root_folder: &'a Path, pack_config: &Pack
             // let resource_regex = resource_regex.strip_suffix("/").unwrap_or(resource_regex.as_ref());
 
             // Принудительно вставляем в начало символ начала строки если нету
-            let buf: String;
-            let reg = if resource_regex.starts_with('^') {
-                resource_regex
+            let reg: std::borrow::Cow<str> = if resource_regex.starts_with('^') {
+                std::borrow::Cow::Borrowed(resource_regex)
             } else {
-                buf = format!("^{}", resource_regex);
-                &buf
+                std::borrow::Cow::Owned(format!("^{}", resource_regex))
             };
-            debug!("Result regex: {}", reg);
-            Regex::new(reg).expect("Regex create failed")
+            // debug!("Result regex: {}", reg);
+            Regex::new(reg.as_ref()).expect("Regex create failed")
         })
         .collect();
 
     // На основании регулярок получаем список подходящих директорий
-    walkdir::WalkDir::new(resources_root_folder)
-        .into_iter()
-        .par_bridge()
-        .map(|entry| entry.expect("WalkDir entry unwrap failed").into_path())
+    all_files
+        .iter()
         .filter(move |path| {
             let entry_path_str = path
                 .strip_prefix(resources_root_folder)
@@ -182,13 +176,14 @@ fn pack_files_for_config<'a>(resources_root_folder: &'a Path, pack_config: &Pack
                 .iter()
                 .any(|regex| regex.is_match(entry_path_str).expect("Regex check failed"))
         })
-        .filter(|path| path.is_file())
+        .filter(|path| path.is_file()) // Проверка файл это или нет после почему-то быстрее, может быть из-за системного вызова?
+        .cloned()
         .collect()
 }
 
 fn create_pack_zip(result_packs_folder: &Path, pack: &PackData) {
     let result_pack_path = result_packs_folder.join(format!("{}.dpk", pack.pack_name));
-    trace!("Zip file write (thread {:?}): {:?}", rayon::current_thread_index(), result_pack_path);
+    // trace!("Zip file write (thread {:?}): {:?}", rayon::current_thread_index(), result_pack_path);
 
     let file = File::create(&result_pack_path).expect("Result file open failed");
     let mut zip = zip::ZipWriter::new(file);
@@ -268,48 +263,66 @@ fn main() {
 
     // Пасим json конфиг
     let config_file = File::open(&arguments.dynamic_packs_config_path).expect("Dynamic packs config file open failed");
-    let mut packs_configs: Vec<PackConfig> = serde_json::from_reader(config_file).expect("Dynamic packs config parse failed");
-    debug!("Packs config: {:#?}", packs_configs);
+    let packs_configs: Vec<PackConfig> = serde_json::from_reader(config_file).expect("Dynamic packs config parse failed");
+    // debug!("Packs config: {:#?}", packs_configs);
+
+    // Чтобы не делать много системных вызовов, сразу соберем список вообще всех файлов в ресурсах
+    let start_time = std::time::Instant::now();
+    let all_files_at_resources: Vec<_> = walkdir::WalkDir::new(&arguments.resources_directory)
+        .into_iter()
+        .map(|entry| entry.expect("Entry unwrap failed").into_path())
+        .collect();
+    debug!("Walkdir files duration: {:?}", start_time.elapsed());
+
+    // Делим переданные нам конфиги на паки параллельно
+    let start_time = std::time::Instant::now();
+    struct PackFilesResult {
+        pack_config: PackConfig,
+        files: Vec<PathBuf>,
+    }
+    let mut pack_files_infos: Vec<PackFilesResult> = packs_configs
+        .into_par_iter()
+        .map(|pack_config| {
+            let files = pack_files_for_config(&arguments.resources_directory, &all_files_at_resources, &pack_config);
+            PackFilesResult { pack_config, files }
+        })
+        .collect();
+    drop(all_files_at_resources);
+    debug!("Pack files filter duration: {:?}", start_time.elapsed());
 
     // Выполняем сортировку по приоритетам паков, большие значения в начале
-    packs_configs.sort_by(|a, b| b.priority.cmp(&a.priority));
+    pack_files_infos.sort_by(|a, b| b.pack_config.priority.cmp(&a.pack_config.priority));
+
+    // Затем последовательно идем по полученным пакам, отсортированным по приоритету
+    // Последовательное исполнениез здесь нужно для того, чтобы фильтровать обработанные файлики
+    // Таким образом файл попадет сначала в пак с более высоким приоритетом
+    let start_time = std::time::Instant::now();
+    let processed_files_index: RefCell<HashSet<PathBuf>> = Default::default();
+    let pack_infos: Vec<PackData> = pack_files_infos
+        .into_iter()
+        .flat_map(|PackFilesResult { pack_config, files }| PackIter {
+            max_pack_size: arguments.max_pack_size,
+            pack_config: pack_config,
+            processed_files_index: &processed_files_index,
+            resources_root_folder: &arguments.resources_directory,
+            source: files.into_iter(),
+            sub_pack_number: 0,
+        })
+        .collect();
+    drop(processed_files_index);
+    debug!("Result packs infos duration: {:?}", start_time.elapsed());
+    // debug!("Result packs infos: {:?}", pack_infos);
 
     // Создаем директорию для паков если надо
     std::fs::create_dir_all(&arguments.output_dynamic_packs_dir).expect("Output packs directory create failed");
 
-    // Делим переданные нам конфиги на паки,
-    // обязательно последовательно для сохранения сортировки
-    // и учета уже обработанных файликов
-    let pack_files_infos: Vec<(PackConfig, Vec<PathBuf>)> = packs_configs
-        .into_par_iter()
-        .map(|pack_config| {
-            let files = pack_files_for_config(&arguments.resources_directory, &pack_config);
-            (pack_config, files)
-        })
-        .collect();
-
-    let processed_files_index: RefCell<HashSet<PathBuf>> = Default::default();
-    let pack_infos: Vec<PackData> = pack_files_infos
-        .into_iter()
-        .flat_map(|(config, files)|{
-            PackIter{
-                max_pack_size: arguments.max_pack_size, 
-                pack_config: config,
-                processed_files_index: &processed_files_index,
-                resources_root_folder: &arguments.resources_directory,
-                source: files.into_iter(),
-                sub_pack_number: 0
-            }
-        })
-        .collect();
-    drop(processed_files_index);
-    debug!("Result packs infos: {:?}", pack_infos);
-
-    // Создаем .dpk архивы
+    // Создаем .dpk архивы параллельно
+    let start_time = std::time::Instant::now();
     pack_infos.par_iter().for_each(|pack_info| {
         // debug!("Pack info: {:#?}", pack_info);
         create_pack_zip(&arguments.output_dynamic_packs_dir, pack_info)
     });
+    debug!("Zip files duration: {:?}", start_time.elapsed());
 
     // Создаем директорию для конечного конфига
     if let Some(parent) = arguments.output_resources_config_path.parent() {
@@ -317,5 +330,7 @@ fn main() {
     }
 
     // Создаем конечный конфиг
+    let start_time = std::time::Instant::now();
     save_config_to_file(pack_infos, &arguments.output_resources_config_path, &arguments.config_pack_file_dir);
+    debug!("Config save duration: {:?}", start_time.elapsed());
 }
