@@ -9,9 +9,12 @@ use fancy_regex::Regex;
 use log::{debug, trace};
 use rayon::prelude::*;
 use std::{
+    borrow::BorrowMut,
+    cell::{Cell, RefCell},
     collections::HashSet,
     fs::File,
     io::Write,
+    ops::DerefMut,
     path::{Path, PathBuf},
     sync::Mutex,
 };
@@ -54,13 +57,13 @@ fn validate_arguments(arguments: &AppArguments) {
     assert!(arguments.resources_directory.is_dir(), "Resources directory is not a directory");
 }
 
-struct PackIter<'a, I: Iterator<Item = PathBuf>> {
+struct PackIter<'a, I> {
     source: I,
     sub_pack_number: u32,
     max_pack_size: u64,
     pack_config: PackConfig,
     resources_root_folder: &'a Path,
-    processed_files_index: &'a Mutex<HashSet<PathBuf>>,
+    processed_files_index: &'a RefCell<HashSet<PathBuf>>,
 }
 impl<'a, I: Iterator<Item = PathBuf>> Iterator for PackIter<'a, I> {
     type Item = PackData;
@@ -86,11 +89,11 @@ impl<'a, I: Iterator<Item = PathBuf>> Iterator for PackIter<'a, I> {
             // Проверяем, не был ли данный файлик обработан где-то еще
             // Если не был - все норм, если был - пропускаем его
             {
-                let mut index_guard = self.processed_files_index.lock().expect("Mutex lock failed");
-                if index_guard.contains(&file_full_path) {
+                let mut guard = self.processed_files_index.borrow_mut();
+                if guard.contains(&file_full_path) {
                     continue 'internal_loop;
                 } else {
-                    index_guard.insert(file_full_path.clone());
+                    guard.insert(file_full_path.clone());
                 }
             }
 
@@ -141,12 +144,7 @@ impl<'a, I: Iterator<Item = PathBuf>> Iterator for PackIter<'a, I> {
     }
 }
 
-fn pack_info_for_config<'a>(
-    max_pack_size: u64,
-    resources_root_folder: &'a Path,
-    pack_config: PackConfig,
-    processed_files_index: &'a Mutex<HashSet<PathBuf>>,
-) -> impl 'a + Iterator<Item = PackData> {
+fn pack_files_for_config<'a>(resources_root_folder: &'a Path, pack_config: &PackConfig) -> Vec<PathBuf> {
     // Компилируем переданные регулярные выражения
     let resource_regex_filters: Vec<Regex> = pack_config
         .resources
@@ -169,8 +167,9 @@ fn pack_info_for_config<'a>(
         .collect();
 
     // На основании регулярок получаем список подходящих директорий
-    let all_files_iter = walkdir::WalkDir::new(resources_root_folder)
+    walkdir::WalkDir::new(resources_root_folder)
         .into_iter()
+        .par_bridge()
         .map(|entry| entry.expect("WalkDir entry unwrap failed").into_path())
         .filter(move |path| {
             let entry_path_str = path
@@ -183,16 +182,8 @@ fn pack_info_for_config<'a>(
                 .iter()
                 .any(|regex| regex.is_match(entry_path_str).expect("Regex check failed"))
         })
-        .filter(|path| path.is_file());
-
-    PackIter {
-        resources_root_folder,
-        max_pack_size,
-        pack_config,
-        source: all_files_iter,
-        sub_pack_number: 0,
-        processed_files_index,
-    }
+        .filter(|path| path.is_file())
+        .collect()
 }
 
 fn create_pack_zip(result_packs_folder: &Path, pack: &PackData) {
@@ -286,28 +277,39 @@ fn main() {
     // Создаем директорию для паков если надо
     std::fs::create_dir_all(&arguments.output_dynamic_packs_dir).expect("Output packs directory create failed");
 
-    let processed_files_index: Mutex<HashSet<PathBuf>> = Default::default();
-
-    // Делим переданные нам конфиги на паки
-    let result_packs_infos: Vec<PackData> = packs_configs
-        // .into_iter()
+    // Делим переданные нам конфиги на паки,
+    // обязательно последовательно для сохранения сортировки
+    // и учета уже обработанных файликов
+    let pack_files_infos: Vec<(PackConfig, Vec<PathBuf>)> = packs_configs
         .into_par_iter()
-        .flat_map(|pack_config| {
-            pack_info_for_config(
-                arguments.max_pack_size,
-                &arguments.resources_directory,
-                pack_config,
-                &processed_files_index,
-            )
-            .par_bridge()
-        })
-        // Создаем .dpk архивы в процессе
-        .inspect(|pack_info| {
-            // debug!("Pack info: {:#?}", pack_info);
-            create_pack_zip(&arguments.output_dynamic_packs_dir, pack_info)
+        .map(|pack_config| {
+            let files = pack_files_for_config(&arguments.resources_directory, &pack_config);
+            (pack_config, files)
         })
         .collect();
-    debug!("Result packs infos: {:?}", result_packs_infos);
+
+    let processed_files_index: RefCell<HashSet<PathBuf>> = Default::default();
+    let pack_infos: Vec<PackData> = pack_files_infos
+        .into_iter()
+        .flat_map(|(config, files)|{
+            PackIter{
+                max_pack_size: arguments.max_pack_size, 
+                pack_config: config,
+                processed_files_index: &processed_files_index,
+                resources_root_folder: &arguments.resources_directory,
+                source: files.into_iter(),
+                sub_pack_number: 0
+            }
+        })
+        .collect();
+    drop(processed_files_index);
+    debug!("Result packs infos: {:?}", pack_infos);
+
+    // Создаем .dpk архивы
+    pack_infos.par_iter().for_each(|pack_info| {
+        // debug!("Pack info: {:#?}", pack_info);
+        create_pack_zip(&arguments.output_dynamic_packs_dir, pack_info)
+    });
 
     // Создаем директорию для конечного конфига
     if let Some(parent) = arguments.output_resources_config_path.parent() {
@@ -315,9 +317,5 @@ fn main() {
     }
 
     // Создаем конечный конфиг
-    save_config_to_file(
-        result_packs_infos,
-        &arguments.output_resources_config_path,
-        &arguments.config_pack_file_dir,
-    );
+    save_config_to_file(pack_infos, &arguments.output_resources_config_path, &arguments.config_pack_file_dir);
 }

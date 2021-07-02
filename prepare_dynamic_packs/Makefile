@@ -20,7 +20,7 @@ TEST_APP:
 		--output-resources-config-path "./test_output_app/packResources.json" \
 		--output-dynamic-packs-dir "./test_output_app/" \
 		--config-pack-file-dir "res/dynamicPacks/" \
-		-v
+		-vvv
 
 # Могут быть проблемы со сборкой для Linux
 BUILD_UNIVERSAL_APP_NATIVE:
