@@ -3,18 +3,10 @@ mod helpers;
 mod pvr;
 mod types;
 
-use crate::{app_arguments::AppArguments, helpers::create_dir_for_file, types::ImageSize, pvr::pvrgz_image_size};
-use eyre::{ContextCompat, WrapErr};
-// use fallible_iterator::{FallibleIterator, FromFallibleIterator, IntoFallibleIterator};
-// use rayon::prelude::*;
+use crate::{app_arguments::AppArguments, pvr::pvrgz_image_size, types::ImageSize};
+use eyre::WrapErr;
 use serde::Deserialize;
-use std::{
-    convert::TryInto,
-    ffi::OsStr,
-    fs::File,
-    fmt::Write,
-    path::{Path, PathBuf},
-};
+use std::{fmt::Write, fs::File, path::Path};
 use structopt::StructOpt;
 use tracing::{debug, instrument, Level};
 use walkdir::WalkDir;
@@ -82,13 +74,14 @@ fn try_get_image_size(path: &Path) -> Result<ImageSize, eyre::Error> {
             let res = pvrgz_image_size(path).wrap_err("Pvrgz convert")?;
             Ok(res)
         }
-        _ => Err(eyre::eyre!("Unsupported file extention, path = {:?}", &path)),
+        _ => Err(eyre::eyre!("Unsupported image file extention, path = {:?}", &path)),
     }
 }
 
 enum ValidateResult {
     Valid,
-    Invalid { image_name: String },
+    NoImageName,
+    InvalidSize { image_name: String },
 }
 
 #[instrument(level = "error")]
@@ -100,19 +93,22 @@ fn validate_json_file(json_file_path: &Path) -> Result<ValidateResult, eyre::Err
         width: Option<i32>,
         height: Option<i32>,
         #[serde(rename = "imagePath")]
-        image_path: String,
+        image_path: Option<String>,
     }
     let json_data: TextureInfo = serde_json::from_reader(json_file).wrap_err("Deserealize json error")?;
 
-    // Есть все указанные поля?
-    let with_size = json_data.height.is_some() && json_data.width.is_some();
+    match json_data.image_path {
+        Some(image_path) => {
+            // Есть все указанные поля?
+            let with_size = json_data.height.is_some() && json_data.width.is_some();
 
-    if with_size {
-        Ok(ValidateResult::Valid)
-    } else {
-        Ok(ValidateResult::Invalid {
-            image_name: json_data.image_path,
-        })
+            if with_size {
+                Ok(ValidateResult::Valid)
+            } else {
+                Ok(ValidateResult::InvalidSize { image_name: image_path })
+            }
+        }
+        None => Ok(ValidateResult::NoImageName),
     }
 }
 
@@ -135,15 +131,16 @@ fn execute_app() -> Result<(), eyre::Error> {
 
     // Метабельная переменная для строк ошибок
     let mut err_lines = String::new();
-    
+
     // Обходим все вхождения
     for entry in WalkDir::new(&arguments.source_directory).into_iter() {
-        let path = entry?.into_path();
+        // Перегоним в путь
+        let path = entry.wrap_err("Directory enter error")?.into_path();
 
         // Перегоняем в utf-8 строку
         let path_str = path
             .to_str()
-            .ok_or_else(|| eyre::eyre!("Failed convert path to utf-8 string, path = {:?}", &path))?;
+            .ok_or_else(|| eyre::eyre!("Convert path to utf-8 string failed, path = {:?}", &path))?;
 
         // Проверяем имя
         if !path_str.ends_with("texture.json") && !path_str.ends_with("_tex.json") {
@@ -159,14 +156,26 @@ fn execute_app() -> Result<(), eyre::Error> {
         let status = validate_json_file(&path)?;
 
         // Если файлик невалидный
-        if let ValidateResult::Invalid { image_name } = status {
-            let image_path = path.with_file_name(image_name);
-            
-            // Узнаем необходимый размер текстуры
-            let texture_size = try_get_image_size(&image_path).wrap_err("Image size request")?;
+        use ansi_term::Color::Blue;
+        match status {
+            ValidateResult::InvalidSize { image_name } => {
+                let image_path = path.with_file_name(image_name);
 
-            // Пишем сообщение с ошибкой
-            writeln!(&mut err_lines, "- {}, valid size = {{width: {}, height: {}}}", path_str, texture_size.width, texture_size.height)?;
+                // Узнаем необходимый размер текстуры
+                let texture_size = try_get_image_size(&image_path).wrap_err("Image size receive")?;
+
+                // Пишем сообщение с ошибкой в строку
+                writeln!(
+                    &mut err_lines,
+                    "- {}: valid size = {{width: {}, height: {}}}",
+                    Blue.paint(path_str), texture_size.width, texture_size.height
+                )?;
+            }
+            ValidateResult::NoImageName => {
+                // Пишем сообщение с ошибкой в строку
+                writeln!(&mut err_lines, "- {}: imagePath fiels is missing", Blue.paint(path_str))?;
+            }
+            ValidateResult::Valid => {}
         }
     }
 
