@@ -4,7 +4,7 @@ mod pvr;
 mod types;
 
 use crate::{app_arguments::AppArguments, pvr::pvrgz_image_size, types::ImageSize};
-use eyre::WrapErr;
+use eyre::{ContextCompat, WrapErr};
 use serde::Deserialize;
 use std::{fmt::Write, fs::File, path::Path};
 use structopt::StructOpt;
@@ -138,12 +138,14 @@ fn execute_app() -> Result<(), eyre::Error> {
         let path = entry.wrap_err("Directory enter error")?.into_path();
 
         // Перегоняем в utf-8 строку
-        let path_str = path
+        let relative_path_str = path
+            .strip_prefix(&arguments.source_directory)
+            .wrap_err("Relative path fail")?
             .to_str()
             .ok_or_else(|| eyre::eyre!("Convert path to utf-8 string failed, path = {:?}", &path))?;
 
         // Проверяем имя
-        if !path_str.ends_with("texture.json") && !path_str.ends_with("_tex.json") {
+        if !relative_path_str.ends_with("texture.json") && !relative_path_str.ends_with("_tex.json") {
             continue;
         }
 
@@ -164,16 +166,25 @@ fn execute_app() -> Result<(), eyre::Error> {
                 // Узнаем необходимый размер текстуры
                 let texture_size = try_get_image_size(&image_path).wrap_err("Image size receive")?;
 
+                // Нужно ли домножить размеры на 2
+                let texture_size = if arguments.x2_texture_size {
+                    texture_size * 2_u32
+                } else {
+                    texture_size
+                };
+
                 // Пишем сообщение с ошибкой в строку
                 writeln!(
                     &mut err_lines,
                     "- {}: valid size = {{width: {}, height: {}}}",
-                    Blue.paint(path_str), texture_size.width, texture_size.height
+                    Blue.paint(relative_path_str),
+                    texture_size.width,
+                    texture_size.height
                 )?;
             }
             ValidateResult::NoImageName => {
                 // Пишем сообщение с ошибкой в строку
-                writeln!(&mut err_lines, "- {}: imagePath fiels is missing", Blue.paint(path_str))?;
+                writeln!(&mut err_lines, "- {}: imagePath field is missing", Blue.paint(relative_path_str))?;
             }
             ValidateResult::Valid => {}
         }
@@ -181,8 +192,18 @@ fn execute_app() -> Result<(), eyre::Error> {
 
     // Если были найдены такие файлики
     if err_lines.len() > 0 {
+        let root_path_str = arguments.source_directory.to_str().wrap_err("Root path to utf-8 convert failed")?;
+
+        use ansi_term::Color::Purple;
         use ansi_term::Color::Red;
-        eprintln!("{}\n{}", Red.paint("Invalid dragonbones files found:"), err_lines);
+
+        // TODO: выводить в stderr, но cmake как-то странно форматирует
+        println!(
+            "{} {}\n{}",
+            Red.paint("Invalid dragonbones files found at folder:"),
+            Purple.paint(root_path_str),
+            err_lines
+        );
 
         // Просто завершаем наше приложение с кодом ошибки
         std::process::exit(2);

@@ -7,6 +7,7 @@ TEST_APP:
 	cargo build --release && \
 	time target/release/dragonbones_validator \
 		--source-directory "/Users/devnul/projects/island2/build/Emscripten_Standalone/res/dragonbones" \
+		--x2-texture-size \
 		-vvv
 
 # Могут быть проблемы со сборкой для Linux

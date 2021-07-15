@@ -9,6 +9,10 @@ pub struct AppArguments {
     #[structopt(long, parse(from_os_str))]
     pub source_directory: PathBuf,
 
+    /// Multiply X2 texture size
+    #[structopt(long)]
+    pub x2_texture_size: bool,
+
     /// Verbose level
     #[structopt(short, long, parse(from_occurrences))]
     pub verbose: u8
