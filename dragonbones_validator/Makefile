@@ -4,9 +4,11 @@
 TEST_APP:
 	export RUST_BACKTRACE=0 && \
 	export RUST_LOG=error && \
+	cargo clippy && \
 	cargo build --release && \
 	time target/release/dragonbones_validator \
-		--source-directory "/Users/devnul/projects/island2/build/Emscripten_Standalone/res/dragonbones" \
+		--json-files-directory "/Users/devnul/projects/island2/build/Emscripten_Standalone/res/dragonbones" \
+		--alternative-texture-files-directory "/Users/devnul/projects/island2/build/Emscripten_Standalone/res_to_server/res/dragonbones" \
 		--x2-texture-size \
 		-vvv
 

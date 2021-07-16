@@ -21,3 +21,8 @@ ansi_term = "0.12"
 imagesize = "0.8"
 byteorder = "1.4"
 flate2 = "1.0"
+
+[profile.release]
+# lto = true
+# codegen-units = 1
+# panic = "abort"

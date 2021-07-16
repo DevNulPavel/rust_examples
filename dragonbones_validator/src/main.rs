@@ -43,10 +43,17 @@ fn setup_logging(arguments: &AppArguments) -> Result<(), eyre::Error> {
 #[instrument(level = "error", skip(arguments))]
 fn validate_arguments(arguments: &AppArguments) -> Result<(), eyre::Error> {
     eyre::ensure!(
-        arguments.source_directory.exists(),
+        arguments.json_files_directory.exists(),
         "Source dragonbones directory does not exist: {:?}",
-        arguments.source_directory
+        arguments.json_files_directory
     );
+    if let Some(alternative_texture_files_directory) = &arguments.alternative_texture_files_directory {
+        eyre::ensure!(
+            alternative_texture_files_directory.exists(),
+            "Alternative textures directory does not exist: {:?}",
+            alternative_texture_files_directory
+        );
+    }
 
     Ok(())
 }
@@ -133,35 +140,53 @@ fn execute_app() -> Result<(), eyre::Error> {
     let mut err_lines = String::new();
 
     // Обходим все вхождения
-    for entry in WalkDir::new(&arguments.source_directory).into_iter() {
+    for entry in WalkDir::new(&arguments.json_files_directory).into_iter() {
         // Перегоним в путь
-        let path = entry.wrap_err("Directory enter error")?.into_path();
+        let full_json_file_path = entry.wrap_err("Directory enter error")?.into_path();
+
+        // Относительный путь к json файлику
+        let relative_json_file_path = full_json_file_path
+            .strip_prefix(&arguments.json_files_directory)
+            .wrap_err("Relative path fail")?;
 
         // Перегоняем в utf-8 строку
-        let relative_path_str = path
-            .strip_prefix(&arguments.source_directory)
-            .wrap_err("Relative path fail")?
+        let relative_path_str = relative_json_file_path
             .to_str()
-            .ok_or_else(|| eyre::eyre!("Convert path to utf-8 string failed, path = {:?}", &path))?;
+            .ok_or_else(|| eyre::eyre!("Convert path to utf-8 string failed, path = {:?}", &relative_json_file_path))?;
 
         // Проверяем имя
         if !relative_path_str.ends_with("texture.json") && !relative_path_str.ends_with("_tex.json") {
             continue;
         }
 
-        // Это вообще файлик?
-        if !path.is_file() {
-            continue;
-        }
-
         // Проверяем валидность
-        let status = validate_json_file(&path)?;
+        let status = validate_json_file(&full_json_file_path)?;
 
         // Если файлик невалидный
         use ansi_term::Color::Blue;
         match status {
             ValidateResult::InvalidSize { image_name } => {
-                let image_path = path.with_file_name(image_name);
+                // Путь к файлику картинки
+                let image_path = {
+                    // Путь к файлику в той же директории, что и json?
+                    let same_dir_image_path = full_json_file_path.with_file_name(&image_name);
+                    if same_dir_image_path.exists() {
+                        same_dir_image_path
+                    } else {
+                        // В качестве параметров есть альтернативный путь к картинкам?
+                        let alternative_dir_image_path = arguments
+                            .alternative_texture_files_directory
+                            .as_ref()
+                            .map(|alternative_root| alternative_root.join(relative_json_file_path.with_file_name(image_name)));
+                        // Проверяем доступноость
+                        match alternative_dir_image_path {
+                            Some(alternative_dir_image_path) if alternative_dir_image_path.exists() => alternative_dir_image_path,
+                            _ => {
+                                return Err(eyre::eyre!("Image is missing for json file: {:?}", full_json_file_path));
+                            }
+                        }
+                    }
+                };
 
                 // Узнаем необходимый размер текстуры
                 let texture_size = try_get_image_size(&image_path).wrap_err("Image size receive")?;
@@ -191,8 +216,11 @@ fn execute_app() -> Result<(), eyre::Error> {
     }
 
     // Если были найдены такие файлики
-    if err_lines.len() > 0 {
-        let root_path_str = arguments.source_directory.to_str().wrap_err("Root path to utf-8 convert failed")?;
+    if !err_lines.is_empty() {
+        let root_path_str = arguments
+            .json_files_directory
+            .to_str()
+            .wrap_err("Root path to utf-8 convert failed")?;
 
         use ansi_term::Color::Purple;
         use ansi_term::Color::Red;

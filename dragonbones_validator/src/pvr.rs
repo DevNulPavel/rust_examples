@@ -71,5 +71,5 @@ pub fn pvrgz_image_size(pvrgz_file_path: &Path) -> Result<ImageSize, eyre::Error
 
     // println!("Pvr {:?} size: {}x{}", pvrgz_file_path, width, height);
 
-    Ok(ImageSize { height, width })
+    Ok(ImageSize { width, height })
 }

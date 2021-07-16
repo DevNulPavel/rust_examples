@@ -5,9 +5,13 @@ use structopt::StructOpt;
 #[derive(StructOpt, Debug)]
 #[structopt(name = "basic")]
 pub struct AppArguments {
-    /// Source directory with dragonbones for validation
+    /// Source directory with dragonbones json files for validation
     #[structopt(long, parse(from_os_str))]
-    pub source_directory: PathBuf,
+    pub json_files_directory: PathBuf,
+
+    /// Alternative textures directory for dragonbones
+    #[structopt(long, parse(from_os_str))]
+    pub alternative_texture_files_directory: Option<PathBuf>,
 
     /// Multiply X2 texture size
     #[structopt(long)]
