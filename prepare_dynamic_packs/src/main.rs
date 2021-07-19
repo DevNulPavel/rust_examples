@@ -12,7 +12,7 @@ use std::{
     cell::RefCell,
     collections::HashSet,
     fs::File,
-    io::{Write, BufReader, BufWriter},
+    io::{BufReader, Write},
     path::{Path, PathBuf},
 };
 use structopt::StructOpt;
@@ -265,6 +265,19 @@ fn main() {
     let config_file = File::open(&arguments.dynamic_packs_config_path).expect("Dynamic packs config file open failed");
     let packs_configs: Vec<PackConfig> = serde_json::from_reader(BufReader::new(config_file)).expect("Dynamic packs config parse failed");
     // debug!("Packs config: {:#?}", packs_configs);
+
+    // Проверим, что у нас нету дубликатов имен
+    packs_configs.iter().for_each(|info_1| {
+        let mut count = 0;
+        packs_configs.iter().for_each(|info_2| {
+            if info_1.name.eq(&info_2.name) {
+                count += 1;
+            }
+        });
+        if count != 1 {
+            panic!("Pack with name '{}' has dublicates!", info_1.name);
+        }
+    });
 
     // Чтобы не делать много системных вызовов, сразу соберем список вообще всех файлов в ресурсах
     let start_time = std::time::Instant::now();
