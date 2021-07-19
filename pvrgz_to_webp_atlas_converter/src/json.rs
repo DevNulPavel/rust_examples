@@ -2,7 +2,7 @@ use crate::{cache::CacheInfo, helpers::get_md5_for_path};
 use eyre::WrapErr;
 use serde::{Deserialize, Serialize};
 use serde_json::Value;
-use std::{fs::File, path::Path};
+use std::{fs::File, path::Path, io::BufReader};
 use tracing::{instrument, warn};
 
 #[derive(Debug, Deserialize, Serialize)]
@@ -68,7 +68,7 @@ pub fn correct_file_name_in_json(cache_info: &CacheInfo, json_file_path: &Path) 
 
     let json_file = File::open(json_file_path).wrap_err("Json file open")?;
 
-    let mut meta: AtlasMeta = match serde_json::from_reader(json_file).wrap_err("Json deserealize")? {
+    let mut meta: AtlasMeta = match serde_json::from_reader(BufReader::new(json_file)).wrap_err("Json deserealize")? {
         FullMeta::Full(meta) => meta,
         FullMeta::Empty(_) => {
             warn!(?json_file_path, "Empty metadata at");

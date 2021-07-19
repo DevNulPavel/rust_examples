@@ -12,7 +12,7 @@ use std::{
     cell::RefCell,
     collections::HashSet,
     fs::File,
-    io::Write,
+    io::{Write, BufReader, BufWriter},
     path::{Path, PathBuf},
 };
 use structopt::StructOpt;
@@ -263,7 +263,7 @@ fn main() {
 
     // Пасим json конфиг
     let config_file = File::open(&arguments.dynamic_packs_config_path).expect("Dynamic packs config file open failed");
-    let packs_configs: Vec<PackConfig> = serde_json::from_reader(config_file).expect("Dynamic packs config parse failed");
+    let packs_configs: Vec<PackConfig> = serde_json::from_reader(BufReader::new(config_file)).expect("Dynamic packs config parse failed");
     // debug!("Packs config: {:#?}", packs_configs);
 
     // Чтобы не делать много системных вызовов, сразу соберем список вообще всех файлов в ресурсах

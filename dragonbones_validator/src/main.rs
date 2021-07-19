@@ -6,7 +6,7 @@ mod types;
 use crate::{app_arguments::AppArguments, pvr::pvrgz_image_size, types::ImageSize};
 use eyre::{ContextCompat, WrapErr};
 use serde::Deserialize;
-use std::{fmt::Write, fs::File, path::Path};
+use std::{fmt::Write, fs::File, path::Path, io::BufReader};
 use structopt::StructOpt;
 use tracing::{debug, instrument, Level};
 use walkdir::WalkDir;
@@ -102,7 +102,7 @@ fn validate_json_file(json_file_path: &Path) -> Result<ValidateResult, eyre::Err
         #[serde(rename = "imagePath")]
         image_path: Option<String>,
     }
-    let json_data: TextureInfo = serde_json::from_reader(json_file).wrap_err("Deserealize json error")?;
+    let json_data: TextureInfo = serde_json::from_reader(BufReader::new(json_file)).wrap_err("Deserealize json error")?;
 
     match json_data.image_path {
         Some(image_path) => {

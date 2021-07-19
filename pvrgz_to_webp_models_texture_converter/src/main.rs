@@ -9,7 +9,7 @@ use eyre::WrapErr;
 use rayon::prelude::*;
 use std::{
     fs::{remove_file, File},
-    io::{Read, Write},
+    io::{Read, Write, BufReader},
     path::{Path, PathBuf},
     sync::RwLock,
 };
@@ -129,7 +129,7 @@ fn main() {
     // Читаем список для игнорирования из файлика если надо
     let ignore_list = arguments.ignore_config_path.as_ref().map(|path| {
         let file = File::open(path).expect("Ignore file open failed");
-        serde_json::from_reader::<_, Vec<String>>(file).expect("Ignore list parse failed")
+        serde_json::from_reader::<_, Vec<String>>(BufReader::new(file)).expect("Ignore list parse failed")
     });
 
     // Создаем директории для кеша и открываем базу для хешей

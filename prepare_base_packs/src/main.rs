@@ -15,6 +15,7 @@ use rayon::prelude::*;
 use std::{
     convert::TryInto,
     fs::File,
+    io::BufReader,
     path::{Path, PathBuf},
 };
 use structopt::StructOpt;
@@ -216,7 +217,7 @@ fn execute_app() -> Result<(), eyre::Error> {
     // Открываем файлик конфига и парсим данные из него
     let config: ConvertConfig = {
         let file = File::open(&arguments.config_json).wrap_err("Config file open failed")?;
-        let raw_conf = serde_json::from_reader::<_, ConvertConfig>(file).wrap_err("Parse config failed")?;
+        let raw_conf = serde_json::from_reader::<_, ConvertConfig>(BufReader::new(file)).wrap_err("Parse config failed")?;
         raw_conf.try_into()?
     };
     debug!(?config, "Config");
