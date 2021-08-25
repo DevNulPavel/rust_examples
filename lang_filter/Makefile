@@ -22,10 +22,10 @@ BUILD_UNIVERSAL_APP_NATIVE:
 	cargo build --release --target x86_64-apple-darwin && \
 	lipo \
 		-create \
-		target/aarch64-apple-darwin/release/lang_filter \
-		target/x86_64-apple-darwin/release/lang_filter \
+			target/aarch64-apple-darwin/release/lang_filter \
+			target/x86_64-apple-darwin/release/lang_filter \
 		-output \
-		target/lang_filter_osx
+			target/lang_filter_osx
 		
 	# cargo build --release --target x86_64-unknown-linux-gnu && \
 	# cp target/x86_64-unknown-linux-gnu/release/lang_filter target/lang_filter_linux
@@ -39,10 +39,10 @@ BUILD_UNIVERSAL_APP_CROSS:
 	cross build --release --target x86_64-apple-darwin && \
 	lipo \
 		-create \
-		target/aarch64-apple-darwin/release/lang_filter \
-		target/x86_64-apple-darwin/release/lang_filter \
+			target/aarch64-apple-darwin/release/lang_filter \
+			target/x86_64-apple-darwin/release/lang_filter \
 		-output \
-		target/lang_filter_osx
+			target/lang_filter_osx
 
 	#cross build --release --target x86_64-unknown-linux-gnu && \
 	#cp target/x86_64-unknown-linux-gnu/release/lang_filter target/lang_filter_linux
