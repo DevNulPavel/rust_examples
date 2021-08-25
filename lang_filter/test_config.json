@@ -1,0 +1,9 @@
+{
+    "allowed_keys_regex": [
+        "^update_progressbar",
+        "^preloader_progressbar",
+        "^gameIsDownloadDesc",
+        "^DownloadScreenDefoltText",
+        "^loadScreenHint[0-9]+"
+    ]   
+}

@@ -1,0 +1,21 @@
+[package]
+name = "lang_filter"
+version = "0.1.0"
+authors = ["Pavel Ershov <devnulpavel@gmail.com>"]
+edition = "2018"
+
+# See more keys and their definitions at https://doc.rust-lang.org/cargo/reference/manifest.html
+
+[dependencies]
+structopt = "0.3"
+walkdir = "2.3"
+eyre = "0.6"
+color-eyre = "0.5"
+color-backtrace = "0.5"
+tracing = "0.1"
+tracing-subscriber = "0.2"
+tracing-error = "0.1"
+serde = {version = "1.0", features = ["derive"]}
+serde_json = "1.0"
+regex = "1.5"
+serde_regex = "1.1"
