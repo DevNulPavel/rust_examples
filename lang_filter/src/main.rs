@@ -150,34 +150,79 @@ fn execute_app() -> Result<(), eyre::Error> {
     };
     debug!(?config, "Config");
 
-    // Итератор по файликам
-    let files_iter = WalkDir::new(&arguments.lang_files_folder).into_iter();
+    // TODO: Рефакторинг, сделать компактнее код, разнести на функции отдельные
 
-    // Итерируемся по файликам
-    'cur_loop: for entry in files_iter {
-        let entry = entry.wrap_err("Invalid walkdir entry")?;
+    #[cfg(feature = "multithreaded")]
+    {
+        use rayon::prelude::*;
 
-        // Путь
-        let path = entry.into_path();
+        // Многопоточным образом итерируемся по файликам
+        let convert_results: Vec<Result<(), eyre::Error>> = WalkDir::new(&arguments.lang_files_folder)
+            .into_iter()
+            .par_bridge()
+            .filter_map(|entry| {
+                let entry = entry.ok()?;
 
-        // Имя файлика
-        let filename = match path.file_name().and_then(|name| name.to_str()) {
-            Some(filename) => filename,
-            None => continue 'cur_loop,
-        };
+                // Путь
+                let path = entry.into_path();
 
-        // Подходящее имя файлика?
-        if filename != "strings.json" {
-            continue 'cur_loop;
+                // Имя файлика
+                let filename = match path.file_name().and_then(|name| name.to_str()) {
+                    Some(filename) => filename,
+                    None => return None,
+                };
+
+                // Подходящее имя файлика?
+                if filename != "strings.json" {
+                    return None;
+                }
+
+                // Файлик вообще?
+                if !path.is_file() {
+                    return None;
+                }
+
+                return Some(path);
+            })
+            .map(|path| filter_lang(&path, &config))
+            .panic_fuse()
+            .collect();
+
+        // Проверим результаты
+        for res in convert_results {
+            res.wrap_err("Convert error")?;
         }
+    }
 
-        // Файлик вообще?
-        if !path.is_file() {
-            continue 'cur_loop;
+    #[cfg(not(feature = "multithreaded"))]
+    {
+        // Однопоточный вариант
+        let files_iter = WalkDir::new(&arguments.lang_files_folder);
+        'cur_loop: for entry in files_iter {
+            let entry = entry.wrap_err("Invalid walkdir entry")?;
+
+            // Путь
+            let path = entry.into_path();
+
+            // Имя файлика
+            let filename = match path.file_name().and_then(|name| name.to_str()) {
+                Some(filename) => filename,
+                None => continue 'cur_loop,
+            };
+
+            // Подходящее имя файлика?
+            if filename != "strings.json" {
+                continue 'cur_loop;
+            }
+
+            // Файлик вообще?
+            if !path.is_file() {
+                continue 'cur_loop;
+            }
+
+            // Выполняем фильтрацию
+            filter_lang(&path, &config).wrap_err("Filtering")?;
         }
-
-        // Выполняем фильтрацию
-        filter_lang(&path, &config).wrap_err("Filtering")?;
     }
 
     Ok(())
