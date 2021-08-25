@@ -6,13 +6,7 @@ use eyre::WrapErr;
 use regex::Regex;
 use serde::Deserialize;
 use serde_regex;
-use std::{
-    collections::HashMap,
-    fmt::Write as FmtWrite,
-    fs::File,
-    io::{BufReader, BufWriter, Write},
-    path::Path,
-};
+use std::{collections::HashMap, fmt::Write as FmtWrite, fs::File, io::{BufReader, BufWriter, Write}, path::Path, sync::{Arc, mpsc}};
 use structopt::StructOpt;
 use tracing::{debug, instrument, Level};
 use walkdir::WalkDir;
@@ -143,10 +137,11 @@ fn execute_app() -> Result<(), eyre::Error> {
     validate_arguments(&arguments).wrap_err("Arguments validate")?;
 
     // Распарсим конфиг
-    let config: FilterConfig = {
+    let config: Arc<FilterConfig> = {
         let file =
             File::open(&arguments.filter_config_path).wrap_err_with(|| format!("Open file {:?} failed", &arguments.filter_config_path))?;
-        serde_json::from_reader(BufReader::new(file)).wrap_err("Config parse failed")?
+        let config = serde_json::from_reader(BufReader::new(file)).wrap_err("Config parse failed")?;
+        Arc::new(config)
     };
     debug!(?config, "Config");
 
@@ -154,43 +149,51 @@ fn execute_app() -> Result<(), eyre::Error> {
 
     #[cfg(feature = "multithreaded")]
     {
-        use rayon::prelude::*;
+        let thread_pool = threadpool::Builder::new().build();
+        let (tx, rx) = mpsc::channel();
 
-        // Многопоточным образом итерируемся по файликам
-        let convert_results: Vec<Result<(), eyre::Error>> = WalkDir::new(&arguments.lang_files_folder)
-            .into_iter()
-            .par_bridge()
-            .filter_map(|entry| {
-                let entry = entry.ok()?;
+        // Однопоточный вариант
+        let files_iter = WalkDir::new(&arguments.lang_files_folder);
+        'cur_loop: for entry in files_iter {
+            let entry = entry.wrap_err("Invalid walkdir entry")?;
 
-                // Путь
-                let path = entry.into_path();
+            // Путь
+            let path = entry.into_path();
 
-                // Имя файлика
-                let filename = match path.file_name().and_then(|name| name.to_str()) {
-                    Some(filename) => filename,
-                    None => return None,
-                };
+            // Имя файлика
+            let filename = match path.file_name().and_then(|name| name.to_str()) {
+                Some(filename) => filename,
+                None => continue 'cur_loop,
+            };
 
-                // Подходящее имя файлика?
-                if filename != "strings.json" {
-                    return None;
+            // Подходящее имя файлика?
+            if filename != "strings.json" {
+                continue 'cur_loop;
+            }
+
+            // Файлик вообще?
+            if !path.is_file() {
+                continue 'cur_loop;
+            }
+
+            // Выполняем фильтрацию
+            thread_pool.execute({
+                let tx = tx.clone();
+                let config = config.clone();    
+                move || {
+                    if let Err(err) = filter_lang(&path, &config){
+                        tx.send(err).unwrap();
+                    };
                 }
+            });
+        }
+        
+        // Удаляем оставшийся передатчик
+        drop(tx);
 
-                // Файлик вообще?
-                if !path.is_file() {
-                    return None;
-                }
-
-                return Some(path);
-            })
-            .map(|path| filter_lang(&path, &config))
-            .panic_fuse()
-            .collect();
-
-        // Проверим результаты
-        for res in convert_results {
-            res.wrap_err("Convert error")?;
+        // Проверим ошибки
+        for err in rx.iter(){
+            return Err(err);
         }
     }
 
