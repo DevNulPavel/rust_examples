@@ -1,12 +1,16 @@
 mod app_arguments;
-mod helpers;
+mod types;
 
-use crate::app_arguments::AppArguments;
+use crate::{app_arguments::AppArguments, types::FilterConfig};
 use eyre::WrapErr;
-use regex::Regex;
 use serde::Deserialize;
-use serde_regex;
-use std::{collections::HashMap, fmt::Write as FmtWrite, fs::File, io::{BufReader, BufWriter, Write}, path::Path, sync::{Arc, mpsc}};
+use std::{
+    collections::HashMap,
+    fmt::Write as FmtWrite,
+    fs::File,
+    io::{BufReader, BufWriter, Write},
+    path::Path
+};
 use structopt::StructOpt;
 use tracing::{debug, instrument, Level};
 use walkdir::WalkDir;
@@ -64,12 +68,6 @@ fn validate_arguments(arguments: &AppArguments) -> Result<(), eyre::Error> {
     Ok(())
 }
 
-#[derive(Debug, Deserialize)]
-struct FilterConfig {
-    #[serde(with = "serde_regex")]
-    allowed_keys_regex: Vec<Regex>,
-}
-
 #[instrument(level = "error", skip(config))]
 fn filter_lang(path: &Path, config: &FilterConfig) -> Result<(), eyre::Error> {
     debug!("Process found file");
@@ -117,6 +115,73 @@ fn filter_lang(path: &Path, config: &FilterConfig) -> Result<(), eyre::Error> {
     Ok(())
 }
 
+#[cfg(feature = "multithreaded")]
+#[instrument(level = "error", skip(config, arguments))]
+fn process(arguments: AppArguments, config: FilterConfig) -> Result<(), eyre::Error> {
+    use rayon::prelude::*;
+
+    WalkDir::new(&arguments.lang_files_folder)
+        .into_iter()
+        .par_bridge()
+        .try_for_each(|entry| -> Result<(), eyre::Error>{
+            let entry = entry.wrap_err("Invalid walkdir entry")?;
+
+            // Путь
+            let path = entry.into_path();
+
+            // Имя файлика
+            let filename = match path.file_name().and_then(|name| name.to_str()) {
+                Some(filename) => filename,
+                None => return Ok(()),
+            };
+
+            // Подходящее имя файлика?
+            if filename != "strings.json" {
+                return Ok(());
+            }
+
+            // Файлик вообще?
+            if !path.is_file() {
+                return Ok(());
+            }
+
+            // Выполняем фильтрацию
+            filter_lang(&path, &config)
+        })
+}
+
+#[cfg(not(feature = "multithreaded"))]
+#[instrument(level = "error", skip(config, arguments))]
+fn process(arguments: AppArguments, config: FilterConfig) -> Result<(), eyre::Error> {
+    // Однопоточный вариант
+    let files_iter = WalkDir::new(&arguments.lang_files_folder);
+    'cur_loop: for entry in files_iter {
+        let entry = entry.wrap_err("Invalid walkdir entry")?;
+
+        // Путь
+        let path = entry.into_path();
+
+        // Имя файлика
+        let filename = match path.file_name().and_then(|name| name.to_str()) {
+            Some(filename) => filename,
+            None => continue 'cur_loop,
+        };
+
+        // Подходящее имя файлика?
+        if filename != "strings.json" {
+            continue 'cur_loop;
+        }
+
+        // Файлик вообще?
+        if !path.is_file() {
+            continue 'cur_loop;
+        }
+
+        // Выполняем фильтрацию
+        filter_lang(&path, &config).wrap_err("Filtering")?;
+    }
+}
+
 fn execute_app() -> Result<(), eyre::Error> {
     // Человекочитаемый вывод паники
     color_backtrace::install();
@@ -137,98 +202,16 @@ fn execute_app() -> Result<(), eyre::Error> {
     validate_arguments(&arguments).wrap_err("Arguments validate")?;
 
     // Распарсим конфиг
-    let config: Arc<FilterConfig> = {
+    let config: FilterConfig = {
         let file =
             File::open(&arguments.filter_config_path).wrap_err_with(|| format!("Open file {:?} failed", &arguments.filter_config_path))?;
         let config = serde_json::from_reader(BufReader::new(file)).wrap_err("Config parse failed")?;
-        Arc::new(config)
+        config
     };
     debug!(?config, "Config");
 
-    // TODO: Рефакторинг, сделать компактнее код, разнести на функции отдельные
-
-    #[cfg(feature = "multithreaded")]
-    {
-        let thread_pool = threadpool::Builder::new().build();
-        let (tx, rx) = mpsc::channel();
-
-        // Однопоточный вариант
-        let files_iter = WalkDir::new(&arguments.lang_files_folder);
-        'cur_loop: for entry in files_iter {
-            let entry = entry.wrap_err("Invalid walkdir entry")?;
-
-            // Путь
-            let path = entry.into_path();
-
-            // Имя файлика
-            let filename = match path.file_name().and_then(|name| name.to_str()) {
-                Some(filename) => filename,
-                None => continue 'cur_loop,
-            };
-
-            // Подходящее имя файлика?
-            if filename != "strings.json" {
-                continue 'cur_loop;
-            }
-
-            // Файлик вообще?
-            if !path.is_file() {
-                continue 'cur_loop;
-            }
-
-            // Выполняем фильтрацию
-            thread_pool.execute({
-                let tx = tx.clone();
-                let config = config.clone();    
-                move || {
-                    if let Err(err) = filter_lang(&path, &config){
-                        tx.send(err).unwrap();
-                    };
-                }
-            });
-        }
-        
-        // Удаляем оставшийся передатчик
-        drop(tx);
-
-        // Проверим ошибки
-        for err in rx.iter(){
-            return Err(err);
-        }
-    }
-
-    #[cfg(not(feature = "multithreaded"))]
-    {
-        // Однопоточный вариант
-        let files_iter = WalkDir::new(&arguments.lang_files_folder);
-        'cur_loop: for entry in files_iter {
-            let entry = entry.wrap_err("Invalid walkdir entry")?;
-
-            // Путь
-            let path = entry.into_path();
-
-            // Имя файлика
-            let filename = match path.file_name().and_then(|name| name.to_str()) {
-                Some(filename) => filename,
-                None => continue 'cur_loop,
-            };
-
-            // Подходящее имя файлика?
-            if filename != "strings.json" {
-                continue 'cur_loop;
-            }
-
-            // Файлик вообще?
-            if !path.is_file() {
-                continue 'cur_loop;
-            }
-
-            // Выполняем фильтрацию
-            filter_lang(&path, &config).wrap_err("Filtering")?;
-        }
-    }
-
-    Ok(())
+    // Непосредственно фильтрации
+    process(arguments, config)
 }
 
 fn main() {
