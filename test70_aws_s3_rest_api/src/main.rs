@@ -1,21 +1,23 @@
-use chrono::{Date, DateTime, Utc};
-use eyre::{Context, ContextCompat, WrapErr};
-use futures::{Stream, StreamExt};
-// use hmac::{Hmac, Mac, NewMac};
+use chrono::{DateTime, Utc};
+use eyre::WrapErr;
+// use futures::{Stream, StreamExt};
+// use http_body::Body as BodyTrait;
 use hmac_sha256::HMAC;
-use http_body::Body as BodyTrait;
 use hyper::{
-    body::{aggregate, to_bytes, Body as BodyStruct, HttpBody},
-    client::HttpConnector,
-    header::{HeaderName, HeaderValue},
-    http::{header, request::Builder as RequestBuilder, uri::Authority, Version},
-    Client, Method, Request, Response, StatusCode, Uri,
+    body::{to_bytes, Body as BodyStruct},
+    http::{header, request::Builder as RequestBuilder, uri::Authority},
+    Client,
+    Method,
+    Request,
+    // Response,
+    // StatusCode,
+    Uri,
+    // header::{HeaderName, HeaderValue},
 };
 use hyper_rustls::HttpsConnector;
-use mime::Mime;
+// use mime::Mime;
 use sha2::{Digest, Sha256};
-use std::{borrow::Cow, convert::TryFrom, fmt::Write as FmtWrite, process::exit, str::FromStr, time::Duration};
-use tokio::time::timeout;
+use std::{fmt::Write as FmtWrite, process::exit, str::FromStr};
 use tracing::{debug, error, info, instrument};
 use tracing_error::ErrorLayer;
 use tracing_log::LogTracer;
@@ -157,46 +159,22 @@ fn calculate_signature(
 
     // Вычисляем подпись в виде хеша
     // TODO: оптимизации, цепочечный вызовы, вложенные вызовы
-    let date_key = {
-        HMAC::mac(date_info.date_yyyymmdd.as_bytes(), format!("AWS4{}", aws_secret_access_key).as_bytes())
-        // let mut sha = Hmac::<sha2::Sha256>::new_from_slice()?;
-        // sha.update();
-        // sha.update(date_info.date_yyyymmdd.as_bytes());
-        // let date_key = sha.finalize_reset();
-    };
-    let date_region_key = {
-        // let mut sha = Sha256::new();
-        // sha.update(date_key);
-        // let mut sha = Hmac::<Sha256>::new(date_key.into_bytes());
-        // sha.update(region.as_bytes());
-        // sha.finalize()
-        HMAC::mac(region.as_bytes(), &date_key)
-    };
-    let date_region_service_key = {
-        // let mut sha = Sha256::new();
-        // sha.update(date_region_key);
-        // sha.update(service);
-        // sha.finalize()
-        HMAC::mac(service.as_bytes(), &date_region_key)
-    };
-    let signing_key = {
-        // let mut sha = Sha256::new();
-        // sha.update(date_region_service_key);
-        // sha.update("aws4_request");
-        // sha.finalize()
-        HMAC::mac("aws4_request".as_bytes(), &date_region_service_key)
-    };
-    debug!("Sign key: {:x?}", signing_key);
-
     let signature = {
-        // let mut sha = Sha256::new();
-        // sha.update(signing_key);
-        // sha.update(sign_string);
-        // sha.finalize()
-        HMAC::mac(sign_string.as_bytes(), &signing_key)
+        let date_key = HMAC::mac(
+            date_info.date_yyyymmdd.as_bytes(),
+            format!("AWS4{}", aws_secret_access_key).as_bytes(),
+        );
+        let date_region_key = HMAC::mac(region.as_bytes(), &date_key);
+        let date_region_service_key = HMAC::mac(service.as_bytes(), &date_region_key);
+        let signing_key = HMAC::mac("aws4_request".as_bytes(), &date_region_service_key);
+        debug!("Sign key: {:x?}", signing_key);
+
+        let signature = HMAC::mac(sign_string.as_bytes(), &signing_key);
+
+        hex::encode(signature)
     };
 
-    Ok((hex::encode(signature), signed_headers))
+    Ok((signature, signed_headers))
 }
 
 #[instrument(level = "error", skip(aws_access_key_id, signature))]
@@ -255,7 +233,7 @@ async fn execute_app() -> Result<(), eyre::Error> {
     let date_info = DateInfo::now();
     let region = "eu-west-2";
     let service = "s3";
-    let file_name = "target_file_name.txt";
+    let file_name = uuid::Uuid::new_v4().to_string();
     let test_data = "test test test";
 
     let host = format!("{}.s3.amazonaws.com", bucket);
