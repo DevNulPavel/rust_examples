@@ -9,4 +9,5 @@ DECRYPT_TEST_ENV:
 	gpg -a -r 0x0BD10E4E6E578FB6 -o env/test.env -d env/test.env.asc
 
 TEST_APP:
+	cargo clippy && \
 	cargo run
