@@ -8,14 +8,14 @@ use crate::{
 };
 use eyre::WrapErr;
 use hyper::{
-    body::{to_bytes, Body as BodyStruct},
+    body::{to_bytes, aggregate, Body as BodyStruct, Buf},
     header,
     http::uri::{Authority, Uri},
     Client, Method, Request,
 };
 use hyper_rustls::HttpsConnector;
 use serde::Deserialize;
-use serde_json::from_slice as json_from_slice;
+use serde_json::from_reader as json_from_reader;
 use std::{convert::From, path::Path, process::exit};
 use tracing::{debug, error, info};
 use tracing_error::ErrorLayer;
@@ -129,12 +129,8 @@ async fn execute_app() -> Result<(), eyre::Error> {
     let status = response.status();
     debug!(?status);
 
-    // Данные
-    let body_data = to_bytes(response).await.wrap_err("Body data receive")?;
-
     // Обрабатываем в зависимости от ответа
     if status.is_success() {
-        debug!(?body_data);
         #[derive(Debug, Deserialize)]
         struct Info {
             #[serde(rename = "md5Hash")]
@@ -142,9 +138,13 @@ async fn execute_app() -> Result<(), eyre::Error> {
             #[serde(rename = "mediaLink")]
             link: String,
         }
-        let info = json_from_slice::<Info>(&body_data).wrap_err("Response prasing err")?;
+        // Данные
+        let body_data = aggregate(response).await.wrap_err("Body data receive")?;
+        let info = json_from_reader::<_, Info>(body_data.reader()).wrap_err("Response prasing err")?;
         info!("Uploading result: {:?}", info);
     } else {
+        // Данные
+        let body_data = to_bytes(response).await.wrap_err("Body data receive")?;
         info!(?body_data);
         return Err(eyre::eyre!("Invalid upload response status"));
     }
