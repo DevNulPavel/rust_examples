@@ -13,55 +13,58 @@ use sha2::Digest;
 use std::str::FromStr;
 use tracing::{debug, instrument};
 
+#[instrument(level = "error", skip(service_acc_data, scopes))]
+fn build_jwt_string(service_acc_data: &ServiceAccountData, scopes: &str) -> Result<String, eyre::Error>{
+    // Header
+    /*let jwt_header = r#"{"alg":"RS256","typ":"JWT"}"#; // TODO: Строка константная, закешировать
+    debug!(%jwt_header);
+    let jwt_header = base64::encode(jwt_header);*/
+    let jwt_header = "eyJhbGciOiJSUzI1NiIsInR5cCI6IkpXVCJ9";
+
+    // Claims
+    let current_time = Utc::now();
+    let expire_time = current_time
+        .checked_add_signed(Duration::minutes(59))
+        .ok_or_else(|| eyre::eyre!("Expire time calc err"))?;
+    let jwt_claims = format!(
+        r###"{{"iss":"{}","scope":"{}","aud":"{}","exp":{},"iat":{}}}"###,
+        service_acc_data.client_email,
+        scopes,
+        service_acc_data.token_uri,
+        expire_time.timestamp(),
+        current_time.timestamp()
+    );
+    debug!(%jwt_claims);
+    let jwt_claims = base64::encode(jwt_claims);
+
+    // Исходная строка для подписи
+    let jwt_string_for_signature = format!("{}.{}", jwt_header, jwt_claims);
+    debug!(%jwt_string_for_signature);
+
+    // Приватный ключ читаем
+    // Вроде бы как метод шифрования записан в самом ключе, поэтому используем pkcs8 способ чтения закрытого ключа
+    let private_key = RsaPrivateKey::from_pkcs8_pem(&service_acc_data.private_key).wrap_err("Private key parsing failed")?;
+    private_key.validate().wrap_err("Private key is invalid")?;
+
+    // Вычисляем подпись
+    // Sign the UTF-8 representation of the input using SHA256withRSA (also known as RSASSA-PKCS1-V1_5-SIGN with the SHA-256 hash function) with the private key obtained from the Google API Console.
+    let padding = PaddingScheme::new_pkcs1v15_sign(Some(rsa::Hash::SHA2_256));
+    let signature = private_key
+        .sign(padding, sha2::Sha256::digest(jwt_string_for_signature.as_bytes()).as_slice())
+        .wrap_err("Sign failed")?;
+
+    // Base64 подписи
+    let base_64_signature = base64::encode(signature);
+    debug!(%base_64_signature);
+
+    // Результат
+    Ok(format!("{}.{}", jwt_string_for_signature, base_64_signature))
+}
+
 #[instrument(level = "error", skip(http_client, service_acc_data, scopes))]
 pub async fn get_token_data(http_client: &HttpClient, service_acc_data: &ServiceAccountData, scopes: &str) -> Result<TokenData, eyre::Error> {
     // TODO: Все обязательно кодируем в base64
-    let jwt_result = {
-        // Header
-        /*let jwt_header = r#"{"alg":"RS256","typ":"JWT"}"#; // TODO: Строка константная, закешировать
-        debug!(%jwt_header);
-        let jwt_header = base64::encode(jwt_header);*/
-        let jwt_header = "eyJhbGciOiJSUzI1NiIsInR5cCI6IkpXVCJ9";
-
-        // Claims
-        let current_time = Utc::now();
-        let expire_time = current_time
-            .checked_add_signed(Duration::minutes(59))
-            .ok_or_else(|| eyre::eyre!("Expire time calc err"))?;
-        let jwt_claims = format!(
-            r###"{{"iss":"{}","scope":"{}","aud":"{}","exp":{},"iat":{}}}"###,
-            service_acc_data.client_email,
-            scopes,
-            service_acc_data.token_uri,
-            expire_time.timestamp(),
-            current_time.timestamp()
-        );
-        debug!(%jwt_claims);
-        let jwt_claims = base64::encode(jwt_claims);
-
-        // Исходная строка для подписи
-        let jwt_string_for_signature = format!("{}.{}", jwt_header, jwt_claims);
-        debug!(%jwt_string_for_signature);
-
-        // Приватный ключ читаем
-        // Вроде бы как метод шифрования записан в самом ключе, поэтому используем pkcs8 способ чтения закрытого ключа
-        let private_key = RsaPrivateKey::from_pkcs8_pem(&service_acc_data.private_key).wrap_err("Private key parsing failed")?;
-        private_key.validate().wrap_err("Private key is invalid")?;
-
-        // Вычисляем подпись
-        // Sign the UTF-8 representation of the input using SHA256withRSA (also known as RSASSA-PKCS1-V1_5-SIGN with the SHA-256 hash function) with the private key obtained from the Google API Console.
-        let padding = PaddingScheme::new_pkcs1v15_sign(Some(rsa::Hash::SHA2_256));
-        let signature = private_key
-            .sign(padding, sha2::Sha256::digest(jwt_string_for_signature.as_bytes()).as_slice())
-            .wrap_err("Sign failed")?;
-
-        // Base64 подписи
-        let base_64_signature = base64::encode(signature);
-        debug!(%base_64_signature);
-
-        // Результат
-        format!("{}.{}", jwt_string_for_signature, base_64_signature)
-    };
+    let jwt_result = build_jwt_string(service_acc_data, scopes).wrap_err("JWT string create")?;
     debug!(%jwt_result);
 
     // Адрес запроса
@@ -124,7 +127,7 @@ pub async fn get_token_data(http_client: &HttpClient, service_acc_data: &Service
         // Работаем с ответом
         if let Some(content_type_mime) = content_type_mime {
             if content_type_mime.essence_str() == mime::APPLICATION_JSON.essence_str() {
-                let token_data = TokenData::try_parse_from_data(&body_data).wrap_err("Body parsing failed")?;
+                let token_data = TokenData::try_parse_from_data(&body_data).wrap_err("Body parsing failed")?;                
                 debug!(?token_data);
                 token_data
             } else {

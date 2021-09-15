@@ -1,15 +1,22 @@
-mod auth;
 mod helpers;
+mod oauth2;
 mod types;
 
 use crate::{
-    auth::{get_token_data, ServiceAccountData},
+    oauth2::{get_token_data, ServiceAccountData},
     types::HttpClient,
 };
 use eyre::WrapErr;
-use hyper::{body::Body as BodyStruct, Client};
+use hyper::{
+    body::{to_bytes, Body as BodyStruct},
+    header,
+    http::uri::{Authority, Uri},
+    Client, Method, Request,
+};
 use hyper_rustls::HttpsConnector;
-use std::{path::Path, process::exit};
+use serde::Deserialize;
+use serde_json::from_slice as json_from_slice;
+use std::{convert::From, path::Path, process::exit};
 use tracing::{debug, error, info};
 use tracing_error::ErrorLayer;
 use tracing_log::LogTracer;
@@ -63,11 +70,84 @@ async fn execute_app() -> Result<(), eyre::Error> {
     let http_client = build_http_client();
 
     // Получаем токен для работы
-    const SCOPES: &str = "https://www.googleapis.com/auth/devstorage.read_write";
-    let token_data = get_token_data(&http_client, &service_acc_data, SCOPES)
-        .await
-        .wrap_err("Token receive")?;
+    let token_data = get_token_data(
+        &http_client,
+        &service_acc_data,
+        "https://www.googleapis.com/auth/devstorage.read_write",
+    )
+    .await
+    .wrap_err("Token receive")?;
     info!("Received token: {:?}", token_data);
+
+    // Описание загрузки объекта в корзину
+    // https://cloud.google.com/storage/docs/json_api/v1/objects/insert
+    const BUCKET_NAME: &str = "dev_test_public_bucket";
+    const TEST_DATA: &[u8] = b"test test test";
+    let file_name = format!("{}.txt", uuid::Uuid::new_v4());
+
+    // Адрес запроса
+    let uri = Uri::builder()
+        .scheme("https")
+        .authority(Authority::from_static("storage.googleapis.com"))
+        .path_and_query(format!(
+            "/upload/storage/v1/b/{}/o?name={}&uploadType=media&fields={}",
+            urlencoding::encode(BUCKET_NAME),
+            urlencoding::encode(&file_name),
+            urlencoding::encode("md5Hash,mediaLink") // Только нужные поля в ответе сервера
+        ))
+        .build()
+        .wrap_err("Uri build failed")?;
+    debug!(?uri);
+
+    // Объект запроса
+    // https://docs.aws.amazon.com/AmazonS3/latest/API/API_PutObject.html
+    let request = Request::builder()
+        .method(Method::POST)
+        .version(hyper::Version::HTTP_2)
+        .uri(uri)
+        // Добавляется само если флаг выше true,
+        // TODO: Что-то не так с установкой значения host, если выставить, то фейлится запрос
+        // Может быть дело в регистре?
+        // .header(header::HOST, "oauth2.googleapis.com")
+        .header(header::USER_AGENT, "hyper")
+        .header(header::CONTENT_LENGTH, TEST_DATA.len())
+        .header(header::ACCEPT, mime::APPLICATION_JSON.to_string()) // TODO: Optimize
+        .header(header::AUTHORIZATION, format!("Bearer {}", token_data.access_token))
+        .header(header::CONTENT_TYPE, mime::OCTET_STREAM.to_string()) // TODO: Optimize
+        .body(BodyStruct::from(TEST_DATA))
+        .wrap_err("Request build error")?;
+    info!(?request);
+
+    // Описание данных ответа
+    // https://cloud.google.com/storage/docs/json_api/v1/objects#resource
+
+    // Объект ответа
+    let response = http_client.request(request).await.wrap_err("Http response error")?;
+    debug!(?response);
+
+    // Статус
+    let status = response.status();
+    debug!(?status);
+
+    // Данные
+    let body_data = to_bytes(response).await.wrap_err("Body data receive")?;
+
+    // Обрабатываем в зависимости от ответа
+    if status.is_success() {
+        debug!(?body_data);
+        #[derive(Debug, Deserialize)]
+        struct Info {
+            #[serde(rename = "md5Hash")]
+            md5: String,
+            #[serde(rename = "mediaLink")]
+            link: String,
+        }
+        let info = json_from_slice::<Info>(&body_data).wrap_err("Response prasing err")?;
+        info!("Uploading result: {:?}", info);
+    } else {
+        info!(?body_data);
+        return Err(eyre::eyre!("Invalid upload response status"));
+    }
 
     Ok(())
 }

@@ -17,7 +17,6 @@ dotenv = "0.15"
 hyper = {version = "0.14", features = ["http1", "http2", "client", "tcp", "stream", "runtime"]}
 hyper-rustls = "0.22"
 mime = "0.3"
-http-body = "0.4"
 futures = "0.3"
 serde = {version = "1.0", features = ["derive"]}
 serde_json = "1.0"
@@ -26,5 +25,6 @@ urlencoding = "2.1"
 chrono = "0.4"
 rsa = "0.5"
 sha2 = "0.9"
+uuid = {version = "0.8", features = ["v4"]}
 
 [dev-dependencies]
