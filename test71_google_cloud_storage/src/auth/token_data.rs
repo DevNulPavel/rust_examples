@@ -10,7 +10,7 @@ pub struct TokenData{
 }
 
 impl TokenData{
-    pub fn try_parse_from_data(data: &[u8]) -> Result<TokenData, eyre::Error>{
+    pub(super) fn try_parse_from_data(data: &[u8]) -> Result<TokenData, eyre::Error>{
         let data: TokenData = from_slice(data).wrap_err("Token data parsing failed")?;
         Ok(data)
     }
