@@ -26,7 +26,5 @@ urlencoding = "2.1"
 chrono = "0.4"
 rsa = "0.5"
 sha2 = "0.9"
-ring = "0.16"
-rand = "0.8"
 
 [dev-dependencies]

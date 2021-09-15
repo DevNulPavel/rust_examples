@@ -1164,8 +1164,6 @@ dependencies = [
  "hyper",
  "hyper-rustls",
  "mime",
- "rand",
- "ring",
  "rsa",
  "serde",
  "serde_json",

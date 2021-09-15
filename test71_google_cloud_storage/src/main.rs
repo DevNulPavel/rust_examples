@@ -1,12 +1,12 @@
 mod service_account;
+mod token;
 
 use eyre::WrapErr;
-use http_body::Body;
-use rsa::pkcs1::FromRsaPrivateKey;
+// use http_body::Body;
 // use futures::{Stream, StreamExt};
 // use http_body::Body as BodyTrait;
-use crate::service_account::ServiceAccountData;
-use chrono::{DateTime, Duration, Utc};
+use crate::{service_account::ServiceAccountData, token::TokenData};
+use chrono::{Duration, Utc};
 use hyper::{
     body::{to_bytes, Body as BodyStruct},
     http::{header, uri::Authority},
@@ -15,7 +15,8 @@ use hyper::{
 use hyper_rustls::HttpsConnector;
 use mime::Mime;
 use rsa::{pkcs8::FromPrivateKey, PaddingScheme, RsaPrivateKey};
-use std::{convert::TryFrom, path::Path, process::exit, str::FromStr};
+use sha2::Digest;
+use std::{path::Path, process::exit, str::FromStr};
 use tracing::{debug, error, info};
 use tracing_error::ErrorLayer;
 use tracing_log::LogTracer;
@@ -79,6 +80,7 @@ async fn execute_app() -> Result<(), eyre::Error> {
     // https://cloud.google.com/storage/docs/authentication
 
     const SCOPES: &str = "https://www.googleapis.com/auth/devstorage.read_write";
+    // const SCOPES: &str = "https://www.googleapis.com/auth/devstorage.read_only";
 
     // Данные по сервисному аккаунту
     let service_acc_data =
@@ -88,9 +90,10 @@ async fn execute_app() -> Result<(), eyre::Error> {
     // TODO: Все обязательно кодируем в base64
     let jwt_result = {
         // Header
-        let jwt_header = r#"{"alg":"RS256","typ":"JWT"}"#; // TODO: Строка константная, закешировать
+        /*let jwt_header = r#"{"alg":"RS256","typ":"JWT"}"#; // TODO: Строка константная, закешировать
         debug!(%jwt_header);
-        let jwt_header = base64::encode(jwt_header);
+        let jwt_header = base64::encode(jwt_header);*/
+        let jwt_header = "eyJhbGciOiJSUzI1NiIsInR5cCI6IkpXVCJ9";
 
         // Claims
         let current_time = Utc::now();
@@ -113,39 +116,20 @@ async fn execute_app() -> Result<(), eyre::Error> {
         debug!(%jwt_string_for_signature);
 
         // Приватный ключ читаем
-        // Sign the UTF-8 representation of the input using SHA256withRSA (also known as RSASSA-PKCS1-V1_5-SIGN with the SHA-256 hash function) with the private key obtained from the Google API Console.
         // Вроде бы как метод шифрования записан в самом ключе, поэтому используем pkcs8 способ чтения закрытого ключа
         let private_key = RsaPrivateKey::from_pkcs8_pem(&service_acc_data.private_key).wrap_err("Private key parsing failed")?;
         private_key.validate().wrap_err("Private key is invalid")?;
 
         // Вычисляем подпись
-        // use rsa::PublicKey;
-        // let mut rng = rand::rngs::OsRng;
-        // let public_key = private_key.to_public_key();
-        // let padding = PaddingScheme::new_oaep::<sha2::Sha256>();
-        // let padding = PaddingScheme::new_pkcs1v15_sign(None);
-        // let signature = public_key.encrypt(&mut rng, padding, jwt_string_for_signature.as_bytes()).wrap_err("Signature encrypt failed")?;
-        // let padding = PaddingScheme::new_oaep::<sha2::Sha256>();
-        let padding = PaddingScheme::new_pkcs1v15_sign(None);
-        use sha2::Digest;
+        // Sign the UTF-8 representation of the input using SHA256withRSA (also known as RSASSA-PKCS1-V1_5-SIGN with the SHA-256 hash function) with the private key obtained from the Google API Console.
+        let padding = PaddingScheme::new_pkcs1v15_sign(Some(rsa::Hash::SHA2_256));
         let signature = private_key
             .sign(padding, sha2::Sha256::digest(jwt_string_for_signature.as_bytes()).as_slice())
             .wrap_err("Sign failed")?;
 
-        // let rand = ring::rand::SystemRandom::new();
-        // let key = ring::signature::RsaKeyPair::from_pkcs8(service_acc_data.private_key.as_bytes())
-        //     .map_err(|e| eyre::eyre!("Private key read failed: {}", e))?;
-        // let mut signature = vec![0; key.public_modulus_len()];
-        // key.sign(
-        //     &ring::signature::RSA_PKCS1_SHA256,
-        //     &rand,
-        //     jwt_string_for_signature.as_bytes(),
-        //     &mut signature,
-        // )
-        // .map_err(|e| eyre::eyre!("Sign failed: {}", e))?;
-
         // Base64 подписи
         let base_64_signature = base64::encode(signature);
+        debug!(%base_64_signature);
 
         // Результат
         format!("{}.{}", jwt_string_for_signature, base_64_signature)
@@ -156,15 +140,13 @@ async fn execute_app() -> Result<(), eyre::Error> {
     let https_connector = HttpsConnector::with_native_roots();
 
     // Клиент с коннектором
-    let http_client = Client::builder()
-        .set_host(false)
-        .build::<_, BodyStruct>(https_connector);
+    let http_client = Client::builder().set_host(false).build::<_, BodyStruct>(https_connector);
 
     // Адрес запроса
     let uri = Uri::builder()
         .scheme("https")
         .authority(Authority::from_str("oauth2.googleapis.com").wrap_err("Authority parse error")?)
-        .path_and_query("/token") // TODO: URL-encode
+        .path_and_query("/token") // TODO: URL-encode // TODO: Использовать значение из JSON
         .build()
         .wrap_err("Uri build failed")?;
     debug!("Uri: {:?}", uri);
@@ -173,7 +155,8 @@ async fn execute_app() -> Result<(), eyre::Error> {
     // Значения разделяются с помощью &, каждый параметр должен быть urlencoded
     let body_data = {
         let grand_type = urlencoding::encode("urn:ietf:params:oauth:grant-type:jwt-bearer"); // TODO: Optimize
-        format!("grant_type={}&assertion={}", grand_type, jwt_result)
+        let assertion = urlencoding::encode(&jwt_result);
+        format!("grant_type={}&assertion={}", grand_type, assertion)
     };
     debug!("Request body: {}", body_data);
 
@@ -204,40 +187,33 @@ async fn execute_app() -> Result<(), eyre::Error> {
 
     // Получаем длину контента
     let content_length: Option<usize> = get_content_length(&response).wrap_err("Content type receive err")?;
-    info!(?content_length, "Content length");
+    debug!(?content_length);
 
     // Получаем тип контента
     let content_type_mime: Option<Mime> = get_content_type(&response).wrap_err("Content type receive err")?;
-    info!(?content_type_mime, "Content type");
+    debug!(?content_type_mime);
 
-    let body = response.into_body();
-    let body_data = to_bytes(body).await.wrap_err("Body data receive")?;
-    info!("Body data: {:?}", body_data);
+    // Данные
+    let body_data = to_bytes(response).await.wrap_err("Body data receive")?;
+    debug!("Body data: {:?}", body_data);
 
-    /*// В зависимости от статуса обрабатыаем иначе
-    if status.is_success() {
-    }else if status.is_redirection() {
-        // TODO: Нужно повторно выполнить запрос, но актуально только для получения вроде бы
-    }else{
+    // В зависимости от статуса обрабатыаем иначе
+    let token_data = if status.is_success() {
         // Работаем с ответом
-        // if content_type_mime == mime::APPLICATION_JSON {
-        // } else if content_type_mime == mime::TEXT_PLAIN {
-        // } else {
-        //     eyre::eyre!("Unknown content type");
-        // }
-
-        // let body_data = aggregate(body).await.wrap_err("Body data receive")?;
-        // info!(?body_data, "Body data");
-
-        // while let Some(body_data) = body.data().await{
-        //     let body_data = body_data?;
-        //     info!(?body_data, "Body data");
-        // }
-
-        // while let Some(data) = body.next().await {
-        //     info!(?data, "Body chunk");
-        // }
-    }*/
+        if let Some(content_type_mime) = content_type_mime {
+            if content_type_mime.essence_str() == mime::APPLICATION_JSON.essence_str() {
+                let token_data = TokenData::try_parse_from_data(&body_data).wrap_err("Body parsing failed")?;
+                info!("Token information: {:?}", token_data);
+                token_data
+            }else{
+                return Err(eyre::eyre!("Wrong conten type: {:?}", content_type_mime));    
+            }
+        }else{
+            return Err(eyre::eyre!("Missing content type"));
+        }
+    } else {
+        return Err(eyre::eyre!("Invalid token request"));
+    };
 
     Ok(())
 }
