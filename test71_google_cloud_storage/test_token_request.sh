@@ -1,0 +1,8 @@
+#! /usr/bin/bash
+
+curl \
+    --http1.1 \
+    -v \
+    -d \
+        'grant_type=urn%3Aietf%3Aparams%3Aoauth%3Agrant-type%3Ajwt-bearer&assertion=eyJhbGciOiJSUzI1NiIsInR5cCI6IkpXVCJ9.eyJpc3MiOiJ0ZXN0YWNjb3VudEB0ZXN0YXBwLTI1ODgxMy5pYW0uZ3NlcnZpY2VhY2NvdW50LmNvbSIsInNjb3BlIjoiaHR0cHM6Ly93d3cuZ29vZ2xlYXBpcy5jb20vYXV0aC9kZXZzdG9yYWdlLnJlYWRfd3JpdGUiLCJhdWQiOiJodHRwczovL29hdXRoMi5nb29nbGVhcGlzLmNvbS90b2tlbiIsImV4cCI6MTYzMTY5NDA1NywiaWF0IjoxNjMxNjkwNTE3fQ==.HXGjyezp1HSG798TkhgdnCfYqKWtPmQEVrnn0VGM6sx3wmuxnIGUUuSADN3nHj50Dt4YASZEcOzprekhKqt1vR0o3q9uu+A5CUOmwjcfCLSvdnJHVFjfy7GFYyoPcWtnBwGdByaYmab1Qs2yy8rP131UEiYfThUstKP7QoLM/3X9g7yP4Xrf3E59qsKNXLt8kdOpCiYyECAT08ALytFbPBDbbz2xz4B8WUrwxhO8Qhv5PO027im4OfAbW2X+1GhTd7t1qasBdXdJsH6aHc7cyOFN4TZPEkHZQOp/ZrdAyRHAmzBmxZneQjabgg57ntbmXvJ9rdTbBsbpICpidRtMug==' \
+    https://oauth2.googleapis.com/token

@@ -16,7 +16,7 @@ use hyper_rustls::HttpsConnector;
 use mime::Mime;
 use rsa::{pkcs8::FromPrivateKey, PaddingScheme, RsaPrivateKey};
 use std::{convert::TryFrom, path::Path, process::exit, str::FromStr};
-use tracing::{error, info};
+use tracing::{debug, error, info};
 use tracing_error::ErrorLayer;
 use tracing_log::LogTracer;
 use tracing_subscriber::prelude::*;
@@ -83,30 +83,34 @@ async fn execute_app() -> Result<(), eyre::Error> {
     // Данные по сервисному аккаунту
     let service_acc_data =
         ServiceAccountData::new_from_file(Path::new("./env/test_google_service_account.json")).wrap_err("Service account read")?;
-    info!(?service_acc_data, "Service account data");
+    debug!("Service account data: {:?}", service_acc_data);
 
     // TODO: Все обязательно кодируем в base64
     let jwt_result = {
         // Header
-        let jwt_header = base64::encode(r#"{{"alg":"RS256","typ":"JWT"}}"#); // TODO: Строка константная, закешировать
+        let jwt_header = r#"{"alg":"RS256","typ":"JWT"}"#; // TODO: Строка константная, закешировать
+        debug!(%jwt_header);
+        let jwt_header = base64::encode(jwt_header);
 
         // Claims
         let current_time = Utc::now();
         let expire_time = current_time
             .checked_add_signed(Duration::minutes(59))
             .ok_or_else(|| eyre::eyre!("Expire time calc err"))?;
-        let jwt_claims = base64::encode(format!(
-            r#"{{"iss":"{}","scope":"{}","aud":"{}","exp": {},"iat": {}}}"#,
+        let jwt_claims = format!(
+            r###"{{"iss":"{}","scope":"{}","aud":"{}","exp":{},"iat":{}}}"###,
             service_acc_data.client_email,
             SCOPES,
             service_acc_data.token_uri,
             expire_time.timestamp(),
             current_time.timestamp()
-        ));
+        );
+        debug!(%jwt_claims);
+        let jwt_claims = base64::encode(jwt_claims);
 
         // Исходная строка для подписи
         let jwt_string_for_signature = format!("{}.{}", jwt_header, jwt_claims);
-        info!("String for signature: {}", jwt_string_for_signature);
+        debug!(%jwt_string_for_signature);
 
         // Приватный ключ читаем
         // Sign the UTF-8 representation of the input using SHA256withRSA (also known as RSASSA-PKCS1-V1_5-SIGN with the SHA-256 hash function) with the private key obtained from the Google API Console.
@@ -146,13 +150,15 @@ async fn execute_app() -> Result<(), eyre::Error> {
         // Результат
         format!("{}.{}", jwt_string_for_signature, base_64_signature)
     };
-    info!(%jwt_result, "JWT result");
+    info!("JWT result: {}", jwt_result);
 
     // Коннектор для работы уже с HTTPS
     let https_connector = HttpsConnector::with_native_roots();
 
     // Клиент с коннектором
-    let http_client = Client::builder().set_host(false).build::<_, BodyStruct>(https_connector);
+    let http_client = Client::builder()
+        .set_host(false)
+        .build::<_, BodyStruct>(https_connector);
 
     // Адрес запроса
     let uri = Uri::builder()
@@ -161,25 +167,37 @@ async fn execute_app() -> Result<(), eyre::Error> {
         .path_and_query("/token") // TODO: URL-encode
         .build()
         .wrap_err("Uri build failed")?;
-    info!(?uri, "Uri");
+    debug!("Uri: {:?}", uri);
 
-    let body_data = "";
+    // Form data - это аналог query строки, но в body
+    // Значения разделяются с помощью &, каждый параметр должен быть urlencoded
+    let body_data = {
+        let grand_type = urlencoding::encode("urn:ietf:params:oauth:grant-type:jwt-bearer"); // TODO: Optimize
+        format!("grant_type={}&assertion={}", grand_type, jwt_result)
+    };
+    debug!("Request body: {}", body_data);
 
     // Объект запроса
     // https://docs.aws.amazon.com/AmazonS3/latest/API/API_PutObject.html
     let request = Request::builder()
         .method(Method::POST)
+        .version(hyper::Version::HTTP_2)
         .uri(uri)
-        .header(header::HOST, "oauth2.googleapis.com") // Добавляется само если флаг выше true
-        // .header(header::CONTENT_LENGTH, test_data.len())
+        // Добавляется само если флаг выше true,
+        // TODO: Что-то не так с установкой значения host, если выставить, то фейлится запрос
+        // Может быть дело в регистре?
+        // .header(header::HOST, "oauth2.googleapis.com")
+        .header(header::CONTENT_LENGTH, body_data.len())
+        .header(header::ACCEPT, mime::APPLICATION_JSON.to_string()) // TODO: Optimize
+        .header(header::USER_AGENT, "hyper")
         .header(header::CONTENT_TYPE, mime::APPLICATION_WWW_FORM_URLENCODED.to_string()) // TODO: Optimize
         .body(BodyStruct::from(body_data))
         .wrap_err("Request build error")?;
-    info!(?request, "Request");
+    info!("Request: {:?}", request);
 
     // Объект ответа
     let response = http_client.request(request).await.wrap_err("Http response error")?;
-    info!(?response, "Response");
+    info!("Response: {:?}", response);
 
     // Статус HTTP
     let status = response.status();
@@ -192,15 +210,9 @@ async fn execute_app() -> Result<(), eyre::Error> {
     let content_type_mime: Option<Mime> = get_content_type(&response).wrap_err("Content type receive err")?;
     info!(?content_type_mime, "Content type");
 
-    let mut body = response.into_body();
-
-    while let Some(body_data) = body.data().await{
-        let body_data = body_data.wrap_err("Body read")?;
-        info!(?body_data, "Body data");
-    }
-
-    // let body_data = to_bytes(body).await.wrap_err("Body data receive")?;
-    // info!(?body_data, "Body data");
+    let body = response.into_body();
+    let body_data = to_bytes(body).await.wrap_err("Body data receive")?;
+    info!("Body data: {:?}", body_data);
 
     /*// В зависимости от статуса обрабатыаем иначе
     if status.is_success() {
