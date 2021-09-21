@@ -22,3 +22,9 @@ TEST_SERVER_3:
 		-v -L \
 		-d "test_post_data_for_send" \
 		127.0.0.1:8080/echo/uppercase
+
+TEST_SERVER_4:
+	curl \
+		-v -L \
+		-d "test_post_data_for_send" \
+		127.0.0.1:8080/echo/reverse
