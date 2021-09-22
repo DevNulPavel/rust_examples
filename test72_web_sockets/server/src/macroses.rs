@@ -1,6 +1,6 @@
 #![macro_use]
 
-// #[macro_export]
+/*// #[macro_export]
 macro_rules! unwrap_or_fail_resp {
     ($code: expr) => {
         match $code {
@@ -32,14 +32,14 @@ macro_rules! unwrap_or_fail_resp {
             }
         }
     };
-}
+}*/
 
 // #[macro_export]
-macro_rules! true_or_fail_resp {
+/*macro_rules! true_or_fail_resp {
     ($code: expr, $err_status: expr, $desc: literal) => {
         if !$code {
             error!($desc);
             return Ok(response_with_status_end_error($err_status, $desc));
         }
     };
-}
+}*/

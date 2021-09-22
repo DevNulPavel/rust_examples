@@ -9,7 +9,8 @@ pub trait WrapErrorWithStatusAndDesc<T> {
 
 impl<T, E: StdError + Send + Sync + 'static> WrapErrorWithStatusAndDesc<T> for Result<T, E> {
     fn wrap_err_with_status(self: Self, status: StatusCode, desc: &'static str) -> Result<T, eyre::Error> {
-        self.map_err(|e| ErrorWithStatusAndDesc::from_error(e, status, desc)).map_err(|e| eyre::Error::new(e))
+        self.map_err(|e| ErrorWithStatusAndDesc::from_error(e, status, desc))
+            .map_err(|e| eyre::Error::new(e))
     }
 }
 
@@ -31,10 +32,21 @@ impl ErrorWithStatusAndDesc {
             desc: Cow::Borrowed(desc),
         }
     }
+    pub fn new(status: StatusCode, desc: &'static str) -> Self {
+        ErrorWithStatusAndDesc {
+            source: None,
+            status,
+            desc: Cow::Borrowed(desc),
+        }
+    }
 }
 impl Display for ErrorWithStatusAndDesc {
     fn fmt(&self, f: &mut std::fmt::Formatter<'_>) -> std::fmt::Result {
-        write!(f, "Status: {}, Description: {}", self.status, self.desc)
+        if let Some(source) = self.source.as_ref() {
+            writeln!(f, "Status: {}, Description: {}, Source: {}", self.status, self.desc, source)
+        } else {
+            writeln!(f, "Status: {}, Description: {}", self.status, self.desc)
+        }
     }
 }
 impl StdError for ErrorWithStatusAndDesc {

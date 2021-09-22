@@ -13,7 +13,7 @@ use hyper::{
     upgrade::Upgraded,
     Body as BodyStruct, Method, Request, Response, Server, StatusCode,
 };
-use std::{borrow::Cow, convert::Infallible, error::Error as StdError, fmt::Display, net::SocketAddr, process::exit};
+use std::{convert::Infallible, net::SocketAddr, process::exit};
 use tokio::io::{AsyncReadExt, AsyncWriteExt};
 use tracing::{debug, error, info, instrument};
 use tracing_error::ErrorLayer;
@@ -59,7 +59,8 @@ fn response_with_status_end_error(status: StatusCode, err_desc: &str) -> Respons
         .expect("Static fail response create failed") // Статически создаем ответ, здесь не критично
 }
 
-/// Handle server-side I/O after HTTP upgraded.
+/// Обработка обновленного веб-сокета
+#[instrument(level = "error")]
 async fn server_upgraded_io(mut upgraded: Upgraded) -> Result<(), eyre::Error> {
     // we have an upgraded connection that we can read and
     // write on directly.
@@ -82,34 +83,40 @@ async fn process_web_socket(remove_addr: SocketAddr, mut req: Request<BodyStruct
     info!("Web socket");
 
     // Проверим, что в заголовках есть заголовок UPGRADE, либо выходим с ошибкой
-    true_or_fail_resp!(
-        req.headers().contains_key(header::UPGRADE),
-        StatusCode::UPGRADE_REQUIRED,
-        "UPGRADE header is missing"
-    );
+    let upgrade_header_val = req
+        .headers()
+        .get(header::UPGRADE)
+        .ok_or_else(|| ErrorWithStatusAndDesc::new(StatusCode::UPGRADE_REQUIRED, "UPGRADE header is missing"))?
+        .to_str()
+        .wrap_err_with_status(StatusCode::BAD_REQUEST, "Invalid UPGRADE header value")?;
 
-    // Setup a future that will eventually receive the upgraded
-    // connection and talk a new protocol, and spawn the future
-    // into the runtime.
-    //
-    // Note: This can't possibly be fulfilled until the 101 response
-    // is returned below, so it's better to spawn this future instead
-    // waiting for it to complete to then return a response.
+    // TODO: Надо вычитать еще заголовки
+
+    // Сразу формируем ответ
+    let resp = Response::builder()
+        .status(StatusCode::SWITCHING_PROTOCOLS)
+        .header(header::UPGRADE, upgrade_header_val)
+        .body(BodyStruct::empty())?;
+
+    // Создаем футуру, которая в конце концов получит обновленное соединение и будет работать с ним
+    // Эта трансформация не может быть выполнена до тех пор, пока мы не ответим 101 кодом,
+    // Но футуру лучше запускать заранее, чтобы висеть на ней.
+    // TODO: Дополнительно дождемся старта футуры или клиент все равно не пойдет дальше?
     tokio::task::spawn(async move {
+        let span = tracing::error_span!("");
+        span.record("web_socket_upgrade", &tracing::field::debug(&req));
+        let _enter = span.enter();
+
         match hyper::upgrade::on(&mut req).await {
             Ok(upgraded) => {
                 if let Err(e) = server_upgraded_io(upgraded).await {
-                    eprintln!("server foobar io error: {}", e)
+                    error!("Server web socket io error: {}", e)
                 };
             }
             Err(e) => eprintln!("upgrade error: {}", e),
         }
     });
 
-    let resp = Response::builder()
-        .status(StatusCode::SWITCHING_PROTOCOLS)
-        .header(header::UPGRADE, "ws") // TODO: Какое значение указывать в заголовке?
-        .body(BodyStruct::empty())?;
     Ok(resp)
 }
 
