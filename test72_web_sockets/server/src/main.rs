@@ -1,3 +1,7 @@
+mod error;
+mod macroses;
+
+use crate::error::{ErrorWithStatusAndDesc, WrapErrorWithStatusAndDesc};
 use eyre::WrapErr;
 use futures::{future::pending, TryStreamExt};
 use hyper::{
@@ -6,9 +10,11 @@ use hyper::{
     header,
     server::conn::{AddrStream, Http},
     service::{make_service_fn, service_fn},
+    upgrade::Upgraded,
     Body as BodyStruct, Method, Request, Response, Server, StatusCode,
 };
 use std::{borrow::Cow, convert::Infallible, error::Error as StdError, fmt::Display, net::SocketAddr, process::exit};
+use tokio::io::{AsyncReadExt, AsyncWriteExt};
 use tracing::{debug, error, info, instrument};
 use tracing_error::ErrorLayer;
 use tracing_log::{log::warn, LogTracer};
@@ -38,48 +44,6 @@ fn initialize_logs() -> Result<(), eyre::Error> {
     Ok(())
 }
 
-macro_rules! unwrap_or_fail_resp {
-    ($code: expr) => {
-        match $code {
-            Ok(val) => val,
-            Err(err) => {
-                // Выводим ошибку
-                error!("{}", err);
-
-                // Создаем ответ с правильным статусом
-                let resp = response_with_status_and_empty_body(StatusCode::INTERNAL_SERVER_ERROR);
-
-                // Выходим с ошибкой
-                return Ok(resp);
-            }
-        }
-    };
-    ($code: expr, $err_status: expr) => {
-        match $code {
-            Ok(val) => val,
-            Err(err) => {
-                // Выводим ошибку
-                error!("{}", err);
-
-                // Создаем ответ с правильным статусом
-                let resp = response_with_status_and_empty_body($err_status);
-
-                // Выходим с ошибкой
-                return Ok(resp);
-            }
-        }
-    };
-}
-
-macro_rules! true_or_fail_resp {
-    ($code: expr, $err_status: expr, $desc: literal) => {
-        if !$code {
-            error!($desc);
-            return Ok(response_with_status_end_error($err_status, $desc));
-        }
-    };
-}
-
 fn response_with_status_and_empty_body(status: StatusCode) -> Response<BodyStruct> {
     Response::builder()
         .status(status)
@@ -95,32 +59,58 @@ fn response_with_status_end_error(status: StatusCode, err_desc: &str) -> Respons
         .expect("Static fail response create failed") // Статически создаем ответ, здесь не критично
 }
 
-#[derive(Debug)]
-struct ErrorWithStatusAndDesc {
-    // Время жизни распространяется лишь на ссылки в подтипе, они должны иметь время жизни 'static
-    // На обычные переменные не распространяется
-    source: Option<Box<dyn StdError + Send + Sync + 'static>>,
-    status: StatusCode,
-    desc: Cow<'static, str>,
+/// Handle server-side I/O after HTTP upgraded.
+async fn server_upgraded_io(mut upgraded: Upgraded) -> Result<(), eyre::Error> {
+    // we have an upgraded connection that we can read and
+    // write on directly.
+    //
+    // since we completely control this example, we know exactly
+    // how many bytes the client will write, so just read exact...
+    let mut vec = vec![0; 7];
+    upgraded.read_exact(&mut vec).await?;
+    println!("server[foobar] recv: {:?}", std::str::from_utf8(&vec));
+
+    // and now write back the server 'foobar' protocol's
+    // response...
+    upgraded.write_all(b"barr=foo").await?;
+    println!("server[foobar] sent");
+    Ok(())
 }
-impl ErrorWithStatusAndDesc {
-    fn from_error<E: StdError + Send + Sync + 'static>(e: E, status: StatusCode, desc: &'static str) -> Self {
-        ErrorWithStatusAndDesc {
-            source: Some(Box::new(e)),
-            status,
-            desc: Cow::Borrowed(desc),
+
+#[instrument(level = "error")]
+async fn process_web_socket(remove_addr: SocketAddr, mut req: Request<BodyStruct>) -> Result<Response<BodyStruct>, eyre::Error> {
+    info!("Web socket");
+
+    // Проверим, что в заголовках есть заголовок UPGRADE, либо выходим с ошибкой
+    true_or_fail_resp!(
+        req.headers().contains_key(header::UPGRADE),
+        StatusCode::UPGRADE_REQUIRED,
+        "UPGRADE header is missing"
+    );
+
+    // Setup a future that will eventually receive the upgraded
+    // connection and talk a new protocol, and spawn the future
+    // into the runtime.
+    //
+    // Note: This can't possibly be fulfilled until the 101 response
+    // is returned below, so it's better to spawn this future instead
+    // waiting for it to complete to then return a response.
+    tokio::task::spawn(async move {
+        match hyper::upgrade::on(&mut req).await {
+            Ok(upgraded) => {
+                if let Err(e) = server_upgraded_io(upgraded).await {
+                    eprintln!("server foobar io error: {}", e)
+                };
+            }
+            Err(e) => eprintln!("upgrade error: {}", e),
         }
-    }
-}
-impl Display for ErrorWithStatusAndDesc {
-    fn fmt(&self, f: &mut std::fmt::Formatter<'_>) -> std::fmt::Result {
-        write!(f, "Status: {}, Description: {}", self.status, self.desc)
-    }
-}
-impl StdError for ErrorWithStatusAndDesc {
-    fn source(&self) -> Option<&(dyn StdError + 'static)> {
-        self.source.as_ref().map(|e| e.as_ref() as &(dyn StdError + 'static))
-    }
+    });
+
+    let resp = Response::builder()
+        .status(StatusCode::SWITCHING_PROTOCOLS)
+        .header(header::UPGRADE, "ws") // TODO: Какое значение указывать в заголовке?
+        .body(BodyStruct::empty())?;
+    Ok(resp)
 }
 
 #[instrument(level = "error")]
@@ -177,8 +167,7 @@ async fn service_handler(remove_addr: SocketAddr, req: Request<BodyStruct>) -> R
 
             let body_data = to_bytes(req.into_body())
                 .await
-                .map_err(|e| ErrorWithStatusAndDesc::from_error(e, StatusCode::BAD_GATEWAY, "Body to bytes convert failed"))
-                .wrap_err("Failed to convert body stream to bytes")?;
+                .wrap_err_with_status(StatusCode::BAD_GATEWAY, "Body to bytes convert failed")?;
 
             let rev_body_data: Bytes = body_data.iter().rev().cloned().collect();
 
@@ -190,20 +179,7 @@ async fn service_handler(remove_addr: SocketAddr, req: Request<BodyStruct>) -> R
         }
 
         // Возвращаем все в ответ в обратном порядке
-        (&Method::POST, "/web_socket") => {
-            info!("Web socket");
-
-            // Проверим, что в заголовках есть заголовок UPGRADE, либо выходим с ошибкой
-            фыв
-            true_or_fail_resp!(
-                req.headers().contains_key(header::UPGRADE),
-                StatusCode::UPGRADE_REQUIRED,
-                "UPGRADE header is missing"
-            );
-
-            let resp = unwrap_or_fail_resp!(Response::builder().status(StatusCode::OK).body(BodyStruct::empty()));
-            Ok(resp)
-        }
+        (&Method::POST, "/web_socket") => process_web_socket(remove_addr, req).await,
 
         // Любой другой запрос
         _ => {
