@@ -7,7 +7,7 @@ use futures::{future::pending, TryStreamExt};
 use hyper::{
     body::to_bytes,
     body::Bytes,
-    header,
+    header::{self, HeaderName},
     server::conn::{AddrStream, Http},
     service::{make_service_fn, service_fn},
     upgrade::Upgraded,
@@ -17,6 +17,7 @@ use std::{convert::Infallible, net::SocketAddr, process::exit};
 use tokio::io::{AsyncReadExt, AsyncWriteExt};
 use tracing::{debug, error, info, instrument};
 use tracing_error::ErrorLayer;
+use tracing_futures::Instrument;
 use tracing_log::{log::warn, LogTracer};
 use tracing_subscriber::prelude::*;
 
@@ -59,6 +60,18 @@ fn response_with_status_end_error(status: StatusCode, err_desc: &str) -> Respons
         .expect("Static fail response create failed") // Статически создаем ответ, здесь не критично
 }
 
+fn get_header_str<'a>(req: &'a Request<BodyStruct>, header: &HeaderName) -> Result<&'a str, eyre::Error> {
+    let upgrade_header_val = req
+        .headers()
+        .get(header)
+        .ok_or_else(|| ErrorWithStatusAndDesc::new(StatusCode::BAD_REQUEST, format!("{} header is missing", header.as_str()).into()))?
+        .to_str()
+        .wrap_err_with_status_fn_desc(StatusCode::BAD_REQUEST, || {
+            format!("Invalid {} header value", header.as_str()).into()
+        })?;
+    Ok(upgrade_header_val)
+}
+
 /// Обработка обновленного веб-сокета
 #[instrument(level = "error")]
 async fn server_upgraded_io(mut upgraded: Upgraded) -> Result<(), eyre::Error> {
@@ -78,46 +91,46 @@ async fn server_upgraded_io(mut upgraded: Upgraded) -> Result<(), eyre::Error> {
     Ok(())
 }
 
-#[instrument(level = "error")]
-async fn process_web_socket(remove_addr: SocketAddr, mut req: Request<BodyStruct>) -> Result<Response<BodyStruct>, eyre::Error> {
+#[instrument(level = "error", skip(req))]
+async fn process_web_socket(mut req: Request<BodyStruct>) -> Result<Response<BodyStruct>, eyre::Error> {
     info!("Web socket");
 
     // Проверим, что в заголовках есть заголовок UPGRADE, либо выходим с ошибкой
-    let upgrade_header_val = req
-        .headers()
-        .get(header::UPGRADE)
-        .ok_or_else(|| ErrorWithStatusAndDesc::new(StatusCode::UPGRADE_REQUIRED, "UPGRADE header is missing"))?
-        .to_str()
-        .wrap_err_with_status(StatusCode::BAD_REQUEST, "Invalid UPGRADE header value")?;
+    let upgrade_header_val = get_header_str(&req, &header::UPGRADE)?;
+    let connection_header_val = get_header_str(&req, &header::CONNECTION)?;
+    let ws_version_header_val = get_header_str(&req, &header::SEC_WEBSOCKET_VERSION)?;
+    let ws_key_header_val = get_header_str(&req, &header::SEC_WEBSOCKET_KEY)?;
+    let ws_key_header_val = get_header_str(&req, &header::SEC_WEBSOCKET_KEY)?;
 
     // TODO: Надо вычитать еще заголовки
 
     // Сразу формируем ответ
-    let resp = Response::builder()
+    let result_response = Response::builder()
         .status(StatusCode::SWITCHING_PROTOCOLS)
         .header(header::UPGRADE, upgrade_header_val)
+        .header(header::SEC_WEBSOCKET_ACCEPT, "")
         .body(BodyStruct::empty())?;
+    debug!(?result_response);
 
     // Создаем футуру, которая в конце концов получит обновленное соединение и будет работать с ним
     // Эта трансформация не может быть выполнена до тех пор, пока мы не ответим 101 кодом,
     // Но футуру лучше запускать заранее, чтобы висеть на ней.
     // TODO: Дополнительно дождемся старта футуры или клиент все равно не пойдет дальше?
-    tokio::task::spawn(async move {
-        let span = tracing::error_span!("");
-        span.record("web_socket_upgrade", &tracing::field::debug(&req));
-        let _enter = span.enter();
-
-        match hyper::upgrade::on(&mut req).await {
-            Ok(upgraded) => {
-                if let Err(e) = server_upgraded_io(upgraded).await {
-                    error!("Server web socket io error: {}", e)
-                };
+    tokio::task::spawn(
+        async move {
+            match hyper::upgrade::on(&mut req).await {
+                Ok(upgraded) => {
+                    if let Err(e) = server_upgraded_io(upgraded).await {
+                        error!("Server web socket io error: {}", e)
+                    };
+                }
+                Err(e) => error!("Upgrade error: {}", e),
             }
-            Err(e) => eprintln!("upgrade error: {}", e),
         }
-    });
+        .instrument(tracing::span!(tracing::Level::ERROR, "web_socket_io")), // Для правильного продолжения активного Span внутри вызова span
+    );
 
-    Ok(resp)
+    Ok(result_response)
 }
 
 #[instrument(level = "error")]
@@ -174,7 +187,7 @@ async fn service_handler(remove_addr: SocketAddr, req: Request<BodyStruct>) -> R
 
             let body_data = to_bytes(req.into_body())
                 .await
-                .wrap_err_with_status(StatusCode::BAD_GATEWAY, "Body to bytes convert failed")?;
+                .wrap_err_with_status(StatusCode::BAD_GATEWAY, "Body to bytes convert failed".into())?;
 
             let rev_body_data: Bytes = body_data.iter().rev().cloned().collect();
 
@@ -186,7 +199,7 @@ async fn service_handler(remove_addr: SocketAddr, req: Request<BodyStruct>) -> R
         }
 
         // Возвращаем все в ответ в обратном порядке
-        (&Method::POST, "/web_socket") => process_web_socket(remove_addr, req).await,
+        (&Method::GET, "/web_socket") => process_web_socket(req).await,
 
         // Любой другой запрос
         _ => {

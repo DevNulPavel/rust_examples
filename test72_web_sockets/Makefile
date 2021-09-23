@@ -2,7 +2,7 @@
 .SILENT:
 
 RUN_SERVER:
-	export RUST_LOG=server=debug,info && \
+	export RUST_LOG=server=trace,info && \
 	cargo clippy --bin server && \
 	cargo run --bin server
 
@@ -28,3 +28,7 @@ TEST_SERVER_4:
 		-v -L \
 		-d "test_post_data_for_send" \
 		127.0.0.1:8080/echo/reverse
+
+TEST_SERVER_5:
+	websocat \
+		ws://127.0.0.1:8080/web_socket

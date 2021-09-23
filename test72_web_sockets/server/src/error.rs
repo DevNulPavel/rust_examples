@@ -4,13 +4,30 @@ use std::{borrow::Cow, error::Error as StdError, fmt::Display};
 /////////////////////////////////////////////////////////////////////////////////////////////////////////
 
 pub trait WrapErrorWithStatusAndDesc<T> {
-    fn wrap_err_with_status(self: Self, status: StatusCode, desc: &'static str) -> Result<T, eyre::Error>;
+    fn wrap_err_with_status(self: Self, status: StatusCode, desc: Cow<'static, str>) -> Result<T, eyre::Error>;
+    fn wrap_err_with_status_fn_desc<F>(self: Self, status: StatusCode, f: F) -> Result<T, eyre::Error>
+    where
+        F: FnOnce() -> Cow<'static, str>;
 }
 
-impl<T, E: StdError + Send + Sync + 'static> WrapErrorWithStatusAndDesc<T> for Result<T, E> {
-    fn wrap_err_with_status(self: Self, status: StatusCode, desc: &'static str) -> Result<T, eyre::Error> {
-        self.map_err(|e| ErrorWithStatusAndDesc::from_error(e, status, desc))
+impl<T, E> WrapErrorWithStatusAndDesc<T> for Result<T, E>
+where
+    E: StdError + Send + Sync + 'static,
+{
+    fn wrap_err_with_status(self: Self, status: StatusCode, desc: Cow<'static, str>) -> Result<T, eyre::Error> {
+        self.map_err(|e| ErrorWithStatusAndDesc::from_error(e, status, desc.into()))
             .map_err(|e| eyre::Error::new(e))
+    }
+
+    fn wrap_err_with_status_fn_desc<F>(self: Self, status: StatusCode, f: F) -> Result<T, eyre::Error>
+    where
+        F: FnOnce() -> Cow<'static, str>,
+    {
+        self.map_err(|e| {
+            let desc = f();
+            ErrorWithStatusAndDesc::from_error(e, status, desc.into())
+        })
+        .map_err(|e| eyre::Error::new(e))
     }
 }
 
@@ -25,18 +42,19 @@ pub struct ErrorWithStatusAndDesc {
     pub desc: Cow<'static, str>,
 }
 impl ErrorWithStatusAndDesc {
-    pub fn from_error<E: StdError + Send + Sync + 'static>(e: E, status: StatusCode, desc: &'static str) -> Self {
+    pub fn from_error<E: StdError + Send + Sync + 'static>(e: E, status: StatusCode, desc: Cow<'static, str>) -> Self {
         ErrorWithStatusAndDesc {
             source: Some(Box::new(e)),
             status,
-            desc: Cow::Borrowed(desc),
+            desc: desc,
         }
     }
-    pub fn new(status: StatusCode, desc: &'static str) -> Self {
+
+    pub fn new(status: StatusCode, desc: Cow<'static, str>) -> Self {
         ErrorWithStatusAndDesc {
             source: None,
             status,
-            desc: Cow::Borrowed(desc),
+            desc: desc,
         }
     }
 }
