@@ -61,7 +61,7 @@ fn response_with_status_end_error(status: StatusCode, err_desc: &str) -> Respons
 }
 
 fn get_header_str<'a>(req: &'a Request<BodyStruct>, header: &HeaderName) -> Result<&'a str, eyre::Error> {
-    let upgrade_header_val = req
+    let header_val = req
         .headers()
         .get(header)
         .ok_or_else(|| ErrorWithStatusAndDesc::new(StatusCode::BAD_REQUEST, format!("{} header is missing", header.as_str()).into()))?
@@ -69,7 +69,18 @@ fn get_header_str<'a>(req: &'a Request<BodyStruct>, header: &HeaderName) -> Resu
         .wrap_err_with_status_fn_desc(StatusCode::BAD_REQUEST, || {
             format!("Invalid {} header value", header.as_str()).into()
         })?;
-    Ok(upgrade_header_val)
+    Ok(header_val)
+}
+
+fn get_optional_header_str<'a>(req: &'a Request<BodyStruct>, header: &HeaderName) -> Result<Option<&'a str>, eyre::Error> {
+    if let Some(header_val) = req.headers().get(header) {
+        let res = header_val.to_str().wrap_err_with_status_fn_desc(StatusCode::BAD_REQUEST, || {
+            format!("Invalid {} header value", header.as_str()).into()
+        })?;
+        Ok(Some(res))
+    } else {
+        Ok(None)
+    }
 }
 
 /// Обработка обновленного веб-сокета
@@ -98,11 +109,16 @@ async fn process_web_socket(mut req: Request<BodyStruct>) -> Result<Response<Bod
     // Проверим, что в заголовках есть заголовок UPGRADE, либо выходим с ошибкой
     let upgrade_header_val = get_header_str(&req, &header::UPGRADE)?;
     let connection_header_val = get_header_str(&req, &header::CONNECTION)?;
+    let ws_key_header_val = get_header_str(&req, &header::SEC_WEBSOCKET_KEY)?; // Опциональный заголовок, но будем его требовать
     let ws_version_header_val = get_header_str(&req, &header::SEC_WEBSOCKET_VERSION)?;
-    let ws_key_header_val = get_header_str(&req, &header::SEC_WEBSOCKET_KEY)?;
-    let ws_key_header_val = get_header_str(&req, &header::SEC_WEBSOCKET_KEY)?;
+    let ws_protocols_header_val = get_optional_header_str(&req, &header::SEC_WEBSOCKET_PROTOCOL)?;
 
-    // TODO: Надо вычитать еще заголовки
+    // TODO: Проверить версию, если версия не подходящая, тогда ответить нужной версией в заголовке header::SEC_WEBSOCKET_VERSION
+    // и статусом 426 Upgrade Required
+    // Текущая версия - 13
+
+    // TODO: Проверить WebSocket ключ, на основании данного ключа выдаем значение в заголовок Sec-WebSocket-Accept ответа
+    // https://developer.mozilla.org/en-US/docs/Web/HTTP/Protocol_upgrade_mechanism#response-only_headers
 
     // Сразу формируем ответ
     let result_response = Response::builder()
