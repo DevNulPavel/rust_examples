@@ -15,10 +15,16 @@ use hyper::{
     Body as BodyStruct, Method, Request, Response, Server, StatusCode,
 };
 use std::{convert::Infallible, net::SocketAddr, process::exit};
-use tokio::io::BufStream;
+use tokio::{
+    io::BufStream,
+    sync::{broadcast, mpsc},
+};
 use tokio_tungstenite::tungstenite::{
     error::ProtocolError,
-    protocol::{Message, Role},
+    protocol::{
+        frame::{coding::CloseCode, CloseFrame},
+        Message, Role,
+    },
     Error as WsError,
 };
 use tracing::{debug, error, info, instrument};
@@ -89,59 +95,77 @@ fn get_header_str<'a>(req: &'a Request<BodyStruct>, header: &HeaderName) -> Resu
     }
 }*/
 
-#[instrument(level = "error", skip(upgraded))]
-async fn web_socket_io(upgraded: Upgraded) -> Result<(), eyre::Error> {
+type Cancelation = broadcast::Receiver<mpsc::Sender<()>>;
+
+#[instrument(level = "error", skip(upgraded, cancel))]
+async fn web_socket_io(upgraded: Upgraded, mut cancel: Cancelation) -> Result<(), eyre::Error> {
     // Оборачеваем данный поток в фуффер, чтобы не надо было делать на каждое чтение системный вызов
     let mut ws = tokio_tungstenite::WebSocketStream::from_raw_socket(BufStream::new(upgraded), Role::Server, None).await;
-    while let Some(message) = ws.next().await {
-        debug!(?message);
-
-        // TODO: При остановке сервера отсылать всем клиентам CLOSE
-
-        // Разворачиваем вообщение
-        match message {
-            Ok(Message::Text(received_text)) => {
-                // Если пришло - значит завершаем работу с сокетом
-                if received_text == "stop" {
-                    ws.close(None).await.wrap_err("Close send")?;
-                    drop(ws);
-                    break;
-                }
-
-                // Отправляем назад
-                ws.send(Message::Text(received_text.to_uppercase())).await.wrap_err("WS write")?;
-            }
-            Ok(Message::Binary(_)) => {
-                error!("Binary data unsupported");
-                ws.close(None).await.wrap_err("Close send")?;
-                drop(ws);
-                break;
-            }
-            Ok(Message::Close(_)) => {
-                debug!("Socket closed normaly");
-                break;
-            }
-            Ok(Message::Ping(data)) => {
-                debug!("Send pong");
-                ws.send(Message::Pong(data)).await.wrap_err("WS write")?;
-                continue;
-            }
-            Ok(Message::Pong(_)) => {
-                error!("Client must send ping");
-                break;
-            }
-            Err(err) => {
-                // Обработаем тип ошибки
-                match err {
-                    // Ошибка протокола, не закрыли нормально
-                    WsError::Protocol(ProtocolError::ResetWithoutClosingHandshake) => {
-                        warn!("Connection closed without valid message");
+    loop {
+        tokio::select! {
+            msg_opt = ws.next() => {
+                let message = match msg_opt {
+                    Some(v) =>  { v }
+                    None => {
+                        warn!("Empty message");
                         break;
                     }
-                    _ => {
-                        return Err(err.into());
+                };
+
+                debug!(?message);
+
+                // TODO: При остановке сервера отсылать всем клиентам CLOSE
+                // TODO: Close сообщение со смыслом https://docs.rs/tungstenite/0.14.0/tungstenite/protocol/frame/coding/enum.CloseCode.html
+
+                // Разворачиваем вообщение
+                match message {
+                    Ok(Message::Text(received_text)) => {
+                        // Если пришло - значит завершаем работу с сокетом
+                        if received_text == "stop\n" {
+                            ws.close(Some(CloseFrame{code: CloseCode::Normal, reason: "".into()})).await.wrap_err("Close send")?;
+                            break;
+                        }
+
+                        // Отправляем назад
+                        ws.send(Message::Text(received_text.to_uppercase())).await.wrap_err("WS write")?;
+                    }
+                    Ok(Message::Binary(_)) => {
+                        error!("Binary data unsupported");
+                        ws.close(Some(CloseFrame{code: CloseCode::Unsupported, reason: "".into()})).await.wrap_err("Close send")?;
+                        break;
+                    }
+                    Ok(Message::Close(_)) => {
+                        debug!("Socket closed normaly");
+                        break;
+                    }
+                    Ok(Message::Ping(data)) => {
+                        debug!("Send pong");
+                        ws.send(Message::Pong(data)).await.wrap_err("WS write")?;
+                        continue;
+                    }
+                    Ok(Message::Pong(_)) => {
+                        error!("Client must send ping");
+                        break;
+                    }
+                    Err(err) => {
+                        // Обработаем тип ошибки
+                        match err {
+                            // Ошибка протокола, не закрыли нормально
+                            WsError::Protocol(ProtocolError::ResetWithoutClosingHandshake) => {
+                                warn!("Connection closed without valid message");
+                                break;
+                            }
+                            _ => {
+                                return Err(err.into());
+                            }
+                        }
                     }
                 }
+            }
+            _ = cancel.recv() => {
+                info!("Stop received");
+                ws.close(Some(CloseFrame{code: CloseCode::Restart, reason: "".into()})).await.wrap_err("Close send")?;
+                break;
             }
         }
     }
@@ -150,8 +174,8 @@ async fn web_socket_io(upgraded: Upgraded) -> Result<(), eyre::Error> {
     Ok(())
 }
 
-#[instrument(level = "error", skip(req))]
-async fn process_web_socket(mut req: Request<BodyStruct>) -> Result<Response<BodyStruct>, eyre::Error> {
+#[instrument(level = "error", skip(req, cancel))]
+async fn process_web_socket(req: Request<BodyStruct>, cancel: Cancelation) -> Result<Response<BodyStruct>, eyre::Error> {
     info!("Web socket");
 
     // Проверим, что в заголовках есть заголовок UPGRADE, либо выходим с ошибкой
@@ -197,9 +221,9 @@ async fn process_web_socket(mut req: Request<BodyStruct>) -> Result<Response<Bod
     // TODO: Дополнительно дождемся старта футуры или клиент все равно не пойдет дальше?
     tokio::task::spawn(
         async move {
-            match hyper::upgrade::on(&mut req).await {
+            match hyper::upgrade::on(req).await {
                 Ok(upgraded) => {
-                    if let Err(e) = web_socket_io(upgraded).await {
+                    if let Err(e) = web_socket_io(upgraded, cancel).await {
                         error!("Server web socket io error: {:?}", e)
                     };
                 }
@@ -212,8 +236,12 @@ async fn process_web_socket(mut req: Request<BodyStruct>) -> Result<Response<Bod
     Ok(result_response)
 }
 
-#[instrument(level = "error")]
-async fn service_handler(remove_addr: SocketAddr, req: Request<BodyStruct>) -> Result<Response<BodyStruct>, eyre::Error> {
+#[instrument(level = "error", skip(cancel))]
+async fn service_handler(
+    remove_addr: SocketAddr,
+    req: Request<BodyStruct>,
+    cancel: Cancelation,
+) -> Result<Response<BodyStruct>, eyre::Error> {
     // debug!("Request processing begin");
 
     match (req.method(), req.uri().path()) {
@@ -278,7 +306,7 @@ async fn service_handler(remove_addr: SocketAddr, req: Request<BodyStruct>) -> R
         }
 
         // Возвращаем все в ответ в обратном порядке
-        (&Method::GET, "/web_socket") => process_web_socket(req).await,
+        (&Method::GET, "/web_socket") => process_web_socket(req, cancel).await,
 
         // Любой другой запрос
         _ => {
@@ -302,27 +330,34 @@ async fn shutdown_signal_wait() {
 async fn execute_app() -> Result<(), eyre::Error> {
     let addr = SocketAddr::from(([127, 0, 0, 1], 8080));
 
+    let (sender, receiver) = broadcast::channel::<mpsc::Sender<()>>(1);
+    drop(receiver);
+
     // Сервис необходим для каждого соединения, поэтому создаем враппер, который будет генерировать наш сервис
     let make_svc = make_service_fn(|conn: &AddrStream| {
         let remote_addr = conn.remote_addr();
+        let sender = sender.clone();
         async move {
             // Создаем сервис из функции с помощью service_fn
-            Ok::<_, Infallible>(service_fn(move |req| async move {
-                match service_handler(remote_addr, req).await {
-                    resp @ Ok(_) => resp,
-                    Err(err) => {
-                        // Выводим ошибку в консоль
-                        error!("{}", err);
+            Ok::<_, Infallible>(service_fn(move |req| {
+                let receiver = sender.subscribe();
+                async move {
+                    match service_handler(remote_addr, req, receiver).await {
+                        resp @ Ok(_) => resp,
+                        Err(err) => {
+                            // Выводим ошибку в консоль
+                            error!("{}", err);
 
-                        // Ошибка с дополнительной инфой?
-                        let resp = if let Some(http_err) = err.downcast_ref::<ErrorWithStatusAndDesc>() {
-                            // Создаем ответ с правильным статусом
-                            response_with_status_end_error(http_err.status, http_err.desc.as_ref())
-                        } else {
-                            // Создаем ответ со стандартным статусом
-                            response_with_status_and_empty_body(StatusCode::INTERNAL_SERVER_ERROR)
-                        };
-                        Ok(resp)
+                            // Ошибка с дополнительной инфой?
+                            let resp = if let Some(http_err) = err.downcast_ref::<ErrorWithStatusAndDesc>() {
+                                // Создаем ответ с правильным статусом
+                                response_with_status_end_error(http_err.status, http_err.desc.as_ref())
+                            } else {
+                                // Создаем ответ со стандартным статусом
+                                response_with_status_and_empty_body(StatusCode::INTERNAL_SERVER_ERROR)
+                            };
+                            Ok(resp)
+                        }
                     }
                 }
             }))
@@ -335,6 +370,16 @@ async fn execute_app() -> Result<(), eyre::Error> {
         .with_graceful_shutdown(shutdown_signal_wait())
         .await
         .wrap_err("Server awaiting")?;
+
+    // Ждем здесь завершения всех заспавненых обработчиков вебсокетов
+    // Создаем канал для ожидания завершения, как только все отправители уничтожены -
+    // получатель возвращает ошибку, но мы ее игнорим.
+    // Некий аналог WaitGroup
+    // https://tokio.rs/tokio/topics/shutdown
+    let (wait_sender, mut wait_receiver) = mpsc::channel(1);
+    sender.send(wait_sender)?;
+    let _ = wait_receiver.recv().await;
+    info!("Web socket processing complete");
 
     Ok(())
 }

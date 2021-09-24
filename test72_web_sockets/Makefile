@@ -34,5 +34,7 @@ TEST_SERVER_4:
 TEST_SERVER_5:
 	websocat \
 		-t \
+		-E \
+		--ping-interval 5 \
 		--base64 \
 		ws://127.0.0.1:8080/web_socket
