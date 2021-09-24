@@ -14,8 +14,8 @@ use hyper::{
     Body as BodyStruct, Method, Request, Response, Server, StatusCode,
 };
 use std::{convert::Infallible, net::SocketAddr, process::exit};
-use tokio::io::{AsyncReadExt, AsyncWriteExt};
-use tracing::{debug, error, info, instrument};
+use tokio::io::{AsyncBufRead, AsyncBufReadExt, AsyncRead, AsyncReadExt, AsyncWriteExt, BufStream};
+use tracing::{debug, error, info, instrument, trace};
 use tracing_error::ErrorLayer;
 use tracing_futures::Instrument;
 use tracing_log::{log::warn, LogTracer};
@@ -84,21 +84,54 @@ fn get_optional_header_str<'a>(req: &'a Request<BodyStruct>, header: &HeaderName
 }
 
 /// Обработка обновленного веб-сокета
-#[instrument(level = "error")]
-async fn server_upgraded_io(mut upgraded: Upgraded) -> Result<(), eyre::Error> {
-    // we have an upgraded connection that we can read and
-    // write on directly.
-    //
-    // since we completely control this example, we know exactly
-    // how many bytes the client will write, so just read exact...
-    let mut vec = vec![0; 7];
-    upgraded.read_exact(&mut vec).await?;
-    println!("server[foobar] recv: {:?}", std::str::from_utf8(&vec));
+/*#[instrument(level = "error")]
+async fn server_upgraded_io(upgraded: Upgraded) -> Result<(), eyre::Error> {
+    // Оборачеваем данный поток в фуффер, чтобы не надо было делать на каждое чтение системный вызов
+    let mut stream = BufStream::new(upgraded);
+    let mut data_buf = vec![0; 128];
+    loop {
+        // data_buf.clear();
 
-    // and now write back the server 'foobar' protocol's
-    // response...
-    upgraded.write_all(b"barr=foo").await?;
-    println!("server[foobar] sent");
+        let read_count = stream.read(&mut data_buf).await.wrap_err("Read err")?;
+
+        // Если прочитали 0, соединение закрыто
+        if read_count == 0 {
+            stream.shutdown().await.wrap_err("Complete failed")?;
+            info!("Finished");
+            break;
+        }
+
+        // TODO: Разные коды ошибок внутри сообщений web socket
+        // https://datatracker.ietf.org/doc/html/rfc6455#section-7.4.1
+
+        debug!("Recv: {:?} TEXT: {:?}", data_buf, std::str::from_utf8(&data_buf[0..read_count]));
+
+        if data_buf != b"stop" {
+            stream.write_all(&data_buf).await.wrap_err("Write err")?;
+            trace!("Sent");
+        } else {
+            stream.shutdown().await.wrap_err("Complete failed")?;
+            info!("Finished");
+            break;
+        }
+    }
+
+    Ok(())
+}*/
+
+#[instrument(level = "error")]
+async fn server_upgraded_io(upgraded: Upgraded) -> Result<(), eyre::Error> {
+    // use futures::{Sink, SinkExt, StreamExt, Stream, AsyncRead, AsyncReadExt, AsyncWrite, AsyncWriteExt};
+    use tokio_tungstenite::tungstenite::protocol::Role;
+
+    // Оборачеваем данный поток в фуффер, чтобы не надо было делать на каждое чтение системный вызов
+    let mut ws = tokio_tungstenite::WebSocketStream::from_raw_socket(BufStream::new(upgraded), Role::Server, None).await;
+    loop {
+        break;    
+    }
+
+    ws.close(None).await?;
+
     Ok(())
 }
 
@@ -108,23 +141,38 @@ async fn process_web_socket(mut req: Request<BodyStruct>) -> Result<Response<Bod
 
     // Проверим, что в заголовках есть заголовок UPGRADE, либо выходим с ошибкой
     let upgrade_header_val = get_header_str(&req, &header::UPGRADE)?;
-    let connection_header_val = get_header_str(&req, &header::CONNECTION)?;
+    // let connection_header_val = get_header_str(&req, &header::CONNECTION)?;
     let ws_key_header_val = get_header_str(&req, &header::SEC_WEBSOCKET_KEY)?; // Опциональный заголовок, но будем его требовать
     let ws_version_header_val = get_header_str(&req, &header::SEC_WEBSOCKET_VERSION)?;
-    let ws_protocols_header_val = get_optional_header_str(&req, &header::SEC_WEBSOCKET_PROTOCOL)?;
+    // let ws_protocols_header_val = get_optional_header_str(&req, &header::SEC_WEBSOCKET_PROTOCOL)?;
 
-    // TODO: Проверить версию, если версия не подходящая, тогда ответить нужной версией в заголовке header::SEC_WEBSOCKET_VERSION
+    // debug!(?connection_header_val);
+    // debug!(?ws_protocols_header_val);
+
+    // Проверить версию, если версия не подходящая, тогда ответить нужной версией в заголовке header::SEC_WEBSOCKET_VERSION
     // и статусом 426 Upgrade Required
     // Текущая версия - 13
+    if ws_version_header_val != "13" {
+        return Ok(response_with_status_end_error(
+            StatusCode::UPGRADE_REQUIRED,
+            "Invalid web socket version, must be 13",
+        ));
+    }
 
-    // TODO: Проверить WebSocket ключ, на основании данного ключа выдаем значение в заголовок Sec-WebSocket-Accept ответа
+    // Проверить WebSocket ключ, на основании данного ключа выдаем значение в заголовок Sec-WebSocket-Accept ответа
     // https://developer.mozilla.org/en-US/docs/Web/HTTP/Protocol_upgrade_mechanism#response-only_headers
+    let accept_key = {
+        let accept_key_source = format!("{}258EAFA5-E914-47DA-95CA-C5AB0DC85B11", ws_key_header_val);
+        use sha1::Digest;
+        let sha1_val = sha1::Sha1::digest(accept_key_source.as_bytes());
+        base64::encode(sha1_val)
+    };
 
     // Сразу формируем ответ
     let result_response = Response::builder()
         .status(StatusCode::SWITCHING_PROTOCOLS)
         .header(header::UPGRADE, upgrade_header_val)
-        .header(header::SEC_WEBSOCKET_ACCEPT, "")
+        .header(header::SEC_WEBSOCKET_ACCEPT, accept_key)
         .body(BodyStruct::empty())?;
     debug!(?result_response);
 
@@ -137,10 +185,10 @@ async fn process_web_socket(mut req: Request<BodyStruct>) -> Result<Response<Bod
             match hyper::upgrade::on(&mut req).await {
                 Ok(upgraded) => {
                     if let Err(e) = server_upgraded_io(upgraded).await {
-                        error!("Server web socket io error: {}", e)
+                        error!("Server web socket io error: {:?}", e)
                     };
                 }
-                Err(e) => error!("Upgrade error: {}", e),
+                Err(e) => error!("Upgrade error: {:?}", e),
             }
         }
         .instrument(tracing::span!(tracing::Level::ERROR, "web_socket_io")), // Для правильного продолжения активного Span внутри вызова span

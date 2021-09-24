@@ -13,7 +13,13 @@ tracing-futures = "0.2"
 tracing-log = "0.1"
 tracing-error = "0.1"
 tokio = {version = "1.11", features = ["full"]}
+# tokio-util = {version = "0.6", features = ["full"]}
 hyper = {version = "0.14", features = ["http1", "http2", "server", "tcp", "stream", "runtime"]}
 futures = "0.3"
+sha-1 = "0.9"
+base64 = "0.13"
+# tungstenite = "0.15"
+# async-tungstenite = {version = "0.15", features = ["tokio-runtime"]}
+tokio-tungstenite = "0.15"
 
 [dev-dependencies]

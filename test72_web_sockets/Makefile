@@ -2,6 +2,7 @@
 .SILENT:
 
 RUN_SERVER:
+	export RUST_BACKTRACE=0 \
 	export RUST_LOG=server=trace,info && \
 	cargo clippy --bin server && \
 	cargo run --bin server
@@ -31,4 +32,6 @@ TEST_SERVER_4:
 
 TEST_SERVER_5:
 	websocat \
+		-t \
+		--base64 \
 		ws://127.0.0.1:8080/web_socket
