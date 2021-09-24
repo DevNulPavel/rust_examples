@@ -2,6 +2,7 @@
 .SILENT:
 
 RUN_SERVER:
+	export RUST_SPANTRACE=1 \
 	export RUST_BACKTRACE=0 \
 	export RUST_LOG=server=trace,info && \
 	cargo clippy --bin server && \

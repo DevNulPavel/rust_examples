@@ -4,18 +4,24 @@ mod macroses;
 use crate::error::{ErrorWithStatusAndDesc, WrapErrorWithStatusAndDesc};
 use eyre::WrapErr;
 use futures::{future::pending, TryStreamExt};
+use futures::{SinkExt, StreamExt};
 use hyper::{
     body::to_bytes,
     body::Bytes,
     header::{self, HeaderName},
-    server::conn::{AddrStream, Http},
+    server::conn::AddrStream,
     service::{make_service_fn, service_fn},
     upgrade::Upgraded,
     Body as BodyStruct, Method, Request, Response, Server, StatusCode,
 };
 use std::{convert::Infallible, net::SocketAddr, process::exit};
-use tokio::io::{AsyncBufRead, AsyncBufReadExt, AsyncRead, AsyncReadExt, AsyncWriteExt, BufStream};
-use tracing::{debug, error, info, instrument, trace};
+use tokio::io::BufStream;
+use tokio_tungstenite::tungstenite::{
+    error::ProtocolError,
+    protocol::{Message, Role},
+    Error as WsError,
+};
+use tracing::{debug, error, info, instrument};
 use tracing_error::ErrorLayer;
 use tracing_futures::Instrument;
 use tracing_log::{log::warn, LogTracer};
@@ -72,7 +78,7 @@ fn get_header_str<'a>(req: &'a Request<BodyStruct>, header: &HeaderName) -> Resu
     Ok(header_val)
 }
 
-fn get_optional_header_str<'a>(req: &'a Request<BodyStruct>, header: &HeaderName) -> Result<Option<&'a str>, eyre::Error> {
+/*fn get_optional_header_str<'a>(req: &'a Request<BodyStruct>, header: &HeaderName) -> Result<Option<&'a str>, eyre::Error> {
     if let Some(header_val) = req.headers().get(header) {
         let res = header_val.to_str().wrap_err_with_status_fn_desc(StatusCode::BAD_REQUEST, || {
             format!("Invalid {} header value", header.as_str()).into()
@@ -81,56 +87,65 @@ fn get_optional_header_str<'a>(req: &'a Request<BodyStruct>, header: &HeaderName
     } else {
         Ok(None)
     }
-}
-
-/// Обработка обновленного веб-сокета
-/*#[instrument(level = "error")]
-async fn server_upgraded_io(upgraded: Upgraded) -> Result<(), eyre::Error> {
-    // Оборачеваем данный поток в фуффер, чтобы не надо было делать на каждое чтение системный вызов
-    let mut stream = BufStream::new(upgraded);
-    let mut data_buf = vec![0; 128];
-    loop {
-        // data_buf.clear();
-
-        let read_count = stream.read(&mut data_buf).await.wrap_err("Read err")?;
-
-        // Если прочитали 0, соединение закрыто
-        if read_count == 0 {
-            stream.shutdown().await.wrap_err("Complete failed")?;
-            info!("Finished");
-            break;
-        }
-
-        // TODO: Разные коды ошибок внутри сообщений web socket
-        // https://datatracker.ietf.org/doc/html/rfc6455#section-7.4.1
-
-        debug!("Recv: {:?} TEXT: {:?}", data_buf, std::str::from_utf8(&data_buf[0..read_count]));
-
-        if data_buf != b"stop" {
-            stream.write_all(&data_buf).await.wrap_err("Write err")?;
-            trace!("Sent");
-        } else {
-            stream.shutdown().await.wrap_err("Complete failed")?;
-            info!("Finished");
-            break;
-        }
-    }
-
-    Ok(())
 }*/
 
-#[instrument(level = "error")]
-async fn server_upgraded_io(upgraded: Upgraded) -> Result<(), eyre::Error> {
-    // use futures::{Sink, SinkExt, StreamExt, Stream, AsyncRead, AsyncReadExt, AsyncWrite, AsyncWriteExt};
-    use tokio_tungstenite::tungstenite::protocol::Role;
-
+#[instrument(level = "error", skip(upgraded))]
+async fn web_socket_io(upgraded: Upgraded) -> Result<(), eyre::Error> {
     // Оборачеваем данный поток в фуффер, чтобы не надо было делать на каждое чтение системный вызов
     let mut ws = tokio_tungstenite::WebSocketStream::from_raw_socket(BufStream::new(upgraded), Role::Server, None).await;
-    loop {
-        break;    
-    }
+    while let Some(message) = ws.next().await {
+        debug!(?message);
 
-    ws.close(None).await?;
+        // TODO: При остановке сервера отсылать всем клиентам CLOSE
+
+        // Разворачиваем вообщение
+        match message {
+            Ok(Message::Text(received_text)) => {
+                // Если пришло - значит завершаем работу с сокетом
+                if received_text == "stop" {
+                    ws.close(None).await.wrap_err("Close send")?;
+                    drop(ws);
+                    break;
+                }
+
+                // Отправляем назад
+                ws.send(Message::Text(received_text.to_uppercase())).await.wrap_err("WS write")?;
+            }
+            Ok(Message::Binary(_)) => {
+                error!("Binary data unsupported");
+                ws.close(None).await.wrap_err("Close send")?;
+                drop(ws);
+                break;
+            }
+            Ok(Message::Close(_)) => {
+                debug!("Socket closed normaly");
+                break;
+            }
+            Ok(Message::Ping(data)) => {
+                debug!("Send pong");
+                ws.send(Message::Pong(data)).await.wrap_err("WS write")?;
+                continue;
+            }
+            Ok(Message::Pong(_)) => {
+                error!("Client must send ping");
+                break;
+            }
+            Err(err) => {
+                // Обработаем тип ошибки
+                match err {
+                    // Ошибка протокола, не закрыли нормально
+                    WsError::Protocol(ProtocolError::ResetWithoutClosingHandshake) => {
+                        warn!("Connection closed without valid message");
+                        break;
+                    }
+                    _ => {
+                        return Err(err.into());
+                    }
+                }
+            }
+        }
+    }
+    info!("Socket processing complete");
 
     Ok(())
 }
@@ -184,14 +199,14 @@ async fn process_web_socket(mut req: Request<BodyStruct>) -> Result<Response<Bod
         async move {
             match hyper::upgrade::on(&mut req).await {
                 Ok(upgraded) => {
-                    if let Err(e) = server_upgraded_io(upgraded).await {
+                    if let Err(e) = web_socket_io(upgraded).await {
                         error!("Server web socket io error: {:?}", e)
                     };
                 }
                 Err(e) => error!("Upgrade error: {:?}", e),
             }
         }
-        .instrument(tracing::span!(tracing::Level::ERROR, "web_socket_io")), // Для правильного продолжения активного Span внутри вызова span
+        .instrument(tracing::span!(tracing::Level::ERROR, "ws_upgrade_processing")), // Для правильного продолжения активного Span внутри вызова span
     );
 
     Ok(result_response)
