@@ -3,11 +3,27 @@
 
 TEST_APP:
 	export RUST_BACKTRACE=0 && \
-	export RUST_LOG=error && \
+	cargo clippy && \
 	cargo build --release && \
-	time target/release/lang_filter \
-		--lang-files-folder "/Users/devnul/projects/island2/project/res/lang" \
-		--filter-config-path "/Users/devnul/projects/rust_examples/lang_filter/test_config.json" \
+	time target/release/dir_split \
+		--resuld-dirs-count 4 \
+		--result-dirs-path "./test_results" \
+		--use-compression "brotli" \
+		--compression-level 11 \
+		--source-dirs-root "/Users/devnul/projects/island2/build/Emscripten_Standalone" \
+		--source-dirs \
+			res/data/localConfigs \
+			res/data/symbols \
+			res/dragonbones \
+			res/fonts \
+			res/images \
+			res/match3 \
+			res/models \
+			res/shaders \
+			res/sounds \
+			res/spine \
+			res/ui \
+			res/lang \
 		-vvvv
 
 # Могут быть проблемы со сборкой для Linux

@@ -1,8 +1,13 @@
 mod app_arguments;
+mod helpers;
 
-use crate::app_arguments::{AppArguments, CompressionArg};
+use crate::{
+    app_arguments::{AppArguments, CompressionArg},
+    helpers::create_dir_for_file,
+};
 use eyre::{ContextCompat, WrapErr};
 use log::{debug, LevelFilter};
+use rayon::prelude::*;
 use std::{
     fs::{copy as fs_copy, create_dir_all, remove_dir_all, File},
     io::{copy as io_copy, BufReader},
@@ -16,6 +21,7 @@ use walkdir::WalkDir;
 
 /// Настойка уровня логирования
 fn setup_logging(arguments: &AppArguments) -> Result<(), eyre::Error> {
+    // TODO: Фикс логов
     // Настройка логирования на основании количества флагов verbose
     let level = match arguments.verbose {
         0 => LevelFilter::Error,
@@ -35,12 +41,19 @@ fn setup_logging(arguments: &AppArguments) -> Result<(), eyre::Error> {
 
 /// Выполняем валидацию переданных аргументов приложения
 fn validate_arguments(arguments: &AppArguments) -> Result<(), eyre::Error> {
-    // Валидация параметров приложения
     eyre::ensure!(arguments.resuld_dirs_count > 0, "Result dirs count must be greater than 0");
-    eyre::ensure!(arguments.source_dirs.len() > 0, "Source directories count must be greater than 0");
+
+    eyre::ensure!(arguments.source_dirs_root.exists(), "Source root directory does not exist");
+    eyre::ensure!(arguments.source_dirs_root.is_dir(), "Source root directory is not directory");
+
+    eyre::ensure!(!arguments.source_dirs.is_empty(), "Source directories count must be greater than 0");
     for path in arguments.source_dirs.as_slice() {
-        eyre::ensure!(path.exists(), "Source directory does not exist: {:?}", path);
-        eyre::ensure!(path.is_dir(), "Source directory must be dir: {:?}", path);
+        eyre::ensure!(path.is_relative(), "Source directory must be relative: {:?}", path);
+
+        // TODO: Закешировать результаты в аргументах, либо как-то можно это сделать при парсинге даже?
+        let full_path = arguments.source_dirs_root.join(path);
+        eyre::ensure!(full_path.exists(), "Source directory does not exist: {:?}", path);
+        eyre::ensure!(full_path.is_dir(), "Source directory must be dir: {:?}", path);
     }
     match arguments.use_compression {
         CompressionArg::Brotli | CompressionArg::Gzip => {
@@ -88,6 +101,9 @@ impl Bucked {
         // Путь в конечную директорию
         let result_full_path = self.result_root_path.join(relative_src_path);
 
+        // Директория конечная
+        create_dir_for_file(&result_full_path).wrap_err_with(|| format!("Result dir create failed: {:?}", result_full_path))?;
+
         // Копируем
         fs_copy(&src_file_path, &result_full_path)
             .wrap_err_with(|| format!("File copy failed: {:?} -> {:?}", src_file_path, result_full_path))?;
@@ -108,8 +124,10 @@ fn detect_result_file_size(compression_type: &CompressionArg, compression_level:
             let file = File::open(&file_path).wrap_err_with(|| format!("Source file open failed: {:?}", file_path))?;
             let mut reader = BufReader::new(file);
 
-            let mut params = brotli::enc::BrotliEncoderParams::default();
-            params.quality = compression_level as i32;
+            let params = brotli::enc::BrotliEncoderParams {
+                quality: compression_level as i32,
+                ..Default::default()
+            };
 
             let mut void_writer = std::io::sink();
             let size = brotli::BrotliCompress(&mut reader, &mut void_writer, &params).wrap_err("Brotli size analyze failed")?;
@@ -134,13 +152,10 @@ fn detect_result_file_size(compression_type: &CompressionArg, compression_level:
             let written = io_copy(&mut reader, &mut gz_writer).wrap_err_with(|| format!("Gzip compression failed: {:?}", file_path))?;
             written as u64
         }
-        app_arguments::CompressionArg::None => {
-            let file_size = file_path
-                .metadata()
-                .wrap_err_with(|| format!("Failed to fetch metadata from {:?}", file_path))?
-                .len();
-            file_size
-        }
+        app_arguments::CompressionArg::None => file_path
+            .metadata()
+            .wrap_err_with(|| format!("Failed to fetch metadata from {:?}", file_path))?
+            .len(),
     };
     Ok(size)
 }
@@ -175,35 +190,44 @@ fn execute_app() -> Result<(), eyre::Error> {
         buckets
     };
 
-    // Идем по всем выходным директориям и формируем постепенно корзины с равномерным заполнением
-    // TODO: Использовать Rayon
-    for source_dir in arguments.source_dirs {
-        for entry in WalkDir::new(source_dir).into_iter() {
-            // Получаем путь
-            let file_path = entry.wrap_err("Access to entry failed")?.into_path();
+    // Идем по всем входным директориям
+    arguments
+        .source_dirs
+        .par_iter()
+        .try_for_each(|source_dir| -> Result<(), eyre::Error> {
+            let full_source_dir = arguments.source_dirs_root.join(source_dir);
+            WalkDir::new(full_source_dir)
+                .into_iter()
+                .par_bridge()
+                .try_for_each(|entry| -> Result<(), eyre::Error> {
+                    // TODO: Вынести в функцию отдельную
 
-            // Работает лишь с файлами
-            if !file_path.is_file() {
-                continue;
-            }
+                    // Получаем путь
+                    let file_path = entry.wrap_err("Access to entry failed")?.into_path();
 
-            debug!("Found file path: {:?}", file_path);
+                    // Работает лишь с файлами
+                    if !file_path.is_file() {
+                        return Ok(());
+                    }
 
-            // Размер данного файлика
-            // TODO: Кешировать размеры в базу данных на основании пути + MD5 + уровня компрессии
-            // TODO: Определять сжатые размеры в пуле потоков
-            let result_size = detect_result_file_size(&arguments.use_compression, arguments.compression_level, &file_path)
-                .wrap_err_with(|| format!("Compressed file size detection error: {:?}", file_path))?;
+                    debug!("Found file path: {:?}", file_path);
 
-            // Находим корзину с меньшим размером и кладем туда
-            let bucket = buckets.iter().min_by_key(|v| v.current_size()).wrap_err("Bucket find")?;
+                    // Размер данного файлика
+                    // TODO: Кешировать размеры в базу данных на основании пути + MD5 + уровня компрессии
+                    let result_size = detect_result_file_size(&arguments.use_compression, arguments.compression_level, &file_path)
+                        .wrap_err_with(|| format!("Compressed file size detection error: {:?}", file_path))?;
 
-            // Копируем файлик
-            bucket
-                .put_file(&arguments.source_dirs_root, &file_path, result_size)
-                .wrap_err_with(|| format!("Failed to put file: {:?}", file_path))?;
-        }
-    }
+                    // Находим корзину с меньшим размером и кладем туда
+                    let bucket = buckets.iter().min_by_key(|v| v.current_size()).wrap_err("Bucket find")?;
+
+                    // Копируем файлик
+                    bucket
+                        .put_file(&arguments.source_dirs_root, &file_path, result_size)
+                        .wrap_err_with(|| format!("Failed to put file: {:?}", file_path))?;
+
+                    Ok(())
+                })
+        })?;
 
     Ok(())
 }
