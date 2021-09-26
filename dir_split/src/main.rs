@@ -9,8 +9,9 @@ use eyre::{ContextCompat, WrapErr};
 use log::{debug, LevelFilter};
 use rayon::prelude::*;
 use std::{
+    convert::TryInto,
     fs::{copy as fs_copy, create_dir_all, remove_dir_all, File},
-    io::{copy as io_copy, BufReader},
+    io::{copy as io_copy, BufReader, Read, Seek, SeekFrom},
     path::{Path, PathBuf},
     sync::atomic::{AtomicU64, Ordering},
 };
@@ -55,7 +56,7 @@ fn validate_arguments(arguments: &AppArguments) -> Result<(), eyre::Error> {
         eyre::ensure!(full_path.exists(), "Source directory does not exist: {:?}", path);
         eyre::ensure!(full_path.is_dir(), "Source directory must be dir: {:?}", path);
     }
-    match arguments.use_compression {
+    match arguments.compression_type {
         CompressionArg::Brotli | CompressionArg::Gzip => {
             eyre::ensure!(
                 arguments.compression_level > 0 && arguments.compression_level < 12,
@@ -118,10 +119,90 @@ impl Bucked {
     }
 }
 
-fn detect_result_file_size(compression_type: &CompressionArg, compression_level: u8, file_path: &Path) -> Result<u64, eyre::Error> {
+pub fn get_md5_for_file(mut file: &File) -> Result<md5::Digest, eyre::Error> {
+    let prev_pos = file.stream_position()?;
+
+    file.seek(SeekFrom::Start(0))?;
+
+    let mut md5 = md5::Context::new();
+    let mut buffer = [0_u8; 1024 * 16];
+
+    let mut reader = BufReader::new(file);
+
+    loop {
+        let read_count = reader.read(&mut buffer)?;
+        if read_count == 0 {
+            break;
+        }
+        md5.consume(&buffer[0..read_count]);
+    }
+
+    file.seek(SeekFrom::Start(prev_pos))?;
+
+    Ok(md5.compute())
+}
+
+enum CacheResult {
+    Found { size: u64 },
+    NotFound { cache_save_key: String },
+    NoCache,
+}
+
+fn search_in_cache(
+    file_path: &Path,
+    file: &mut File,
+    compression_type: &CompressionArg,
+    compression_level: u8,
+    cache: &Option<sled::Db>,
+) -> Result<CacheResult, eyre::Error> {
+    if let Some(cache) = cache {
+        let file_md5 = get_md5_for_file(file).wrap_err_with(|| format!("MD5 calc error: {:?}", file_path))?;
+        let file_path_str = file_path
+            .to_str()
+            .ok_or_else(|| eyre::eyre!("Convert to str failed: {:?}", file_path))?;
+
+        let key = format!("{:x}_{}_{}_{}", file_md5, file_path_str, compression_type, compression_level);
+
+        let cached_val = cache.get(&key).wrap_err_with(|| format!("Size fetch failed: {}", key))?;
+        match cached_val {
+            Some(val) => {
+                let bytes_ref: [u8; 8] = val.as_ref().try_into().wrap_err_with(|| format!("Invalid cached bytes: {}", key))?;
+                let size = u64::from_be_bytes(bytes_ref);
+                Ok(CacheResult::Found { size })
+            }
+            None => Ok(CacheResult::NotFound { cache_save_key: key }),
+        }
+    } else {
+        Ok(CacheResult::NoCache)
+    }
+}
+
+fn save_in_cache(key: &Option<String>, size: u64, cache: &Option<sled::Db>) -> Result<(), eyre::Error> {
+    if let (Some(key), Some(cache)) = (key, cache) {
+        let save_bytes = size.to_be_bytes();
+        cache.insert(key, save_bytes.to_vec()).wrap_err("Cache size save failed")?;
+    }
+
+    Ok(())
+}
+
+fn detect_result_file_size(
+    compression_type: &CompressionArg,
+    compression_level: u8,
+    file_path: &Path,
+    cache: &Option<sled::Db>,
+) -> Result<u64, eyre::Error> {
+    let mut file = File::open(&file_path).wrap_err_with(|| format!("Source file open failed: {:?}", file_path))?;
+
     let size = match compression_type {
         app_arguments::CompressionArg::Brotli => {
-            let file = File::open(&file_path).wrap_err_with(|| format!("Source file open failed: {:?}", file_path))?;
+            // Ищем в кеше сначала
+            let cache_save_key = match search_in_cache(file_path, &mut file, compression_type, compression_level, cache)? {
+                CacheResult::Found { size } => return Ok(size),
+                CacheResult::NotFound { cache_save_key } => Some(cache_save_key),
+                CacheResult::NoCache => None,
+            };
+
             let mut reader = BufReader::new(file);
 
             let params = brotli::enc::BrotliEncoderParams {
@@ -130,12 +211,21 @@ fn detect_result_file_size(compression_type: &CompressionArg, compression_level:
             };
 
             let mut void_writer = std::io::sink();
-            let size = brotli::BrotliCompress(&mut reader, &mut void_writer, &params).wrap_err("Brotli size analyze failed")?;
+            let size = brotli::BrotliCompress(&mut reader, &mut void_writer, &params).wrap_err("Brotli size analyze failed")? as u64;
 
-            size as u64
+            // Сохраним в кеш
+            save_in_cache(&cache_save_key, size, cache)?;
+
+            size
         }
         app_arguments::CompressionArg::Gzip => {
-            let file = File::open(file_path).wrap_err_with(|| format!("Source file open failed: {:?}", file_path))?;
+            // Ищем в кеше сначала
+            let cache_save_key = match search_in_cache(file_path, &mut file, compression_type, compression_level, cache)? {
+                CacheResult::Found { size } => return Ok(size),
+                CacheResult::NotFound { cache_save_key } => Some(cache_save_key),
+                CacheResult::NoCache => None,
+            };
+
             let mut reader = BufReader::new(file);
             let void_writer = std::io::sink();
 
@@ -149,10 +239,14 @@ fn detect_result_file_size(compression_type: &CompressionArg, compression_level:
             };
 
             let mut gz_writer = flate2::write::GzEncoder::new(void_writer, level);
-            let written = io_copy(&mut reader, &mut gz_writer).wrap_err_with(|| format!("Gzip compression failed: {:?}", file_path))?;
-            written as u64
+            let size = io_copy(&mut reader, &mut gz_writer).wrap_err_with(|| format!("Gzip compression failed: {:?}", file_path))? as u64;
+
+            // Сохраним в кеш
+            save_in_cache(&cache_save_key, size, cache)?;
+
+            size
         }
-        app_arguments::CompressionArg::None => file_path
+        app_arguments::CompressionArg::None => file
             .metadata()
             .wrap_err_with(|| format!("Failed to fetch metadata from {:?}", file_path))?
             .len(),
@@ -190,6 +284,27 @@ fn execute_app() -> Result<(), eyre::Error> {
         buckets
     };
 
+    let cache = match arguments.compression_type {
+        CompressionArg::Brotli | CompressionArg::Gzip => {
+            match arguments.compression_cache_path.as_ref() {
+                Some(path) => {
+                    // Создаем директории для кеша и открываем базу для хешей
+                    create_dir_all(&path).wrap_err("Cache dir create failed")?;
+
+                    let cache_db = sled::Config::default()
+                        .path(path)
+                        .mode(sled::Mode::HighThroughput)
+                        .open()
+                        .wrap_err("Cache db open failed")?;
+
+                    Some(cache_db)
+                }
+                None => None,
+            }
+        }
+        CompressionArg::None => None,
+    };
+
     // Идем по всем входным директориям
     arguments
         .source_dirs
@@ -213,8 +328,7 @@ fn execute_app() -> Result<(), eyre::Error> {
                     debug!("Found file path: {:?}", file_path);
 
                     // Размер данного файлика
-                    // TODO: Кешировать размеры в базу данных на основании пути + MD5 + уровня компрессии
-                    let result_size = detect_result_file_size(&arguments.use_compression, arguments.compression_level, &file_path)
+                    let result_size = detect_result_file_size(&arguments.compression_type, arguments.compression_level, &file_path, &cache)
                         .wrap_err_with(|| format!("Compressed file size detection error: {:?}", file_path))?;
 
                     // Находим корзину с меньшим размером и кладем туда

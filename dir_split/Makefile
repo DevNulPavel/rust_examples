@@ -8,8 +8,9 @@ TEST_APP:
 	time target/release/dir_split \
 		--resuld-dirs-count 4 \
 		--result-dirs-path "./test_results" \
-		--use-compression "brotli" \
+		--compression-type "brotli" \
 		--compression-level 11 \
+		--compression-cache-path "test_cache" \
 		--source-dirs-root "/Users/devnul/projects/island2/build/Emscripten_Standalone" \
 		--source-dirs \
 			res/data/localConfigs \

@@ -1,4 +1,4 @@
-use std::path::PathBuf;
+use std::{fmt::Display, path::PathBuf};
 use structopt::StructOpt;
 
 /// App parameters
@@ -7,6 +7,21 @@ pub enum CompressionArg {
     None,
     Brotli,
     Gzip,
+}
+impl Display for CompressionArg {
+    fn fmt(&self, f: &mut std::fmt::Formatter<'_>) -> std::fmt::Result {
+        match self {
+            CompressionArg::Brotli => {
+                write!(f, "brotli")
+            }
+            CompressionArg::Gzip => {
+                write!(f, "gzip")
+            }
+            CompressionArg::None => {
+                write!(f, "none")
+            }
+        }
+    }
 }
 
 fn parse_compression(src: &str) -> CompressionArg {
@@ -31,16 +46,24 @@ pub struct AppArguments {
 
     /// Use compression before size analyzing, supported values: gzip, brotli
     #[structopt(long, parse(from_str = parse_compression))]
-    pub use_compression: CompressionArg,
+    pub compression_type: CompressionArg,
 
     /// Compression level if compression using enabled, value from 1 to 11
     #[structopt(
         long,
-        required_if("use_compression", "CompressionArg::Gzip"),
-        required_if("use_compression", "CompressionArg::Brotli"),
+        required_if("compression_type", "CompressionArg::Gzip"),
+        required_if("compression_type", "CompressionArg::Brotli"),
         default_value = "0"
     )]
     pub compression_level: u8,
+
+    #[structopt(
+        long,
+        parse(from_os_str),
+        required_if("compression_type", "CompressionArg::Gzip"),
+        required_if("compression_type", "CompressionArg::Brotli")
+    )]
+    pub compression_cache_path: Option<PathBuf>,
 
     /// Source directories root
     #[structopt(long, parse(from_os_str))]
