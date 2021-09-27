@@ -45,14 +45,14 @@ pub struct AppArguments {
     pub result_dirs_path: PathBuf,
 
     /// Use compression before size analyzing, supported values: gzip, brotli
-    #[structopt(long, parse(from_str = parse_compression))]
+    #[structopt(long, parse(from_str = parse_compression), possible_values(&["brotli", "gzip", "none"]))]
     pub compression_type: CompressionArg,
 
     /// Compression level if compression using enabled, value from 1 to 11
     #[structopt(
         long,
-        required_if("compression_type", "CompressionArg::Gzip"),
-        required_if("compression_type", "CompressionArg::Brotli"),
+        required_if("compression_type", "gzip"),
+        required_if("compression_type", "brotli"),
         default_value = "0"
     )]
     pub compression_level: u8,
@@ -60,8 +60,8 @@ pub struct AppArguments {
     #[structopt(
         long,
         parse(from_os_str),
-        required_if("compression_type", "CompressionArg::Gzip"),
-        required_if("compression_type", "CompressionArg::Brotli")
+        required_if("compression_type", "gzip"),
+        required_if("compression_type", "brotli")
     )]
     pub compression_cache_path: Option<PathBuf>,
 
@@ -70,7 +70,7 @@ pub struct AppArguments {
     pub source_dirs_root: PathBuf,
 
     /// Source directories
-    #[structopt(long, parse(from_os_str))]
+    #[structopt(long, parse(from_os_str), value_delimiter(","), use_delimiter(true), require_delimiter(true))]
     pub source_dirs: Vec<PathBuf>,
 
     /// Verbose

@@ -13,18 +13,7 @@ TEST_APP:
 		--compression-cache-path "test_cache" \
 		--source-dirs-root "/Users/devnul/projects/island2/build/Emscripten_Standalone" \
 		--source-dirs \
-			res/data/localConfigs \
-			res/data/symbols \
-			res/dragonbones \
-			res/fonts \
-			res/images \
-			res/match3 \
-			res/models \
-			res/shaders \
-			res/sounds \
-			res/spine \
-			res/ui \
-			res/lang \
+			"res/data/localConfigs,res/data/symbols,res/dragonbones,res/fonts,res/images,res/match3,res/models,res/shaders,res/sounds,res/spine,res/ui,res/lang" \
 		-vvvv
 
 # Могут быть проблемы со сборкой для Linux

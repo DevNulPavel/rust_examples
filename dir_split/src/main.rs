@@ -1,17 +1,18 @@
 mod app_arguments;
+mod cache;
 mod helpers;
 
 use crate::{
     app_arguments::{AppArguments, CompressionArg},
+    cache::{save_in_cache, search_in_cache, CacheResult},
     helpers::create_dir_for_file,
 };
 use eyre::{ContextCompat, WrapErr};
 use log::{debug, LevelFilter};
 use rayon::prelude::*;
 use std::{
-    convert::TryInto,
-    fs::{copy as fs_copy, create_dir_all, remove_dir_all, File},
-    io::{copy as io_copy, BufReader, Read, Seek, SeekFrom},
+    fs::{create_dir_all, remove_dir_all, rename as fs_rename, File},
+    io::{copy as io_copy, BufReader},
     path::{Path, PathBuf},
     sync::atomic::{AtomicU64, Ordering},
 };
@@ -39,6 +40,8 @@ fn setup_logging(arguments: &AppArguments) -> Result<(), eyre::Error> {
 
     Ok(())
 }
+
+//////////////////////////////////////////////////////////////////////////////////////////////////////
 
 /// Выполняем валидацию переданных аргументов приложения
 fn validate_arguments(arguments: &AppArguments) -> Result<(), eyre::Error> {
@@ -68,6 +71,8 @@ fn validate_arguments(arguments: &AppArguments) -> Result<(), eyre::Error> {
 
     Ok(())
 }
+
+//////////////////////////////////////////////////////////////////////////////////////////////////////
 
 #[derive(Debug)]
 struct Bucked {
@@ -105,9 +110,13 @@ impl Bucked {
         // Директория конечная
         create_dir_for_file(&result_full_path).wrap_err_with(|| format!("Result dir create failed: {:?}", result_full_path))?;
 
-        // Копируем
-        fs_copy(&src_file_path, &result_full_path)
+        // Перемещаем файлик
+        fs_rename(&src_file_path, &result_full_path)
             .wrap_err_with(|| format!("File copy failed: {:?} -> {:?}", src_file_path, result_full_path))?;
+
+        // Копируем
+        // fs_copy(&src_file_path, &result_full_path)
+        //     .wrap_err_with(|| format!("File copy failed: {:?} -> {:?}", src_file_path, result_full_path))?;
 
         // Добавляем к конечному размеру размер результата, размер может быть после компрессии
         self.current_size.fetch_add(src_file_size, Ordering::SeqCst);
@@ -119,72 +128,7 @@ impl Bucked {
     }
 }
 
-pub fn get_md5_for_file(mut file: &File) -> Result<md5::Digest, eyre::Error> {
-    let prev_pos = file.stream_position()?;
-
-    file.seek(SeekFrom::Start(0))?;
-
-    let mut md5 = md5::Context::new();
-    let mut buffer = [0_u8; 1024 * 16];
-
-    let mut reader = BufReader::new(file);
-
-    loop {
-        let read_count = reader.read(&mut buffer)?;
-        if read_count == 0 {
-            break;
-        }
-        md5.consume(&buffer[0..read_count]);
-    }
-
-    file.seek(SeekFrom::Start(prev_pos))?;
-
-    Ok(md5.compute())
-}
-
-enum CacheResult {
-    Found { size: u64 },
-    NotFound { cache_save_key: String },
-    NoCache,
-}
-
-fn search_in_cache(
-    file_path: &Path,
-    file: &mut File,
-    compression_type: &CompressionArg,
-    compression_level: u8,
-    cache: &Option<sled::Db>,
-) -> Result<CacheResult, eyre::Error> {
-    if let Some(cache) = cache {
-        let file_md5 = get_md5_for_file(file).wrap_err_with(|| format!("MD5 calc error: {:?}", file_path))?;
-        let file_path_str = file_path
-            .to_str()
-            .ok_or_else(|| eyre::eyre!("Convert to str failed: {:?}", file_path))?;
-
-        let key = format!("{:x}_{}_{}_{}", file_md5, file_path_str, compression_type, compression_level);
-
-        let cached_val = cache.get(&key).wrap_err_with(|| format!("Size fetch failed: {}", key))?;
-        match cached_val {
-            Some(val) => {
-                let bytes_ref: [u8; 8] = val.as_ref().try_into().wrap_err_with(|| format!("Invalid cached bytes: {}", key))?;
-                let size = u64::from_be_bytes(bytes_ref);
-                Ok(CacheResult::Found { size })
-            }
-            None => Ok(CacheResult::NotFound { cache_save_key: key }),
-        }
-    } else {
-        Ok(CacheResult::NoCache)
-    }
-}
-
-fn save_in_cache(key: &Option<String>, size: u64, cache: &Option<sled::Db>) -> Result<(), eyre::Error> {
-    if let (Some(key), Some(cache)) = (key, cache) {
-        let save_bytes = size.to_be_bytes();
-        cache.insert(key, save_bytes.to_vec()).wrap_err("Cache size save failed")?;
-    }
-
-    Ok(())
-}
+//////////////////////////////////////////////////////////////////////////////////////////////////////
 
 fn detect_result_file_size(
     compression_type: &CompressionArg,
@@ -203,13 +147,12 @@ fn detect_result_file_size(
                 CacheResult::NoCache => None,
             };
 
+            // Компрессия файлика
             let mut reader = BufReader::new(file);
-
             let params = brotli::enc::BrotliEncoderParams {
                 quality: compression_level as i32,
                 ..Default::default()
             };
-
             let mut void_writer = std::io::sink();
             let size = brotli::BrotliCompress(&mut reader, &mut void_writer, &params).wrap_err("Brotli size analyze failed")? as u64;
 
@@ -226,9 +169,9 @@ fn detect_result_file_size(
                 CacheResult::NoCache => None,
             };
 
+            // Компрессия файлика
             let mut reader = BufReader::new(file);
             let void_writer = std::io::sink();
-
             let level = match compression_level {
                 0 => {
                     eyre::bail!("Zero compression unsupported");
@@ -237,7 +180,6 @@ fn detect_result_file_size(
                 6 | 7 | 8 | 9 | 10 | 11 => flate2::Compression::best(),
                 _ => flate2::Compression::best(),
             };
-
             let mut gz_writer = flate2::write::GzEncoder::new(void_writer, level);
             let size = io_copy(&mut reader, &mut gz_writer).wrap_err_with(|| format!("Gzip compression failed: {:?}", file_path))? as u64;
 
@@ -253,6 +195,8 @@ fn detect_result_file_size(
     };
     Ok(size)
 }
+
+//////////////////////////////////////////////////////////////////////////////////////////////////////
 
 fn execute_app() -> Result<(), eyre::Error> {
     // Аргументы коммандной строки
@@ -277,13 +221,15 @@ fn execute_app() -> Result<(), eyre::Error> {
         let mut buckets = Vec::new();
         buckets.reserve(arguments.resuld_dirs_count);
         for i in 0..arguments.resuld_dirs_count {
-            let result_directory = arguments.result_dirs_path.join(i.to_string());
+            // Директории будут идти с единицы
+            let result_directory = arguments.result_dirs_path.join((i + 1).to_string());
             let bucket = Bucked::new(result_directory).wrap_err("Bucket create")?;
             buckets.push(bucket);
         }
         buckets
     };
 
+    // Система кешей
     let cache = match arguments.compression_type {
         CompressionArg::Brotli | CompressionArg::Gzip => {
             match arguments.compression_cache_path.as_ref() {
@@ -310,13 +256,14 @@ fn execute_app() -> Result<(), eyre::Error> {
         .source_dirs
         .par_iter()
         .try_for_each(|source_dir| -> Result<(), eyre::Error> {
+            // Получаем полный путь
             let full_source_dir = arguments.source_dirs_root.join(source_dir);
+
+            // Обходим директорию параллельно
             WalkDir::new(full_source_dir)
                 .into_iter()
                 .par_bridge()
                 .try_for_each(|entry| -> Result<(), eyre::Error> {
-                    // TODO: Вынести в функцию отдельную
-
                     // Получаем путь
                     let file_path = entry.wrap_err("Access to entry failed")?.into_path();
 
@@ -334,7 +281,7 @@ fn execute_app() -> Result<(), eyre::Error> {
                     // Находим корзину с меньшим размером и кладем туда
                     let bucket = buckets.iter().min_by_key(|v| v.current_size()).wrap_err("Bucket find")?;
 
-                    // Копируем файлик
+                    // Копируем файлик туда
                     bucket
                         .put_file(&arguments.source_dirs_root, &file_path, result_size)
                         .wrap_err_with(|| format!("Failed to put file: {:?}", file_path))?;
