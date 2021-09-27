@@ -32,11 +32,10 @@ fn setup_logging(arguments: &AppArguments) -> Result<(), eyre::Error> {
         3 => LevelFilter::Debug,
         4 => LevelFilter::Trace,
         _ => {
-            panic!("Verbose level must be in [0, 4] range");
+            return Err(eyre::eyre!("Verbose level must be in [0, 4] range"));
         }
     };
-    let logger = Box::new(pretty_env_logger::formatted_builder().filter_level(level).build());
-    log::set_boxed_logger(logger)?;
+    pretty_env_logger::formatted_timed_builder().filter_level(level).try_init()?;
 
     Ok(())
 }
