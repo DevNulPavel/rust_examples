@@ -22,33 +22,33 @@ BUILD_UNIVERSAL_APP_NATIVE:
 		aarch64-apple-darwin \
 		x86_64-apple-darwin \
 		x86_64-unknown-linux-gnu && \
-	rm -rf target/lang_filter_osx && \
-	rm -rf target/lang_filter_linux && \
+	rm -rf target/dir_split_osx && \
+	rm -rf target/dir_split_linux && \
 	cargo build --release --target aarch64-apple-darwin && \
 	cargo build --release --target x86_64-apple-darwin && \
 	lipo \
 		-create \
-			target/aarch64-apple-darwin/release/lang_filter \
-			target/x86_64-apple-darwin/release/lang_filter \
+			target/aarch64-apple-darwin/release/dir_split \
+			target/x86_64-apple-darwin/release/dir_split \
 		-output \
-			target/lang_filter_osx
+			target/dir_split_osx
 		
 	# cargo build --release --target x86_64-unknown-linux-gnu && \
-	# cp target/x86_64-unknown-linux-gnu/release/lang_filter target/lang_filter_linux
+	# cp target/x86_64-unknown-linux-gnu/release/dir_split target/dir_split_linux
 
 # Нужен docker для запуска
 BUILD_UNIVERSAL_APP_CROSS:
 	cargo install cross && \
-	rm -rf target/lang_filter_osx && \
-	rm -rf target/lang_filter_linux && \
+	rm -rf target/dir_split_osx && \
+	rm -rf target/dir_split_linux && \
 	cross build --release --target aarch64-apple-darwin && \
 	cross build --release --target x86_64-apple-darwin && \
 	lipo \
 		-create \
-			target/aarch64-apple-darwin/release/lang_filter \
-			target/x86_64-apple-darwin/release/lang_filter \
+			target/aarch64-apple-darwin/release/dir_split \
+			target/x86_64-apple-darwin/release/dir_split \
 		-output \
-			target/lang_filter_osx
+			target/dir_split_osx
 
 	#cross build --release --target x86_64-unknown-linux-gnu && \
-	#cp target/x86_64-unknown-linux-gnu/release/lang_filter target/lang_filter_linux
+	#cp target/x86_64-unknown-linux-gnu/release/dir_split target/dir_split_linux
