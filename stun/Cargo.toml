@@ -1,0 +1,39 @@
+[package]
+name = "stun"
+version = "0.4.0"
+authors = ["Rain Liu <yuliu@webrtc.rs>"]
+edition = "2018"
+description = "A pure Rust implementation of STUN"
+license = "MIT/Apache-2.0"
+documentation = "https://docs.rs/stun"
+homepage = "https://webrtc.rs"
+repository = "https://github.com/webrtc-rs/stun"
+
+# See more keys and their definitions at https://doc.rust-lang.org/cargo/reference/manifest.html
+
+[dependencies]
+util = { package = "webrtc-util", version = "0.5.0", default-features = false, features = ["conn"] }
+tokio = { version = "1.12.0", features = ["full"] }
+lazy_static = "1.4.0"
+url = "2.2.0"
+rand = "0.8.0"
+base64 = "0.13.0"
+subtle = "2.1.1"
+crc = "2.0.0"
+ring = "0.16.19"
+md-5 = "0.9.1"
+thiserror = "1.0"
+
+[dev-dependencies]
+tokio-test = "0.4"
+clap = "2"
+
+[[example]]
+name = "stun_client"
+path = "examples/stun_client.rs"
+bench = false
+
+[[example]]
+name = "stun_decode"
+path = "examples/stun_decode.rs"
+bench = false
