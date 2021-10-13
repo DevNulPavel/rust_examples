@@ -26,21 +26,6 @@ pub fn noop_handler() -> Handler {
 
 ////////////////////////////////////////////////////////////////
 
-/// Агент - это низкоуровневая абстракция над списком транзакций, 
-/// которая обрабатвается конкурентно (все вызовы безопасны с точки зрения корутин)
-/// и имеют таймаут?
-pub struct Agent {
-    // Мапа транзакций, которые сейчас в процессе
-    // Обработка событий выполненяется таким образом когда транзакция 
-    // незарегистрирована до AgentTransaction,
-    // минимизируя блокировку и защиту транзакций от гонок данных
-    transactions: HashMap<TransactionId, AgentTransaction>,
-    closed: bool,     // Работа завершена
-    handler: Handler, // Канал обработки транзакций
-}
-
-////////////////////////////////////////////////////////////////
-
 #[derive(Debug, Clone)]
 pub enum EventType {
     Callback(TransactionId),
@@ -83,16 +68,19 @@ pub(crate) struct AgentTransaction {
     deadline: Instant,
 }
 
-// AGENT_COLLECT_CAP is initial capacity for Agent.Collect slices,
-// sufficient to make function zero-alloc in most cases.
+////////////////////////////////////////////////////////////////
+
+/// AGENT_COLLECT_CAP - это начальная емкость для Agent.Collect слайсов,
+/// достаточное в большинстве случаев, чтобы сделать функцию без аллокаций в большинстве случаев
 const AGENT_COLLECT_CAP: usize = 100;
+
+////////////////////////////////////////////////////////////////
 
 #[derive(PartialEq, Eq, Hash, Copy, Clone, Default, Debug)]
 pub struct TransactionId(pub [u8; TRANSACTION_ID_SIZE]);
 
 impl TransactionId {
-    // NewTransactionID returns new random transaction ID using crypto/rand
-    // as source.
+    /// Создаем новый идентификатор транзакции, заполненный полностью пустыми значениями
     pub fn new() -> Self {
         let mut b = TransactionId([0u8; TRANSACTION_ID_SIZE]);
         rand::thread_rng().fill(&mut b.0);
@@ -100,6 +88,7 @@ impl TransactionId {
     }
 }
 
+/// Установка идентификатора транзакции для сообщения
 impl Setter for TransactionId {
     fn add_to(&self, m: &mut Message) -> Result<()> {
         m.transaction_id = *self;
@@ -108,8 +97,10 @@ impl Setter for TransactionId {
     }
 }
 
-// ClientAgent is Agent implementation that is used by Client to
-// process transactions.
+////////////////////////////////////////////////////////////////
+
+/// ClientAgent - это реализация агента, котрая используется клиентом для
+/// обработки транзакций
 #[derive(Debug)]
 pub enum ClientAgent {
     Process(Message),
@@ -119,9 +110,23 @@ pub enum ClientAgent {
     Close,
 }
 
-// NewAgent initializes and returns new Agent with provided handler.
-// If h is nil, the noop_handler will be used.
+////////////////////////////////////////////////////////////////
+
+/// Агент - это низкоуровневая абстракция над списком транзакций, 
+/// которая обрабатвается конкурентно (все вызовы безопасны с точки зрения корутин)
+/// и имеют таймаут?
+pub struct Agent {
+    // Мапа транзакций, которые сейчас в процессе
+    // Обработка событий выполненяется таким образом когда транзакция 
+    // незарегистрирована до AgentTransaction,
+    // минимизируя блокировку и защиту транзакций от гонок данных
+    transactions: HashMap<TransactionId, AgentTransaction>,
+    closed: bool,     // Работа завершена
+    handler: Handler, // Канал обработки транзакций
+}
+
 impl Agent {
+    /// Создаем нового агента с каналом событий
     pub fn new(handler: Handler) -> Self {
         Agent {
             transactions: HashMap::new(),
@@ -130,15 +135,17 @@ impl Agent {
         }
     }
 
-    // stop_with_error removes transaction from list and calls handler with
-    // provided error. Can return ErrTransactionNotExists and ErrAgentClosed.
+    /// Данный метод удаляет транзакции из списка и передает в начальный канал ошибку.
+    /// Может возвращать ErrTransactionNotExists and ErrAgentClosed.
     fn stop_with_error(&mut self, id: TransactionId, error: Error) -> Result<()> {
         if self.closed {
             return Err(Error::ErrAgentClosed);
         }
 
+        // Удаляем элемент из списка транзакций
         let v = self.transactions.remove(&id);
         if let Some(t) = v {
+            // Если есть канал - отсылаем туда событие с ошибкой
             if let Some(handler) = &self.handler {
                 handler.send(Event {
                     event_type: EventType::Callback(t.id),
