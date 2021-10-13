@@ -8,7 +8,7 @@ use crate::message::*;
 use util::Conn;
 
 use std::collections::HashMap;
-use std::io::BufReader;
+use std::io::Cursor;
 use std::marker::{Send, Sync};
 use std::ops::Add;
 use std::sync::Arc;
@@ -20,9 +20,9 @@ const DEFAULT_RTO: Duration = Duration::from_millis(300);
 const DEFAULT_MAX_ATTEMPTS: u32 = 7;
 const DEFAULT_MAX_BUFFER_SIZE: usize = 8;
 
-// Collector calls function f with constant rate.
-//
-// The simple Collector is ticker which calls function on each tick.
+////////////////////////////////////////////////////////////////////////////////////
+
+// Коллектор вызывает переданную ему функцию с определенной частотой
 pub trait Collector {
     fn start(
         &mut self,
@@ -31,6 +31,8 @@ pub trait Collector {
     ) -> Result<()>;
     fn close(&mut self) -> Result<()>;
 }
+
+////////////////////////////////////////////////////////////////////////////////////
 
 #[derive(Default)]
 struct TickerCollector {
@@ -43,16 +45,20 @@ impl Collector for TickerCollector {
         rate: Duration,
         client_agent_tx: Arc<mpsc::Sender<ClientAgent>>,
     ) -> Result<()> {
+        // Канал остановки работы коллектора
         let (close_tx, mut close_rx) = mpsc::channel(1);
+        // Сохраняем отправителя, лучше бы было получать в конструкторе
         self.close_tx = Some(close_tx);
 
         tokio::spawn(async move {
+            // Таймер
             let mut interval = time::interval(rate);
 
             loop {
                 tokio::select! {
                     _ = close_rx.recv() => break,
                     _ = interval.tick() => {
+                        // На каждый тик в канал отсылаем агента с текущим временем
                         if client_agent_tx.send(ClientAgent::Collect(Instant::now())).await.is_err() {
                             break;
                         }
@@ -73,10 +79,11 @@ impl Collector for TickerCollector {
     }
 }
 
-// clientTransaction represents transaction in progress.
-// If transaction is succeed or failed, f will be called
-// provided by event.
-// Concurrent access is invalid.
+////////////////////////////////////////////////////////////////////////////////////
+
+// Клиентская транзакция представляет собой транзакцию в процессе
+// Если транзакция успешная или сфейлилась, тогда f будет вызвана
+// Конкурентный доступ запрещен
 #[derive(Debug, Clone)]
 pub struct ClientTransaction {
     id: TransactionId,
@@ -89,8 +96,11 @@ pub struct ClientTransaction {
 }
 
 impl ClientTransaction {
+    // Обработка события
     pub(crate) fn handle(&mut self, e: Event) -> Result<()> {
+        // +1 к счетчику вызовом
         self.calls += 1;
+        // На первом вызове при наличии обработчика - отправляем ивент
         if self.calls == 1 {
             if let Some(handler) = &self.handler {
                 handler.send(e)?;
@@ -104,14 +114,23 @@ impl ClientTransaction {
     }
 }
 
+////////////////////////////////////////////////////////////////////////////////////
+
+/// Настройки клиента
 struct ClientSettings {
+    // Размер буффера (канала?)
     buffer_size: usize,
+    // ???
     rto: Duration,
+    // ???
     rto_rate: Duration,
+    // ???
     max_attempts: u32,
+    // Закрыта ли уже работа с данным клиентом
     closed: bool,
-    //handler: Handler,
+    // Объект коллектора для сбора
     collector: Option<Box<dyn Collector + Send>>,
+    // Непосредственно объект соединения
     c: Option<Arc<dyn Conn + Send + Sync>>,
 }
 
@@ -129,6 +148,8 @@ impl Default for ClientSettings {
         }
     }
 }
+
+////////////////////////////////////////////////////////////////////////////////////
 
 #[derive(Default)]
 pub struct ClientBuilder {
@@ -196,10 +217,12 @@ impl ClientBuilder {
     }
 
     pub fn build(self) -> Result<Client> {
+        // Если нет соединения - ошибка
         if self.settings.c.is_none() {
             return Err(Error::ErrNoConnection);
         }
 
+        // Создаем клиента и запускаем его
         let client = Client {
             settings: self.settings,
             ..Default::default()
@@ -210,35 +233,46 @@ impl ClientBuilder {
     }
 }
 
+////////////////////////////////////////////////////////////////////////////////////
+
 // Client simulates "connection" to STUN server.
 #[derive(Default)]
 pub struct Client {
     settings: ClientSettings,
+    // Канал остановки работы корутины
     close_tx: Option<mpsc::Sender<()>>,
+    // Канал клиентского агента?
     client_agent_tx: Option<Arc<mpsc::Sender<ClientAgent>>>,
+    // Канал для обработки событий
     handler_tx: Option<Arc<mpsc::UnboundedSender<Event>>>,
 }
 
 impl Client {
+    /// Читаем данные из соединения до закрытия и отправляем в канал
     async fn read_until_closed(
         mut close_rx: mpsc::Receiver<()>,
         c: Arc<dyn Conn + Send + Sync>,
         client_agent_tx: Arc<mpsc::Sender<ClientAgent>>,
     ) {
+        // Аллоцируем на стеке объект сообщения и буффер
         let mut msg = Message::new();
         let mut buf = vec![0; 1024];
 
         loop {
             tokio::select! {
                 _ = close_rx.recv() => return,
+                // Получаем данные из соединения
                 res = c.recv(&mut buf) => {
+                    // Если данные валидные
                     if let Ok(n) = res {
-                        let mut reader = BufReader::new(&buf[..n]);
+                        // Создаем читатель по слайсу и пытаемся прочитать сообщение
+                        let mut reader = Cursor::new(&buf[0..n]);
                         let result = msg.read_from(&mut reader);
                         if result.is_err() {
                             continue;
                         }
 
+                        // Отдаем сообщение в канал
                         if client_agent_tx.send(ClientAgent::Process(msg.clone())).await.is_err(){
                             return;
                         }
@@ -248,8 +282,7 @@ impl Client {
         }
     }
 
-    // start registers transaction.
-    // Could return ErrClientClosed, ErrTransactionExists.
+    /// Отправляем транзакцию во внутренний канал
     fn insert(&mut self, ct: ClientTransaction) -> Result<()> {
         if self.settings.closed {
             return Err(Error::ErrClientClosed);
@@ -265,6 +298,7 @@ impl Client {
         Ok(())
     }
 
+    /// Удаляем транзакцию по id транзакции с помощью отправки в канал
     fn remove(&mut self, id: TransactionId) -> Result<()> {
         if self.settings.closed {
             return Err(Error::ErrClientClosed);
@@ -280,6 +314,7 @@ impl Client {
         Ok(())
     }
 
+    /// Главный ивет-луп по работе с соединением
     fn start(
         conn: Option<Arc<dyn Conn + Send + Sync>>,
         mut handler_rx: mpsc::UnboundedReceiver<Event>,
@@ -288,64 +323,74 @@ impl Client {
         max_attempts: u32,
     ) {
         tokio::spawn(async move {
+            // Получаем сообщение из канала обработки
             while let Some(event) = handler_rx.recv().await {
                 match event.event_type {
+                    // Сообщение щакрытия - выходим
                     EventType::Close => {
                         break;
                     }
+                    // Добавление новой транзакции в контейнер
                     EventType::Insert(ct) => {
                         if t.contains_key(&ct.id) {
                             continue;
                         }
                         t.insert(ct.id, ct);
                     }
+                    // Удаление транзакции из контейнера
                     EventType::Remove(id) => {
                         t.remove(&id);
                     }
+                    // Коллбек
                     EventType::Callback(id) => {
-                        let mut ct;
-                        if t.contains_key(&id) {
-                            ct = t.remove(&id).unwrap();
+                        // Удаляем старую транзакцию и получаем ее
+                        let mut ct = if let Some(ct) = t.remove(&id) {
+                            ct
                         } else {
-                            /*if c.handler != nil && !errors.Is(e.Error, ErrTransactionStopped) {
-                                c.handler(e)
-                            }*/
                             continue;
-                        }
-
+                        };
+                        
+                        // Если превышено максимальное число попыток или есть тело у ивента
                         if ct.attempt >= max_attempts || event.event_body.is_ok() {
                             if let Some(handler) = ct.handler {
+                                // Отправляем
                                 let _ = handler.send(event);
                             }
                             continue;
                         }
 
-                        // Doing re-transmission.
+                        // Увеличиваем количество попыток
                         ct.attempt += 1;
-
+                        
+                        // Клонируем данные транзакции
                         let raw = ct.raw.clone();
+                        // Таймаут транзакции
                         let timeout = ct.next_timeout(Instant::now());
+                        // Id транзакции
                         let id = ct.id;
 
-                        // Starting client transaction.
+                        // Пушим заново транзакцию
                         t.insert(ct.id, ct);
 
-                        // Starting agent transaction.
+                        // Запускаем транзакцию
                         if client_agent_tx
                             .send(ClientAgent::Start(id, timeout))
                             .await
                             .is_err()
                         {
+                            // В случае ошибки - удаляем транзакцию
                             let ct = t.remove(&id).unwrap();
+                            // И отсылаем событие обработчику
                             if let Some(handler) = ct.handler {
                                 let _ = handler.send(event);
                             }
                             continue;
                         }
 
-                        // Writing message to connection again.
+                        // Пишем сообщения в соединение снова
                         if let Some(c) = &conn {
                             if c.send(&raw).await.is_err() {
+                                // В случае ошибки отправки останавливаем работу транзакции
                                 let _ = client_agent_tx.send(ClientAgent::Stop(id)).await;
 
                                 let ct = t.remove(&id).unwrap();
@@ -387,24 +432,35 @@ impl Client {
         Ok(())
     }
 
+    // Запуск происходит при создании клиента с помощью билдера
     fn run(mut self) -> Result<Self> {
+        // Канал для закрытия
         let (close_tx, close_rx) = mpsc::channel(1);
+        // Канал для агентов?
         let (client_agent_tx, client_agent_rx) = mpsc::channel(self.settings.buffer_size);
+        // Канал для обработчиков
         let (handler_tx, handler_rx) = mpsc::unbounded_channel();
+        // Контейнер для сохранения транзакций
         let t: HashMap<TransactionId, ClientTransaction> = HashMap::new();
 
+        // Отправитель агентов в ARC
         let client_agent_tx = Arc::new(client_agent_tx);
+        // Отправитель хенлеров в ARC
         let handler_tx = Arc::new(handler_tx);
+
+        // Сохраняем отправителей каналов в клиента
         self.client_agent_tx = Some(Arc::clone(&client_agent_tx));
         self.handler_tx = Some(Arc::clone(&handler_tx));
         self.close_tx = Some(close_tx);
 
+        // Оборачиваем соединение в ARC
         let conn = if let Some(conn) = &self.settings.c {
             Arc::clone(conn)
         } else {
             return Err(Error::ErrNoConnection);
         };
 
+        // Стартуем нашего клиента с корутиной внутри
         Client::start(
             self.settings.c.clone(),
             handler_rx,
@@ -413,16 +469,22 @@ impl Client {
             self.settings.max_attempts,
         );
 
+        // Создаем агента на основе канала передачи хендлеров
         let agent = Agent::new(Some(handler_tx));
+        // Запускаем агента в отдельной корутине
         tokio::spawn(async move { Agent::run(agent, client_agent_rx).await });
 
+        // Если нету коллектора, тогда создаем коллектор стандартный тикающий
         if self.settings.collector.is_none() {
             self.settings.collector = Some(Box::new(TickerCollector::default()));
         }
+
+        // Запускаем коллектора с каналом отправки агентов
         if let Some(collector) = &mut self.settings.collector {
             collector.start(self.settings.rto_rate, Arc::clone(&client_agent_tx))?;
         }
 
+        // Запускаем в работу чтение из соединения и отправку в канал данных
         let conn_rx = Arc::clone(&conn);
         tokio::spawn(
             async move { Client::read_until_closed(close_rx, conn_rx, client_agent_tx).await },

@@ -11,30 +11,35 @@ use std::sync::Arc;
 use tokio::sync::mpsc;
 use tokio::time::Instant;
 
-// Handler handles state changes of transaction.
-// Handler is called on transaction state change.
-// Usage of e is valid only during call, user must
-// copy needed fields explicitly.
+/// Хендлер обрабатывает изменения состояний транзакций
+/// Вызывается на изменение состояния транзакции
+/// Использование e валидно только во время вызова, пользователь должен 
+/// копировать поля явно
 pub type Handler = Option<Arc<mpsc::UnboundedSender<Event>>>;
 
-// noop_handler just discards any event.
+////////////////////////////////////////////////////////////////
+
+/// Создаем пустой обработчик
 pub fn noop_handler() -> Handler {
     None
 }
 
-// Agent is low-level abstraction over transaction list that
-// handles concurrency (all calls are goroutine-safe) and
-// time outs (via Collect call).
+////////////////////////////////////////////////////////////////
+
+/// Агент - это низкоуровневая абстракция над списком транзакций, 
+/// которая обрабатвается конкурентно (все вызовы безопасны с точки зрения корутин)
+/// и имеют таймаут?
 pub struct Agent {
-    // transactions is map of transactions that are currently
-    // in progress. Event handling is done in such way when
-    // transaction is unregistered before AgentTransaction access,
-    // minimizing mux lock and protecting AgentTransaction from
-    // data races via unexpected concurrent access.
+    // Мапа транзакций, которые сейчас в процессе
+    // Обработка событий выполненяется таким образом когда транзакция 
+    // незарегистрирована до AgentTransaction,
+    // минимизируя блокировку и защиту транзакций от гонок данных
     transactions: HashMap<TransactionId, AgentTransaction>,
-    closed: bool,     // all calls are invalid if true
-    handler: Handler, // handles transactions
+    closed: bool,     // Работа завершена
+    handler: Handler, // Канал обработки транзакций
 }
+
+////////////////////////////////////////////////////////////////
 
 #[derive(Debug, Clone)]
 pub enum EventType {
@@ -50,8 +55,10 @@ impl Default for EventType {
     }
 }
 
-// Event is passed to Handler describing the transaction event.
-// Do not reuse outside Handler.
+////////////////////////////////////////////////////////////////
+
+/// Ивент передается обработчику описывая ивент транзакции
+/// Do not reuse outside Handler.
 #[derive(Debug)] //Clone
 pub struct Event {
     pub event_type: EventType,
@@ -67,8 +74,10 @@ impl Default for Event {
     }
 }
 
-// AgentTransaction represents transaction in progress.
-// Concurrent access is invalid.
+////////////////////////////////////////////////////////////////
+
+/// Агентская транзакция представляет собой транзакцию в процессе
+/// Конкурентный доступ невалидный
 pub(crate) struct AgentTransaction {
     id: TransactionId,
     deadline: Instant,

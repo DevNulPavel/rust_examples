@@ -45,6 +45,7 @@ async fn main() -> Result<(), Error> {
     println!("Connecting to: {}", server);
     conn.connect(server).await?;
 
+    // Создаем клиент с помощью билдера, запуск корутины происходит в build
     let mut client = ClientBuilder::new().with_conn(Arc::new(conn)).build()?;
 
     let mut msg = Message::new();
