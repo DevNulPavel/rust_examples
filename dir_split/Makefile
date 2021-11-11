@@ -16,6 +16,21 @@ TEST_APP:
 			"res/data/localConfigs,res/data/symbols,res/dragonbones,res/fonts,res/images,res/match3,res/models,res/shaders,res/sounds,res/spine,res/ui,res/lang" \
 		-vvvv
 
+INSTALL_PROFILE_DEPS:
+	cargo install flamegraph
+
+PROFILE_APP:
+	sudo cargo flamegraph -- \
+		--resuld-dirs-count 4 \
+		--result-dirs-path "./test_results" \
+		--compression-type "brotli" \
+		--compression-level 11 \
+		--compression-cache-path "test_cache" \
+		--source-dirs-root "/Users/devnul/projects/island2/build/Emscripten_Standalone" \
+		--source-dirs \
+			"res/data/localConfigs,res/data/symbols,res/dragonbones,res/fonts,res/images,res/match3,res/models,res/shaders,res/sounds,res/spine,res/ui,res/lang" \
+		-v
+
 # Могут быть проблемы со сборкой для Linux
 BUILD_UNIVERSAL_APP_NATIVE:
 	rustup target add \
