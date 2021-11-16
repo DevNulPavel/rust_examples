@@ -1,7 +1,7 @@
 use eyre::WrapErr;
 use hyper::{
     body::Body as BodyStruct,
-    http::{header, StatusCode, HeaderMap},
+    http::{header, HeaderMap, StatusCode},
     Response,
 };
 use mime::Mime;
@@ -34,15 +34,15 @@ pub fn get_content_type(headers: &HeaderMap) -> Result<Option<Mime>, eyre::Error
     Ok(Some(content_type_mime))
 }
 
-pub fn response_with_status_and_empty_body(status: StatusCode) -> Response<BodyStruct> {
+/*pub fn response_with_status_and_empty_body(status: StatusCode) -> Response<BodyStruct> {
     Response::builder()
         .status(status)
         .header(header::CONTENT_LENGTH, 0)
         .body(BodyStruct::empty())
         .expect("Static fail response create failed") // Статически создаем ответ, здесь не критично
-}
+}*/
 
-pub fn response_with_status_and_error(status: StatusCode, err_desc: &str) -> Response<BodyStruct> {
+/*pub fn response_with_status_and_error(status: StatusCode, err_desc: &str) -> Response<BodyStruct> {
     let error_json = format!(r#"{{"description": "{}"}}"#, err_desc);
     Response::builder()
         .status(status)
@@ -50,7 +50,7 @@ pub fn response_with_status_and_error(status: StatusCode, err_desc: &str) -> Res
         .header(header::CONTENT_LENGTH, error_json.as_bytes().len())
         .body(BodyStruct::from(error_json))
         .expect("Static fail response create failed") // Статически создаем ответ, здесь не критично
-}
+}*/
 
 pub fn response_with_status_desc_and_trace_id(status: StatusCode, err_desc: &str, trace_id: &str) -> Response<BodyStruct> {
     let error_json = format!(r#"{{"error_trace_id": "{}", "desc": "{}"}}"#, trace_id, err_desc);

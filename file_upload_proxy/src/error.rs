@@ -1,4 +1,3 @@
-use eyre::WrapErr;
 use hyper::StatusCode;
 use std::{borrow::Cow, error::Error as StdError, fmt::Display};
 
