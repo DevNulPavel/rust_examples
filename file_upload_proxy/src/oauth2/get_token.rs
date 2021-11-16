@@ -111,11 +111,11 @@ pub async fn get_token_data(http_client: &HttpClient, service_acc_data: &Service
     let status = response.status();
 
     // Получаем длину контента
-    let content_length: Option<usize> = get_content_length(&response).wrap_err("Content type receive err")?;
+    let content_length: Option<usize> = get_content_length(response.headers()).wrap_err("Content type receive err")?;
     debug!(?content_length);
 
     // Получаем тип контента
-    let content_type_mime: Option<Mime> = get_content_type(&response).wrap_err("Content type receive err")?;
+    let content_type_mime: Option<Mime> = get_content_type(response.headers()).wrap_err("Content type receive err")?;
     debug!(?content_type_mime);
 
     // Данные

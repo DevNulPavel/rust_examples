@@ -6,4 +6,4 @@ use hyper::{
 use hyper_rustls::HttpsConnector;
 use std::sync::Arc;
 
-pub type HttpClient = Arc<Client<HttpsConnector<HttpConnector<GaiResolver>>, BodyStruct>>;
+pub type HttpClient = Client<HttpsConnector<HttpConnector<GaiResolver>>, BodyStruct>;
