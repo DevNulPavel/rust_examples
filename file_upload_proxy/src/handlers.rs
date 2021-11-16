@@ -60,13 +60,26 @@ impl From<BodyStruct> for CompressableBody<BodyStruct, hyper::Error> {
 
 /////////////////////////////////////////////////////////////////////////////////////////////////////////
 
-#[instrument(level = "error", skip(app, req))]
+// #[instrument(level = "error", skip(app, req))]
 async fn file_upload(app: &App, req: Request<BodyStruct>) -> Result<Response<BodyStruct>, ErrorWithStatusAndDesc> {
     info!("File uploading");
 
-    // TODO: Получаем токен из запроса и проверяем
+    // Получаем токен из запроса и проверяем
+    let token = req
+        .headers()
+        .get("X-Api-Token")
+        .wrap_err_with_status_desc(StatusCode::UNAUTHORIZED, "Api token is missing".into())
+        .and_then(|val| {
+            std::str::from_utf8(val.as_bytes()).wrap_err_with_status_desc(StatusCode::UNAUTHORIZED, "Api token parsing failed".into())
+        })?;
+    if token != app.app_arguments.uploader_api_token {
+        return Err(ErrorWithStatusAndDesc::new_with_status_desc(
+            StatusCode::UNAUTHORIZED,
+            "Invalid api token".into(),
+        ));
+    }
 
-    // Получаем размер данных
+    // Получаем размер данных исходных
     /*let data_length = get_content_length(req.headers())
     .wrap_err_with_status_desc(StatusCode::LENGTH_REQUIRED, "Content-Length header parsing failed".into())?
     .wrap_err_with_status_desc(StatusCode::LENGTH_REQUIRED, "Content-Length header is missing".into())?;*/
@@ -91,7 +104,7 @@ async fn file_upload(app: &App, req: Request<BodyStruct>) -> Result<Response<Bod
             "/upload/storage/v1/b/{}/o?name={}&uploadType=media&fields={}",
             urlencoding::encode(&app.app_arguments.google_bucket_name),
             urlencoding::encode(&file_name),
-            urlencoding::encode("md5Hash,mediaLink") // Только нужные поля в ответе сервера
+            urlencoding::encode("id,md5Hash,mediaLink") // Только нужные поля в ответе сервера, https://cloud.google.com/storage/docs/json_api/v1/objects#resource
         ))
         .build()
         .wrap_err_with_500()?;
@@ -134,6 +147,7 @@ async fn file_upload(app: &App, req: Request<BodyStruct>) -> Result<Response<Bod
     if status.is_success() {
         #[derive(Debug, Deserialize)]
         struct Info {
+            id: String,
             #[serde(rename = "md5Hash")]
             md5: String,
             #[serde(rename = "mediaLink")]
