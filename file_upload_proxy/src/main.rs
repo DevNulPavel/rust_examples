@@ -1,20 +1,27 @@
 mod app_arguments;
+mod auth_token_provider;
 mod error;
+mod helpers;
+mod oauth2;
+mod types;
 
 use crate::{
     app_arguments::AppArguments,
+    auth_token_provider::AuthTokenProvider,
     error::{ErrorWithStatusAndDesc, WrapErrorWithStatusAndDesc},
+    types::HttpClient,
 };
 use eyre::WrapErr;
-use futures::{future::pending};
+use futures::future::pending;
 use hyper::{
     body::{to_bytes, Body as BodyStruct, Bytes},
     http::{header, method::Method, status::StatusCode},
     server::{conn::AddrStream, Server},
     service::{make_service_fn, service_fn},
-    Request, Response,
+    Client, Request, Response,
 };
-use std::{convert::Infallible, net::SocketAddr, process::exit};
+use hyper_rustls::HttpsConnector;
+use std::{convert::Infallible, net::SocketAddr, process::exit, sync::Arc};
 use structopt::StructOpt;
 use tracing::{debug, error, info, instrument, trace, warn};
 use tracing_futures::Instrument;
@@ -57,6 +64,7 @@ fn initialize_logs(arguments: &AppArguments) -> Result<(), eyre::Error> {
 fn response_with_status_and_empty_body(status: StatusCode) -> Response<BodyStruct> {
     Response::builder()
         .status(status)
+        .header(header::CONTENT_LENGTH, 0)        
         .body(BodyStruct::empty())
         .expect("Static fail response create failed") // Статически создаем ответ, здесь не критично
 }
@@ -65,6 +73,8 @@ fn response_with_status_and_error(status: StatusCode, err_desc: &str) -> Respons
     let error_json = format!(r#"{{"description": "{}"}}"#, err_desc);
     Response::builder()
         .status(status)
+        .header(header::CONTENT_TYPE, mime::APPLICATION_JSON.essence_str()) // TODO: Check
+        .header(header::CONTENT_LENGTH, error_json.as_bytes().len())
         .body(BodyStruct::from(error_json))
         .expect("Static fail response create failed") // Статически создаем ответ, здесь не критично
 }
@@ -73,13 +83,15 @@ fn response_with_status_desc_and_trace_id(status: StatusCode, err_desc: &str, tr
     let error_json = format!(r#"{{"error_trace_id": "{}", "desc": "{}"}}"#, trace_id, err_desc);
     Response::builder()
         .status(status)
+        .header(header::CONTENT_TYPE, mime::APPLICATION_JSON.essence_str()) // TODO: Check
+        .header(header::CONTENT_LENGTH, error_json.as_bytes().len())
         .body(BodyStruct::from(error_json))
         .expect("Static fail response create failed") // Статически создаем ответ, здесь не критично
 }
 
 // Трассировка настраивается уровнем выше
 // #[instrument(level = "error")]
-async fn service_handler(req: Request<BodyStruct>) -> Result<Response<BodyStruct>, ErrorWithStatusAndDesc> {
+async fn service_handler(req: Request<BodyStruct>, token_provider: &AuthTokenProvider) -> Result<Response<BodyStruct>, ErrorWithStatusAndDesc> {
     // debug!("Request processing begin");
 
     match (req.method(), req.uri().path()) {
@@ -105,6 +117,23 @@ async fn service_handler(req: Request<BodyStruct>) -> Result<Response<BodyStruct
             Ok(response)
         }
 
+        // Отладочным образом получаем токен
+        (&Method::GET, "/token") => {
+            info!("Token");
+
+            let token = token_provider.get_token().await.wrap_err_with_status_desc(StatusCode::UNAUTHORIZED, "Google cloud token receive failed".into())?;
+
+            let json_text = format!(r#"{{"token": "{}"}}"#, token);
+
+            let response = Response::builder()
+                .status(StatusCode::OK)
+                .header(header::CONTENT_TYPE, mime::APPLICATION_JSON.essence_str()) // TODO: Check
+                .header(header::CONTENT_LENGTH, json_text.as_bytes().len())                
+                .body(BodyStruct::from(json_text))
+                .wrap_err_with_500()?;
+            Ok(response)
+        }
+
         // Любой другой запрос
         _ => {
             warn!("Invalid request");
@@ -117,17 +146,21 @@ async fn service_handler(req: Request<BodyStruct>) -> Result<Response<BodyStruct
     }
 }
 
-async fn run_server(app_arguments: AppArguments) -> Result<(), eyre::Error> {
-    let addr = SocketAddr::from(([0, 0, 0, 0], app_arguments.port));
+async fn run_server(app_arguments: AppArguments, token_provider: AuthTokenProvider) -> Result<(), eyre::Error> {
+    // Перемещаем в кучу для свободного доступа из разных обработчиков
+    let token_provider = Arc::new(token_provider);
 
     // Сервис необходим для каждого соединения, поэтому создаем враппер, который будет генерировать наш сервис
-    let make_svc = make_service_fn(|conn: &AddrStream| {
+    let make_svc = make_service_fn(move |conn: &AddrStream| {
+        let token_provider = token_provider.clone();
+
         // Получаем адрес удаленного подключения
         let remote_addr = conn.remote_addr();
-
         async move {
             // Создаем сервис из функции с помощью service_fn
             Ok::<_, Infallible>(service_fn(move |req| {
+                let token_provider = token_provider.clone();
+
                 async move {
                     // Создаем идентификатор трассировки для отслеживания ошибок в общих логах
                     let trace_id = format!("{:x}", uuid::Uuid::new_v4());
@@ -139,7 +172,7 @@ async fn run_server(app_arguments: AppArguments) -> Result<(), eyre::Error> {
                         path = req.uri().path());
 
                     // Обработка сервиса
-                    match service_handler(req).instrument(span).await {
+                    match service_handler(req, &token_provider).instrument(span).await {
                         resp @ Ok(_) => resp,
                         Err(err) => {
                             // Выводим ошибку в консоль
@@ -155,6 +188,9 @@ async fn run_server(app_arguments: AppArguments) -> Result<(), eyre::Error> {
             }))
         }
     });
+
+    // Адрес
+    let addr = SocketAddr::from(([0, 0, 0, 0], app_arguments.port));
 
     // Создаем сервер c ожиданием завершения работы
     Server::bind(&addr)
@@ -174,33 +210,65 @@ async fn run_server(app_arguments: AppArguments) -> Result<(), eyre::Error> {
     Ok(())
 }
 
-fn execute_app() -> Result<(), eyre::Error> {
-    // Аргументы приложения
-    let app_arguments = AppArguments::from_args_safe().wrap_err("App arguments parsing")?;
+/// Выполняем валидацию переданных аргументов приложения
+fn validate_arguments(arguments: &AppArguments) -> Result<(), &str> {
+    macro_rules! validate_argument {
+        ($argument: expr, $desc: literal) => {
+            if $argument == false {
+                return Err($desc);
+            }
+        };
+    }
 
-    // Логи
-    initialize_logs(&app_arguments).wrap_err("Logs init")?;
-
-    // Создаем рантайм для работы сервера
-    let runtime = tokio::runtime::Builder::new_multi_thread()
-        .enable_all()
-        .build()
-        .wrap_err("Tokio runtime build")?;
-
-    // Стартуем сервер
-    runtime.block_on(run_server(app_arguments)).wrap_err("Server running fail")?;
-
+    validate_argument!(arguments.google_credentials_file.exists(), "Google credential file does not exist");
+    validate_argument!(arguments.google_credentials_file.is_file(), "Google credential file is not a file");
     Ok(())
+}
+
+fn build_http_client() -> HttpClient {
+    // Коннектор для работы уже с HTTPS
+    let https_connector = HttpsConnector::with_native_roots();
+
+    // Клиент с коннектором
+    let http_client = std::sync::Arc::new(Client::builder().set_host(false).build::<_, BodyStruct>(https_connector));
+
+    http_client
 }
 
 fn main() {
     // Бектрейсы в ошибках
     color_eyre::install().expect("Color eyre initialize failed");
 
-    if let Err(err) = execute_app() {
-        eprintln!("{:?}", err);
+    // Аргументы приложения
+    let app_arguments = AppArguments::from_args();
+    debug!("App arguments: {:?}", app_arguments);
+
+    // Проверка аргументов приложения
+    if let Err(err_desc) = validate_arguments(&app_arguments) {
+        eprintln!("Invalid argument: {}", err_desc);
         exit(1);
-    } else {
-        exit(0);
     }
+
+    // Логи
+    initialize_logs(&app_arguments).expect("Logs init");
+
+    // Клиент для https
+    let http_client = build_http_client();
+
+    // Создаем провайдер для токенов
+    let token_provider = AuthTokenProvider::new(
+        http_client.clone(),
+        &app_arguments.google_credentials_file,
+        "https://www.googleapis.com/auth/devstorage.read_write",
+    )
+    .expect("Token provider create failed");
+
+    // Создаем рантайм для работы сервера
+    let runtime = tokio::runtime::Builder::new_multi_thread()
+        .enable_all()
+        .build()
+        .expect("Tokio runtime build");
+
+    // Стартуем сервер
+    runtime.block_on(run_server(app_arguments, token_provider)).expect("Server running fail");
 }

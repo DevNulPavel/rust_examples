@@ -21,7 +21,7 @@ pub trait WrapErrorWithStatusAndDesc<T> {
 
 /////////////////////////////////////////////////////////////////////////////////////////////////////////
 
-impl<T, E> WrapErrorWithStatusAndDesc<T> for Result<T, E>
+/*impl<T, E> WrapErrorWithStatusAndDesc<T> for Result<T, E>
 where
     E: StdError + Send + Sync + 'static,
 {
@@ -49,6 +49,43 @@ where
         F: FnOnce() -> Cow<'static, str>,
     {
         self.map_err(|e| eyre::Error::new(e)).map_err(|e| {
+            let desc = desc_fn();
+            ErrorWithStatusAndDesc::from_error_with_status_desc(e, status, desc.into())
+        })
+    }
+}*/
+
+/////////////////////////////////////////////////////////////////////////////////////////////////////////
+
+impl<T, E> WrapErrorWithStatusAndDesc<T> for Result<T, E>
+where
+    eyre::Error: From<E>, // Альтернативных синтаксис
+    //E: Into<eyre::Error>,
+{
+    /// Оборачиваем ошибку в 500й статус
+    fn wrap_err_with_500(self: Self) -> Result<T, ErrorWithStatusAndDesc> {
+        self.map_err(|e| eyre::Error::from(e))
+            .map_err(|e| ErrorWithStatusAndDesc::from_error_with_status_desc(e, StatusCode::INTERNAL_SERVER_ERROR, "Internal error".into()))
+    }
+
+    /// Оборачиваем ошибку в конкретный статус
+    fn wrap_err_with_status(self: Self, status: StatusCode) -> Result<T, ErrorWithStatusAndDesc> {
+        self.map_err(|e| eyre::Error::from(e))
+            .map_err(|e| ErrorWithStatusAndDesc::from_error_with_status_desc(e, status, "".into()))
+    }
+
+    /// Оборачиваем ошибку в статус и описание
+    fn wrap_err_with_status_desc(self: Self, status: StatusCode, desc: Cow<'static, str>) -> Result<T, ErrorWithStatusAndDesc> {
+        self.map_err(|e| eyre::Error::from(e))
+            .map_err(|e| ErrorWithStatusAndDesc::from_error_with_status_desc(e, status, desc.into()))
+    }
+
+    /// Оборачиваем ошибку в статус и описание (отложенное)
+    fn wrap_err_with_status_fn_desc<F>(self: Self, status: StatusCode, desc_fn: F) -> Result<T, ErrorWithStatusAndDesc>
+    where
+        F: FnOnce() -> Cow<'static, str>,
+    {
+        self.map_err(|e| eyre::Error::from(e)).map_err(|e| {
             let desc = desc_fn();
             ErrorWithStatusAndDesc::from_error_with_status_desc(e, status, desc.into())
         })

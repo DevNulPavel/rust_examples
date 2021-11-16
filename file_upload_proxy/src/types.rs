@@ -1,0 +1,9 @@
+use hyper::{
+    body::Body as BodyStruct,
+    client::connect::{dns::GaiResolver, HttpConnector},
+    Client,
+};
+use hyper_rustls::HttpsConnector;
+use std::sync::Arc;
+
+pub type HttpClient = Arc<Client<HttpsConnector<HttpConnector<GaiResolver>>, BodyStruct>>;

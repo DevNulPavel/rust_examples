@@ -1,2 +1,4 @@
 .DS_Store
 target/
+env/*.env
+env/*.json
