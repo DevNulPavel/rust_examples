@@ -59,10 +59,12 @@ impl AuthTokenProvider {
 
     #[instrument(level = "error", skip(self))]
     async fn receive_token(&self) -> Result<ReceivedTokenInfo, eyre::Error> {
+        // Получаем токен на основе данных
         let data = get_token_data(&self.http_client, &self.account_data, self.scopes)
             .await
             .wrap_err("Token receive")?;
 
+        // Вычисляем время завершения
         let expire_time = Instant::now()
             .checked_add(Duration::from_secs(data.expires_in))
             .wrap_err("Invalid token expire time")?;
@@ -88,6 +90,9 @@ impl AuthTokenProvider {
             let new_info = self.receive_token().await.wrap_err("Token receive")?;
             token_lock.replace(new_info);
         }
+
+        // Делаем токен None
+        token_lock.take();
 
         return Err(eyre::eyre!("Invalid tokens received more than 5 times"));
     }

@@ -23,7 +23,7 @@ use hyper::{
 use hyper_rustls::HttpsConnector;
 use std::{convert::Infallible, net::SocketAddr, process::exit, sync::Arc};
 use structopt::StructOpt;
-use tracing::{debug, error, info, instrument, trace, warn};
+use tracing::{debug};
 use tracing_futures::Instrument;
 
 //////////////////////////////////////////////////////////////////////////////////////////////////////////////////////////////////////////

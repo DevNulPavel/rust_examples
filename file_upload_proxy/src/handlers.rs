@@ -1,11 +1,10 @@
 use crate::{
     error::{ErrorWithStatusAndDesc, WrapErrorWithStatusAndDesc},
-    helpers::get_content_length,
     types::App,
 };
-use futures::Stream;
+use futures::StreamExt;
 use hyper::{
-    body::{aggregate, to_bytes, Body as BodyStruct, Buf, Bytes},
+    body::{aggregate, to_bytes, Body as BodyStruct, Buf},
     http::{
         header,
         method::Method,
@@ -14,20 +13,16 @@ use hyper::{
     },
     Request, Response,
 };
-use pin_project::pin_project;
+// use pin_project::pin_project;
 use serde::Deserialize;
 use serde_json::from_reader as json_from_reader;
-use std::{
-    pin::Pin,
-    task::{Context, Poll},
-};
-use tracing::{debug, error, info, instrument, trace, warn};
+use tracing::{debug, error, info, instrument};
 
 /////////////////////////////////////////////////////////////////////////////////////////////////////////
 
 /// A wrapper around any type that implements [`Stream`](futures::Stream) to be
 /// compatible with async_compression's Stream based encoders
-#[pin_project]
+/*#[pin_project]
 #[derive(Debug)]
 pub struct CompressableBody<S, E>
 where
@@ -56,11 +51,60 @@ impl From<BodyStruct> for CompressableBody<BodyStruct, hyper::Error> {
     fn from(body: BodyStruct) -> Self {
         CompressableBody { body }
     }
-}
+}*/
 
 /////////////////////////////////////////////////////////////////////////////////////////////////////////
 
-// #[instrument(level = "error", skip(app, req))]
+fn build_upload_uri(bucket_name: &str, file_name: &str) -> Result<Uri, hyper::http::Error> {
+    Uri::builder()
+        .scheme("https")
+        .authority(Authority::from_static("storage.googleapis.com"))
+        .path_and_query(format!(
+            "/upload/storage/v1/b/{}/o?name={}&uploadType=media&fields={}",
+            urlencoding::encode(bucket_name),
+            urlencoding::encode(file_name),
+            urlencoding::encode("id,md5Hash,mediaLink") // Только нужные поля в ответе сервера, https://cloud.google.com/storage/docs/json_api/v1/objects#resource
+        ))
+        .build()
+}
+
+fn build_upload_request(uri: Uri, token: String, body: BodyStruct) -> Result<Request<BodyStruct>, hyper::http::Error> {
+    Request::builder()
+        .method(Method::POST)
+        .version(hyper::Version::HTTP_2)
+        .uri(uri)
+        // TODO: Что-то не так с установкой значения host, если выставить, то фейлится запрос
+        // Может быть дело в регистре?
+        // .header(header::HOST, "oauth2.googleapis.com")
+        .header(header::USER_AGENT, "hyper")
+        // .header(header::CONTENT_LENGTH, data_length)
+        .header(header::ACCEPT, mime::APPLICATION_JSON.to_string()) // TODO: Optimize
+        .header(header::AUTHORIZATION, format!("Bearer {}", token))
+        .header(header::CONTENT_TYPE, mime::OCTET_STREAM.to_string()) // TODO: Optimize
+        .body(body)
+}
+
+#[derive(Debug, Deserialize)]
+struct UploadResultData {
+    id: String,
+    #[serde(rename = "md5Hash")]
+    md5: String,
+    #[serde(rename = "mediaLink")]
+    link: String,
+}
+
+async fn parse_response_body(response: Response<BodyStruct>) -> Result<UploadResultData, ErrorWithStatusAndDesc> {
+    let body_data = aggregate(response)
+        .await
+        .wrap_err_with_status_desc(StatusCode::INTERNAL_SERVER_ERROR, "Google cloud response receive failed".into())?;
+
+    let info = json_from_reader::<_, UploadResultData>(body_data.reader())
+        .wrap_err_with_status_desc(StatusCode::INTERNAL_SERVER_ERROR, "Google cloud response parsing failed".into())?;
+
+    Ok(info)
+}
+
+#[instrument(level = "error", skip(app, req))]
 async fn file_upload(app: &App, req: Request<BodyStruct>) -> Result<Response<BodyStruct>, ErrorWithStatusAndDesc> {
     info!("File uploading");
 
@@ -91,44 +135,27 @@ async fn file_upload(app: &App, req: Request<BodyStruct>) -> Result<Response<Bod
         .await
         .wrap_err_with_status_desc(StatusCode::UNAUTHORIZED, "Google cloud token receive failed".into())?;
 
-    // Имя нашего файлика
-    let file_name = format!("{:x}.txt.gz", uuid::Uuid::new_v4());
-
     // TODO: Время жизни для файликов на сервере
 
     // Адрес запроса
-    let uri = Uri::builder()
-        .scheme("https")
-        .authority(Authority::from_static("storage.googleapis.com"))
-        .path_and_query(format!(
-            "/upload/storage/v1/b/{}/o?name={}&uploadType=media&fields={}",
-            urlencoding::encode(&app.app_arguments.google_bucket_name),
-            urlencoding::encode(&file_name),
-            urlencoding::encode("id,md5Hash,mediaLink") // Только нужные поля в ответе сервера, https://cloud.google.com/storage/docs/json_api/v1/objects#resource
-        ))
-        .build()
-        .wrap_err_with_500()?;
+    let uri = {
+        // Имя нашего файлика
+        let file_name = format!("{:x}.txt.gz", uuid::Uuid::new_v4());
+        // Адрес
+        build_upload_uri(&app.app_arguments.google_bucket_name, &file_name).wrap_err_with_500()?
+    };
     debug!("Request uri: {}", uri);
 
-    let reader = tokio_util::io::StreamReader::new(CompressableBody::from(req.into_body()));
+    // Здесь же можно сделать шифрование данных перед компрессией
+    let body_stream = req
+        .into_body()
+        .map(|v| v.map_err(|_| std::io::Error::from(std::io::ErrorKind::InvalidInput)));
+    let reader = tokio_util::io::StreamReader::new(body_stream);
     let compressor = async_compression::tokio::bufread::GzipEncoder::new(reader);
     let out_stream = tokio_util::io::ReaderStream::new(compressor);
 
     // Объект запроса
-    let request = Request::builder()
-        .method(Method::POST)
-        .version(hyper::Version::HTTP_2)
-        .uri(uri)
-        // TODO: Что-то не так с установкой значения host, если выставить, то фейлится запрос
-        // Может быть дело в регистре?
-        // .header(header::HOST, "oauth2.googleapis.com")
-        .header(header::USER_AGENT, "hyper")
-        // .header(header::CONTENT_LENGTH, data_length)
-        .header(header::ACCEPT, mime::APPLICATION_JSON.to_string()) // TODO: Optimize
-        .header(header::AUTHORIZATION, format!("Bearer {}", token))
-        .header(header::CONTENT_TYPE, mime::OCTET_STREAM.to_string()) // TODO: Optimize
-        .body(BodyStruct::wrap_stream(out_stream))
-        .wrap_err_with_500()?;
+    let request = build_upload_request(uri, token, BodyStruct::wrap_stream(out_stream)).wrap_err_with_500()?;
     debug!("Request object: {:?}", request);
 
     // Объект ответа
@@ -145,24 +172,12 @@ async fn file_upload(app: &App, req: Request<BodyStruct>) -> Result<Response<Bod
 
     // Обрабатываем в зависимости от ответа
     if status.is_success() {
-        #[derive(Debug, Deserialize)]
-        struct Info {
-            id: String,
-            #[serde(rename = "md5Hash")]
-            md5: String,
-            #[serde(rename = "mediaLink")]
-            link: String,
-        }
-        // Данные
-        let body_data = aggregate(response)
-            .await
-            .wrap_err_with_status_desc(StatusCode::INTERNAL_SERVER_ERROR, "Google cloud response receive failed".into())?;
-        let info = json_from_reader::<_, Info>(body_data.reader())
-            .wrap_err_with_status_desc(StatusCode::INTERNAL_SERVER_ERROR, "Google cloud response parsing failed".into())?;
+        // Данные парсим
+        let info = parse_response_body(response).await?;
         debug!("Uploading result: {:?}", info);
 
+        // Формируем ответ
         let json_text = format!(r#"{{"link": "{}"}}"#, info.link);
-
         let response = Response::builder()
             .status(StatusCode::OK)
             .header(header::CONTENT_TYPE, mime::APPLICATION_JSON.essence_str()) // TODO: Check
@@ -178,6 +193,7 @@ async fn file_upload(app: &App, req: Request<BodyStruct>) -> Result<Response<Bod
             .wrap_err_with_status_desc(StatusCode::INTERNAL_SERVER_ERROR, "Google cloud response receive failed".into())?;
         error!("Upload fail result: {:?}", body_data);
 
+        // Если есть внятный ответ - пробрасываем его
         match std::str::from_utf8(&body_data).ok() {
             Some(text) => {
                 error!("Upload fail result text: {}", text);
