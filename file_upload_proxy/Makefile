@@ -29,3 +29,8 @@ TEST_REQUEST:
 		-H "X-Api-Token: test-api-token-aaa-bbb" \
 		-d "TEST_FILE_DATA" \
 		"http://localhost:8888/upload_file"
+
+# Руками лучше не собрать билды локально, а вместо этого
+# запускать сборку на github через actions
+BUILD_DOCKER_IMAGE:
+	docker buildx build --platform linux/amd64,linux/arm64 .

@@ -135,8 +135,6 @@ async fn file_upload(app: &App, req: Request<BodyStruct>) -> Result<Response<Bod
         .await
         .wrap_err_with_status_desc(StatusCode::UNAUTHORIZED, "Google cloud token receive failed".into())?;
 
-    // TODO: Время жизни для файликов на сервере
-
     // Адрес запроса
     let uri = {
         // Имя нашего файлика
