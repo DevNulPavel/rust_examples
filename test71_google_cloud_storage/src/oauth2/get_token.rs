@@ -24,7 +24,7 @@ fn build_jwt_string(service_acc_data: &ServiceAccountData, scopes: &str) -> Resu
     // Claims
     let current_time = Utc::now();
     let expire_time = current_time
-        .checked_add_signed(Duration::minutes(59))
+        .checked_add_signed(Duration::minutes(60))
         .ok_or_else(|| eyre::eyre!("Expire time calc err"))?;
     let jwt_claims = format!(
         r###"{{"iss":"{}","scope":"{}","aud":"{}","exp":{},"iat":{}}}"###,
@@ -68,6 +68,7 @@ pub async fn get_token_data(http_client: &HttpClient, service_acc_data: &Service
     debug!(%jwt_result);
 
     // Адрес запроса
+    // TODO: Replace to data from service account
     let uri = Uri::builder()
         .scheme("https")
         .authority(Authority::from_str("oauth2.googleapis.com").wrap_err("Authority parse error")?)
