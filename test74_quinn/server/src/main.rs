@@ -3,20 +3,54 @@ mod sertificate_gen;
 use crate::sertificate_gen::generate_https_sertificate;
 use eyre::{ContextCompat, WrapErr};
 use futures::StreamExt;
-use log::{debug, LevelFilter};
 use quinn::ServerConfig;
 use std::{
     net::{Ipv4Addr, SocketAddr, SocketAddrV4},
     sync::Arc,
 };
+use tracing::{debug, error, instrument, Instrument};
 
 ////////////////////////////////////////////////////////////////////////////////////////////////////////////////////////
 
 /// Настойка уровня логирования
 fn setup_logging() -> Result<(), eyre::Error> {
-    pretty_env_logger::formatted_timed_builder()
-        .filter_level(LevelFilter::Trace)
-        .try_init()?;
+    use tracing_subscriber::prelude::*;
+
+    /*let level = match arguments.verbose {
+        0 => tracing::Level::ERROR,
+        1 => tracing::Level::WARN,
+        2 => tracing::Level::INFO,
+        3 => tracing::Level::DEBUG,
+        4 => tracing::Level::TRACE,
+        _ => {
+            panic!("Verbose level must be in [0, 4] range");
+        }
+    };
+
+    // Фильтрация на основе настроек
+    let filter = tracing_subscriber::filter::LevelFilter::from_level(level);*/
+
+    // Предустановленное значение
+    let filter = tracing_subscriber::filter::LevelFilter::from_level(tracing::Level::TRACE);
+
+    // Фильтрация на основе окружения
+    /*let filter = tracing_subscriber::filter::EnvFilter::from_default_env();*/
+
+    // Логи в stdout
+    let stdoud_sub = tracing_subscriber::fmt::layer().with_writer(std::io::stdout);
+
+    // Error layer для формирования слоя ошибки
+    let error_layer = tracing_error::ErrorLayer::default();
+
+    // Суммарный обработчик
+    let full_subscriber = tracing_subscriber::registry().with(filter).with(error_layer).with(stdoud_sub);
+
+    // Враппер для библиотеки log
+    tracing_log::LogTracer::init().wrap_err("Log wrapper create failed")?;
+
+    // Установка по-умолчанию
+    tracing::subscriber::set_global_default(full_subscriber).wrap_err("Global subscriber set failed")?;
+
     Ok(())
 }
 
@@ -45,6 +79,16 @@ fn make_server_config() -> Result<ServerConfig, eyre::Error> {
     Ok(server_config)
 }
 
+/// Непосредственно обработка пришедшего соединения
+async fn process_accepted_connection(accepted_conn: quinn::Connecting) -> Result<(), eyre::Error> {
+    debug!("Connection processing started");
+
+    // Дожидаемся установки соединения полноценного, разных хендшейков и тд
+    let new_conn = accepted_conn.await.wrap_err("Connection establish")?;
+
+    Ok(())
+}
+
 async fn execute_app() -> Result<(), eyre::Error> {
     // Настройка логирования на основании количества флагов verbose
     setup_logging().wrap_err("Logging setup")?;
@@ -57,18 +101,30 @@ async fn execute_app() -> Result<(), eyre::Error> {
     let (endpoint, mut incoming) = quinn::Endpoint::server(server_config, listen_address)?;
     debug!("Listening on: {}", endpoint.local_addr()?);
 
-    // Цикл принятия новых соединений
-    while let Some(conn) = incoming.next().await {
-        debug!(
-            "Connection accepted: local_ip = {:?}, remote_addr = {:?}",
-            conn.local_ip(),
-            conn.remote_address()
+    // Цикл принятия новых попыток соединений
+    while let Some(accepted_conn) = incoming.next().await {
+        // Для трассировки создаем span, для группировки используем удаленный адрес
+        let span = tracing::error_span!("accept", remove_addr = ?accepted_conn.remote_address());
+
+        // Залогируем более подробную информацию данном соединении
+        {
+            let _span_enter = span.enter();
+            debug!(
+                "Connection accepted: local_ip = {:?}, remote_addr = {:?}",
+                accepted_conn.local_ip(),
+                accepted_conn.remote_address(),
+            );
+        }
+
+        // Запускаем асинхронную обработку задачи в контексте текущего span
+        tokio::spawn(
+            async move {
+                if let Err(err) = process_accepted_connection(accepted_conn).await {
+                    error!("Connection processing error: {}", err);
+                }
+            }
+            .instrument(span),
         );
-        // tokio::spawn(
-        // handle_connection(root.clone(), conn).unwrap_or_else(move |e| {
-        //     error!("connection failed: {reason}", reason = e.to_string())
-        // }),
-        // );
     }
 
     Ok(())
