@@ -2,13 +2,16 @@ mod sertificate_gen;
 
 use crate::sertificate_gen::generate_https_sertificate;
 use eyre::{ContextCompat, WrapErr};
-use futures::StreamExt;
+use futures::{StreamExt, TryFutureExt};
 use quinn::ServerConfig;
+use rustls::quic;
 use std::{
+    any::Any,
     net::{Ipv4Addr, SocketAddr, SocketAddrV4},
     sync::Arc,
 };
 use tracing::{debug, error, instrument, Instrument};
+use tracing_log::log::warn;
 
 ////////////////////////////////////////////////////////////////////////////////////////////////////////////////////////
 
@@ -79,12 +82,32 @@ fn make_server_config() -> Result<ServerConfig, eyre::Error> {
     Ok(server_config)
 }
 
+async fn debug_print_handshake_info(accepted_conn: &mut quinn::Connecting) {
+    let handshake_data = accepted_conn
+        .handshake_data()
+        .await
+        .ok()
+        .and_then(|data| data.downcast::<quinn::crypto::rustls::HandshakeData>().ok());
+    if let Some(data) = handshake_data {
+        debug!("Handshake data: server = {:?}, protocol = {:?}", data.server_name, data.protocol);
+    } else {
+        warn!("Empty handshake data");
+    }
+}
+
 /// Непосредственно обработка пришедшего соединения
-async fn process_accepted_connection(accepted_conn: quinn::Connecting) -> Result<(), eyre::Error> {
+async fn process_accepted_connection(mut accepted_conn: quinn::Connecting) -> Result<(), eyre::Error> {
     debug!("Connection processing started");
 
+    // Данные о HTTPS handshake
+    debug_print_handshake_info(&mut accepted_conn).await;
+
     // Дожидаемся установки соединения полноценного, разных хендшейков и тд
-    let new_conn = accepted_conn.await.wrap_err("Connection establish")?;
+    let quinn::NewConnection{
+        connection,
+        bi_streams,
+        ..
+    } = accepted_conn.await.wrap_err("Connection establish")?;
 
     Ok(())
 }
@@ -107,13 +130,13 @@ async fn execute_app() -> Result<(), eyre::Error> {
         let span = tracing::error_span!("accept", remove_addr = ?accepted_conn.remote_address());
 
         // Залогируем более подробную информацию данном соединении
+        // Но только синхронные быстрые вызовы, чтобы не блокировать получение новых подключений
         {
             let _span_enter = span.enter();
-            debug!(
-                "Connection accepted: local_ip = {:?}, remote_addr = {:?}",
-                accepted_conn.local_ip(),
-                accepted_conn.remote_address(),
-            );
+            let local_ip = accepted_conn.local_ip();
+            let remote_ip = accepted_conn.remote_address();
+
+            debug!("Connection accepted: local_ip = {:?}, remote_addr = {:?}", local_ip, remote_ip,);
         }
 
         // Запускаем асинхронную обработку задачи в контексте текущего span
