@@ -1,11 +1,12 @@
 mod sertificate_gen;
 
-use crate::sertificate_gen::generate_https_sertificate;
-use eyre::{ContextCompat, WrapErr};
+use crate::sertificate_gen::read_or_generate_https_sertificate;
+use eyre::WrapErr;
 use futures::StreamExt;
 use quinn::ServerConfig;
 use std::{
     net::{Ipv4Addr, SocketAddr, SocketAddrV4},
+    path::Path,
     sync::Arc,
 };
 use tracing::{debug, error, error_span, info, Instrument};
@@ -57,7 +58,8 @@ fn setup_logging() -> Result<(), eyre::Error> {
 
 fn make_server_config() -> Result<ServerConfig, eyre::Error> {
     // Генерируем самоподписные сертификаты для HTTPS
-    let certificate = generate_https_sertificate().wrap_err("Sertificate create")?;
+    let certificate = read_or_generate_https_sertificate(Path::new("tmp_certificates/cert.der"), Path::new("tmp_certificates/key.der"))
+        .wrap_err("Sertificate create")?;
 
     // Конфиг сервера для RUTLS
     let mut server_crypto = rustls::ServerConfig::builder()
@@ -72,7 +74,7 @@ fn make_server_config() -> Result<ServerConfig, eyre::Error> {
     // Конфиг для QUINN
     let mut server_config = quinn::ServerConfig::with_crypto(Arc::new(server_crypto));
     {
-        let transport = Arc::get_mut(&mut server_config.transport).wrap_err("Mut transport ref")?;
+        let transport = Arc::get_mut(&mut server_config.transport).ok_or_else(|| eyre::eyre!("Mut transport ref"))?;
         transport.max_concurrent_uni_streams(0_u8.into());
     }
     server_config.use_retry(true);
@@ -106,7 +108,7 @@ async fn process_request(mut send_stream: quinn::SendStream, recv_stream: quinn:
 
     // Конвертируем в верхний регистр
     let response_text = format!(r#"{{"request_id": {}, "response": "{}"}}"#, request_id, req_text.to_uppercase());
-    drop(req_text);
+    drop(req_data);
 
     // Пишем ответ на наш запрос
     send_stream.write_all(response_text.as_bytes()).await.wrap_err("Response send")?;

@@ -1,0 +1,20 @@
+[package]
+name = "client"
+version = "0.1.0"
+authors = ["Pavel Ershov <devnulpavel@gmail.com>"]
+edition = "2021"
+
+# See more keys and their definitions at https://doc.rust-lang.org/cargo/reference/manifest.html
+
+[dependencies]
+eyre = "0.6"
+color-eyre = "0.5"
+tracing = "0.1"
+tracing-subscriber = "0.2"
+tracing-futures = "0.2"
+tracing-log = "0.1"
+tracing-error = "0.1"
+tokio = {version = "1.14", features = ["full"]}
+rustls = "0.20"
+quinn = "0.8"
+futures = "0.3"

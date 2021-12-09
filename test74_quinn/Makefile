@@ -7,3 +7,10 @@ RUN_SERVER:
 	cargo build --release && \
 	cd ../ && \
 	target/release/server
+
+RUN_CLIENT:
+	cd client && \
+	cargo clippy && \
+	cargo build --release && \
+	cd ../ && \
+	target/release/client
