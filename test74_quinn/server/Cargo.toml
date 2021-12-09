@@ -19,3 +19,4 @@ rcgen = "0.8"
 rustls = "0.20"
 quinn = "0.8"
 futures = "0.3"
+uuid = {version = "0.8", features = ["v4"]}
