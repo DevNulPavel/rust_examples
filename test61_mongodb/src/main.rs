@@ -1,5 +1,10 @@
+mod app_arguments;
+
+use crate::app_arguments::AppArguments;
 use eyre::WrapErr;
-use tracing::{debug, error};
+use mongodb::{options::ClientOptions, Client};
+use structopt::StructOpt;
+use tracing::debug;
 
 ////////////////////////////////////////////////////////////////////////////////////////////////////////////////
 
@@ -48,7 +53,29 @@ fn initialize_logs() -> Result<(), eyre::Error> {
     Ok(())
 }
 
-async fn run_app() -> Result<(), eyre::Error> {
+async fn build_mongo_client(arguments: &AppArguments) -> Result<Client, eyre::Error> {
+    // Parse a connection string into an options struct.
+    let mut client_options = ClientOptions::parse(&arguments.mongodb_connection_addr)
+        .await
+        .wrap_err("Mongo connection string parsing")?;
+
+    // Manually set an option.
+    client_options.app_name = Some("Learning application".to_string());
+
+    // Get a handle to the deployment.
+    let client = Client::with_options(client_options).wrap_err("Mongo client building")?;
+
+    Ok(client)
+}
+
+async fn run_app(arguments: AppArguments) -> Result<(), eyre::Error> {
+    let client = build_mongo_client(&arguments).await.wrap_err("Client building")?;
+
+    // List the names of the databases in that deployment.
+    for db_name in client.list_database_names(None, None).await? {
+        println!("{}", db_name);
+    }
+
     Ok(())
 }
 
@@ -59,6 +86,10 @@ fn main() {
     // Логи
     initialize_logs().expect("Logs init");
 
+    // Парсим параметры приложения
+    let arguments = AppArguments::from_args_safe().expect("App arguments parsing");
+    debug!("App arguments: {:?}", arguments);
+
     // Создаем рантайм для работы
     let runtime = tokio::runtime::Builder::new_multi_thread()
         .enable_all()
@@ -66,5 +97,5 @@ fn main() {
         .expect("Tokio runtime build");
 
     // Стартуем сервер
-    runtime.block_on(run_app()).expect("Server running fail");
+    runtime.block_on(run_app(arguments)).expect("Server running fail");
 }
