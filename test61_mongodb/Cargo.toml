@@ -1,5 +1,5 @@
 [package]
-name = "pocket_telegram_bot"
+name = "test61_mongodb"
 version = "0.1.0"
 authors = ["Pavel Ershov <devnulpavel@gmail.com>"]
 edition = "2018"
@@ -7,14 +7,13 @@ edition = "2018"
 # See more keys and their definitions at https://doc.rust-lang.org/cargo/reference/manifest.html
 
 [dependencies]
-mongodb = "1.2.1"
-quick-error = "2.0.0"
-tracing = "0.1.25"
-tracing-subscriber = "0.2.17"
-tracing-futures = "0.2.5"
-dotenv = "0.15.0"
-derive_more = "0.99.13"
-serde = {version = "1.0.125", features = ["derive"]}
-serde_json = "1.0.64"
-tap = "1.0.1"
-tokio = {version = "1.4.0", features = ["full"]}
+eyre = "0.6"
+color-eyre = "0.5"
+tracing = "0.1"
+tracing-subscriber = {version = "0.3", features = ["env-filter"]}
+tracing-futures = "0.2"
+tracing-log = "0.1"
+tracing-error = "0.2"
+tokio = {version = "1.13", features = ["full"]} # "tracing" # TODO: Оставить нужное только
+# console-subscriber = "0.1" # Специальный слой для tracing для возможности отладки через tokio-console
+mongodb = "2.1"
