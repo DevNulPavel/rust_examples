@@ -2,7 +2,14 @@ mod app_arguments;
 
 use crate::app_arguments::AppArguments;
 use eyre::WrapErr;
-use mongodb::{options::ClientOptions, Client};
+use futures::{StreamExt, TryStreamExt};
+use mongodb::{
+    bson::{doc, Bson},
+    options::ClientOptions,
+    options::FindOptions,
+    Client, Database,
+};
+use serde::{Deserialize, Serialize};
 use structopt::StructOpt;
 use tracing::debug;
 
@@ -54,26 +61,94 @@ fn initialize_logs() -> Result<(), eyre::Error> {
 }
 
 async fn build_mongo_client(arguments: &AppArguments) -> Result<Client, eyre::Error> {
-    // Parse a connection string into an options struct.
+    // Парсим строку, описывающее соединение
     let mut client_options = ClientOptions::parse(&arguments.mongodb_connection_addr)
         .await
         .wrap_err("Mongo connection string parsing")?;
 
-    // Manually set an option.
+    // Дополнительно выставляем имя приложения
     client_options.app_name = Some("Learning application".to_string());
 
-    // Get a handle to the deployment.
+    // Создаем непосредственно клиента
     let client = Client::with_options(client_options).wrap_err("Mongo client building")?;
 
     Ok(client)
 }
 
+async fn print_databases(client: &Client) -> Result<(), eyre::Error> {
+    for (i, db_name) in client
+        .list_database_names(None, None)
+        .await
+        .wrap_err("Databases list")?
+        .into_iter()
+        .enumerate()
+    {
+        debug!("Database {}: {}", i, db_name);
+    }
+    Ok(())
+}
+
+async fn print_collections(db: &Database) -> Result<(), eyre::Error> {
+    for (i, collection_name) in db
+        .list_collection_names(None)
+        .await
+        .wrap_err("Collections list")?
+        .into_iter()
+        .enumerate()
+    {
+        debug!("Collection {}: {}", i, collection_name);
+    }
+    Ok(())
+}
+
+#[derive(Debug, Serialize, Deserialize)]
+struct Airline {
+    id: Bson,
+    name: String,
+    alias: String,
+    iata: String,
+}
+
+#[derive(Debug, Serialize, Deserialize)]
+struct Route {
+    airline: Airline,
+    src_airport: String,
+    dst_airport: String,
+    codeshare: String,
+    stops: Bson,
+    airplane: Bson,
+}
+
 async fn run_app(arguments: AppArguments) -> Result<(), eyre::Error> {
+    // Создаем клиента
     let client = build_mongo_client(&arguments).await.wrap_err("Client building")?;
 
-    // List the names of the databases in that deployment.
-    for db_name in client.list_database_names(None, None).await? {
-        println!("{}", db_name);
+    // Выводим список баз данных на данном соединении
+    print_databases(&client).await.wrap_err("DB list")?;
+
+    // Делаем подключение к базе с конкретным именем
+    let db = client.database(&arguments.mongodb_database_name);
+
+    // Span для открытой базы
+    let _dbspan = tracing::error_span!("database", name = %arguments.mongodb_database_name).entered();
+
+    // Выводим список коллекций
+    print_collections(&db).await.wrap_err("Collections list")?;
+
+    // Выбираем конкретную коллекцию
+    let collection = db.collection::<Route>(&arguments.mongodb_collection_name);
+
+    // Span для коллекции
+    let _collection_span = tracing::error_span!("collection", name = %arguments.mongodb_collection_name).entered();
+
+    // Делаем запрос данных с фильтрацией
+    let filter = doc! { "src_airport": "MMK" };
+    let find_options = FindOptions::builder().limit(10).sort(doc! { "airplane": 1 }).build();
+    let mut cursor = collection.find(filter, find_options).await.wrap_err("Collection find")?;
+
+    // Итерируемся по всем найденным результатам
+    while let Some(route) = cursor.try_next().await.wrap_err("Cursor next")? {
+        println!("Title: {:?}", route);
     }
 
     Ok(())
