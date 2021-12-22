@@ -15,4 +15,5 @@ bytesize = "1.1"
 cuckoofilter = "0.5"
 bloomfilter = "1.0"
 rand = "0.8"
-smallstr = "0.2.0"
+smallstr = "0.2"
+hyperloglogplus = {version = "0.4", features = ["const-loop"]}

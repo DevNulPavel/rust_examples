@@ -1,6 +1,8 @@
-use bytesize::ByteSize;
 use eyre::WrapErr;
 use log::{debug, info, warn, LevelFilter};
+use rand::{distributions::Alphanumeric, thread_rng, Rng};
+use smallstr::SmallString;
+use std::time::Instant;
 
 ////////////////////////////////////////////////////////////////////////////////////////////////////////////////////////
 
@@ -14,16 +16,12 @@ fn setup_logging() -> Result<(), eyre::Error> {
 
 /// Фильтр блума
 fn test_bloom_filter() -> Result<(), eyre::Error> {
-    use rand::distributions::Alphanumeric;
-    use rand::{thread_rng, Rng};
-    use smallstr::SmallString;
-
     // Для тестовости делаем размерность возможных элементов не очень большой
     let mut bloom = bloomfilter::Bloom::new(16, 32);
 
     for i in 0..10_000_000_u64 {
         // Используем small string чтобы не аллоцировать временную переменную в куче
-        type StringContainer = SmallString<[u8; 64]>;
+        type StringContainer = SmallString<[u8; 128]>;
         let rand_string: StringContainer = thread_rng().sample_iter(&Alphanumeric).take(64).map(char::from).collect();
 
         // Устанавливаем рандомное значение строки
@@ -64,7 +62,42 @@ fn test_cuckoo_filter() -> Result<(), eyre::Error> {
     // Удаляем данные из нашего фильтра
     eyre::ensure!(cf.delete(value), "Data does not exist");
 
-    debug!("Chuckoo filter memory usage: {}", ByteSize(cf.memory_usage() as u64));
+    debug!("Chuckoo filter memory usage: {}", bytesize::ByteSize(cf.memory_usage() as u64));
+
+    Ok(())
+}
+
+/// Алгоритм HyperLogLog позволяет найти количество уникальных элементов за счет расчета хешей
+fn test_hyper_log_log() -> Result<(), eyre::Error> {
+    use hyperloglogplus::{HyperLogLog, HyperLogLogPlus};
+    use std::collections::hash_map::RandomState;
+
+    // Реализация HyperLogLog plus
+    let mut hllp = HyperLogLogPlus::<&str, RandomState>::new(16, RandomState::new())
+        .map_err(|err| {
+            eyre::Error::msg(format!("Hyper log log create err: {}", err.to_string()))
+        })?;
+
+    let begin_time = Instant::now();
+
+    const ITER_COUNT: u64 = 10_000_000_u64;
+
+    for _ in 0..ITER_COUNT {
+        // Используем small string чтобы не аллоцировать временную переменную в куче
+        type StringContainer = SmallString<[u8; 128]>;
+        let rand_string: StringContainer = thread_rng().sample_iter(&Alphanumeric).take(64).map(char::from).collect();
+
+        hllp.insert(rand_string.as_str());
+    }
+
+    let duration = Instant::now().saturating_duration_since(begin_time);
+
+    debug!(
+        "Hyper log log unique elements: {}/{}, calculate duration: {}mSec",
+        hllp.count(),
+        ITER_COUNT,
+        duration.as_millis()
+    );
 
     Ok(())
 }
@@ -74,7 +107,7 @@ fn execute_app() -> Result<(), eyre::Error> {
     setup_logging().wrap_err("Logging setup")?;
 
     // TODO: Aho-Corasic
-    // TODO: LogHashHash
+    // TODO: HyperHashHash
     // TODO: MinHash
 
     // Фильтр блума
@@ -82,6 +115,9 @@ fn execute_app() -> Result<(), eyre::Error> {
 
     // Аналог фильтраблума
     test_cuckoo_filter().wrap_err("Chuckoo filter")?;
+
+    // Hyper Log Log для поиска количества уникальных элементов
+    test_hyper_log_log().wrap_err("Hyper log log")?;
 
     Ok(())
 }
