@@ -8,45 +8,20 @@ extern crate num_cpus;
 #[macro_use]
 mod logs;
 
-use clap::{
-    App, 
-    Arg
+use clap::{App, Arg};
+use libzou::{
+    cargo_helper::get_remote_server_informations,
+    download::download_chunks,
+    filesize::StringFileSize,
+    protocol::{get_protocol, Protocol},
+    util::prompt_user,
+    write::OutputFileWriter,
 };
 use std::{
-    fs::{
-        File, 
-        remove_file
-    },
-    error::{
-        Error
-    },
-    path::{
-        Path
-    },
-    process::{
-        exit
-    }
-};
-use libzou::{
-    cargo_helper::{
-        get_remote_server_informations
-    },
-    download::{
-        download_chunks
-    },
-    filesize::{
-        StringFileSize
-    },
-    protocol::{
-        get_protocol, 
-        Protocol
-    },
-    util::{
-        prompt_user
-    },
-    write::{
-        OutputFileWriter
-    }
+    error::Error,
+    fs::{remove_file, File},
+    path::Path,
+    process::exit,
 };
 
 fn main() {
@@ -103,8 +78,9 @@ fn main() {
             if v != 0 {
                 Ok(v)
             } else {
-                Err(clap::Error::with_description("Cannot download a file using 0 thread",
-                                                  clap::ErrorKind::InvalidValue,
+                Err(clap::Error::with_description(
+                    "Cannot download a file using 0 thread",
+                    clap::ErrorKind::InvalidValue,
                 ))
             }
         })
@@ -113,7 +89,10 @@ fn main() {
     // Есть ли флаг отладки?
     if argparse.is_present("debug") {
         info!(&format!("zou V{}", crate_version!()));
-        info!(&format!("downloading {}, using {} threads", filename, threads));
+        info!(&format!(
+            "downloading {}, using {} threads",
+            filename, threads
+        ));
     }
 
     // Создаем объект пути
@@ -123,14 +102,18 @@ fn main() {
     if local_path.exists() {
         // Если локальный путь - это папка
         if local_path.is_dir() {
-            epanic!("The local path to store the remote content is already exists, \
-                        and is a directory!");
+            epanic!(
+                "The local path to store the remote content is already exists, \
+                        and is a directory!"
+            );
         }
 
         // Если не прокинут флаг принудительной перезаписи, тогда спрашиваем перезаписать или нет
         if !argparse.is_present("force") {
-            let user_input = prompt_user("The path to store the file already exists! \
-                                          Do you want to override it? [y/N]");
+            let user_input = prompt_user(
+                "The path to store the file already exists! \
+                                          Do you want to override it? [y/N]",
+            );
             if !(user_input == "y" || user_input == "Y") {
                 exit(0);
             }
@@ -154,7 +137,7 @@ fn main() {
         }
         None => {
             epanic!("Unknown protocol!")
-        },
+        }
     };
 
     // Получаем информацию из удаленного сервера, для того, чтобы выполнить загрузку правильнее
@@ -167,18 +150,22 @@ fn main() {
             informations
         }
         Err(err) => {
-            error!(&format!("Getting remote server informations: {}",
-                                err.description()));
+            error!(&format!(
+                "Getting remote server informations: {}",
+                err.description()
+            ));
             exit(1);
         }
     };
 
     // Длина контента
-    info!(&format!("Remote content length: {}", StringFileSize::from(remote_server_informations.file.content_length)));
+    info!(&format!(
+        "Remote content length: {}",
+        StringFileSize::from(remote_server_informations.file.content_length)
+    ));
 
     // Создаем файлик
-    let local_file = File::create(local_path)
-        .expect("[ERROR] Cannot create a file !");
+    let local_file = File::create(local_path).expect("[ERROR] Cannot create a file !");
 
     // Выставляем размер файлика
     local_file
@@ -196,13 +183,17 @@ fn main() {
     }
 
     // Выполняем фактическую загрузку файлика
-    let res = download_chunks(remote_server_informations,
-                              out_file, 
-                              threads as u64,
-                              ssl_support);
+    let res = download_chunks(
+        remote_server_informations,
+        out_file,
+        threads as u64,
+        ssl_support,
+    );
     if res {
-        ok!(&format!("Your download is available in {}",
-                     local_path.to_str().unwrap()));
+        ok!(&format!(
+            "Your download is available in {}",
+            local_path.to_str().unwrap()
+        ));
     } else {
         // Если файлик не в порядке, тогда удаляем его из файловой системы
         error!("Download failed! An error occured - erasing file... ");

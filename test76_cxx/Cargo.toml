@@ -1,5 +1,5 @@
 [package]
-name = "test75_algorythm"
+name = "test76_cxx"
 version = "0.1.0"
 authors = ["Pavel Ershov <devnulpavel@gmail.com>"]
 edition = "2021"
@@ -11,10 +11,8 @@ log = "0.4"
 pretty_env_logger = "0.4"
 eyre = "0.6"
 color-eyre = "0.5"
-bytesize = "1.1"
-cuckoofilter = "0.5"
-bloomfilter = "1.0"
-rand = "0.8"
-smallstr = "0.2"
-hyperloglogplus = {version = "0.4", features = ["const-loop"]}
-aho-corasick = "0.7"
+cxx = "1.0"
+
+[build-dependencies]
+cc = "1.0"
+cxx-build = "1.0"

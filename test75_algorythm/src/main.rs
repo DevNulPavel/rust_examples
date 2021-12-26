@@ -1,4 +1,4 @@
-use eyre::WrapErr;
+use eyre::{ContextCompat, WrapErr};
 use log::{debug, info, warn, LevelFilter};
 use rand::{distributions::Alphanumeric, thread_rng, Rng};
 use smallstr::SmallString;
@@ -74,9 +74,7 @@ fn test_hyper_log_log() -> Result<(), eyre::Error> {
 
     // Реализация HyperLogLog plus
     let mut hllp = HyperLogLogPlus::<&str, RandomState>::new(16, RandomState::new())
-        .map_err(|err| {
-            eyre::Error::msg(format!("Hyper log log create err: {}", err.to_string()))
-        })?;
+        .map_err(|err| eyre::Error::msg(format!("Hyper log log create err: {}", err.to_string())))?;
 
     let begin_time = Instant::now();
 
@@ -102,12 +100,38 @@ fn test_hyper_log_log() -> Result<(), eyre::Error> {
     Ok(())
 }
 
+/// Алгоритм Aho-Corasick позволяет быстро искать подстроку в большом тексте
+fn test_aho_corasick() -> Result<(), eyre::Error> {
+    use aho_corasick::AhoCorasick;
+
+    // Паттерны, которые мы ищем в тексте
+    let patterns = &["apple", "maple", "Snapple"];
+
+    // Текст в котором будем искать
+    let test_text = "Nobody likes maple in their apple flavored Snapple.";
+
+    // Создаем конечный автомат для поиска из списка паттернов
+    let ac = AhoCorasick::new(patterns);
+
+    // Находим все вхождения паттернов в тексте
+    ac.find_iter(test_text).try_for_each(|mat| -> Result<(), eyre::Error> {
+        let pat_indx = mat.pattern();
+        let pattern = patterns.get(pat_indx).wrap_err(format!("Wrong pattern index {}", pat_indx))?;
+        let begin = mat.start();
+        let end = mat.end();
+        debug!("Aho-Corasick found {}: [{}, {}]", pattern, begin, end);
+        Ok(())
+    })?;
+
+    debug!("Aho-Corasick memory usage: {}", bytesize::ByteSize(ac.heap_bytes() as u64));
+
+    Ok(())
+}
+
 fn execute_app() -> Result<(), eyre::Error> {
     // Настройка логирования на основании количества флагов verbose
     setup_logging().wrap_err("Logging setup")?;
 
-    // TODO: Aho-Corasic
-    // TODO: HyperHashHash
     // TODO: MinHash
 
     // Фильтр блума
@@ -118,6 +142,9 @@ fn execute_app() -> Result<(), eyre::Error> {
 
     // Hyper Log Log для поиска количества уникальных элементов
     test_hyper_log_log().wrap_err("Hyper log log")?;
+
+    // Aho-Corasick
+    test_aho_corasick().wrap_err("Aho-Corasick")?;
 
     Ok(())
 }
