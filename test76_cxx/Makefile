@@ -3,5 +3,8 @@
 
 TEST_APP:
 	cargo clippy && \
-	cargo build --release && \
-	time target/release/test75_algorythm
+	cargo run
+
+EXPAND_MACROSES:
+	# cargo install cargo-expand
+	cargo expand ::ffi

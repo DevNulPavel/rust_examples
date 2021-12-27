@@ -7,7 +7,11 @@
 #include <string>
 
 namespace blobstore{
-    BlobstoreClient::BlobstoreClient() {
+
+    //////////////////////////////////////////////////////////////////////////////////////////
+
+    BlobstoreClient::BlobstoreClient():
+        _storage(std::make_shared<Storage>()) {
     }
 
     // Выгружаем данные с помощью переданного из Rust итератора
@@ -29,6 +33,27 @@ namespace blobstore{
 
         // Возвращаем наш хеш в Rust
         return blobid;
+    }
+
+    // Add tag to an existing blob.
+    void BlobstoreClient::tag(uint64_t blobId, rust::Str tag) const {
+        _storage->blobs[blobId].tags.emplace(tag);
+    }
+
+    // Retrieve metadata about a blob.
+    BlobMetadata BlobstoreClient::metadata(uint64_t blobId) const {
+        // Пустые метаданные
+        BlobMetadata metadata{};
+
+        // Ищем нужный blob
+        auto blobIt = _storage->blobs.find(blobId);
+        if (blobIt != _storage->blobs.end()) {
+            metadata.size = blobIt->second.data.size();
+            std::for_each(blobIt->second.tags.cbegin(), blobIt->second.tags.cend(),
+                        [&](auto &t) { metadata.tags.emplace_back(t); });
+        }
+
+        return metadata;
     }
 
     std::unique_ptr<BlobstoreClient> new_blobstore_client() {

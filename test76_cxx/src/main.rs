@@ -12,6 +12,13 @@ fn setup_logging() -> Result<(), eyre::Error> {
 
 #[cxx::bridge(namespace = "blobstore")]
 mod ffi {
+    // Общие структуры данных для C++ / Rust
+    #[derive(Debug)]
+    struct BlobMetadata {
+        size: usize,
+        tags: Vec<String>,
+    }
+
     // Объявления, которые будут видны из C++ кода
     extern "Rust" {
         type MultiBuf;
@@ -27,6 +34,8 @@ mod ffi {
         // Тип с методами
         type BlobstoreClient;
         fn put(&self, parts: &mut MultiBuf) -> u64;
+        fn tag(&self, blobid: u64, tag: &str);
+        fn metadata(&self, blob_id: u64) -> BlobMetadata;
 
         // Билдер UniquePtr
         fn new_blobstore_client() -> UniquePtr<BlobstoreClient>;
@@ -57,8 +66,13 @@ fn execute_app() -> Result<(), eyre::Error> {
     // Upload a blob.
     let chunks = vec![b"fearless".to_vec(), b"concurrency".to_vec()];
     let mut buf = MultiBuf { chunks, pos: 0 };
-    let blobid = client.put(&mut buf);
-    debug!("blobid = {}", blobid);
+    let blob_id = client.put(&mut buf);
+    debug!("blobid = {}", blob_id);
+
+    client.tag(blob_id, "test_blob_tag"); // TODO: Возвращать Result
+
+    let meta = client.metadata(blob_id); // TODO: Возвращать Option
+    debug!("Metadata: {:?}", meta);
 
     Ok(())
 }

@@ -2,6 +2,7 @@
 
 fn main() {
     // Создает cc::Build объект для дальнейшей настройки сборки
+    // Результат сборки будет находиться в директории target/cxxbridge/
     cxx_build::bridge("src/main.rs")
         .file("libs/cpp_test_lib/src/blobstore.cc")
         .flag_if_supported("-std=c++17")
