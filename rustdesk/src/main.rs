@@ -114,18 +114,23 @@ fn main() {
 #[cfg(feature = "cli")]
 fn main() {
     use clap::App;
-    let args = format!(
-        "-p, --port-forward=[PORT-FORWARD-OPTIONS] 'Format: remote-id:local-port:remote-port[:remote-host]'
-       -s, --server... 'Start server'",
-    );
+
+    // Описываем параметры для clap в виде текста
+    let args = "-p, --port-forward=[PORT-FORWARD-OPTIONS] 'Format: remote-id:local-port:remote-port[:remote-host]' "
+               "-s, --server... 'Start server'";
+
+    // Парсим переданные параметры в соответствии с форматом
     let matches = App::new("rustdesk")
         .version(crate::VERSION)
         .author("CarrieZ Studio<info@rustdesk.com>")
         .about("RustDesk command line tool")
         .args_from_usage(&args)
         .get_matches();
+
+    // Инициализация системы логирования
     use hbb_common::env_logger::*;
     init_from_env(Env::default().filter_or(DEFAULT_FILTER_ENV, "info"));
+
     if let Some(p) = matches.value_of("port-forward") {
         let options: Vec<String> = p.split(":").map(|x| x.to_owned()).collect();
         if options.len() < 3 {
