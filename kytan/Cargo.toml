@@ -1,0 +1,21 @@
+[package]
+name = "kytan"
+version = "0.1.1"
+authors = ["Chang Lan <me@changlan.org>"]
+edition = "2018"
+
+[dependencies]
+libc = "*"
+mio = { version = "0.7", features = ["os-util", "os-poll", "udp"] }
+serde = "*"
+serde_derive = "*"
+bincode = "*"
+log = "*"
+env_logger = "*"
+dns-lookup = "*"
+snap = "*"
+rand = "*"
+transient-hashmap = "*"
+ring = "*"
+clap = "2.33.0"
+
