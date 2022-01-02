@@ -314,14 +314,23 @@ impl Write for Tun {
 
     #[cfg(target_os = "macos")]
     fn write(&mut self, buf: &[u8]) -> io::Result<usize> {
+        // Нулевой байт в данных считаем версией IP
         let ip_v = buf[0] & 0xf;
+
+        // Данные начала пакета
+        // TODO: Почему отличаются пакеты??
         let mut data: Vec<u8> = if ip_v == 6 {
             vec![0, 0, 0, 10]
         } else {
             vec![0, 0, 0, 2]
         };
-        data.write_all(buf).unwrap();
+
+        // К буфферу данных добавляем еще наши данные
+        data.write_all(buf).expect("Buffer append failed");
+
+        // Записываем наши данные файлик сокета
         match self.handle.write(&data) {
+            // Если записали не все, тогда пвозвращаем размер минус 4 байта
             Ok(len) => Ok(if len > 4 { len - 4 } else { 0 }),
             Err(e) => Err(e),
         }

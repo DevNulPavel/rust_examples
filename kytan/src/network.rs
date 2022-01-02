@@ -38,7 +38,7 @@ const KEY_LEN: usize = 32;
 type Id = u8;
 type Token = u64;
 
-fn generate_add_nonce(secret: &str) -> (aead::Aad<[u8; 0]>, aead::Nonce) {
+fn generate_add_nonce() -> (aead::Aad<[u8; 0]>, aead::Nonce) {
     let nonce = aead::Nonce::assume_unique_for_key([0; 12]);
     let aad = aead::Aad::empty();
     (aad, nonce)
@@ -76,9 +76,15 @@ fn create_tun_attempt() -> device::Tun {
 }
 
 fn derive_keys(password: &str) -> aead::LessSafeKey {
+    // Буффер для ключа
     let mut key = [0; KEY_LEN];
+
+    // Соль для данных
     let salt = vec![0; 64];
+    // 1024 итерации
     let pbkdf2_iterations: NonZeroU32 = NonZeroU32::new(1024).unwrap();
+
+    // Формируем ключ шифрования на основе пароля
     pbkdf2::derive(
         pbkdf2::PBKDF2_HMAC_SHA256,
         pbkdf2_iterations,
@@ -86,6 +92,8 @@ fn derive_keys(password: &str) -> aead::LessSafeKey {
         password.as_bytes(),
         &mut key,
     );
+
+    // Оборачиваем данный сгенерированный ключ
     let less_safe_key =
         aead::LessSafeKey::new(aead::UnboundKey::new(&aead::AES_256_GCM, &key).unwrap());
     less_safe_key
@@ -101,7 +109,7 @@ fn initiate(
     let encoded_req_msg: Vec<u8> = serialize(&req_msg).map_err(|e| e.to_string())?;
     let mut encrypted_req_msg = encoded_req_msg.clone();
     encrypted_req_msg.resize(encoded_req_msg.len() + key.algorithm().tag_len(), 0);
-    let (aad, nonce) = generate_add_nonce(secret);
+    let (aad, nonce) = generate_add_nonce();
     key.seal_in_place_append_tag(nonce, aad, &mut encrypted_req_msg)
         .unwrap();
 
@@ -119,7 +127,7 @@ fn initiate(
     assert_eq!(&recv_addr, addr);
     info!("Response received from {}.", addr);
 
-    let (aad, nonce) = generate_add_nonce(secret);
+    let (aad, nonce) = generate_add_nonce();
     let decrypted_buf = key.open_in_place(nonce, aad, &mut buf[0..len]).unwrap();
 
     let dlen = decrypted_buf.len();
@@ -199,7 +207,7 @@ pub fn connect(host: &str, port: u16, default: bool, secret: &str) {
             match event.token() {
                 SOCK => {
                     let (len, addr) = sockfd.recv_from(&mut buf).unwrap();
-                    let (aad, nonce) = generate_add_nonce(secret);
+                    let (aad, nonce) = generate_add_nonce();
 
                     let decrypted_buf = key.open_in_place(nonce, aad, &mut buf[0..len]).unwrap();
                     let dlen = decrypted_buf.len();
@@ -246,7 +254,7 @@ pub fn connect(host: &str, port: u16, default: bool, secret: &str) {
                     let encoded_msg = serialize(&msg).unwrap();
                     let mut encrypted_msg = encoded_msg.clone();
                     encrypted_msg.resize(encoded_msg.len() + key.algorithm().tag_len(), 0);
-                    let (aad, nonce) = generate_add_nonce(secret);
+                    let (aad, nonce) = generate_add_nonce();
                     key.seal_in_place_append_tag(nonce, aad, &mut encrypted_msg)
                         .unwrap();
                     let mut sent_len = 0;
@@ -277,142 +285,218 @@ pub fn serve(port: u16, secret: &str, dns: IpAddr) {
     info!("Enabling kernel's IPv4 forwarding.");
     utils::enable_ipv4_forwarding().unwrap();
 
-    // Пытаемся создать туннель
+    // Пытаемся создать туннель и запустить его
     info!("Bringing up TUN device.");
     let mut tun = create_tun_attempt();
     tun.up(1);
 
+    // Получаем файловый дескриптор туннеля
     let tun_rawfd = tun.as_raw_fd();
+    // Оборачиваем наш туннель в mio источник событий
     let mut tunfd = mio::unix::SourceFd(&tun_rawfd);
     info!(
         "TUN device {} initialized. Internal IP: 10.10.10.1/24.",
         tun.name()
     );
 
+    // Создаем UDP сокет ожидающих подключений на порту туннеля
     let addr = format!("0.0.0.0:{}", port).parse().unwrap();
-    let mut sockfd = mio::net::UdpSocket::bind(addr).unwrap();
+    let mut sockfd = mio::net::UdpSocket::bind(addr).expect("UDP listen socket bind failed");
     info!("Listening on: 0.0.0.0:{}.", port);
 
+    // Создаем mio пулер
     let mut poll = mio::Poll::new().unwrap();
+    // Регистрируем UDP сокет на новые входящие подключения
     poll.registry()
         .register(&mut sockfd, SOCK, mio::Interest::READABLE)
-        .unwrap();
+        .expect("UDP socket read listen failed");
+    // Регистрируем сокет туннеля на события чтения
     poll.registry()
         .register(&mut tunfd, TUN, mio::Interest::READABLE)
-        .unwrap();
+        .expect("Tunnel socket read listen failed");
 
+    // Пулл для событий
     let mut events = mio::Events::with_capacity(1024);
 
     let mut rng = thread_rng();
+    // Список созможных ID от [2 до 253]
+    // 
     let mut available_ids: Vec<Id> = (2..254).collect();
+    // Хеш мапа клиентов со временем жизни в 60 секунд
     let mut client_info: TransientHashMap<Id, (Token, SocketAddr)> = TransientHashMap::new(60);
 
+    // Буффер для данных
     let mut buf = [0u8; 1600];
+
+    // Snap сжатие и расжатие
     let mut encoder = snap::raw::Encoder::new();
     let mut decoder = snap::raw::Decoder::new();
 
+    // Генерация ключа шифрования на основе переданного секрета
     let key = derive_keys(secret);
 
+    // Выставляем флаг активности цикла обработки событий
+    // Нужен для прекращения работы цикла выше
     LISTENING.store(true, Ordering::Relaxed);
     info!("Ready for transmission.");
 
     loop {
+        // Не была ли прервана работа?
         if INTERRUPTED.load(Ordering::Relaxed) {
             break;
         }
 
-        // Clear expired client info
+        // К списку достапных ID снова добавляем клиентов, у которых истекло время активности последней
         available_ids.append(&mut client_info.prune());
-        poll.poll(&mut events, None).unwrap();
+
+        // Полим возможные события в массив событий
+        poll.poll(&mut events, None).expect("Event loop poll failed");
+
+        // Обходим теперь прилетевшие нам события
         for event in events.iter() {
+            // Проверяем на каком именно сокете прилетели события
             match event.token() {
+                // Событие на нашем UDP сокете входящих соединений
                 SOCK => {
+                    // Читаем данные из сокета, получаем длину и адрес, от которого данные прилетели
                     let (len, addr) = sockfd.recv_from(&mut buf).unwrap();
-                    let (aad, nonce) = generate_add_nonce(secret);
+
+                    // Дешифруем данные из буффера
+                    // TODO: ???
+                    let (aad, nonce) = generate_add_nonce();
                     let decrypted_buf = key.open_in_place(nonce, aad, &mut buf[0..len]).unwrap();
+
+                    // Десереализуем наши бинарные данные в сообщение
                     let dlen = decrypted_buf.len();
                     let msg: Message = deserialize(&decrypted_buf[0..dlen]).unwrap();
+
+                    // Смотрим что за сообщение прилетело
                     match msg {
+                        // Запрос на новое подключение?
                         Message::Request => {
-                            let client_id: Id = available_ids.pop().unwrap();
+                            // Берем доступный ID
+                            let client_id: Id = match available_ids.pop(){
+                                Some(id) => id,
+                                None => {
+                                    warn!("All available IDs from 10.10.10.0/24 pool are complete, can't connect new client from {}", addr);
+                                    continue;
+                                }
+                            };
+                            // Генерируем токен подключения для данного клиента
                             let client_token: Token = rng.gen::<Token>();
 
+                            // Сохраняем данного клиента (его токен и адрес) под указанным ID
                             client_info.insert(client_id, (client_token, addr));
 
+                            // Выводим инфу о подключении
                             info!(
                                 "Got request from {}. Assigning IP address: 10.10.10.{}.",
                                 addr, client_id
                             );
 
+                            // Формируем ответ к серверу, указываем его id, токен и используемый DNS сервер
                             let reply = Message::Response {
                                 id: client_id,
                                 token: client_token,
                                 dns: dns.to_string(),
                             };
-                            let encoded_reply = serialize(&reply).unwrap();
-                            let mut encrypted_reply = encoded_reply.clone();
+                            
+                            // Кодируем в бинарный вид
+                            let mut encrypted_reply = serialize(&reply).unwrap();
+
+                            // Добавляем в конец еще места для описания алгоритма шифрования
                             encrypted_reply
-                                .resize(encoded_reply.len() + key.algorithm().tag_len(), 0);
-                            let (aad, nonce) = generate_add_nonce(secret);
+                                .resize(encrypted_reply.len() + key.algorithm().tag_len(), 0);
+
+                            // Шифруем наши данные, добавляя в конец алгоритм шифрования
+                            let (aad, nonce) = generate_add_nonce();
                             key.seal_in_place_append_tag(nonce, aad, &mut encrypted_reply)
                                 .unwrap();
+
+                            // Запускаем цикл отправки данных
                             let mut sent_len = 0;
                             while sent_len < encrypted_reply.len() {
-                                sent_len += sockfd
-                                    .send_to(
-                                        &encrypted_reply[sent_len..encrypted_reply.len()],
-                                        addr,
-                                    )
-                                    .unwrap();
+                                let data = &encrypted_reply.get(sent_len..encrypted_reply.len()).unwrap();
+                                sent_len += sockfd.send_to(data, addr).unwrap();
                             }
                         }
+
+                        // Такого сообщения не может быть
                         Message::Response {
                             id: _,
                             token: _,
                             dns: _,
                         } => warn!("Invalid message {:?} from {}", msg, addr),
-                        Message::Data { id, token, data } => match client_info.get(&id) {
-                            None => warn!("Unknown data with token {} from id {}.", token, id),
-                            Some(&(t, _)) => {
-                                if t != token {
-                                    warn!(
-                                        "Unknown data with mismatched token {} from id {}. \
-                                               Expected: {}",
-                                        token, id, t
-                                    );
-                                } else {
-                                    let decompressed_data = decoder.decompress_vec(&data).unwrap();
-                                    let data_len = decompressed_data.len();
-                                    let mut sent_len = 0;
-                                    while sent_len < data_len {
-                                        sent_len += tun
-                                            .write(&decompressed_data[sent_len..data_len])
-                                            .unwrap();
+
+                        // Прилетели какие-то данные от существующего клиента
+                        Message::Data { id, token, data } => {
+                            // Получаем для указанного id клиента непосредственно самого клиента
+                            match client_info.get(&id) {
+                                // Нет такого клиента
+                                None => {
+                                    warn!("Unknown data with token {} from id {}.", token, id)
+                                },
+                                // Клиента нашли
+                                Some(&(t, _)) => {
+                                    // Может быть токен не совпадает?
+                                    if t != token {
+                                        warn!(
+                                            "Unknown data with mismatched token {} from id {}. \
+                                                Expected: {}",
+                                            token, id, t
+                                        );
+                                    } else {
+                                        // Разжимаем данные
+                                        let decompressed_data = decoder.decompress_vec(&data).unwrap();
+                                        let data_len = decompressed_data.len();
+
+                                        // Записываем эти данные в хендлер туннеля
+                                        let mut sent_len = 0;
+                                        while sent_len < data_len {
+                                            sent_len += tun
+                                                .write(&decompressed_data[sent_len..data_len])
+                                                .unwrap();
+                                        }
                                     }
                                 }
                             }
                         },
                     }
                 }
+
+                // Прилетели данные в туннель
                 TUN => {
+                    // Вычитываем данные из туннеля
                     let len: usize = tun.read(&mut buf).unwrap();
                     let data = &buf[0..len];
+
+                    // Берем id целевого клиента без парсинга, просто как 19й байт
                     let client_id: u8 = data[19];
 
+                    // Ищем нужного нам клиента
                     match client_info.get(&client_id) {
+                        // Такого клиента нету у нас
                         None => warn!("Unknown IP packet from TUN for client {}.", client_id),
+                        
+                        // Нашли нужного нам клиента
                         Some(&(token, addr)) => {
+                            // Данные для отправки
                             let msg = Message::Data {
                                 id: client_id,
                                 token: token,
-                                data: encoder.compress_vec(data).unwrap(),
+                                data: encoder.compress_vec(data).unwrap(), // Заново сжимаем данные для отправки
                             };
-                            let encoded_msg = serialize(&msg).unwrap();
-                            let mut encrypted_msg = encoded_msg.clone();
-                            encrypted_msg.resize(encoded_msg.len() + key.algorithm().tag_len(), 0);
-                            let (aad, nonce) = generate_add_nonce(secret);
+
+                            // Сериализуем данные
+                            let mut encrypted_msg = serialize(&msg).unwrap();
+                            encrypted_msg.resize(encrypted_msg.len() + key.algorithm().tag_len(), 0);
+
+                            // Шифруем наши данные для ключа
+                            let (aad, nonce) = generate_add_nonce();
                             key.seal_in_place_append_tag(nonce, aad, &mut encrypted_msg)
                                 .unwrap();
+
+                            // Пишем данные теперь уже в обычный сокет
                             let mut sent_len = 0;
                             while sent_len < encrypted_msg.len() {
                                 sent_len += sockfd
