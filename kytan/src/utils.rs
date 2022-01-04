@@ -47,6 +47,7 @@ pub enum RouteType {
     Host,
 }
 
+// Структурка, которая сохраняет прошлые значения стандартного шлюза
 pub struct DefaultGateway {
     origin: String,
     remote: String,
@@ -55,10 +56,17 @@ pub struct DefaultGateway {
 
 impl DefaultGateway {
     pub fn create(gateway: &str, remote: &str, default: bool) -> DefaultGateway {
+        // Получаем текущее значение стандартного шлюза
         let origin = get_default_gateway().unwrap();
         info!("Original default gateway: {}.", origin);
+
+        // Прописываем новое значение в качестве шлюза и маршрут для определенного адреса
+        // через этот самый шлюз
         add_route(RouteType::Host, remote, &origin).unwrap();
+
+        // Если мы указали в качестве параметра сделать VPN стандартным шлюзом
         if default {
+            // Удаляем стандартный шлюз и прописываем наш в качестве стандартного
             delete_default_gateway().unwrap();
             set_default_gateway(gateway).unwrap();
         }
@@ -112,12 +120,16 @@ pub fn delete_route(route_type: RouteType, route: &str) -> Result<(), String> {
     }
 }
 
+/// Добавляем определенный маршрут и основной шлюз
 pub fn add_route(route_type: RouteType, route: &str, gateway: &str) -> Result<(), String> {
+    // Тип маршрута
     let mode = match route_type {
         RouteType::Net => "-net",
         RouteType::Host => "-host",
     };
     info!("Adding route: {} {} gateway {}.", mode, route, gateway);
+
+    // Добавляем маршрут к определенному IP адресу через определенный шлюз
     let status = if cfg!(target_os = "linux") {
         Command::new("route")
             .arg("-n")
@@ -155,7 +167,9 @@ pub fn delete_default_gateway() -> Result<(), String> {
     delete_route(RouteType::Net, "default")
 }
 
+/// Получаем текущее значение шлюза из системы
 pub fn get_default_gateway() -> Result<String, String> {
+    // Определяем что нам надо делать для определения шлюза
     let cmd = if cfg!(target_os = "linux") {
         "ip -4 route list 0/0 | awk '{print $3}'"
     } else if cfg!(target_os = "macos") {
@@ -163,11 +177,13 @@ pub fn get_default_gateway() -> Result<String, String> {
     } else {
         unimplemented!()
     };
+    // Получаем данные в виде строки
     let output = Command::new("bash").arg("-c").arg(cmd).output().unwrap();
     if output.status.success() {
+        // Обрезаем на всякий пожарный
         Ok(String::from_utf8(output.stdout)
             .unwrap()
-            .trim_right()
+            .trim_end()
             .to_string())
     } else {
         Err(String::from_utf8(output.stderr).unwrap())
