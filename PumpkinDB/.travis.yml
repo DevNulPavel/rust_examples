@@ -1,0 +1,11 @@
+language: rust
+rust:
+  - stable
+  - nightly-2017-06-20
+matrix:
+  allow_failures:
+    - rust: stable
+script:
+  - cargo build --all --verbose
+  - cargo build --all --features="experimental" --verbose
+  - make test

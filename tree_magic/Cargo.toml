@@ -1,0 +1,49 @@
+[package]
+name = "tree_magic"
+version = "0.3.0"
+authors = ["Allison Hancock <aahancoc@umich.edu>"]
+description = "Determines the MIME type of a file by traversing a filetype tree."
+repository = "https://github.com/aahancoc/tree_magic/"
+documentation = "https://docs.rs/tree_magic/"
+readme = "README.md"
+keywords = ["mime", "filesystem", "media-types"]
+license = "MIT"
+exclude = ["tests/*", "benches/*"]
+edition = "2018"
+publish = false
+
+[dependencies]
+petgraph = "^0.5"
+nom = "^3"
+lazy_static = "^1.4"
+fnv = "^1"
+mime = "^0.3"
+
+tabwriter = { version = "^1", optional = true }
+clap = { version = "^2", optional = true }
+scoped_threadpool = { version = "^0.1", optional = true }
+walkdir = { version = "^2", optional = true }
+num_cpus = { version = "^1", optional = true }
+
+[dev-dependencies]
+bencher = "^0.1"
+
+[features]
+cli = ["clap", "tabwriter", "scoped_threadpool", "walkdir", "num_cpus"]
+default = []
+
+[lib]
+crate-type = ["lib"]
+path = "src/lib.rs"
+
+[[bin]]
+required-features = ["cli"]
+name = "tmagic"
+path = "src/main.rs"
+
+[[bench]]
+name = "from_u8"
+harness = false
+[[bench]]
+name = "match_u8"
+harness = false

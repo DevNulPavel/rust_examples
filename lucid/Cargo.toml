@@ -1,0 +1,57 @@
+[package]
+name = "lucid"
+description = "High performance and distributed KV store w/ REST API."
+version = "0.1.4"
+authors = ["Clint.Network <me@clint.network>", "Jonathan Serra <jonathan@blocs.fr>", "CephalonRho <CephalonRho@gmail.com>", "rigwild <me@rigwild.dev>"]
+edition = "2018"
+keywords = ["kv", "distributed", "ledger", "kv-store", "kv store", "key-value", "key-value store", "rest", "http", "swagger", "server-sent-event", "web-ui", "encryption", "persistence", "serpent", "redis", "redis-like", "compression"]
+repository = "https://github.com/lucid-kv/lucid"
+readme = "https://github.com/lucid-kv/lucid/blob/master/README.md"
+license = "https://github.com/lucid-kv/lucid/blob/master/LICENSE.md"
+documentation = "https://docs.lucid-kv.store/"
+categories = ["command-line-interface", "web-programming::http-server", "web-programming::websocket", "authentication", "command-line-utilities", ]
+build = "src/build.rs"
+
+[package.metadata.winres]
+OriginalFilename = "lucid.exe"
+ProductName = "Lucid KV"
+FileDescription = "High performance and distributed KV store w/ REST API."
+LegalCopyright = "Copyright © 2020 Lucid KV - All Rights Reserved"
+
+[badges]
+github = { repository = "lucid-kv/lucid", branch = "master" }
+
+[build-dependencies]
+winres = "0.1.11"
+
+[dependencies]
+serde = "1.0.104"
+serde_json = "1.0.44"
+serde_derive = "1.0.104"
+serde_yaml = "0.8.11"
+chrono = "0.4.10"
+jsonwebtoken = "7.0.0-alpha.2"
+app_dirs = "1.2.1"
+ring = "0.16.9"
+rand = "0.7.3"
+chashmap = "2.2.2"
+tree_magic = "0.2.1"
+snafu = "0.6.2"
+bytes = "0.5.3"
+hex = "0.3.1"
+futures = "0.3.4"
+fern = { version = "0.5.9", features = ["colored", "syslog-4"] }
+clap = { version = "2.33.0", features = ["yaml"] }
+warp = { version = "0.2.3", features = ["tls"] }
+log = { version = "0.4.8", features = ["serde"] }
+tokio = { version = "0.2.9", features = ["full", "sync"] }
+serpent = "0.0.1"
+block-modes = "0.3.3"
+hyper = "0.13.4"
+
+[dev-dependencies]
+criterion = "0.3"
+
+[[bench]]
+name = "kvstore_bench"
+harness = false

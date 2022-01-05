@@ -1,0 +1,32 @@
+[package]
+authors = ["Sebastian Waisbrot <seppo0010@gmail.com>"]
+name = "database"
+version = "0.1.0"
+
+[dependencies]
+crc64 = "0.2"
+rand = "0.3"
+rehashinghashmap = "0.1"
+skiplist = "0.3"
+basichll = "0.3"
+
+[dependencies.config]
+path = "../config"
+
+[dependencies.logger]
+path = "../logger"
+
+[dependencies.parser]
+path = "../parser"
+
+[dependencies.persistence]
+path = "../persistence"
+
+[dependencies.rdbutil]
+path = "./rdbutil"
+
+[dependencies.response]
+path = "../response"
+
+[dependencies.util]
+path = "../util"

@@ -1,0 +1,19 @@
+[workspace]
+members = ["crates/proto",
+           "crates/resolver",
+           "crates/client", 
+           "crates/server",
+           "crates/async-std-resolver",
+           "bin",
+           "util",
+           "tests/compatibility-tests",
+           "tests/integration-tests",
+           "crates/https",
+           "crates/native-tls",
+           "crates/openssl",
+           "crates/rustls"]
+
+[patch.crates-io]
+# tokio = { path = "../tokio/tokio" }
+# mio = { git = "https://github.com/tokio-rs/mio.git" }
+# h2 = { git = "https://github.com/hyperium/h2.git" }

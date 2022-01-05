@@ -1,0 +1,14 @@
+[package]
+name = "config"
+version = "0.1.0"
+authors = ["Sebastian Waisbrot <seppo0010@gmail.com>"]
+
+[dependencies.logger]
+path = "../logger"
+
+[dependencies.util]
+path = "../util"
+
+[dependencies]
+time = "0.1"
+rand = "0.3"

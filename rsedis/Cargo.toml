@@ -1,0 +1,43 @@
+[package]
+name = "rsedis"
+version = "0.0.1"
+authors = [ "Sebastian Waisbrot <seppo0010@gmail.com>" ]
+exclude = [
+    ".gitignore",
+    ".travis.yml",
+    "appveyor.yml",
+]
+build = "build.rs"
+edition = "2018"
+
+[[bin]]
+
+name = "rsedis"
+doc = false
+
+[dependencies.config]
+path = "config"
+
+[dependencies.util]
+path = "util"
+
+[dependencies.parser]
+path = "parser"
+
+[dependencies.response]
+path = "response"
+
+[dependencies.database]
+path = "database"
+
+[dependencies.command]
+path = "command"
+
+[dependencies.networking]
+path = "networking"
+
+[dependencies.logger]
+path = "logger"
+
+[dependencies.compat]
+path = "compat"
