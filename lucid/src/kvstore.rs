@@ -29,8 +29,10 @@ pub struct Cipher {
 }
 
 impl KvStore {
+    /// Создаем новое хранилище
     pub fn new(cipher: Option<[&str; 2]>) -> KvStore {
         // TODO: prepare looped persistence
+        // Создаем контейнер
         let mut kv = KvStore {
             container: CHashMap::new(),
             cipher: None,
@@ -86,7 +88,9 @@ impl KvStore {
             Some(value) => {
                 let mut cloned_value = value.clone();
 
+                // Есть ли у нас шифрование?
                 if let Some(c) = &self.cipher {
+                    // Декодируем зашифрованные данные
                     let cipher = SerpentCbc::new_var(&c.priv_key, &c.iv).unwrap();
                     cloned_value.data = cipher.decrypt_vec(&value.data).unwrap();
                 }

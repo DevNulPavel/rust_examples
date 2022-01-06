@@ -62,6 +62,7 @@ async fn main() -> Result<(), Error> {
         CREDITS
     );
 
+    // Подгружаем yaml на этапе компиляции для описания параметров
     let cli_yaml = load_yaml!("cli.yml");
     let app = App::from_yaml(&cli_yaml)
         .version(crate_version!())
@@ -89,6 +90,7 @@ async fn main() -> Result<(), Error> {
         Err(e) => return Err(Error::ParseCli { source: e }),
     };
 
+    // Получаем путь к файлику конфига
     let config_path = {
         if let Some(config) = matches.value_of("config") {
             Path::new(config).to_path_buf()
@@ -96,6 +98,8 @@ async fn main() -> Result<(), Error> {
             Configuration::get_path().context(GetConfigDir)?
         }
     };
+
+    // Парсим файлик конфига, либо стандартный конфиг если нет файлика
     let config = if config_path.exists() {
         serde_yaml::from_reader(File::open(&config_path).context(OpenConfigFile)?)
             .context(ReadConfigFile)?
@@ -103,16 +107,19 @@ async fn main() -> Result<(), Error> {
         Configuration::default()
     };
 
+    // Если у нас не отключен показ стартового баннера, тогда
     if !matches.is_present("no-banner") && config.general.show_banner {
         println!("{}", BANNER);
     }
 
+    // Конфиг цветного вывода логов
     let logging_colors = ColoredLevelConfig::new()
         .debug(Color::BrightMagenta)
         .info(Color::BrightCyan)
         .warn(Color::BrightYellow)
         .error(Color::BrightRed);
 
+    // Настраиваем цепочку вывода логов в разные таргеты
     let mut dispatch = Dispatch::new();
     for output in &config.logging.outputs {
         dispatch = match output {
@@ -157,11 +164,18 @@ async fn start(
         if config_path.exists() && !init_matches.is_present("force") {
             return Err(Error::AlreadyInitialized);
         } else {
+            // Стандартная конфигурация
             let mut config = Configuration::default();
+            // Генерируем секретный ключ для работы
             let secret_key = generate_secret_key();
+            // Создаем JWT токен на основе секретного ключа, подписывая токен секретным ключем
+            // Время жизни делаем бесконечным, но по факту - 3 года для клиентов
             config.authentication.root_token = issue_jwt(&secret_key, None)?;
+            // Сохраняем ключ секретный на потом
             config.authentication.secret_key = secret_key;
+            // Создаем директорию по пути конфига
             fs::create_dir_all(config_path.parent().unwrap()).context(CreateConfigDir)?;
+            // Пишем файлик конфига туда, сохраняя наши секретные данные
             serde_yaml::to_writer(
                 File::create(&config_path).context(CreateConfigFile)?,
                 &config,
@@ -173,6 +187,7 @@ async fn start(
             );
         }
     }
+    // Нужен ли нам сервер?
     if let Some(_) = matches.subcommand_matches("server") {
         if config_path.exists() {
             Lucid::new(config).run().await.context(RunServer)?;
@@ -195,28 +210,42 @@ async fn start(
 }
 
 fn generate_secret_key() -> String {
+    // Рандомный хеш SHA256 от рандомных данных
     let secret_key_bytes = digest::digest(&digest::SHA256, &rand::thread_rng().gen::<[u8; 32]>());
     secret_key_bytes.as_ref().iter().fold(
+        // Создаем строку в двое большего размера
         String::with_capacity(secret_key_bytes.as_ref().len() * 2),
+
         |mut acc, x| {
+            // Записываем шестнадцетиричные символы дополняемые нулями в начале
             acc.push_str(&format!("{:0>2x}", x));
             acc
         },
     )
 }
 
+/// Создаем JWT токен с секретным ключем
 fn issue_jwt(secret_key: &str, expiration: Option<DateTime<Utc>>) -> Result<String, Error> {
+    // Создаем токен с данными
     jsonwebtoken::encode(
+        // Хедер делаем стандартный со стандартным алгоритмом шифрования
         &Header::default(),
+        // Данные
         &Claims {
+            // Кто выпустил токен?
             sub: String::from("Lucid Root Token"),
+            // Адрес
             iss: String::from("http://localhost:7021/"), // TODO: check issuer, maybe set the proper uri
+            // Время выпуска токена
             iat: Utc::now().timestamp(),
+            // Время жизни токена в зависимости от параметра
             exp: match expiration {
                 Some(exp) => exp.timestamp(),
+                // Либо на 3 года
                 None => (Utc::now() + Duration::weeks(52 * 3)).timestamp(),
             },
         },
+        // Подписываем токен секретным ключем
         secret_key.as_ref(),
     )
     .context(EncodeJwt)

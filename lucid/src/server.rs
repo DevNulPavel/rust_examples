@@ -39,8 +39,10 @@ impl Server {
     }
 
     pub async fn run(&self) {
+        // Получаем конфиг на чтение
         let configuration = self.configuration.read().unwrap();
 
+        // Включено ли шифрование?
         let mut encryption_key = None;
         if configuration.encryption.enabled {
             if configuration.encryption.private_key.is_empty() {
@@ -54,9 +56,12 @@ impl Server {
                 ]);
             }
         }
+        // Создаем хранилище шифрованное?
         let store = Arc::new(KvStore::new(encryption_key));
+        // Создаем канал отправки всем
         let event_tx = Arc::new(broadcast::channel(512).0); // TODO: Specify in configuration (maybe?)
 
+        // Создаем warp сервер
         let instance = warp::serve(routes_filter(store, event_tx, self.configuration.clone()));
         if configuration.general.use_ssl {
             let bind_endpoint = SocketAddr::from((
@@ -109,44 +114,54 @@ impl Server {
     }
 }
 
+/// Настройка маршрутов для warp
 pub fn routes_filter(
     store: Arc<KvStore>,
     event_tx: Arc<broadcast::Sender<SseMessage>>,
     config: Arc<RwLock<Configuration>>,
 ) -> impl Filter<Extract = (impl Reply,)> + Clone + Send + Sync + 'static {
+    // Конфиг
     let configuration = config.read().unwrap();
 
+    // Создаем обертки над нашими переданными контейнерами
     let store = warp::any().map(move || store.clone());
     let event_tx = warp::any().map(move || event_tx.clone());
-
-    let config = config.clone();
     let config = warp::any().map(move || config.clone());
 
+    // Заголовок аутентификации в виде фильтра
+    // По большому счету - это middleware
     let auth = warp::header::optional::<String>("authorization")
         .and(config.clone())
         .and_then(verify_auth)
         .untuple_one();
 
+    // Миддлевара проверки доступности пользовательского интерфейса
     let webui_enabled = config.clone().and_then(check_webui).untuple_one();
 
+    // Middleware проверки, включены ли server sent events
     let sse_enabled = config.clone().and_then(check_sse).untuple_one();
 
+    // Парсер заголовка content-type
     let mime = warp::header::optional::<String>("content-type");
 
+    // Путь, описывающий api/kv/{path}/
     let api_kv_key_path = path!("api" / "kv" / String)
         .and(path::end());
 
+    // Все API начинаем с проверки токена
     let api_kv_key = auth.clone().and(
+        // GET запрос сначала
         warp::get()
             .and(store.clone())
             .and(api_kv_key_path)
             .and_then(get_key)
+            // PUT запрос
             .or(warp::put()
                 .and(store.clone())
                 .and(event_tx.clone())
                 .and(config.clone())
                 .and(api_kv_key_path)
-                .and(filters::body::content_length_limit(
+                .and(filters::body::content_length_limit( // Ограничиваем размер данных
                     configuration.http.request_size_limit,
                 ))
                 .and(filters::body::content_length_limit(
@@ -155,14 +170,17 @@ pub fn routes_filter(
                 .and(warp::body::bytes())
                 .and(mime.clone())
                 .and_then(put_key))
+            // DELETE
             .or(warp::delete()
                 .and(store.clone())
                 .and(api_kv_key_path)
                 .and_then(delete_key))
+            // HEAD для поиска
             .or(warp::head()
                 .and(store.clone())
                 .and(api_kv_key_path)
                 .and_then(find_key))
+            // PATCH
             .or(warp::patch()
                 .and(store.clone())
                 .and(api_kv_key_path)
@@ -175,16 +193,19 @@ pub fn routes_filter(
 
     const WELCOME_PAGE: &'static str = include_str!("../assets/welcome.html");
 
-    let webui = fs::file("assets/webui/dist/index.html")
-        .or(fs::dir("assets/webui/dist"))
-        .and(webui_enabled)
-        .or(warp::get().map(move || warp::reply::html(WELCOME_PAGE)))
+    // Обработчик интерфейса начинаем с файлика
+    let webui = fs::file("assets/webui/dist/index.html") // Отдаем файлик
+        .or(fs::dir("assets/webui/dist")) // Или директорию по этому пути
+        .and(webui_enabled) // Миддлеваре проверки интерфейса
+        .or(warp::get().map(move || warp::reply::html(WELCOME_PAGE))) // Отдаем стартовую страничку
         .and(warp::path::end());
 
+    // Файлик для индексации гуглом?
     let robots = warp::path("robots.txt")
         .and(path::end())
         .and(warp::get().map(|| "User-agent: *\nDisallow: /api"));
 
+    // Разрешаем только данные методы, но со всех origin
     let cors = warp::cors()
         .allow_methods(vec!["HEAD", "GET", "PUT", "POST", "PATCH", "DELETE"])
         .allow_any_origin();
@@ -192,6 +213,7 @@ pub fn routes_filter(
     let health = path!("health")
         .map(|| StatusCode::OK);
 
+    // Подписка на оповещения о событиях
     let sse = warp::path("notifications")
         .and(warp::get())
         .and(event_tx)
@@ -202,6 +224,7 @@ pub fn routes_filter(
             warp::sse::reply(warp::sse::keep_alive().stream(stream))
         });
 
+    // Суммарный фильтр
     api_kv_key
         .or(webui)
         .or(sse)
@@ -224,24 +247,32 @@ async fn put_key(
     body: Bytes,
     mime: Option<String>,
 ) -> Result<impl Reply, Rejection> {
+    // Есть ли тело?
     if body.remaining() == 0 {
         Err(reject::custom(Error::MissingBody))
-    } else if body.bytes().len() as u64 > config.read().unwrap().store.max_limit {
+    } 
+    // Может быть превышен размер тела макимальный?
+    else if body.bytes().len() as u64 > config.read().unwrap().store.max_limit {
         Err(reject::custom(Error::ValueSizeLimit {
             max_limit: config.read().unwrap().store.max_limit,
         }))
     } else {
+        // Пишем в хранилище
         match store.set(key.clone(), body.to_vec(), mime) {
             Some(kv_element) => {
+                // Данный элемент заблокирован от изменения
                 if kv_element.locked {
+                    // Отвечаем JSON ошибкой и статусом FORBIDDEN
                     Ok(warp::reply::with_status(warp::reply::json(&JsonMessage {
                         message: "The specified key cannot be updated, it is currently locked.".to_string(),
                     }), StatusCode::FORBIDDEN))
                 } else {
+                    // Разрешены ли у нас server sent events?
                     if config.read().unwrap().sse.enabled {
                         // TODO: Send an SSE fallaback message for binary data
                         match String::from_utf8((&body).bytes().to_vec()) {
                             Ok(byte_to_string) => {
+                                // Отправляем в канал событие новых данных в базе
                                 event_tx
                                     .send(SseMessage {
                                         key: key.clone(),
@@ -255,11 +286,13 @@ async fn put_key(
                             Err(error) => warn!("Unable to broadcast binary data, {}", error),
                         }
                     }
+                    // Выдаем статус OK при обновлении
                     Ok(warp::reply::with_status(warp::reply::json(&JsonMessage {
                         message: "The specified key was successfully updated.".to_string(),
                     }), StatusCode::OK))
                 }
             }
+            // Выдаем статус CREATED если было создано новое поле
             None => Ok(warp::reply::with_status(warp::reply::json(&JsonMessage {
                 message: "The specified key was successfully created.".to_string(),
             }), StatusCode::CREATED))
@@ -267,6 +300,7 @@ async fn put_key(
     }
 }
 
+// Получаем из хранилища значение по ключу
 async fn get_key(store: Arc<KvStore>, key: String) -> Result<impl Reply, Rejection> {
     match store.get(key) {
         Some(value) => Ok(Response::builder()
@@ -386,18 +420,25 @@ async fn patch_key(
     }
 }
 
+// Миддлевара для проверки аутентификации на запросе
 async fn verify_auth(
+    // Заголовок есть или нет?
     auth_header: Option<String>,
     config: Arc<RwLock<Configuration>>,
 ) -> Result<(), Rejection> {
     let config = config.read().unwrap();
+    // Если аутентификация включена - все ок
     if config.authentication.enabled {
+        // Заголовок тоже есть?
         if let Some(auth_header) = auth_header {
+            // Декодируем данные, которые прилетели в виде токена,
+            // затем валидируем эти данные
             if let Ok(_bearer) = jsonwebtoken::decode::<Claims>(
                 auth_header.trim_start_matches("Bearer "),
                 config.authentication.secret_key.as_ref(),
                 &Validation::default(),
             ) {
+                // Если все нормально, тогда идем дальше
                 Ok(())
             } else {
                 Err(reject::custom(Error::InvalidJwtToken))
