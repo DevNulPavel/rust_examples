@@ -1,0 +1,15 @@
+[package]
+name = "test79_pnet"
+version = "0.1.0"
+authors = ["Pavel Ershov <devnulpavel@gmail.com>"]
+edition = "2021"
+
+# See more keys and their definitions at https://doc.rust-lang.org/cargo/reference/manifest.html
+
+[dependencies]
+log = "0.4"
+pretty_env_logger = "0.4"
+eyre = "0.6"
+color-eyre = "0.5"
+pnet = "0.28"
+# pktparse = "0.7"

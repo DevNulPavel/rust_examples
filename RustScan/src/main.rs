@@ -5,22 +5,17 @@
 extern crate shell_words;
 
 mod tui;
-
 mod input;
-use input::{Config, Opts, PortRange, ScanOrder, ScriptsRequired};
-
 mod scanner;
-use scanner::Scanner;
-
 mod port_strategy;
-use port_strategy::PortStrategy;
-
 mod benchmark;
-use benchmark::{Benchmark, NamedTimer};
-
 mod scripts;
-use scripts::{init_scripts, Script, ScriptFile};
 
+use input::{Config, Opts, PortRange, ScanOrder, ScriptsRequired};
+use scanner::Scanner;
+use port_strategy::PortStrategy;
+use benchmark::{Benchmark, NamedTimer};
+use scripts::{init_scripts, Script, ScriptFile};
 use cidr_utils::cidr::IpCidr;
 use colorful::{Color, Colorful};
 use futures::executor::block_on;
@@ -58,7 +53,9 @@ fn main() {
     let mut benchmarks = Benchmark::init();
     let mut rustscan_bench = NamedTimer::start("RustScan");
 
+    // Парсим параметры приложения
     let mut opts: Opts = Opts::read();
+    // Парсим конфиг
     let config = Config::read();
     opts.merge(&config);
 
@@ -82,6 +79,7 @@ fn main() {
         print_opening(&opts);
     }
 
+    // Парсим переданные текстовые адреса в IP адреса
     let ips: Vec<IpAddr> = parse_addresses(&opts);
 
     if ips.is_empty() {
@@ -93,6 +91,7 @@ fn main() {
         std::process::exit(1);
     }
 
+    // Увеличиваем лимит подключений?
     let ulimit: RawRlim = adjust_ulimit_size(&opts);
     let batch_size: u16 = infer_batch_size(&opts, ulimit);
 
@@ -236,12 +235,17 @@ The Modern Day Port Scanner."#;
 /// Goes through all possible IP inputs (files or via argparsing)
 /// Parses the string(s) into IPs
 fn parse_addresses(input: &Opts) -> Vec<IpAddr> {
+    // Список адресов, которые зарезолвили и которые не смогли
     let mut ips: Vec<IpAddr> = Vec::new();
     let mut unresolved_addresses: Vec<&str> = Vec::new();
+
+    // Резервный резолвер с помощью cloudflare резолвера
     let backup_resolver =
         Resolver::new(ResolverConfig::cloudflare_tls(), ResolverOpts::default()).unwrap();
 
+    // Обнодим все входящие адреса
     for address in &input.addresses {
+        // Парсим адреса с помощью резолвера
         let parsed_ips = parse_address(address, &backup_resolver);
         if !parsed_ips.is_empty() {
             ips.extend(parsed_ips);
@@ -250,10 +254,11 @@ fn parse_addresses(input: &Opts) -> Vec<IpAddr> {
         }
     }
 
-    // If we got to this point this can only be a file path or the wrong input.
+    // Если мы дошли до данной точки, это значит, что у нас путь к файлику или неправильный путь просто
     for file_path in unresolved_addresses {
         let file_path = Path::new(file_path);
 
+        // Это не файлик?
         if !file_path.is_file() {
             warning!(
                 format!("Host {:?} could not be resolved.", file_path),
@@ -264,6 +269,7 @@ fn parse_addresses(input: &Opts) -> Vec<IpAddr> {
             continue;
         }
 
+        // Читаем IP из файлика
         if let Ok(x) = read_ips_from_file(file_path, &backup_resolver) {
             ips.extend(x);
         } else {
@@ -281,6 +287,8 @@ fn parse_addresses(input: &Opts) -> Vec<IpAddr> {
 /// Given a string, parse it as an host, IP address, or CIDR.
 /// This allows us to pass files as hosts or cidr or IPs easily
 /// Call this everytime you have a possible IP_or_host
+/// 
+/// Парсим переданную строку в хост из IP адреса
 fn parse_address(address: &str, resolver: &Resolver) -> Vec<IpAddr> {
     IpCidr::from_str(&address)
         .map(|cidr| cidr.iter().collect())
@@ -294,7 +302,7 @@ fn parse_address(address: &str, resolver: &Resolver) -> Vec<IpAddr> {
         .unwrap_or_else(|| resolve_ips_from_host(address, resolver))
 }
 
-/// Uses DNS to get the IPS assiocated with host
+/// Используем DNS для резолва строкового адреса в IP
 fn resolve_ips_from_host(source: &str, backup_resolver: &Resolver) -> Vec<IpAddr> {
     let mut ips: Vec<std::net::IpAddr> = Vec::new();
 
@@ -335,6 +343,7 @@ fn adjust_ulimit_size(opts: &Opts) -> RawRlim {
     if opts.ulimit.is_some() {
         let limit: Rlim = Rlim::from_raw(opts.ulimit.unwrap());
 
+        // Увеличиваем максимальное количество файловых дескрипторов до нового значения
         if setrlimit(Resource::NOFILE, limit, limit).is_ok() {
             detail!(
                 format!("Automatically increasing ulimit value to {}.", limit),
@@ -350,6 +359,7 @@ fn adjust_ulimit_size(opts: &Opts) -> RawRlim {
         }
     }
 
+    // Получаем новое выставленное значения
     let (rlim, _) = getrlimit(Resource::NOFILE).unwrap();
 
     rlim.as_raw()

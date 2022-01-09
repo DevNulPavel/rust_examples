@@ -64,6 +64,7 @@ ports_separator = ","
 call_format = "nmap -vvv -p {{port}} {{ip}}"
 "#;
 
+/// Инициализируем список скриптов
 #[cfg(not(tarpaulin_include))]
 pub fn init_scripts(scripts: ScriptsRequired) -> Result<Vec<ScriptFile>> {
     let mut scripts_to_run: Vec<ScriptFile> = Vec::new();

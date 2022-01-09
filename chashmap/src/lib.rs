@@ -53,46 +53,46 @@ use std::hash::{BuildHasher, Hash, Hasher};
 use std::sync::atomic::{self, AtomicUsize};
 use std::{cmp, fmt, iter, mem, ops};
 
-/// The atomic ordering used throughout the code.
+/// Порядок сброса кешей атомарных значений
 const ORDERING: atomic::Ordering = atomic::Ordering::Relaxed;
-/// The length-to-capacity factor.
+/// Множитель емкости
 const LENGTH_MULTIPLIER: usize = 4;
-/// The maximal load factor's numerator.
+/// Максимальный множитель уровеня загрузки
 const MAX_LOAD_FACTOR_NUM: usize = 100 - 15;
-/// The maximal load factor's denominator.
+/// Максимальный делитель уровня загрузки
 const MAX_LOAD_FACTOR_DENOM: usize = 100;
-/// The default initial capacity.
+/// Стандартная начальная емкость
 const DEFAULT_INITIAL_CAPACITY: usize = 64;
-/// The lowest capacity a table can have.
+/// Минимальная емкость таблицы, которая может быть
 const MINIMUM_CAPACITY: usize = 8;
 
-/// A bucket state.
+/// Состояние корзины
 ///
-/// Buckets are the bricks of hash tables. They represent a single entry into the table.
+/// Корзины являются кирпичиками хеш-таблицы. Они представляют собой отдельную запись в таблице
 #[derive(Clone)]
 enum Bucket<K, V> {
-    /// The bucket contains a key-value pair.
+    /// Корзина содержит ключ и значение
     Contains(K, V),
-    /// The bucket is empty and has never been used.
+    /// Корзина сейчас пустая и никогда не была использована
     ///
-    /// Since hash collisions are resolved by jumping to the next bucket, some buckets can cluster
-    /// together, meaning that they are potential candidates for lookups. Empty buckets can be seen
-    /// as the delimiter of such cluters.
+    /// Так как коллизии хеширования резолвятся переходом на следующую корзину, некоторые
+    /// корзины могут быть собраны вместе, это значит, что они являются потенциальными кандидатами для поиска.
+    /// Пустые корзины могут рассматриваться как разделитель в этих кластерах
     Empty,
-    /// The bucket was removed.
+    /// Корзина была удалена
     ///
-    /// The technique of distincting between "empty" and "removed" was first described by Knuth.
-    /// The idea is that when you search for a key, you will probe over these buckets, since the
-    /// key could have been pushed behind the removed element:
+    /// Техническое отличие между пустой и удаленной корзиной было впервые описано Кнутом.
+    /// Идея в том, что когда вы ищете по ключу, вы проверяете корзины, а элемент может быть
+    /// уже удален:
     ///```notest
     ///     Contains(k1, v1) // hash = h
     ///     Removed
     ///     Contains(k2, v2) // hash = h
     ///```
-    /// If we stopped at `Removed`, we won't be able to find the second KV pair. So `Removed` is
-    /// semantically different from `Empty`, as the search won't stop.
-    ///
-    /// However, we are still able to insert new pairs at the removed buckets.
+    /// Если мы остановимся на `Удаленном` элементе, мы не сможем найти вторую KV пару.
+    /// Таким образом удаленные `Удаленные` элементы отличаются тем, что поиск не осташавливается на них
+    /// 
+    /// Однако, мы все еще можем добавить ключ-значение у эту удаленную корзину
     Removed,
 }
 
@@ -149,7 +149,7 @@ impl<K, V> Bucket<K, V> {
     /// `owning_ref` crate (`try_new` and `try_map` of `OwningHandle` and `OwningRef`
     /// respectively).
     fn value_ref(&self) -> Result<&V, ()> {
-        if let Bucket::Contains(_, ref val) = *self {
+        if let Bucket::Contains(_, val) = self {
             Ok(val)
         } else {
             Err(())
@@ -163,7 +163,7 @@ impl<K, V> Bucket<K, V> {
     where
         K: PartialEq,
     {
-        if let Bucket::Contains(ref candidate_key, _) = *self {
+        if let Bucket::Contains(candidate_key, _) = self {
             // Check if the keys matches.
             candidate_key == key
         } else {
@@ -174,34 +174,34 @@ impl<K, V> Bucket<K, V> {
     }
 }
 
-/// The low-level representation of the hash table.
+/// Низкоуровневое представление хеш-таблицы
 ///
-/// This is different from `CHashMap` in two ways:
+/// Отличается от `CHashMap` в двух вещах:
 ///
-/// 1. It is not wrapped in a lock, meaning that resizing and reallocation is not possible.
-/// 2. It does not track the number of occupied buckets, making it expensive to obtain the load
-///    factor.
+/// 1. Не обернуто в блокировку, это значит, что изменение размера и реаллокация невозможна
+/// 2. Не отслеживается количество задействованный корзин, делая дорогим заполучение фактор загрузки
 struct Table<K, V, S> {
-    /// The hash function builder.
+    /// Билдер хеш-функции
     ///
-    /// When a `Table` use the default hash builder, it randomly picks a hash function from
-    /// some family of functions in libstd. This effectively eliminates the issue of hash flooding.
+    /// Когда таблица использует стандартный билдер хеш-билдер, он рандомно выбирает 
+    /// хеш-функцию из семейства функций в libstd. Это эффективно устраняет проблему хеш-наводнения
     hash_builder: S,
-    /// The bucket array.
-    ///
-    /// This vector stores the buckets. The order in which they're stored is far from arbitrary: A
-    /// KV pair `(key, val)`'s first priority location is at `self.hash(&key) % len`. If not
-    /// possible, the next bucket is used, and this process repeats until the bucket is free (or
-    /// the end is reached, in which we simply wrap around).
+    /// Массив корзин
+    /// 
+    /// Данный вектор хранит корзины. Порядок, в котором хранятся данные не сильно случайный:
+    /// пара значений K,V проходит хеширование ключа и mod на длину `self.hash(&key) % len`. 
+    /// Если данное место занято из-за коллизии, когда берем следующий элемент. 
+    /// Данное действие повторяется до тех пор, пока не найдет пустую корзину.
+    /// Если доходим до конца - идем с самого начала.
+    /// Хотя часто здесь просто используют связанный список внутри корзины. А ключи при коллизии сравниваются
+    /// поэлементно
     buckets: Vec<RwLock<Bucket<K, V>>>,
 }
 
 impl<K, V> Table<K, V, RandomState> {
-    /// Create a table with a certain number of buckets.
+    /// Создаем таблицу с определенным количеством пустых корзин
     fn new(buckets: usize) -> Self {
-        // TODO: For some obscure reason `RwLock` doesn't implement `Clone`.
-
-        // Fill a vector with `buckets` of `Empty` buckets.
+        // Создаем вектор, заполняем его пустыми корзинами
         let mut vec = Vec::with_capacity(buckets);
         for _ in 0..buckets {
             vec.push(RwLock::new(Bucket::Empty));
@@ -214,7 +214,7 @@ impl<K, V> Table<K, V, RandomState> {
         }
     }
 
-    /// Create a table with at least some capacity.
+    /// Создание таблицы с определенной емкостью
     fn with_capacity(cap: usize) -> Self {
         // The + 1 is needed to avoid losing fractional bucket to integer division.
         Table::new(cmp::max(
@@ -269,28 +269,29 @@ impl<K: PartialEq + Hash, V, S: BuildHasher> Table<K, V, S> {
         hasher.finish() as usize
     }
 
-    /// Scan from the first priority of a key until a match is found.
+    /// Ищем с первого приоритета до ключа
     ///
-    /// This scans from the first priority of `key` (as defined by its hash), until a match is
-    /// found (will wrap on end), i.e. `matches` returns `true` with the bucket as argument.
+    /// Сканируем из первого приоритета ключа (вычисленного хешем), до тех пор, пока не найдет
+    /// подходящее значение
     ///
-    /// The read guard from the RW-lock of the bucket is returned.
+    /// Возвращается гард из RW блока
     fn scan<F, Q: ?Sized>(&self, key: &Q, matches: F) -> RwLockReadGuard<Bucket<K, V>>
     where
         F: Fn(&Bucket<K, V>) -> bool,
         K: Borrow<Q>,
         Q: Hash,
     {
-        // Hash the key.
+        // Хешируем ключ
         let hash = self.hash(key);
 
-        // Start at the first priority bucket, and then move upwards, searching for the matching
-        // bucket.
+        // Идем по всем корзинам
         for i in 0..self.buckets.len() {
-            // Get the lock of the `i`'th bucket after the first priority bucket (wrap on end).
+            // Индекс в массиве - это хеш + индекс итерации, остаток от деления на длину корзин
+            // Обычно мы сразу будем попадать на правильный элемент, но если
+            // у нас была коллизия, то значит мы идем дальше
             let lock = self.buckets[(hash + i) % self.buckets.len()].read();
 
-            // Check if it is a match.
+            // Проверяем, совпадает ли ключ
             if matches(&lock) {
                 // Yup. Return.
                 return lock;
