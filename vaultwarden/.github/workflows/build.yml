@@ -1,0 +1,147 @@
+name: Build
+
+on:
+  push:
+    paths:
+      - ".github/workflows/build.yml"
+      - "src/**"
+      - "migrations/**"
+      - "Cargo.*"
+      - "build.rs"
+      - "diesel.toml"
+      - "rust-toolchain"
+  pull_request:
+    paths:
+      - ".github/workflows/build.yml"
+      - "src/**"
+      - "migrations/**"
+      - "Cargo.*"
+      - "build.rs"
+      - "diesel.toml"
+      - "rust-toolchain"
+
+jobs:
+  build:
+    # Make warnings errors, this is to prevent warnings slipping through.
+    # This is done globally to prevent rebuilds when the RUSTFLAGS env variable changes.
+    env:
+      RUSTFLAGS: "-D warnings"
+    strategy:
+      fail-fast: false
+      matrix:
+        channel:
+          - nightly
+        target-triple:
+          - x86_64-unknown-linux-gnu
+        include:
+          - target-triple: x86_64-unknown-linux-gnu
+            host-triple: x86_64-unknown-linux-gnu
+            features: [sqlite,mysql,postgresql] # Remember to update the `cargo test` to match the amount of features
+            channel: nightly
+            os: ubuntu-20.04
+            ext: ""
+
+    name: Building ${{ matrix.channel }}-${{ matrix.target-triple }}
+    runs-on: ${{ matrix.os }}
+    steps:
+      # Checkout the repo
+      - name: Checkout
+        uses: actions/checkout@5a4ac9002d0be2fb38bd78e4b4dbde5606d7042f # v2.3.4
+      # End Checkout the repo
+
+
+      # Install musl-tools when needed
+      - name: Install musl tools
+        run: sudo apt-get update && sudo apt-get install -y --no-install-recommends musl-dev musl-tools cmake
+        if: matrix.target-triple == 'x86_64-unknown-linux-musl'
+      # End Install musl-tools when needed
+
+
+      # Install dependencies
+      - name: Install dependencies Ubuntu
+        run: sudo apt-get update && sudo apt-get install -y --no-install-recommends openssl sqlite build-essential libmariadb-dev-compat libpq-dev libssl-dev pkgconf
+        if: startsWith( matrix.os, 'ubuntu' )
+      # End Install dependencies
+
+
+      # Enable Rust Caching
+      - uses: Swatinem/rust-cache@842ef286fff290e445b90b4002cc9807c3669641 # v1.3.0
+      # End Enable Rust Caching
+
+
+      # Uses the rust-toolchain file to determine version
+      - name: 'Install ${{ matrix.channel }}-${{ matrix.host-triple }} for target: ${{ matrix.target-triple }}'
+        uses: actions-rs/toolchain@b2417cde72dcf67f306c0ae8e0828a81bf0b189f # v1.0.6
+        with:
+          profile: minimal
+          target: ${{ matrix.target-triple }}
+          components: clippy, rustfmt
+      # End Uses the rust-toolchain file to determine version
+
+
+      # Run cargo tests (In release mode to speed up future builds)
+      # First test all features together, afterwards test them separately.
+      - name: "`cargo test --release --features ${{ join(matrix.features, ',') }} --target ${{ matrix.target-triple }}`"
+        uses: actions-rs/cargo@ae10961054e4aa8b4aa7dffede299aaf087aa33b # v1.0.1
+        with:
+          command: test
+          args: --release --features ${{ join(matrix.features, ',') }} --target ${{ matrix.target-triple }}
+      # Test single features
+      # 0: sqlite
+      - name: "`cargo test --release --features ${{ matrix.features[0] }} --target ${{ matrix.target-triple }}`"
+        uses: actions-rs/cargo@ae10961054e4aa8b4aa7dffede299aaf087aa33b # v1.0.1
+        with:
+          command: test
+          args: --release --features ${{ matrix.features[0] }} --target ${{ matrix.target-triple }}
+        if: ${{ matrix.features[0] != '' }}
+      # 1: mysql
+      - name: "`cargo test --release --features ${{ matrix.features[1] }} --target ${{ matrix.target-triple }}`"
+        uses: actions-rs/cargo@ae10961054e4aa8b4aa7dffede299aaf087aa33b # v1.0.1
+        with:
+          command: test
+          args: --release --features ${{ matrix.features[1] }} --target ${{ matrix.target-triple }}
+        if: ${{ matrix.features[1] != '' }}
+      # 2: postgresql
+      - name: "`cargo test --release --features ${{ matrix.features[2] }} --target ${{ matrix.target-triple }}`"
+        uses: actions-rs/cargo@ae10961054e4aa8b4aa7dffede299aaf087aa33b # v1.0.1
+        with:
+          command: test
+          args: --release --features ${{ matrix.features[2] }} --target ${{ matrix.target-triple }}
+        if: ${{ matrix.features[2] != '' }}
+      # End Run cargo tests
+
+
+      # Run cargo clippy, and fail on warnings (In release mode to speed up future builds)
+      - name: "`cargo clippy --release --features ${{ join(matrix.features, ',') }} --target ${{ matrix.target-triple }}`"
+        uses: actions-rs/cargo@ae10961054e4aa8b4aa7dffede299aaf087aa33b # v1.0.1
+        with:
+          command: clippy
+          args: --release --features ${{ join(matrix.features, ',') }} --target ${{ matrix.target-triple }} -- -D warnings
+      # End Run cargo clippy
+
+
+      # Run cargo fmt
+      - name: '`cargo fmt`'
+        uses: actions-rs/cargo@ae10961054e4aa8b4aa7dffede299aaf087aa33b # v1.0.1
+        with:
+          command: fmt
+          args: --all -- --check
+      # End Run cargo fmt
+
+
+      # Build the binary
+      - name: "`cargo build --release --features ${{ join(matrix.features, ',') }} --target ${{ matrix.target-triple }}`"
+        uses: actions-rs/cargo@ae10961054e4aa8b4aa7dffede299aaf087aa33b # v1.0.1
+        with:
+          command: build
+          args: --release --features ${{ join(matrix.features, ',') }} --target ${{ matrix.target-triple }}
+      # End Build the binary
+
+
+      # Upload artifact to Github Actions
+      - name: Upload artifact
+        uses: actions/upload-artifact@27121b0bdffd731efa15d66772be8dc71245d074 # v2.2.4
+        with:
+          name: vaultwarden-${{ matrix.target-triple }}${{ matrix.ext }}
+          path: target/${{ matrix.target-triple }}/release/vaultwarden${{ matrix.ext }}
+      # End Upload artifact to Github Actions

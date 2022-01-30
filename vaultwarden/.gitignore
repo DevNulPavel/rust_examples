@@ -1,0 +1,16 @@
+# Local build artifacts
+target
+
+# Data folder
+data
+
+# IDE files
+.vscode
+.idea
+*.iml
+
+# Environment file
+.env
+
+# Web vault
+web-vault

@@ -1,0 +1,231 @@
+use serde::Deserialize;
+use serde_json::Value;
+
+use crate::api::EmptyResult;
+use crate::db::DbConn;
+use crate::error::MapResult;
+use crate::util::UpCase;
+
+use super::{Organization, UserOrgStatus, UserOrgType, UserOrganization};
+
+db_object! {
+    #[derive(Identifiable, Queryable, Insertable, Associations, AsChangeset)]
+    #[table_name = "org_policies"]
+    #[belongs_to(Organization, foreign_key = "org_uuid")]
+    #[primary_key(uuid)]
+    pub struct OrgPolicy {
+        pub uuid: String,
+        pub org_uuid: String,
+        pub atype: i32,
+        pub enabled: bool,
+        pub data: String,
+    }
+}
+
+#[derive(Copy, Clone, PartialEq, num_derive::FromPrimitive)]
+pub enum OrgPolicyType {
+    TwoFactorAuthentication = 0,
+    MasterPassword = 1,
+    PasswordGenerator = 2,
+    SingleOrg = 3,
+    // RequireSso = 4, // Not currently supported.
+    PersonalOwnership = 5,
+    DisableSend = 6,
+    SendOptions = 7,
+}
+
+// https://github.com/bitwarden/server/blob/master/src/Core/Models/Data/SendOptionsPolicyData.cs
+#[derive(Deserialize)]
+#[allow(non_snake_case)]
+pub struct SendOptionsPolicyData {
+    pub DisableHideEmail: bool,
+}
+
+/// Local methods
+impl OrgPolicy {
+    pub fn new(org_uuid: String, atype: OrgPolicyType, data: String) -> Self {
+        Self {
+            uuid: crate::util::get_uuid(),
+            org_uuid,
+            atype: atype as i32,
+            enabled: false,
+            data,
+        }
+    }
+
+    pub fn has_type(&self, policy_type: OrgPolicyType) -> bool {
+        self.atype == policy_type as i32
+    }
+
+    pub fn to_json(&self) -> Value {
+        let data_json: Value = serde_json::from_str(&self.data).unwrap_or(Value::Null);
+        json!({
+            "Id": self.uuid,
+            "OrganizationId": self.org_uuid,
+            "Type": self.atype,
+            "Data": data_json,
+            "Enabled": self.enabled,
+            "Object": "policy",
+        })
+    }
+}
+
+/// Database methods
+impl OrgPolicy {
+    pub fn save(&self, conn: &DbConn) -> EmptyResult {
+        db_run! { conn:
+            sqlite, mysql {
+                match diesel::replace_into(org_policies::table)
+                    .values(OrgPolicyDb::to_db(self))
+                    .execute(conn)
+                {
+                    Ok(_) => Ok(()),
+                    // Record already exists and causes a Foreign Key Violation because replace_into() wants to delete the record first.
+                    Err(diesel::result::Error::DatabaseError(diesel::result::DatabaseErrorKind::ForeignKeyViolation, _)) => {
+                        diesel::update(org_policies::table)
+                            .filter(org_policies::uuid.eq(&self.uuid))
+                            .set(OrgPolicyDb::to_db(self))
+                            .execute(conn)
+                            .map_res("Error saving org_policy")
+                    }
+                    Err(e) => Err(e.into()),
+                }.map_res("Error saving org_policy")
+            }
+            postgresql {
+                let value = OrgPolicyDb::to_db(self);
+                // We need to make sure we're not going to violate the unique constraint on org_uuid and atype.
+                // This happens automatically on other DBMS backends due to replace_into(). PostgreSQL does
+                // not support multiple constraints on ON CONFLICT clauses.
+                diesel::delete(
+                    org_policies::table
+                        .filter(org_policies::org_uuid.eq(&self.org_uuid))
+                        .filter(org_policies::atype.eq(&self.atype)),
+                )
+                .execute(conn)
+                .map_res("Error deleting org_policy for insert")?;
+
+                diesel::insert_into(org_policies::table)
+                    .values(&value)
+                    .on_conflict(org_policies::uuid)
+                    .do_update()
+                    .set(&value)
+                    .execute(conn)
+                    .map_res("Error saving org_policy")
+            }
+        }
+    }
+
+    pub fn delete(self, conn: &DbConn) -> EmptyResult {
+        db_run! { conn: {
+            diesel::delete(org_policies::table.filter(org_policies::uuid.eq(self.uuid)))
+                .execute(conn)
+                .map_res("Error deleting org_policy")
+        }}
+    }
+
+    pub fn find_by_uuid(uuid: &str, conn: &DbConn) -> Option<Self> {
+        db_run! { conn: {
+            org_policies::table
+                .filter(org_policies::uuid.eq(uuid))
+                .first::<OrgPolicyDb>(conn)
+                .ok()
+                .from_db()
+        }}
+    }
+
+    pub fn find_by_org(org_uuid: &str, conn: &DbConn) -> Vec<Self> {
+        db_run! { conn: {
+            org_policies::table
+                .filter(org_policies::org_uuid.eq(org_uuid))
+                .load::<OrgPolicyDb>(conn)
+                .expect("Error loading org_policy")
+                .from_db()
+        }}
+    }
+
+    pub fn find_confirmed_by_user(user_uuid: &str, conn: &DbConn) -> Vec<Self> {
+        db_run! { conn: {
+            org_policies::table
+                .inner_join(
+                    users_organizations::table.on(
+                        users_organizations::org_uuid.eq(org_policies::org_uuid)
+                            .and(users_organizations::user_uuid.eq(user_uuid)))
+                )
+                .filter(
+                    users_organizations::status.eq(UserOrgStatus::Confirmed as i32)
+                )
+                .select(org_policies::all_columns)
+                .load::<OrgPolicyDb>(conn)
+                .expect("Error loading org_policy")
+                .from_db()
+        }}
+    }
+
+    pub fn find_by_org_and_type(org_uuid: &str, atype: i32, conn: &DbConn) -> Option<Self> {
+        db_run! { conn: {
+            org_policies::table
+                .filter(org_policies::org_uuid.eq(org_uuid))
+                .filter(org_policies::atype.eq(atype))
+                .first::<OrgPolicyDb>(conn)
+                .ok()
+                .from_db()
+        }}
+    }
+
+    pub fn delete_all_by_organization(org_uuid: &str, conn: &DbConn) -> EmptyResult {
+        db_run! { conn: {
+            diesel::delete(org_policies::table.filter(org_policies::org_uuid.eq(org_uuid)))
+                .execute(conn)
+                .map_res("Error deleting org_policy")
+        }}
+    }
+
+    /// Returns true if the user belongs to an org that has enabled the specified policy type,
+    /// and the user is not an owner or admin of that org. This is only useful for checking
+    /// applicability of policy types that have these particular semantics.
+    pub fn is_applicable_to_user(user_uuid: &str, policy_type: OrgPolicyType, conn: &DbConn) -> bool {
+        // TODO: Should check confirmed and accepted users
+        for policy in OrgPolicy::find_confirmed_by_user(user_uuid, conn) {
+            if policy.enabled && policy.has_type(policy_type) {
+                let org_uuid = &policy.org_uuid;
+                if let Some(user) = UserOrganization::find_by_user_and_org(user_uuid, org_uuid, conn) {
+                    if user.atype < UserOrgType::Admin {
+                        return true;
+                    }
+                }
+            }
+        }
+        false
+    }
+
+    /// Returns true if the user belongs to an org that has enabled the `DisableHideEmail`
+    /// option of the `Send Options` policy, and the user is not an owner or admin of that org.
+    pub fn is_hide_email_disabled(user_uuid: &str, conn: &DbConn) -> bool {
+        for policy in OrgPolicy::find_confirmed_by_user(user_uuid, conn) {
+            if policy.enabled && policy.has_type(OrgPolicyType::SendOptions) {
+                let org_uuid = &policy.org_uuid;
+                if let Some(user) = UserOrganization::find_by_user_and_org(user_uuid, org_uuid, conn) {
+                    if user.atype < UserOrgType::Admin {
+                        match serde_json::from_str::<UpCase<SendOptionsPolicyData>>(&policy.data) {
+                            Ok(opts) => {
+                                if opts.data.DisableHideEmail {
+                                    return true;
+                                }
+                            }
+                            _ => error!("Failed to deserialize policy data: {}", policy.data),
+                        }
+                    }
+                }
+            }
+        }
+        false
+    }
+
+    /*pub fn delete_all_by_user(user_uuid: &str, conn: &DbConn) -> EmptyResult {
+        db_run! { conn: {
+            diesel::delete(twofactor::table.filter(twofactor::user_uuid.eq(user_uuid)))
+                .execute(conn)
+                .map_res("Error deleting twofactors")
+        }}
+    }*/
+}

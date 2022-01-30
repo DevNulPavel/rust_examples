@@ -1,0 +1,140 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+    <meta http-equiv="content-type" content="text/html; charset=UTF-8" />
+    <meta name="viewport" content="width=device-width, initial-scale=1, shrink-to-fit=no" />
+    <meta name="robots" content="noindex,nofollow" />
+    <link rel="icon" type="image/png" href="{{urlpath}}/bwrs_static/vaultwarden-icon.png">
+    <title>Vaultwarden Admin Panel</title>
+    <link rel="stylesheet" href="{{urlpath}}/bwrs_static/bootstrap.css" />
+    <style>
+        body {
+            padding-top: 75px;
+        }
+        img {
+            width: 48px;
+            height: 48px;
+        }
+        .vaultwarden-icon {
+            height: 32px;
+            width: auto;
+            margin: -5px 0 0 0;
+        }
+    </style>
+    <script src="{{urlpath}}/bwrs_static/identicon.js"></script>
+    <script>
+        'use strict';
+
+        function reload() { window.location.reload(); }
+        function msg(text, reload_page = true) {
+            text && alert(text);
+            reload_page && reload();
+        }
+        async function sha256(message) {
+            // https://developer.mozilla.org/en-US/docs/Web/API/SubtleCrypto/digest
+            const msgUint8 = new TextEncoder().encode(message);
+            const hashBuffer = await crypto.subtle.digest('SHA-256', msgUint8);
+            const hashArray = Array.from(new Uint8Array(hashBuffer));
+            const hashHex = hashArray.map(b => b.toString(16).padStart(2, '0')).join('');
+            return hashHex;
+        }
+        async function identicon(email) {
+            const hash = await sha256(email);
+            const data = new Identicon(hash, { size: 48, format: 'svg' });
+            return "data:image/svg+xml;base64," + data.toString();
+        }
+        function toggleVis(input_id) {
+            const elem = document.getElementById(input_id);
+            const type = elem.getAttribute("type");
+            if (type === "text") {
+                elem.setAttribute("type", "password");
+            } else {
+                elem.setAttribute("type", "text");
+            }
+            return false;
+        }
+        function _post(url, successMsg, errMsg, body, reload_page = true) {
+            fetch(url, {
+                method: 'POST',
+                body: body,
+                mode: "same-origin",
+                credentials: "same-origin",
+                headers: { "Content-Type": "application/json" }
+            }).then( resp => {
+                if (resp.ok) { msg(successMsg, reload_page); return Promise.reject({error: false}); }
+                const respStatus = resp.status;
+                const respStatusText = resp.statusText;
+                return resp.text();
+            }).then( respText => {
+                try {
+                    const respJson = JSON.parse(respText);
+                    return respJson ? respJson.ErrorModel.Message : "Unknown error";
+                } catch (e) {
+                    return Promise.reject({body:respStatus + ' - ' + respStatusText, error: true});
+                }
+            }).then( apiMsg => {
+                msg(errMsg + "\n" + apiMsg, reload_page);
+            }).catch( e => {
+                if (e.error === false) { return true; }
+                else { msg(errMsg + "\n" + e.body, reload_page); }
+            });
+        }
+    </script>
+</head>
+
+<body class="bg-light">
+    <nav class="navbar navbar-expand-md navbar-dark bg-dark mb-4 shadow fixed-top">
+        <div class="container-xl">
+            <a class="navbar-brand" href="{{urlpath}}/admin"><img class="vaultwarden-icon" src="{{urlpath}}/bwrs_static/vaultwarden-icon.png" alt="V">aultwarden Admin</a>
+            <button class="navbar-toggler" type="button" data-bs-toggle="collapse" data-bs-target="#navbarCollapse"
+                    aria-controls="navbarCollapse" aria-expanded="false" aria-label="Toggle navigation">
+                <span class="navbar-toggler-icon"></span>
+            </button>
+            <div class="collapse navbar-collapse" id="navbarCollapse">
+                <ul class="navbar-nav me-auto">
+                {{#if logged_in}}
+                    <li class="nav-item">
+                        <a class="nav-link" href="{{urlpath}}/admin">Settings</a>
+                    </li>
+                    <li class="nav-item">
+                        <a class="nav-link" href="{{urlpath}}/admin/users/overview">Users</a>
+                    </li>
+                    <li class="nav-item">
+                        <a class="nav-link" href="{{urlpath}}/admin/organizations/overview">Organizations</a>
+                    </li>
+                    <li class="nav-item">
+                        <a class="nav-link" href="{{urlpath}}/admin/diagnostics">Diagnostics</a>
+                    </li>
+                {{/if}}
+                    <li class="nav-item">
+                        <a class="nav-link" href="{{urlpath}}/" target="_blank" rel="noreferrer">Vault</a>
+                    </li>
+                </ul>
+
+                {{#if logged_in}}
+                    <a class="btn btn-sm btn-secondary" href="{{urlpath}}/admin/logout">Log Out</a>
+                {{/if}}
+            </div>
+        </div>
+    </nav>
+
+    {{> (lookup this "page_content") }}
+
+    <!-- This script needs to be at the bottom, else it will fail! -->
+    <script>
+        'use strict';
+
+        // get current URL path and assign 'active' class to the correct nav-item
+        (() => {
+            const pathname = window.location.pathname;
+            if (pathname === "") return;
+            let navItem = document.querySelectorAll('.navbar-nav .nav-item a[href="'+pathname+'"]');
+            if (navItem.length === 1) {
+                navItem[0].className = navItem[0].className + ' active';
+                navItem[0].setAttribute('aria-current', 'page');
+            }
+        })();
+    </script>
+    <script src="{{urlpath}}/bwrs_static/bootstrap-native.js"></script>
+</body>
+</html>

@@ -451,6 +451,7 @@ async fn verify_auth(
     }
 }
 
+
 async fn check_webui(config: Arc<RwLock<Configuration>>) -> Result<(), Rejection> {
     let config = config.read().unwrap();
     if config.webui.enabled {

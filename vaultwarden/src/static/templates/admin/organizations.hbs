@@ -1,0 +1,92 @@
+<main class="container-xl">
+    <div id="organizations-block" class="my-3 p-3 bg-white rounded shadow">
+        <h6 class="border-bottom pb-2 mb-3">Organizations</h6>
+        <div class="table-responsive-xl small">
+            <table id="orgs-table" class="table table-sm table-striped table-hover">
+                <thead>
+                    <tr>
+                        <th>Organization</th>
+                        <th>Users</th>
+                        <th>Items</th>
+                        <th>Attachments</th>
+                        <th style="width: 130px; min-width: 130px;">Actions</th>
+                    </tr>
+                </thead>
+                <tbody>
+                    {{#each page_data}}
+                    <tr>
+                        <td>
+                            <img class="float-start me-2 rounded identicon" data-src="{{Id}}">
+                            <div class="float-start">
+                                <strong>{{Name}}</strong>
+                                <span class="me-2">({{BillingEmail}})</span>
+                                <span class="d-block">
+                                    <span class="badge bg-success">{{Id}}</span>
+                                </span>
+                            </div>
+                        </td>
+                        <td>
+                            <span class="d-block">{{user_count}}</span>
+                        </td>
+                        <td>
+                            <span class="d-block">{{cipher_count}}</span>
+                        </td>
+                        <td>
+                            <span class="d-block"><strong>Amount:</strong> {{attachment_count}}</span>
+                            {{#if attachment_count}}
+                            <span class="d-block"><strong>Size:</strong> {{attachment_size}}</span>
+                            {{/if}}
+                        </td>
+                        <td class="text-end px-0 small">
+                            <button type="button" class="btn btn-sm btn-link p-0 border-0" onclick='deleteOrganization({{jsesc Id}}, {{jsesc Name}}, {{jsesc BillingEmail}})'>Delete Organization</button>
+                        </td>
+                    </tr>
+                    {{/each}}
+                </tbody>
+            </table>
+        </div>
+    </div>
+</main>
+
+<link rel="stylesheet" href="{{urlpath}}/bwrs_static/datatables.css" />
+<script src="{{urlpath}}/bwrs_static/jquery-3.6.0.slim.js"></script>
+<script src="{{urlpath}}/bwrs_static/datatables.js"></script>
+<script>
+    'use strict';
+
+    function deleteOrganization(id, name, billing_email) {
+        // First make sure the user wants to delete this organization
+        var continueDelete = confirm("WARNING: All data of this organization ("+ name +") will be lost!\nMake sure you have a backup, this cannot be undone!");
+        if (continueDelete == true) {
+            var input_org_uuid = prompt("To delete the organization '" + name + " (" + billing_email +")', please type the organization uuid below.")
+            if (input_org_uuid != null) {
+                if (input_org_uuid == id) {
+                    _post("{{urlpath}}/admin/organizations/" + id + "/delete",
+                        "Organization deleted correctly",
+                        "Error deleting organization");
+                } else {
+                    alert("Wrong organization uuid, please try again")
+                }
+            }
+        }
+
+        return false;
+    }
+
+    (async () => {
+        for (let e of document.querySelectorAll("img.identicon")) {
+            e.src = await identicon(e.dataset.src);
+        }
+    })();
+
+    document.addEventListener("DOMContentLoaded", function() {
+        $('#orgs-table').DataTable({
+            "responsive": true,
+            "lengthMenu": [ [-1, 5, 10, 25, 50], ["All", 5, 10, 25, 50] ],
+            "pageLength": -1, // Default show all
+            "columnDefs": [
+                { "targets": 4, "searchable": false, "orderable": false }
+            ]
+        });
+    });
+</script>

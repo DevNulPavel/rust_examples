@@ -1,0 +1,10 @@
+[workspace]
+members = [
+  "protocol/rtmp",
+  "protocol/httpflv",
+  "protocol/hls",
+  "library/bytesio",
+  "application/xiu",
+  "library/container/flv",
+  "library/container/mpegts"
+]
