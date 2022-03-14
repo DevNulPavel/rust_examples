@@ -20,9 +20,6 @@ extern crate diesel;
 #[macro_use]
 extern crate diesel_migrations;
 
-use job_scheduler::{Job, JobScheduler};
-use std::{fs::create_dir_all, panic, path::Path, process::exit, str::FromStr, thread, time::Duration};
-
 #[macro_use]
 mod error;
 mod api;
@@ -34,6 +31,9 @@ mod db;
 mod mail;
 mod ratelimit;
 mod util;
+
+use job_scheduler::{Job, JobScheduler};
+use std::{fs::create_dir_all, panic, path::Path, process::exit, str::FromStr, thread, time::Duration};
 
 pub use config::CONFIG;
 pub use error::{Error, MapResult};
@@ -178,7 +178,7 @@ fn init_logging(level: log::LevelFilter) -> Result<(), fern::InitError> {
 
     logger.apply()?;
 
-    // Catch panics and log them instead of default output to StdErr
+    // Ловим панику и логируем ее обычным способом вместо стандартного вывода в stderr
     panic::set_hook(Box::new(|info| {
         let thread = thread::current();
         let thread = thread.name().unwrap_or("unnamed");

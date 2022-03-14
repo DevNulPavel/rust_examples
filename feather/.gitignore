@@ -1,0 +1,17 @@
+**/target
+**/*.rs.bk
+**/.idea
+**/.vscode
+
+# Cargo build configuration
+.cargo
+
+world/
+/config.toml
+plugins/
+
+# Python cache files (libcraft)
+**/__pycache__/
+
+# macOS desktop files
+**/.DS_STORE
