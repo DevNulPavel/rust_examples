@@ -39,7 +39,7 @@ fn profiler_stop() {}
 fn profiler_start(name: &str) {
     use std::path::Path;
 
-    // find first available path to save profiler output
+    // Пытаемся в цикле создать объект профайлера для нужного файлика, которого еще нету
     let mut n = 0;
     loop {
         let path = format!("./{}-{}.profile", name, n);
@@ -116,18 +116,18 @@ fn main() {
         }
     }
 
-    // start logging
+    // Запускаем систему логирования
     env_logger::builder()
         .try_init()
         .expect("Failed to initialize event logger");
 
     log::info!("Starting {} WireGuard device.", name);
 
-    // start profiler (if enabled)
+    // Запускаем профайлер если нужно
     #[cfg(feature = "profiler")]
     profiler_start(name.as_str());
 
-    // create WireGuard device
+    // Создаем Wireguard девайс с писателем
     let wg: WireGuard<plt::Tun, plt::UDP> = WireGuard::new(writer);
 
     // add all Tun readers

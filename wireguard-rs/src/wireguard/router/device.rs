@@ -103,8 +103,12 @@ impl<E: Endpoint, C: Callbacks, T: tun::Writer, B: udp::Writer<E>> Drop
 }
 
 impl<E: Endpoint, C: Callbacks, T: tun::Writer, B: udp::Writer<E>> DeviceHandle<E, C, T, B> {
+    /// Создаем обработчик роутинга
     pub fn new(num_workers: usize, tun: T) -> DeviceHandle<E, C, T, B> {
+        // Создаем очередь с несколькими ресиверами
         let (work, mut consumers) = ParallelQueue::new(num_workers, PARALLEL_QUEUE_SIZE);
+
+        // Создаем девайс
         let device = Device {
             inner: Arc::new(DeviceInner {
                 work,
@@ -115,11 +119,14 @@ impl<E: Endpoint, C: Callbacks, T: tun::Writer, B: udp::Writer<E>> DeviceHandle<
             }),
         };
 
-        // start worker threads
+        // Стартуем потоки обработки данных
         let mut threads = Vec::with_capacity(num_workers);
+
+        // Стартуем поток с функцией воркером
         while let Some(rx) = consumers.pop() {
             threads.push(thread::spawn(move || worker(rx)));
         }
+
         debug_assert!(num_workers > 0, "zero worker threads");
         debug_assert_eq!(
             threads.len(),

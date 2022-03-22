@@ -151,17 +151,19 @@ pub fn handshake_worker<T: Tun, B: UDP>(
 ) {
     debug!("{} : handshake worker, started", wg);
 
-    // process elements from the handshake queue
+    // Обработка элементов из очереди хендшейков
     for job in rx {
-        // check if under load
+        // Проверить если под нагрузкой
         let mut under_load = false;
         let job: HandshakeJob<B::Endpoint> = job;
         let pending = wg.pending.fetch_sub(1, Ordering::SeqCst);
         debug_assert!(pending < MAX_QUEUED_INCOMING_HANDSHAKES + (1 << 16));
 
         // immediate go under load if too many handshakes pending
+        // Мгновенной уходим под нагрузку если у нас очень много хендшейков
         if pending > THRESHOLD_UNDER_LOAD {
             log::trace!("{} : handshake worker, under load (above threshold)", wg);
+            // Сохраняем время перехода на перегрузку
             *wg.last_under_load.lock() = Instant::now();
             under_load = true;
         }
@@ -175,8 +177,9 @@ pub fn handshake_worker<T: Tun, B: UDP>(
             }
         }
 
-        // de-multiplex staged handshake jobs and handshake messages
+        // Демультиплексируем стадии хендшейков и сообщений
         match job {
+            // Прилетело сообщение
             HandshakeJob::Message(msg, mut src) => {
                 // process message
                 let device = wg.peers.read();

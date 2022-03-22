@@ -16,6 +16,7 @@ pub struct RoutingTable<T: Eq + Clone> {
 }
 
 impl<T: Eq + Clone> RoutingTable<T> {
+    /// Создаем таблицу маршрутизации
     pub fn new() -> Self {
         RoutingTable {
             ipv4: RwLock::new(IpLookupTable::new()),
@@ -23,7 +24,7 @@ impl<T: Eq + Clone> RoutingTable<T> {
         }
     }
 
-    // collect keys mapping to the given value
+    /// Собираем значения из таблицы, где значения совпадают с определенным значением
     fn collect<A>(table: &IpLookupTable<A, T>, value: &T) -> Vec<(A, u32)>
     where
         A: Address,
@@ -37,6 +38,7 @@ impl<T: Eq + Clone> RoutingTable<T> {
         res
     }
 
+    /// Добавляем для определенного адреса с маской значение
     pub fn insert(&self, ip: IpAddr, cidr: u32, value: T) {
         match ip {
             IpAddr::V4(v4) => self.ipv4.write().insert(v4.mask(cidr), cidr, value),
@@ -44,6 +46,7 @@ impl<T: Eq + Clone> RoutingTable<T> {
         };
     }
 
+    /// Получаем все адреса для определенного значения
     pub fn list(&self, value: &T) -> Vec<(IpAddr, u32)> {
         let mut res = vec![];
         res.extend(
@@ -71,11 +74,13 @@ impl<T: Eq + Clone> RoutingTable<T> {
         }
     }
 
+    /// Получаем маршрут для определенного адреса
     #[inline(always)]
     pub fn get_route(&self, packet: &[u8]) -> Option<T> {
+        // Определение версии протокола по первому байту данных
         match packet.get(0)? >> 4 {
             VERSION_IP4 => {
-                // check length and cast to IPv4 header
+                // Проверяем длину и кастим в IPV4 заголовок
                 let (header, _): (LayoutVerified<&[u8], IPv4Header>, _) =
                     LayoutVerified::new_from_prefix(packet)?;
 
@@ -84,7 +89,7 @@ impl<T: Eq + Clone> RoutingTable<T> {
                     Ipv4Addr::from(header.f_destination)
                 );
 
-                // check IPv4 source address
+                // Находим лучшее соответствие для заголовка
                 self.ipv4
                     .read()
                     .longest_match(Ipv4Addr::from(header.f_destination))
@@ -115,16 +120,18 @@ impl<T: Eq + Clone> RoutingTable<T> {
 
     #[inline(always)]
     pub fn check_route(&self, peer: &T, packet: &[u8]) -> bool {
+        // Читаем версию IP из первого байта данных
         match packet.get(0).map(|v| v >> 4) {
-            Some(VERSION_IP4) => LayoutVerified::new_from_prefix(packet)
-                .and_then(|(header, _): (LayoutVerified<&[u8], IPv4Header>, _)| {
-                    self.ipv4
-                        .read()
-                        .longest_match(Ipv4Addr::from(header.f_source))
-                        .map(|(_, _, p)| p == peer)
-                })
-                .is_some(),
-
+            Some(VERSION_IP4) => {
+                LayoutVerified::new_from_prefix(packet)
+                    .and_then(|(header, _): (LayoutVerified<&[u8], IPv4Header>, _)| {
+                        self.ipv4
+                            .read()
+                            .longest_match(Ipv4Addr::from(header.f_source))
+                            .map(|(_, _, p)| p == peer)
+                    })
+                    .is_some()
+            },
             Some(VERSION_IP6) => LayoutVerified::new_from_prefix(packet)
                 .and_then(|(header, _): (LayoutVerified<&[u8], IPv6Header>, _)| {
                     self.ipv6

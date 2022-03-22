@@ -265,14 +265,15 @@ impl<T: Tun, B: UDP> WireGuard<T, B> {
         self.tun_readers.wait();
     }
 
+    /// Создаем новый экземпляр с писателем
     pub fn new(writer: T::Writer) -> WireGuard<T, B> {
-        // workers equal to number of physical cores
+        // Узнаем сколько у нас сейчас ядер
         let cpus = num_cpus::get();
 
-        // create handshake queue
+        // Создаем очередь для хендшейков
         let (tx, mut rxs) = ParallelQueue::new(cpus, 128);
 
-        // create router
+        // Создаем роутер
         let router: router::Device<B::Endpoint, PeerInner<T, B>, T::Writer, B::Writer> =
             router::Device::new(num_cpus::get(), writer);
 
@@ -292,7 +293,7 @@ impl<T: Tun, B: UDP> WireGuard<T, B> {
             }),
         };
 
-        // start handshake workers
+        // Стартуем воркер для хендшейков
         while let Some(rx) = rxs.pop() {
             let wg = wg.clone();
             thread::spawn(move || handshake_worker(&wg, rx));
