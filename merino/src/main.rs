@@ -48,35 +48,42 @@ struct Opt {
 async fn main() -> Result<(), Box<dyn Error>> {
     println!("{}", LOGO);
 
+    // Парсим параметры
     let opt = Opt::parse();
 
-    // Setup logging
-
-    //Set the `RUST_LOG` var if none is provided
+    // Выставляем переменные окружения `RUST_LOG` если не установлено
     if env::var("RUST_LOG").is_err() {
         env::set_var("RUST_LOG", "merino=INFO");
     }
 
+    // Инициализируем систему логирования
     pretty_env_logger::init_timed();
 
-    // Setup Proxy settings
-
+    // Выставляем способы аутентификации
     let mut auth_methods: Vec<u8> = Vec::new();
 
-    // Allow unauthenticated connections
+    // Если есть флаг отсутствия аутентификации
     if opt.no_auth {
+        // Добавляем нулевую аутентификацию 
         auth_methods.push(merino::AuthMethods::NoAuth as u8);
     }
 
-    // Enable username/password auth
+    // Если надо, то включаем аутентификацию через юзера и пароль
     let authed_users: Result<Vec<User>, Box<dyn Error>> = match opt.users {
         Some(users_file) => {
+            // Добавляем аутентификацию по паролю и логину
             auth_methods.push(AuthMethods::UserPass as u8);
+
+            // Читаем файлик
             let file = std::fs::File::open(users_file)?;
 
+            // Массив пользователей
             let mut users: Vec<User> = Vec::new();
 
+            // Читаем файлик CSV
             let mut rdr = csv::Reader::from_reader(file);
+
+            // Читаем из файлика
             for result in rdr.deserialize() {
                 let record: User = result?;
 
@@ -89,9 +96,10 @@ async fn main() -> Result<(), Box<dyn Error>> {
         _ => Ok(Vec::new()),
     };
 
+    // Список юзеров
     let authed_users = authed_users?;
 
-    // Create proxy server
+    // Создаем прокси-сервер
     let mut merino = Merino::new(opt.port, &opt.ip, auth_methods, authed_users, None).await?;
 
     // Start Proxies
