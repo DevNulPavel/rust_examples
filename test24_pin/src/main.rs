@@ -69,6 +69,7 @@ fn test_pin_data() {
         let still_unmoved: Pin<Box<Unmovable>> = unmoved;
         assert_eq!(still_unmoved.slice, NonNull::from(&still_unmoved.data));
 
+        // !!!!!
         // Так как наш тип не реализует Unpin, то это значит, что компиляция сфейлится
         // Таким образом Pin по большому счету запрещает вызовы swap
         // let mut new_unmoved = Unmovable::new("world".to_string());
@@ -79,8 +80,15 @@ fn test_pin_data() {
     // То есть единственный плюс Pin только для обычных ссылок?
     {
         let unmoved = Unmovable::new_boxed("test".to_owned());
-        let still_unmoved = unmoved;
+        let mut still_unmoved = unmoved;
         assert_eq!(still_unmoved.slice, NonNull::from(&still_unmoved.data));
+     
+        let mut new_unmoved = Unmovable::new_boxed("world".to_string());
+        std::mem::swap(&mut *still_unmoved, &mut *new_unmoved);
+
+        // !!!! 
+        // Теперь assert уже невалидный
+        assert_ne!(still_unmoved.slice, NonNull::from(&still_unmoved.data));
     }
 
     // Вроде бы как адрес данных внутри Box не изменяется никак
