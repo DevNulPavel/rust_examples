@@ -1,0 +1,39 @@
+# NS record successes
+
+[[cmd]]
+name = "Running with ‘ns.example’ prints the correct NS record"
+shell = "dog --colour=always ${MADNS_ARGS:-@madns.binarystar.systems:5301 --tcp} NS ns.example"
+stdout = { file = "outputs/ns.example.ansitxt" }
+stderr = { empty = true }
+status = 0
+tags = [ "ns", "madns" ]
+
+
+# NS record successes (JSON)
+
+[[cmd]]
+name = "Running with ‘ns.example --json’ prints the correct NS record structure"
+shell = "dog --colour=always ${MADNS_ARGS:-@madns.binarystar.systems:5301 --tcp} NS ns.example --json | jq"
+stdout = { file = "outputs/ns.example.json" }
+stderr = { empty = true }
+status = 0
+tags = [ "ns", "madns", "json" ]
+
+
+# NS record invalid packets
+
+[[cmd]]
+name = "Running with ‘empty.ns.invalid’ displays a protocol error"
+shell = "dog --colour=always ${MADNS_ARGS:-@madns.binarystar.systems:5301 --tcp} NS empty.ns.invalid"
+stdout = { empty = true }
+stderr = { string = "Error [protocol]: Malformed packet: insufficient data" }
+status = 1
+tags = [ "ns", "madns" ]
+
+[[cmd]]
+name = "Running with ‘incomplete.ns.invalid’ displays a protocol error"
+shell = "dog --colour=always ${MADNS_ARGS:-@madns.binarystar.systems:5301 --tcp} NS incomplete.ns.invalid"
+stdout = { empty = true }
+stderr = { string = "Error [protocol]: Malformed packet: insufficient data" }
+status = 1
+tags = [ "ns", "madns" ]

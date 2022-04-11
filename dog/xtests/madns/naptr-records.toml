@@ -1,0 +1,79 @@
+# NAPTR record successes
+
+[[cmd]]
+name = "Running with ‘naptr.example’ prints the correct NAPTR record"
+shell = "dog --colour=always ${MADNS_ARGS:-@madns.binarystar.systems:5301 --tcp} NAPTR naptr.example"
+stdout = { file = "outputs/naptr.example.ansitxt" }
+stderr = { empty = true }
+status = 0
+tags = [ "naptr", "madns" ]
+
+[[cmd]]
+name = "Running with ‘bad-regex.naptr.example’ still prints the correct NAPTR record"
+shell = "dog --colour=always ${MADNS_ARGS:-@madns.binarystar.systems:5301 --tcp} NAPTR bad-regex.naptr.example"
+stdout = { file = "outputs/bad-regex.naptr.example.ansitxt" }
+stderr = { empty = true }
+status = 0
+tags = [ "naptr", "madns" ]
+
+[[cmd]]
+name = "Running with ‘utf8.naptr.example’ escapes characters in the NAPTR"
+shell = "dog --colour=always ${MADNS_ARGS:-@madns.binarystar.systems:5301 --tcp} NAPTR utf8.naptr.invalid"
+stdout = { file = "outputs/utf8.naptr.invalid.ansitxt" }
+stderr = { empty = true }
+status = 0
+tags = [ "naptr", "madns", "chars" ]
+
+[[cmd]]
+name = "Running with ‘bad-utf8.naptr.example’ escapes characters in the NAPTR and does not crash"
+shell = "dog --colour=always ${MADNS_ARGS:-@madns.binarystar.systems:5301 --tcp} NAPTR bad-utf8.naptr.invalid"
+stdout = { file = "outputs/bad-utf8.naptr.invalid.ansitxt" }
+stderr = { empty = true }
+status = 0
+tags = [ "naptr", "madns", "chars" ]
+
+
+# NAPTR record successes (JSON)
+
+[[cmd]]
+name = "Running with ‘naptr.example --json’ prints the correct NAPTR record structure"
+shell = "dog --colour=always ${MADNS_ARGS:-@madns.binarystar.systems:5301 --tcp} NAPTR naptr.example --json | jq"
+stdout = { file = "outputs/naptr.example.json" }
+stderr = { empty = true }
+status = 0
+tags = [ "naptr", "madns", "json" ]
+
+[[cmd]]
+name = "Running with ‘utf8.naptr.example --json’ interprets the response as UTF-8"
+shell = "dog --colour=always ${MADNS_ARGS:-@madns.binarystar.systems:5301 --tcp} NAPTR utf8.naptr.invalid --json | jq"
+stdout = { file = "outputs/utf8.naptr.invalid.json" }
+stderr = { empty = true }
+status = 0
+tags = [ "naptr", "madns", "chars", "json" ]
+
+[[cmd]]
+name = "Running with ‘bad-utf8.naptr.example --json’ uses UTF-8 replacement characters"
+shell = "dog --colour=always ${MADNS_ARGS:-@madns.binarystar.systems:5301 --tcp} NAPTR bad-utf8.naptr.invalid --json | jq"
+stdout = { file = "outputs/bad-utf8.naptr.invalid.json" }
+stderr = { empty = true }
+status = 0
+tags = [ "naptr", "madns", "chars", "json" ]
+
+
+# NAPTR record invalid packets
+
+[[cmd]]
+name = "Running with ‘empty.naptr.invalid’ displays a protocol error"
+shell = "dog --colour=always ${MADNS_ARGS:-@madns.binarystar.systems:5301 --tcp} NAPTR empty.naptr.invalid"
+stdout = { empty = true }
+stderr = { string = "Error [protocol]: Malformed packet: insufficient data" }
+status = 1
+tags = [ "naptr", "madns" ]
+
+[[cmd]]
+name = "Running with ‘incomplete.naptr.invalid’ displays a protocol error"
+shell = "dog --colour=always ${MADNS_ARGS:-@madns.binarystar.systems:5301 --tcp} NAPTR incomplete.naptr.invalid"
+stdout = { empty = true }
+stderr = { string = "Error [protocol]: Malformed packet: insufficient data" }
+status = 1
+tags = [ "naptr", "madns" ]

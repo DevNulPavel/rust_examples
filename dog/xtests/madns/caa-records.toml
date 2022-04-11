@@ -1,0 +1,103 @@
+# CAA record successes
+
+[[cmd]]
+name = "Running with ‘caa.example’ prints the correct CAA record"
+shell = "dog --colour=always ${MADNS_ARGS:-@madns.binarystar.systems:5301 --tcp} CAA caa.example"
+stdout = { file = "outputs/caa.example.ansitxt" }
+stderr = { empty = true }
+status = 0
+tags = [ "caa", "madns" ]
+
+[[cmd]]
+name = "Running with ‘critical.caa.example’ prints the correct CAA record with the flag"
+shell = "dog --colour=always ${MADNS_ARGS:-@madns.binarystar.systems:5301 --tcp} CAA critical.caa.example"
+stdout = { file = "outputs/critical.caa.example.ansitxt" }
+stderr = { empty = true }
+status = 0
+tags = [ "caa", "madns" ]
+
+[[cmd]]
+name = "Running with ‘others.caa.example’ prints the correct CAA record and ignores the flags"
+shell = "dog --colour=always ${MADNS_ARGS:-@madns.binarystar.systems:5301 --tcp} CAA others.caa.example"
+stdout = { file = "outputs/others.caa.example.ansitxt" }
+stderr = { empty = true }
+status = 0
+tags = [ "caa", "madns" ]
+
+[[cmd]]
+name = "Running with ‘utf8.caa.example’ escapes characters in the fields"
+shell = "dog --colour=always ${MADNS_ARGS:-@madns.binarystar.systems:5301 --tcp} CAA utf8.caa.example"
+stdout = { file = "outputs/utf8.caa.example.ansitxt" }
+stderr = { empty = true }
+status = 0
+tags = [ "caa", "madns", "chars" ]
+
+[[cmd]]
+name = "Running with ‘bad-utf8.caa.example’ escapes characters in the fields and does not crash"
+shell = "dog --colour=always ${MADNS_ARGS:-@madns.binarystar.systems:5301 --tcp} CAA bad-utf8.caa.example"
+stdout = { file = "outputs/bad-utf8.caa.example.ansitxt" }
+stderr = { empty = true }
+status = 0
+tags = [ "caa", "madns", "chars" ]
+
+
+# CAA record successes (JSON)
+
+[[cmd]]
+name = "Running with ‘caa.example --json’ prints the correct CAA record structure"
+shell = "dog --colour=always ${MADNS_ARGS:-@madns.binarystar.systems:5301 --tcp} CAA caa.example --json | jq"
+stdout = { file = "outputs/caa.example.json" }
+stderr = { empty = true }
+status = 0
+tags = [ "caa", "madns", "json" ]
+
+[[cmd]]
+name = "Running with ‘critical.caa.example --json’ prints the correct CAA record structurewith the flag"
+shell = "dog --colour=always ${MADNS_ARGS:-@madns.binarystar.systems:5301 --tcp} CAA critical.caa.example --json | jq"
+stdout = { file = "outputs/critical.caa.example.json" }
+stderr = { empty = true }
+status = 0
+tags = [ "caa", "madns", "json" ]
+
+[[cmd]]
+name = "Running with ‘others.caa.example --json’ prints the correct CAA record structure and ignores the flags"
+shell = "dog --colour=always ${MADNS_ARGS:-@madns.binarystar.systems:5301 --tcp} CAA others.caa.example --json | jq"
+stdout = { file = "outputs/others.caa.example.json" }
+stderr = { empty = true }
+status = 0
+tags = [ "caa", "madns", "json" ]
+
+[[cmd]]
+name = "Running with ‘utf8.caa.example --json’ interprets the response as UTF-8"
+shell = "dog --colour=always ${MADNS_ARGS:-@madns.binarystar.systems:5301 --tcp} CAA utf8.caa.example --json | jq"
+stdout = { file = "outputs/utf8.caa.example.json" }
+stderr = { empty = true }
+status = 0
+tags = [ "caa", "madns", "chars", "json" ]
+
+[[cmd]]
+name = "Running with ‘bad-utf8.caa.example --json’ uses UTF-8 replacement characters"
+shell = "dog --colour=always ${MADNS_ARGS:-@madns.binarystar.systems:5301 --tcp} CAA bad-utf8.caa.example --json | jq"
+stdout = { file = "outputs/bad-utf8.caa.example.json" }
+stderr = { empty = true }
+status = 0
+tags = [ "caa", "madns", "chars", "json" ]
+
+
+# CAA record invalid packets
+
+[[cmd]]
+name = "Running with ‘empty.caa.invalid’ displays a protocol error"
+shell = "dog --colour=always ${MADNS_ARGS:-@madns.binarystar.systems:5301 --tcp} CAA empty.caa.invalid"
+stdout = { empty = true }
+stderr = { string = "Error [protocol]: Malformed packet: insufficient data" }
+status = 1
+tags = [ "caa", "madns" ]
+
+[[cmd]]
+name = "Running with ‘incomplete.caa.invalid’ displays a protocol error"
+shell = "dog --colour=always ${MADNS_ARGS:-@madns.binarystar.systems:5301 --tcp} CAA incomplete.caa.invalid"
+stdout = { empty = true }
+stderr = { string = "Error [protocol]: Malformed packet: insufficient data" }
+status = 1
+tags = [ "caa", "madns" ]

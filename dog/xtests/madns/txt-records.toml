@@ -1,0 +1,72 @@
+# TXT record successes
+
+[[cmd]]
+name = "Running with ‘txt.example’ prints the correct TXT record"
+shell = "dog --colour=always ${MADNS_ARGS:-@madns.binarystar.systems:5301 --tcp} TXT txt.example"
+stdout = { file = "outputs/txt.example.ansitxt" }
+stderr = { empty = true }
+status = 0
+tags = [ "txt", "madns" ]
+
+[[cmd]]
+name = "Running with ‘utf8.txt.example’ escapes characters in the message"
+shell = "dog --colour=always ${MADNS_ARGS:-@madns.binarystar.systems:5301 --tcp} TXT utf8.txt.example"
+stdout = { file = "outputs/utf8.txt.example.ansitxt" }
+stderr = { empty = true }
+status = 0
+tags = [ "txt", "madns", "chars" ]
+
+[[cmd]]
+name = "Running with ‘bad-utf8.txt.example’ escapes characters in the message and does not crash"
+shell = "dog --colour=always ${MADNS_ARGS:-@madns.binarystar.systems:5301 --tcp} TXT bad-utf8.txt.example"
+stdout = { file = "outputs/bad-utf8.txt.example.ansitxt" }
+stderr = { empty = true }
+status = 0
+tags = [ "txt", "madns", "chars" ]
+
+
+# TXT record successes (JSON)
+
+[[cmd]]
+name = "Running with ‘txt.example --json’ prints the correct TXT record structure"
+shell = "dog --colour=always ${MADNS_ARGS:-@madns.binarystar.systems:5301 --tcp} TXT txt.example --json | jq"
+stdout = { file = "outputs/txt.example.json" }
+stderr = { empty = true }
+status = 0
+tags = [ "txt", "madns", "json" ]
+
+
+[[cmd]]
+name = "Running with ‘utf8.txt.example --json’ interprets the response as UTF-8"
+shell = "dog --colour=always ${MADNS_ARGS:-@madns.binarystar.systems:5301 --tcp} TXT utf8.txt.example --json | jq"
+stdout = { file = "outputs/utf8.txt.example.json" }
+stderr = { empty = true }
+status = 0
+tags = [ "txt", "madns", "chars", "json" ]
+
+[[cmd]]
+name = "Running with ‘bad-utf8.txt.example --json’ uses UTF-8 replacement characters"
+shell = "dog --colour=always ${MADNS_ARGS:-@madns.binarystar.systems:5301 --tcp} TXT bad-utf8.txt.example --json | jq"
+stdout = { file = "outputs/bad-utf8.txt.example.json" }
+stderr = { empty = true }
+status = 0
+tags = [ "txt", "madns", "chars", "json" ]
+
+
+# TXT record invalid packets
+
+[[cmd]]
+name = "Running with ‘empty.txt.invalid’ displays a protocol error"
+shell = "dog --colour=always ${MADNS_ARGS:-@madns.binarystar.systems:5301 --tcp} TXT empty.txt.invalid"
+stdout = { empty = true }
+stderr = { string = "Error [protocol]: Malformed packet: insufficient data" }
+status = 1
+tags = [ "txt", "madns" ]
+
+[[cmd]]
+name = "Running with ‘incomplete.txt.invalid’ displays a protocol error"
+shell = "dog --colour=always ${MADNS_ARGS:-@madns.binarystar.systems:5301 --tcp} TXT incomplete.txt.invalid"
+stdout = { empty = true }
+stderr = { string = "Error [protocol]: Malformed packet: insufficient data" }
+status = 1
+tags = [ "txt", "madns" ]
