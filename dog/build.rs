@@ -1,23 +1,22 @@
-//! This build script gets run during every build. Its purpose is to put
-//! together the files used for the `--help` and `--version`, which need to
-//! come in both coloured and non-coloured variants. The main usage text is
-//! contained in `src/usage.txt`; to make it easier to edit, backslashes (\)
-//! are used instead of the beginning of ANSI escape codes.
-//!
-//! The version string is quite complex: we want to show the version,
-//! current Git hash, and compilation date when building *debug*
-//! versions, but just the version for *release* versions.
-//!
-//! This script generates the string from the environment variables
-//! that Cargo adds (http://doc.crates.io/environment-variables.html)
-//! and runs `git` to get the SHA1 hash. It then writes the strings
-//! into files, which we can include during compilation.
+//! Данный скрипт запускается в процессе каждого билда
+//! Его цель собрать вместе файлики, используемые для --help и --version,
+//! которые нужны для цветного и не цветного вариантов.
+//! Главный текст содержится в src/usage.txt.
+//! Для упрощения редактирования, обратные слеши используются вместо исходных
+//! ANSI кодов.
+//! 
+//! Строка версии достаточно слоная, мы хотим показать версию, текущий хеш и дату компиляции 
+//! для debug сборки.
+//! И лишь версию для релизной сборки.
+//! Данный скрипт генерирует строку из переменной окружения, которые добавляет Cargo
+//! https://doc.crates.io/environment-variables.html
+//! и запускает git для получения SHA1 хеша.
+//! Затем записывает строки в файлики, которые мы можем включать во время компиляции в код.
 
 use std::env;
 use std::fs::File;
 use std::io::{self, Write};
 use std::path::PathBuf;
-
 use datetime::{LocalDateTime, ISO};
 
 
@@ -25,10 +24,14 @@ use datetime::{LocalDateTime, ISO};
 fn main() -> io::Result<()> {
     #![allow(clippy::write_with_newline)]
 
+    // Строка с использованием
     let usage   = include_str!("src/usage.txt");
+    // Описание с цветом
     let tagline = "dog \\1;32m●\\0m command-line DNS client";
+    // Сайт
     let url     = "https://dns.lookup.dog/";
 
+    // Строка версии
     let ver =
         if is_debug_build() {
             format!("{}\nv{} \\1;31m(pre-release debug build!)\\0m\n\\1;4;34m{}\\0m", tagline, version_string(), url)
@@ -41,34 +44,35 @@ fn main() -> io::Result<()> {
         };
 
     // We need to create these files in the Cargo output directory.
+    // Файлики складываем в директорию выходных данных
     let out = PathBuf::from(env::var("OUT_DIR").unwrap());
 
-    // Pretty version text
+    // Текст с версией
     let mut f = File::create(&out.join("version.pretty.txt"))?;
     writeln!(f, "{}", convert_codes(&ver))?;
 
-    // Bland version text
+    // Красивый текст версии
     let mut f = File::create(&out.join("version.bland.txt"))?;
     writeln!(f, "{}", strip_codes(&ver))?;
 
-    // Pretty usage text
+    // Описание использования
     let mut f = File::create(&out.join("usage.pretty.txt"))?;
-    writeln!(f, "{}", convert_codes(&tagline))?;
+    writeln!(f, "{}", convert_codes(tagline))?;
     writeln!(f)?;
-    write!(f, "{}", convert_codes(&usage))?;
+    write!(f, "{}", convert_codes(usage))?;
 
     // Bland usage text
     let mut f = File::create(&out.join("usage.bland.txt"))?;
-    writeln!(f, "{}", strip_codes(&tagline))?;
+    writeln!(f, "{}", strip_codes(tagline))?;
     writeln!(f)?;
-    write!(f, "{}", strip_codes(&usage))?;
+    write!(f, "{}", strip_codes(usage))?;
 
     Ok(())
 }
 
-/// Converts the escape codes in ‘usage.txt’ to ANSI escape codes.
+/// Конвертация кодов в ANSI
 fn convert_codes(input: &str) -> String {
-    input.replace("\\", "\x1B[")
+    input.replace('\\', "\x1B[")
 }
 
 /// Removes escape codes from ‘usage.txt’.

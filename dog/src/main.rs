@@ -21,8 +21,6 @@
 
 #![deny(unsafe_code)]
 
-use log::*;
-
 mod colours;
 mod connect;
 mod hints;
@@ -32,17 +30,18 @@ mod requests;
 mod resolve;
 mod table;
 mod txid;
-
 mod options;
+
+use log::*;
+use std::env;
+use std::process::exit;
 use self::options::*;
 
 
-/// Configures logging, parses the command-line options, and handles any
-/// errors before passing control over to the Dog type.
+/// Конфигурируем логирование, парсим опции коммандной строки, обрабатываем
+/// ошибки перед переходом к типам Dog
 fn main() {
-    use std::env;
-    use std::process::exit;
-
+    // Настройка логирования
     logger::configure(env::var_os("DOG_DEBUG"));
 
     #[cfg(windows)]
@@ -50,6 +49,7 @@ fn main() {
         warn!("Failed to enable ANSI support: {}", e);
     }
 
+    // Парсим параметры
     match Options::getopts(env::args_os().skip(1)) {
         OptionsResult::Ok(options) => {
             info!("Running with options -> {:#?}", options);
@@ -108,6 +108,7 @@ fn run(Options { requests, format, measure_time }: Options) -> i32 {
 
     let mut errored = false;
 
+    // Подтягиваем данные из /etc/hosts для резолва
     let local_host_hints = match hints::LocalHosts::load() {
         Ok(lh) => lh,
         Err(e) => {
@@ -116,12 +117,14 @@ fn run(Options { requests, format, measure_time }: Options) -> i32 {
         }
     };
 
+    // Пишем сообщение запроса
     for hostname_in_query in &requests.inputs.domains {
         if local_host_hints.contains(hostname_in_query) {
             eprintln!("warning: domain '{}' also exists in hosts file", hostname_in_query);
         }
     }
 
+    // Создаем запросы
     let request_tuples = match requests.generate() {
         Ok(rt) => rt,
         Err(e) => {

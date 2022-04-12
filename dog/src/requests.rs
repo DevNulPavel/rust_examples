@@ -83,9 +83,7 @@ pub enum UseEDNS {
 pub type RequestSet = (Box<dyn dns_transport::Transport>, Vec<dns::Request>);
 
 impl RequestGenerator {
-
-    /// Iterate through the inputs matrix, returning pairs of DNS request list
-    /// and the details of the transport to send them down.
+    /// Итерируемся по матрице, возвращая пару DNS запроса и детали транспорта
     pub fn generate(self) -> Result<Vec<RequestSet>, ResolverLookupError> {
         let mut requests = Vec::new();
 

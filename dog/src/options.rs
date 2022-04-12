@@ -30,19 +30,17 @@ pub struct Options {
 }
 
 impl Options {
-
-    /// Parses and interprets a set of options from the user’s command-line
-    /// arguments.
-    ///
-    /// This returns an `Ok` set of options if successful and running
-    /// normally, a `Help` or `Version` variant if one of those options is
-    /// specified, or an error variant if there’s an invalid option or
-    /// inconsistency within the options after they were parsed.
+    /// Парсим и интерпретируем набор опций из коммандной строки пользователя
+    /// 
+    /// Возвращает Ok набор опций если успешно все прошло и запускать можно нормально.
+    /// Либо варианты `Help` или `Version` если нам надо вывести лишь помощь и версию.
+    /// Так же есть варианты с ошибкой если были переданны данные с ошибкой.
     #[allow(unused_results)]
     pub fn getopts<C>(args: C) -> OptionsResult
     where C: IntoIterator,
           C::Item: AsRef<OsStr>,
     {
+        // Мутабельная парсинга опций
         let mut opts = getopts::Options::new();
 
         // Query options
@@ -74,13 +72,16 @@ impl Options {
         opts.optflag ("v", "version",      "Print version information");
         opts.optflag ("?", "help",         "Print list of command-line options");
 
+        // Парсим параметры, выдаем ошибку если параметры неверные
         let matches = match opts.parse(args) {
             Ok(m)  => m,
             Err(e) => return OptionsResult::InvalidOptionsFormat(e),
         };
 
+        // Парсим параметры вывода с цветом
         let uc = UseColours::deduce(&matches);
 
+        // Версия или помощь?
         if matches.opt_present("version") {
             OptionsResult::Version(uc)
         }
@@ -88,8 +89,10 @@ impl Options {
             OptionsResult::Help(HelpReason::Flag, uc)
         }
         else {
+            // Парсим уже полноценные параметры
             match Self::deduce(matches) {
                 Ok(opts) => {
+                    // Домены пустые? Выводим помощь
                     if opts.requests.inputs.domains.is_empty() {
                         OptionsResult::Help(HelpReason::NoDomains, uc)
                     }
