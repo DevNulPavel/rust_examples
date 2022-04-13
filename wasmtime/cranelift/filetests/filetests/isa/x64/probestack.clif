@@ -1,0 +1,30 @@
+test compile precise-output
+set enable_probestack=true
+target x86_64
+
+function %f1() -> i64 {
+ss0 = explicit_slot 100000
+
+block0:
+  v1 = stack_addr.i64 ss0
+  return v1
+}
+
+; VCode_ShowWithRRU {{
+;   Entry block: 0
+; Block 0:
+;   (original IR block: block0)
+;   (instruction range: 0 .. 11)
+;   Inst 0:   pushq   %rbp
+;   Inst 1:   movq    %rsp, %rbp
+;   Inst 2:   movl    $100000, %eax
+;   Inst 3:   call    LibCall(Probestack)
+;   Inst 4:   subq    $100000, %rsp
+;   Inst 5:   lea     rsp(0 + virtual offset), %rsi
+;   Inst 6:   movq    %rsi, %rax
+;   Inst 7:   addq    $100000, %rsp
+;   Inst 8:   movq    %rbp, %rsp
+;   Inst 9:   popq    %rbp
+;   Inst 10:   ret
+; }}
+

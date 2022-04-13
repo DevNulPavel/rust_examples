@@ -1,0 +1,25 @@
+test compile precise-output
+set tls_model=elf_gd
+target x86_64
+
+function u0:0(i32) -> i64 {
+gv0 = symbol colocated tls u1:0
+
+block0(v0: i32):
+    v1 = global_value.i64 gv0
+    return v1
+}
+
+; VCode_ShowWithRRU {{
+;   Entry block: 0
+; Block 0:
+;   (original IR block: block0)
+;   (instruction range: 0 .. 6)
+;   Inst 0:   pushq   %rbp
+;   Inst 1:   movq    %rsp, %rbp
+;   Inst 2:   elf_tls_get_addr User { namespace: 1, index: 0 }
+;   Inst 3:   movq    %rbp, %rsp
+;   Inst 4:   popq    %rbp
+;   Inst 5:   ret
+; }}
+

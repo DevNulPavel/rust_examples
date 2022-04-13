@@ -1,0 +1,103 @@
+test compile precise-output
+target x86_64
+
+function %f0(b1, i32, i32) -> i32 {
+block0(v0: b1, v1: i32, v2: i32):
+    v3 = select.i32 v0, v1, v2
+    return v3
+}
+
+; VCode_ShowWithRRU {{
+;   Entry block: 0
+; Block 0:
+;   (original IR block: block0)
+;   (instruction range: 0 .. 9)
+;   Inst 0:   pushq   %rbp
+;   Inst 1:   movq    %rsp, %rbp
+;   Inst 2:   testb   $1, %dil
+;   Inst 3:   movl    %edx, %edi
+;   Inst 4:   cmovnzl %esi, %edi
+;   Inst 5:   movq    %rdi, %rax
+;   Inst 6:   movq    %rbp, %rsp
+;   Inst 7:   popq    %rbp
+;   Inst 8:   ret
+; }}
+
+function %f1(b1) -> i32 {
+block0(v0: b1):
+    brnz v0, block1
+    jump block2
+block1:
+    v1 = iconst.i32 1
+    return v1
+block2:
+    v2 = iconst.i32 2
+    return v2
+}
+
+; VCode_ShowWithRRU {{
+;   Entry block: 0
+; Block 0:
+;   (original IR block: block0)
+;   (successor: Block 1)
+;   (successor: Block 2)
+;   (instruction range: 0 .. 4)
+;   Inst 0:   pushq   %rbp
+;   Inst 1:   movq    %rsp, %rbp
+;   Inst 2:   testb   $1, %dil
+;   Inst 3:   jnz     label1; j label2
+; Block 1:
+;   (original IR block: block1)
+;   (instruction range: 4 .. 8)
+;   Inst 4:   movl    $1, %eax
+;   Inst 5:   movq    %rbp, %rsp
+;   Inst 6:   popq    %rbp
+;   Inst 7:   ret
+; Block 2:
+;   (original IR block: block2)
+;   (instruction range: 8 .. 12)
+;   Inst 8:   movl    $2, %eax
+;   Inst 9:   movq    %rbp, %rsp
+;   Inst 10:   popq    %rbp
+;   Inst 11:   ret
+; }}
+
+function %f2(b1) -> i32 {
+block0(v0: b1):
+    brz v0, block1
+    jump block2
+block1:
+    v1 = iconst.i32 1
+    return v1
+block2:
+    v2 = iconst.i32 2
+    return v2
+}
+
+; VCode_ShowWithRRU {{
+;   Entry block: 0
+; Block 0:
+;   (original IR block: block0)
+;   (successor: Block 1)
+;   (successor: Block 2)
+;   (instruction range: 0 .. 4)
+;   Inst 0:   pushq   %rbp
+;   Inst 1:   movq    %rsp, %rbp
+;   Inst 2:   testb   $1, %dil
+;   Inst 3:   jz      label1; j label2
+; Block 1:
+;   (original IR block: block1)
+;   (instruction range: 4 .. 8)
+;   Inst 4:   movl    $1, %eax
+;   Inst 5:   movq    %rbp, %rsp
+;   Inst 6:   popq    %rbp
+;   Inst 7:   ret
+; Block 2:
+;   (original IR block: block2)
+;   (instruction range: 8 .. 12)
+;   Inst 8:   movl    $2, %eax
+;   Inst 9:   movq    %rbp, %rsp
+;   Inst 10:   popq    %rbp
+;   Inst 11:   ret
+; }}
+

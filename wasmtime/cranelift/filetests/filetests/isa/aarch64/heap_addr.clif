@@ -1,0 +1,74 @@
+test compile precise-output
+set unwind_info=false
+set enable_heap_access_spectre_mitigation=true
+target aarch64
+
+function %dynamic_heap_check(i64 vmctx, i32) -> i64 {
+    gv0 = vmctx
+    gv1 = load.i64 notrap aligned gv0
+    heap0 = dynamic gv0, bound gv1, offset_guard 0x1000, index_type i32
+
+block0(v0: i64, v1: i32):
+    v2 = heap_addr.i64 heap0, v1, 0
+    return v2
+}
+
+; VCode_ShowWithRRU {{
+;   Entry block: 0
+; Block 0:
+;   (original IR block: block0)
+;   (successor: Block 1)
+;   (successor: Block 2)
+;   (instruction range: 0 .. 5)
+;   Inst 0:   mov w2, w1
+;   Inst 1:   ldr x3, [x0]
+;   Inst 2:   mov x3, x3
+;   Inst 3:   subs xzr, x2, x3
+;   Inst 4:   b.ls label1 ; b label2
+; Block 1:
+;   (original IR block: block2)
+;   (instruction range: 5 .. 10)
+;   Inst 5:   add x0, x0, x1, UXTW
+;   Inst 6:   subs xzr, x2, x3
+;   Inst 7:   movz x1, #0
+;   Inst 8:   csel x0, x1, x0, hi
+;   Inst 9:   ret
+; Block 2:
+;   (original IR block: block1)
+;   (instruction range: 10 .. 11)
+;   Inst 10:   udf
+; }}
+
+function %static_heap_check(i64 vmctx, i32) -> i64 {
+    gv0 = vmctx
+    heap0 = static gv0, bound 0x1_0000, offset_guard 0x1000, index_type i32
+
+block0(v0: i64, v1: i32):
+    v2 = heap_addr.i64 heap0, v1, 0
+    return v2
+}
+
+; VCode_ShowWithRRU {{
+;   Entry block: 0
+; Block 0:
+;   (original IR block: block0)
+;   (successor: Block 1)
+;   (successor: Block 2)
+;   (instruction range: 0 .. 3)
+;   Inst 0:   mov w2, w1
+;   Inst 1:   subs xzr, x2, #65536
+;   Inst 2:   b.ls label1 ; b label2
+; Block 1:
+;   (original IR block: block2)
+;   (instruction range: 3 .. 8)
+;   Inst 3:   add x0, x0, x1, UXTW
+;   Inst 4:   subs xzr, x2, #65536
+;   Inst 5:   movz x1, #0
+;   Inst 6:   csel x0, x1, x0, hi
+;   Inst 7:   ret
+; Block 2:
+;   (original IR block: block1)
+;   (instruction range: 8 .. 9)
+;   Inst 8:   udf
+; }}
+

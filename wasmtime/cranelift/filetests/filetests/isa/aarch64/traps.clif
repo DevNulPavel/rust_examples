@@ -1,0 +1,50 @@
+test compile precise-output
+set unwind_info=false
+target aarch64
+
+function %f() {
+block0:
+  trap user0
+}
+
+; VCode_ShowWithRRU {{
+;   Entry block: 0
+; Block 0:
+;   (original IR block: block0)
+;   (instruction range: 0 .. 1)
+;   Inst 0:   udf
+; }}
+
+function %g(i64) {
+block0(v0: i64):
+  v1 = iconst.i64 42
+  v2 = ifcmp v0, v1
+  trapif eq v2, user0
+  return
+}
+
+; VCode_ShowWithRRU {{
+;   Entry block: 0
+; Block 0:
+;   (original IR block: block0)
+;   (instruction range: 0 .. 3)
+;   Inst 0:   subs xzr, x0, #42
+;   Inst 1:   b.ne 8 ; udf
+;   Inst 2:   ret
+; }}
+
+function %h() {
+block0:
+  debugtrap
+  return
+}
+
+; VCode_ShowWithRRU {{
+;   Entry block: 0
+; Block 0:
+;   (original IR block: block0)
+;   (instruction range: 0 .. 2)
+;   Inst 0:   brk #0
+;   Inst 1:   ret
+; }}
+

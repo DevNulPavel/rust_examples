@@ -1,0 +1,18 @@
+version: 2
+updates:
+- package-ecosystem: "cargo"
+  directory: "/"
+  schedule:
+    interval: "daily"
+- package-ecosystem: "cargo"
+  directory: "src/bin/exec-wasmtime"
+  schedule:
+    interval: "daily"
+- package-ecosystem: "cargo"
+  directory: "src/bin/shim-kvm"
+  schedule:
+    interval: "daily"
+- package-ecosystem: "cargo"
+  directory: "src/bin/shim-sgx"
+  schedule:
+    interval: "daily"

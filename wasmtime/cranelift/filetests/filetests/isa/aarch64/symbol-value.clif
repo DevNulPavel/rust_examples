@@ -1,0 +1,21 @@
+test compile precise-output
+set unwind_info=false
+target aarch64
+
+function %f() -> i64 {
+  gv0 = symbol %my_global
+
+block0:
+  v0 = symbol_value.i64 gv0
+  return v0
+}
+
+; VCode_ShowWithRRU {{
+;   Entry block: 0
+; Block 0:
+;   (original IR block: block0)
+;   (instruction range: 0 .. 2)
+;   Inst 0:   ldr x0, 8 ; b 12 ; data TestCase { length: 9, ascii: [109, 121, 95, 103, 108, 111, 98, 97, 108, 0, 0, 0, 0, 0, 0, 0] } + 0
+;   Inst 1:   ret
+; }}
+

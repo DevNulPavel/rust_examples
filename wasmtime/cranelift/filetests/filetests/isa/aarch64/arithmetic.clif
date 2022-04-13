@@ -1,0 +1,639 @@
+test compile precise-output
+set unwind_info=false
+target aarch64
+
+function %f1(i64, i64) -> i64 {
+block0(v0: i64, v1: i64):
+  v2 = iadd.i64 v0, v1
+  return v2
+}
+
+; VCode_ShowWithRRU {{
+;   Entry block: 0
+; Block 0:
+;   (original IR block: block0)
+;   (instruction range: 0 .. 2)
+;   Inst 0:   add x0, x0, x1
+;   Inst 1:   ret
+; }}
+
+function %f2(i64, i64) -> i64 {
+block0(v0: i64, v1: i64):
+  v2 = isub.i64 v0, v1
+  return v2
+}
+
+; VCode_ShowWithRRU {{
+;   Entry block: 0
+; Block 0:
+;   (original IR block: block0)
+;   (instruction range: 0 .. 2)
+;   Inst 0:   sub x0, x0, x1
+;   Inst 1:   ret
+; }}
+
+function %f3(i64, i64) -> i64 {
+block0(v0: i64, v1: i64):
+  v2 = imul.i64 v0, v1
+  return v2
+}
+
+; VCode_ShowWithRRU {{
+;   Entry block: 0
+; Block 0:
+;   (original IR block: block0)
+;   (instruction range: 0 .. 2)
+;   Inst 0:   madd x0, x0, x1, xzr
+;   Inst 1:   ret
+; }}
+
+function %f4(i64, i64) -> i64 {
+block0(v0: i64, v1: i64):
+  v2 = umulhi.i64 v0, v1
+  return v2
+}
+
+; VCode_ShowWithRRU {{
+;   Entry block: 0
+; Block 0:
+;   (original IR block: block0)
+;   (instruction range: 0 .. 2)
+;   Inst 0:   umulh x0, x0, x1
+;   Inst 1:   ret
+; }}
+
+function %f5(i64, i64) -> i64 {
+block0(v0: i64, v1: i64):
+  v2 = smulhi.i64 v0, v1
+  return v2
+}
+
+; VCode_ShowWithRRU {{
+;   Entry block: 0
+; Block 0:
+;   (original IR block: block0)
+;   (instruction range: 0 .. 2)
+;   Inst 0:   smulh x0, x0, x1
+;   Inst 1:   ret
+; }}
+
+function %f6(i64, i64) -> i64 {
+block0(v0: i64, v1: i64):
+  v2 = sdiv.i64 v0, v1
+  return v2
+}
+
+; VCode_ShowWithRRU {{
+;   Entry block: 0
+; Block 0:
+;   (original IR block: block0)
+;   (instruction range: 0 .. 6)
+;   Inst 0:   cbnz x1, 8 ; udf
+;   Inst 1:   adds xzr, x1, #1
+;   Inst 2:   ccmp x0, #1, #nzcv, eq
+;   Inst 3:   b.vc 8 ; udf
+;   Inst 4:   sdiv x0, x0, x1
+;   Inst 5:   ret
+; }}
+
+function %f7(i64) -> i64 {
+block0(v0: i64):
+  v1 = iconst.i64 2
+  v2 = sdiv.i64 v0, v1
+  return v2
+}
+
+; VCode_ShowWithRRU {{
+;   Entry block: 0
+; Block 0:
+;   (original IR block: block0)
+;   (instruction range: 0 .. 3)
+;   Inst 0:   orr x1, xzr, #2
+;   Inst 1:   sdiv x0, x0, x1
+;   Inst 2:   ret
+; }}
+
+function %f8(i64, i64) -> i64 {
+block0(v0: i64, v1: i64):
+  v2 = udiv.i64 v0, v1
+  return v2
+}
+
+; VCode_ShowWithRRU {{
+;   Entry block: 0
+; Block 0:
+;   (original IR block: block0)
+;   (instruction range: 0 .. 3)
+;   Inst 0:   cbnz x1, 8 ; udf
+;   Inst 1:   udiv x0, x0, x1
+;   Inst 2:   ret
+; }}
+
+function %f9(i64) -> i64 {
+block0(v0: i64):
+  v1 = iconst.i64 2
+  v2 = udiv.i64 v0, v1
+  return v2
+}
+
+; VCode_ShowWithRRU {{
+;   Entry block: 0
+; Block 0:
+;   (original IR block: block0)
+;   (instruction range: 0 .. 3)
+;   Inst 0:   orr x1, xzr, #2
+;   Inst 1:   udiv x0, x0, x1
+;   Inst 2:   ret
+; }}
+
+function %f10(i64, i64) -> i64 {
+block0(v0: i64, v1: i64):
+  v2 = srem.i64 v0, v1
+  return v2
+}
+
+; VCode_ShowWithRRU {{
+;   Entry block: 0
+; Block 0:
+;   (original IR block: block0)
+;   (instruction range: 0 .. 4)
+;   Inst 0:   cbnz x1, 8 ; udf
+;   Inst 1:   sdiv x2, x0, x1
+;   Inst 2:   msub x0, x2, x1, x0
+;   Inst 3:   ret
+; }}
+
+function %f11(i64, i64) -> i64 {
+block0(v0: i64, v1: i64):
+  v2 = urem.i64 v0, v1
+  return v2
+}
+
+; VCode_ShowWithRRU {{
+;   Entry block: 0
+; Block 0:
+;   (original IR block: block0)
+;   (instruction range: 0 .. 4)
+;   Inst 0:   cbnz x1, 8 ; udf
+;   Inst 1:   udiv x2, x0, x1
+;   Inst 2:   msub x0, x2, x1, x0
+;   Inst 3:   ret
+; }}
+
+function %f12(i32, i32) -> i32 {
+block0(v0: i32, v1: i32):
+  v2 = sdiv.i32 v0, v1
+  return v2
+}
+
+; VCode_ShowWithRRU {{
+;   Entry block: 0
+; Block 0:
+;   (original IR block: block0)
+;   (instruction range: 0 .. 8)
+;   Inst 0:   sxtw x0, w0
+;   Inst 1:   sxtw x1, w1
+;   Inst 2:   cbnz x1, 8 ; udf
+;   Inst 3:   adds wzr, w1, #1
+;   Inst 4:   ccmp w0, #1, #nzcv, eq
+;   Inst 5:   b.vc 8 ; udf
+;   Inst 6:   sdiv x0, x0, x1
+;   Inst 7:   ret
+; }}
+
+function %f13(i32) -> i32 {
+block0(v0: i32):
+  v1 = iconst.i32 2
+  v2 = sdiv.i32 v0, v1
+  return v2
+}
+
+; VCode_ShowWithRRU {{
+;   Entry block: 0
+; Block 0:
+;   (original IR block: block0)
+;   (instruction range: 0 .. 4)
+;   Inst 0:   sxtw x0, w0
+;   Inst 1:   orr x1, xzr, #2
+;   Inst 2:   sdiv x0, x0, x1
+;   Inst 3:   ret
+; }}
+
+function %f14(i32, i32) -> i32 {
+block0(v0: i32, v1: i32):
+  v2 = udiv.i32 v0, v1
+  return v2
+}
+
+; VCode_ShowWithRRU {{
+;   Entry block: 0
+; Block 0:
+;   (original IR block: block0)
+;   (instruction range: 0 .. 5)
+;   Inst 0:   mov w0, w0
+;   Inst 1:   mov w1, w1
+;   Inst 2:   cbnz x1, 8 ; udf
+;   Inst 3:   udiv x0, x0, x1
+;   Inst 4:   ret
+; }}
+
+function %f15(i32) -> i32 {
+block0(v0: i32):
+  v1 = iconst.i32 2
+  v2 = udiv.i32 v0, v1
+  return v2
+}
+
+; VCode_ShowWithRRU {{
+;   Entry block: 0
+; Block 0:
+;   (original IR block: block0)
+;   (instruction range: 0 .. 4)
+;   Inst 0:   mov w0, w0
+;   Inst 1:   orr x1, xzr, #2
+;   Inst 2:   udiv x0, x0, x1
+;   Inst 3:   ret
+; }}
+
+function %f16(i32, i32) -> i32 {
+block0(v0: i32, v1: i32):
+  v2 = srem.i32 v0, v1
+  return v2
+}
+
+; VCode_ShowWithRRU {{
+;   Entry block: 0
+; Block 0:
+;   (original IR block: block0)
+;   (instruction range: 0 .. 6)
+;   Inst 0:   sxtw x0, w0
+;   Inst 1:   sxtw x1, w1
+;   Inst 2:   cbnz x1, 8 ; udf
+;   Inst 3:   sdiv x2, x0, x1
+;   Inst 4:   msub x0, x2, x1, x0
+;   Inst 5:   ret
+; }}
+
+function %f17(i32, i32) -> i32 {
+block0(v0: i32, v1: i32):
+  v2 = urem.i32 v0, v1
+  return v2
+}
+
+; VCode_ShowWithRRU {{
+;   Entry block: 0
+; Block 0:
+;   (original IR block: block0)
+;   (instruction range: 0 .. 6)
+;   Inst 0:   mov w0, w0
+;   Inst 1:   mov w1, w1
+;   Inst 2:   cbnz x1, 8 ; udf
+;   Inst 3:   udiv x2, x0, x1
+;   Inst 4:   msub x0, x2, x1, x0
+;   Inst 5:   ret
+; }}
+
+function %f18(i64, i64) -> i64 {
+block0(v0: i64, v1: i64):
+  v2 = band.i64 v0, v1
+  return v2
+}
+
+; VCode_ShowWithRRU {{
+;   Entry block: 0
+; Block 0:
+;   (original IR block: block0)
+;   (instruction range: 0 .. 2)
+;   Inst 0:   and x0, x0, x1
+;   Inst 1:   ret
+; }}
+
+function %f19(i64, i64) -> i64 {
+block0(v0: i64, v1: i64):
+  v2 = bor.i64 v0, v1
+  return v2
+}
+
+; VCode_ShowWithRRU {{
+;   Entry block: 0
+; Block 0:
+;   (original IR block: block0)
+;   (instruction range: 0 .. 2)
+;   Inst 0:   orr x0, x0, x1
+;   Inst 1:   ret
+; }}
+
+function %f20(i64, i64) -> i64 {
+block0(v0: i64, v1: i64):
+  v2 = bxor.i64 v0, v1
+  return v2
+}
+
+; VCode_ShowWithRRU {{
+;   Entry block: 0
+; Block 0:
+;   (original IR block: block0)
+;   (instruction range: 0 .. 2)
+;   Inst 0:   eor x0, x0, x1
+;   Inst 1:   ret
+; }}
+
+function %f21(i64, i64) -> i64 {
+block0(v0: i64, v1: i64):
+  v2 = band_not.i64 v0, v1
+  return v2
+}
+
+; VCode_ShowWithRRU {{
+;   Entry block: 0
+; Block 0:
+;   (original IR block: block0)
+;   (instruction range: 0 .. 2)
+;   Inst 0:   bic x0, x0, x1
+;   Inst 1:   ret
+; }}
+
+function %f22(i64, i64) -> i64 {
+block0(v0: i64, v1: i64):
+  v2 = bor_not.i64 v0, v1
+  return v2
+}
+
+; VCode_ShowWithRRU {{
+;   Entry block: 0
+; Block 0:
+;   (original IR block: block0)
+;   (instruction range: 0 .. 2)
+;   Inst 0:   orn x0, x0, x1
+;   Inst 1:   ret
+; }}
+
+function %f23(i64, i64) -> i64 {
+block0(v0: i64, v1: i64):
+  v2 = bxor_not.i64 v0, v1
+  return v2
+}
+
+; VCode_ShowWithRRU {{
+;   Entry block: 0
+; Block 0:
+;   (original IR block: block0)
+;   (instruction range: 0 .. 2)
+;   Inst 0:   eon x0, x0, x1
+;   Inst 1:   ret
+; }}
+
+function %f24(i64, i64) -> i64 {
+block0(v0: i64, v1: i64):
+  v2 = bnot.i64 v0
+  return v2
+}
+
+; VCode_ShowWithRRU {{
+;   Entry block: 0
+; Block 0:
+;   (original IR block: block0)
+;   (instruction range: 0 .. 2)
+;   Inst 0:   orn x0, xzr, x0
+;   Inst 1:   ret
+; }}
+
+function %f25(i32, i32) -> i32 {
+block0(v0: i32, v1: i32):
+  v2 = iconst.i32 53
+  v3 = ishl.i32 v0, v2
+  v4 = isub.i32 v1, v3
+  return v4
+}
+
+; VCode_ShowWithRRU {{
+;   Entry block: 0
+; Block 0:
+;   (original IR block: block0)
+;   (instruction range: 0 .. 2)
+;   Inst 0:   sub w0, w1, w0, LSL 21
+;   Inst 1:   ret
+; }}
+
+function %f26(i32) -> i32 {
+block0(v0: i32):
+  v1 = iconst.i32 -1
+  v2 = iadd.i32 v0, v1
+  return v2
+}
+
+; VCode_ShowWithRRU {{
+;   Entry block: 0
+; Block 0:
+;   (original IR block: block0)
+;   (instruction range: 0 .. 2)
+;   Inst 0:   sub w0, w0, #1
+;   Inst 1:   ret
+; }}
+
+function %f27(i32) -> i32 {
+block0(v0: i32):
+  v1 = iconst.i32 -1
+  v2 = isub.i32 v0, v1
+  return v2
+}
+
+; VCode_ShowWithRRU {{
+;   Entry block: 0
+; Block 0:
+;   (original IR block: block0)
+;   (instruction range: 0 .. 2)
+;   Inst 0:   add w0, w0, #1
+;   Inst 1:   ret
+; }}
+
+function %f28(i64) -> i64 {
+block0(v0: i64):
+  v1 = iconst.i64 -1
+  v2 = isub.i64 v0, v1
+  return v2
+}
+
+; VCode_ShowWithRRU {{
+;   Entry block: 0
+; Block 0:
+;   (original IR block: block0)
+;   (instruction range: 0 .. 2)
+;   Inst 0:   add x0, x0, #1
+;   Inst 1:   ret
+; }}
+
+function %f29(i64) -> i64 {
+block0(v0: i64):
+  v1 = iconst.i64 1
+  v2 = ineg v1
+  return v2
+}
+
+; VCode_ShowWithRRU {{
+;   Entry block: 0
+; Block 0:
+;   (original IR block: block0)
+;   (instruction range: 0 .. 3)
+;   Inst 0:   movz x0, #1
+;   Inst 1:   sub x0, xzr, x0
+;   Inst 2:   ret
+; }}
+
+function %f30(i8x16) -> i8x16 {
+block0(v0: i8x16):
+  v1 = iconst.i64 1
+  v2 = ushr.i8x16 v0, v1
+  return v2
+}
+
+; VCode_ShowWithRRU {{
+;   Entry block: 0
+; Block 0:
+;   (original IR block: block0)
+;   (instruction range: 0 .. 5)
+;   Inst 0:   movz x0, #1
+;   Inst 1:   sub w0, wzr, w0
+;   Inst 2:   dup v1.16b, w0
+;   Inst 3:   ushl v0.16b, v0.16b, v1.16b
+;   Inst 4:   ret
+; }}
+
+function %add_i128(i128, i128) -> i128 {
+block0(v0: i128, v1: i128):
+    v2 = iadd v0, v1
+    return v2
+}
+
+; VCode_ShowWithRRU {{
+;   Entry block: 0
+; Block 0:
+;   (original IR block: block0)
+;   (instruction range: 0 .. 3)
+;   Inst 0:   adds x0, x0, x2
+;   Inst 1:   adc x1, x1, x3
+;   Inst 2:   ret
+; }}
+
+function %sub_i128(i128, i128) -> i128 {
+block0(v0: i128, v1: i128):
+    v2 = isub v0, v1
+    return v2
+}
+
+; VCode_ShowWithRRU {{
+;   Entry block: 0
+; Block 0:
+;   (original IR block: block0)
+;   (instruction range: 0 .. 3)
+;   Inst 0:   subs x0, x0, x2
+;   Inst 1:   sbc x1, x1, x3
+;   Inst 2:   ret
+; }}
+
+function %mul_i128(i128, i128) -> i128 {
+block0(v0: i128, v1: i128):
+    v2 = imul v0, v1
+    return v2
+}
+
+; VCode_ShowWithRRU {{
+;   Entry block: 0
+; Block 0:
+;   (original IR block: block0)
+;   (instruction range: 0 .. 5)
+;   Inst 0:   umulh x4, x0, x2
+;   Inst 1:   madd x3, x0, x3, x4
+;   Inst 2:   madd x1, x1, x2, x3
+;   Inst 3:   madd x0, x0, x2, xzr
+;   Inst 4:   ret
+; }}
+
+function %add_mul_1(i32, i32, i32) -> i32 {
+block0(v0: i32, v1: i32, v2: i32):
+    v3 = imul v1, v2
+    v4 = iadd v0, v3
+    return v4
+}
+
+; VCode_ShowWithRRU {{
+;   Entry block: 0
+; Block 0:
+;   (original IR block: block0)
+;   (instruction range: 0 .. 2)
+;   Inst 0:   madd w0, w1, w2, w0
+;   Inst 1:   ret
+; }}
+
+function %add_mul_2(i32, i32, i32) -> i32 {
+block0(v0: i32, v1: i32, v2: i32):
+    v3 = imul v1, v2
+    v4 = iadd v3, v0
+    return v4
+}
+
+; VCode_ShowWithRRU {{
+;   Entry block: 0
+; Block 0:
+;   (original IR block: block0)
+;   (instruction range: 0 .. 2)
+;   Inst 0:   madd w0, w1, w2, w0
+;   Inst 1:   ret
+; }}
+
+function %srem_const (i64) -> i64 {
+block0(v0: i64):
+  v1 = iconst.i64 2
+  v2 = srem.i64 v0, v1
+  return v2
+}
+
+; VCode_ShowWithRRU {{
+;   Entry block: 0
+; Block 0:
+;   (original IR block: block0)
+;   (instruction range: 0 .. 4)
+;   Inst 0:   orr x1, xzr, #2
+;   Inst 1:   sdiv x2, x0, x1
+;   Inst 2:   msub x0, x2, x1, x0
+;   Inst 3:   ret
+; }}
+
+function %urem_const (i64) -> i64 {
+block0(v0: i64):
+  v1 = iconst.i64 2
+  v2 = urem.i64 v0, v1
+  return v2
+}
+
+; VCode_ShowWithRRU {{
+;   Entry block: 0
+; Block 0:
+;   (original IR block: block0)
+;   (instruction range: 0 .. 4)
+;   Inst 0:   orr x1, xzr, #2
+;   Inst 1:   udiv x2, x0, x1
+;   Inst 2:   msub x0, x2, x1, x0
+;   Inst 3:   ret
+; }}
+
+function %sdiv_minus_one(i64) -> i64 {
+block0(v0: i64):
+  v1 = iconst.i64 -1
+  v2 = sdiv.i64 v0, v1
+  return v2
+}
+
+; VCode_ShowWithRRU {{
+;   Entry block: 0
+; Block 0:
+;   (original IR block: block0)
+;   (instruction range: 0 .. 6)
+;   Inst 0:   movn x1, #0
+;   Inst 1:   adds xzr, x1, #1
+;   Inst 2:   ccmp x0, #1, #nzcv, eq
+;   Inst 3:   b.vc 8 ; udf
+;   Inst 4:   sdiv x0, x0, x1
+;   Inst 5:   ret
+; }}
+

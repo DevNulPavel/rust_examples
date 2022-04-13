@@ -1,0 +1,65 @@
+test compile precise-output
+target x86_64
+
+function %f0(i64, i64) -> i64, i64 {
+block0(v0: i64, v1: i64):
+    v2 = load.i64 v1
+    v3 = icmp eq v0, v2
+    v4 = bint.i64 v3
+    v5 = select.i64 v3, v0, v1
+    return v4, v5
+}
+
+; VCode_ShowWithRRU {{
+;   Entry block: 0
+; Block 0:
+;   (original IR block: block0)
+;   (instruction range: 0 .. 13)
+;   Inst 0:   pushq   %rbp
+;   Inst 1:   movq    %rsp, %rbp
+;   Inst 2:   movq    0(%rsi), %rax
+;   Inst 3:   cmpq    %rax, %rdi
+;   Inst 4:   setz    %cl
+;   Inst 5:   andq    $1, %rcx
+;   Inst 6:   cmpq    %rax, %rdi
+;   Inst 7:   cmovzq  %rdi, %rsi
+;   Inst 8:   movq    %rcx, %rax
+;   Inst 9:   movq    %rsi, %rdx
+;   Inst 10:   movq    %rbp, %rsp
+;   Inst 11:   popq    %rbp
+;   Inst 12:   ret
+; }}
+
+function %f1(f64, i64) -> i64, f64 {
+block0(v0: f64, v1: i64):
+    v2 = load.f64 v1
+    v3 = fcmp eq v0, v2
+    v4 = bint.i64 v3
+    v5 = select.f64 v3, v0, v0
+    return v4, v5
+}
+
+; VCode_ShowWithRRU {{
+;   Entry block: 0
+; Block 0:
+;   (original IR block: block0)
+;   (instruction range: 0 .. 17)
+;   Inst 0:   pushq   %rbp
+;   Inst 1:   movq    %rsp, %rbp
+;   Inst 2:   movsd   0(%rdi), %xmm1
+;   Inst 3:   ucomisd %xmm1, %xmm0
+;   Inst 4:   setnp   %sil
+;   Inst 5:   setz    %dil
+;   Inst 6:   andl    %edi, %esi
+;   Inst 7:   andq    $1, %rsi
+;   Inst 8:   ucomisd %xmm0, %xmm1
+;   Inst 9:   movaps  %xmm0, %xmm1
+;   Inst 10:   jz $next; movsd %xmm0, %xmm1; $next: 
+;   Inst 11:   jnp $next; movsd %xmm0, %xmm1; $next: 
+;   Inst 12:   movq    %rsi, %rax
+;   Inst 13:   movaps  %xmm1, %xmm0
+;   Inst 14:   movq    %rbp, %rsp
+;   Inst 15:   popq    %rbp
+;   Inst 16:   ret
+; }}
+

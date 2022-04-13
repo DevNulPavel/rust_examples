@@ -1,0 +1,39 @@
+test compile precise-output
+set unwind_info=false
+target aarch64
+
+function %f1() -> i64x2 {
+block0:
+  v0 = iconst.i64 281474976710657
+  v1 = scalar_to_vector.i64x2 v0
+  return v1
+}
+
+; VCode_ShowWithRRU {{
+;   Entry block: 0
+; Block 0:
+;   (original IR block: block0)
+;   (instruction range: 0 .. 4)
+;   Inst 0:   movz x0, #1
+;   Inst 1:   movk x0, #1, LSL #48
+;   Inst 2:   fmov d0, x0
+;   Inst 3:   ret
+; }}
+
+function %f2() -> i32x4 {
+block0:
+  v0 = iconst.i32 42679
+  v1 = scalar_to_vector.i32x4 v0
+  return v1
+}
+
+; VCode_ShowWithRRU {{
+;   Entry block: 0
+; Block 0:
+;   (original IR block: block0)
+;   (instruction range: 0 .. 3)
+;   Inst 0:   movz x0, #42679
+;   Inst 1:   fmov s0, w0
+;   Inst 2:   ret
+; }}
+

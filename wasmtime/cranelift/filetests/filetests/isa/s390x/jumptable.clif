@@ -1,0 +1,51 @@
+test compile
+target s390x
+
+function %f(i64) -> i64 {
+  jt0 = jump_table [block1, block2, block3]
+
+block0(v0: i64):
+  br_table v0, block4, jt0
+
+block1:
+  v1 = iconst.i64 1
+  jump block5(v1)
+
+block2:
+  v2 = iconst.i64 2
+  jump block5(v2)
+
+block3:
+  v3 = iconst.i64 3
+  jump block5(v3)
+
+block4:
+  v4 = iconst.i64 4
+  jump block5(v4)
+
+block5(v5: i64):
+  v6 = iadd.i64 v0, v5
+  return v6
+}
+
+; check:  clgfi %r2, 3
+; nextln: jghe label1
+; nextln: sllg %r3, %r2, 2
+; nextln: larl %r1, 14 ; agf %r1, 0(%r1, %r3) ; br %r1 ; jt_entries label3 label5 label7
+
+; check:  Block 3
+; check:  lghi %r3, 1
+; nextln: jg
+
+; check:  Block 5
+; check:  lghi %r3, 2
+; nextln: jg
+
+; check:  Block 7
+; check:  lghi %r3, 3
+; nextln: jg
+
+; check:  agr %r2, %r3
+; nextln: br %r14
+
+

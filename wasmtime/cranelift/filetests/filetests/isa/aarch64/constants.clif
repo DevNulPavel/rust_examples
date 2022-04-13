@@ -1,0 +1,415 @@
+test compile precise-output
+set unwind_info=false
+target aarch64
+
+function %f() -> b8 {
+block0:
+  v0 = bconst.b8 true
+  return v0
+}
+
+; VCode_ShowWithRRU {{
+;   Entry block: 0
+; Block 0:
+;   (original IR block: block0)
+;   (instruction range: 0 .. 2)
+;   Inst 0:   movz x0, #255
+;   Inst 1:   ret
+; }}
+
+function %f() -> b16 {
+block0:
+  v0 = bconst.b16 false
+  return v0
+}
+
+; VCode_ShowWithRRU {{
+;   Entry block: 0
+; Block 0:
+;   (original IR block: block0)
+;   (instruction range: 0 .. 2)
+;   Inst 0:   movz x0, #0
+;   Inst 1:   ret
+; }}
+
+function %f() -> i64 {
+block0:
+  v0 = iconst.i64 0
+  return v0
+}
+
+; VCode_ShowWithRRU {{
+;   Entry block: 0
+; Block 0:
+;   (original IR block: block0)
+;   (instruction range: 0 .. 2)
+;   Inst 0:   movz x0, #0
+;   Inst 1:   ret
+; }}
+
+function %f() -> i64 {
+block0:
+  v0 = iconst.i64 0xffff
+  return v0
+}
+
+; VCode_ShowWithRRU {{
+;   Entry block: 0
+; Block 0:
+;   (original IR block: block0)
+;   (instruction range: 0 .. 2)
+;   Inst 0:   movz x0, #65535
+;   Inst 1:   ret
+; }}
+
+function %f() -> i64 {
+block0:
+  v0 = iconst.i64 0xffff0000
+  return v0
+}
+
+; VCode_ShowWithRRU {{
+;   Entry block: 0
+; Block 0:
+;   (original IR block: block0)
+;   (instruction range: 0 .. 2)
+;   Inst 0:   movz x0, #65535, LSL #16
+;   Inst 1:   ret
+; }}
+
+function %f() -> i64 {
+block0:
+  v0 = iconst.i64 0xffff00000000
+  return v0
+}
+
+; VCode_ShowWithRRU {{
+;   Entry block: 0
+; Block 0:
+;   (original IR block: block0)
+;   (instruction range: 0 .. 2)
+;   Inst 0:   movz x0, #65535, LSL #32
+;   Inst 1:   ret
+; }}
+
+function %f() -> i64 {
+block0:
+  v0 = iconst.i64 0xffff000000000000
+  return v0
+}
+
+; VCode_ShowWithRRU {{
+;   Entry block: 0
+; Block 0:
+;   (original IR block: block0)
+;   (instruction range: 0 .. 2)
+;   Inst 0:   movz x0, #65535, LSL #48
+;   Inst 1:   ret
+; }}
+
+function %f() -> i64 {
+block0:
+  v0 = iconst.i64 0xffffffffffffffff
+  return v0
+}
+
+; VCode_ShowWithRRU {{
+;   Entry block: 0
+; Block 0:
+;   (original IR block: block0)
+;   (instruction range: 0 .. 2)
+;   Inst 0:   movn x0, #0
+;   Inst 1:   ret
+; }}
+
+function %f() -> i64 {
+block0:
+  v0 = iconst.i64 0xffffffffffff0000
+  return v0
+}
+
+; VCode_ShowWithRRU {{
+;   Entry block: 0
+; Block 0:
+;   (original IR block: block0)
+;   (instruction range: 0 .. 2)
+;   Inst 0:   movn x0, #65535
+;   Inst 1:   ret
+; }}
+
+function %f() -> i64 {
+block0:
+  v0 = iconst.i64 0xffffffff0000ffff
+  return v0
+}
+
+; VCode_ShowWithRRU {{
+;   Entry block: 0
+; Block 0:
+;   (original IR block: block0)
+;   (instruction range: 0 .. 2)
+;   Inst 0:   movn x0, #65535, LSL #16
+;   Inst 1:   ret
+; }}
+
+function %f() -> i64 {
+block0:
+  v0 = iconst.i64 0xffff0000ffffffff
+  return v0
+}
+
+; VCode_ShowWithRRU {{
+;   Entry block: 0
+; Block 0:
+;   (original IR block: block0)
+;   (instruction range: 0 .. 2)
+;   Inst 0:   movn x0, #65535, LSL #32
+;   Inst 1:   ret
+; }}
+
+function %f() -> i64 {
+block0:
+  v0 = iconst.i64 0x0000ffffffffffff
+  return v0
+}
+
+; VCode_ShowWithRRU {{
+;   Entry block: 0
+; Block 0:
+;   (original IR block: block0)
+;   (instruction range: 0 .. 2)
+;   Inst 0:   movn x0, #65535, LSL #48
+;   Inst 1:   ret
+; }}
+
+function %f() -> i64 {
+block0:
+  v0 = iconst.i64 0xf34bf0a31212003a ;; random digits
+  return v0
+}
+
+; VCode_ShowWithRRU {{
+;   Entry block: 0
+; Block 0:
+;   (original IR block: block0)
+;   (instruction range: 0 .. 5)
+;   Inst 0:   movz x0, #58
+;   Inst 1:   movk x0, #4626, LSL #16
+;   Inst 2:   movk x0, #61603, LSL #32
+;   Inst 3:   movk x0, #62283, LSL #48
+;   Inst 4:   ret
+; }}
+
+function %f() -> i64 {
+block0:
+  v0 = iconst.i64 0x12e900001ef40000 ;; random digits with 2 clear half words
+  return v0
+}
+
+; VCode_ShowWithRRU {{
+;   Entry block: 0
+; Block 0:
+;   (original IR block: block0)
+;   (instruction range: 0 .. 3)
+;   Inst 0:   movz x0, #7924, LSL #16
+;   Inst 1:   movk x0, #4841, LSL #48
+;   Inst 2:   ret
+; }}
+
+function %f() -> i64 {
+block0:
+  v0 = iconst.i64 0x12e9ffff1ef4ffff ;; random digits with 2 full half words
+  return v0
+}
+
+; VCode_ShowWithRRU {{
+;   Entry block: 0
+; Block 0:
+;   (original IR block: block0)
+;   (instruction range: 0 .. 3)
+;   Inst 0:   movn x0, #57611, LSL #16
+;   Inst 1:   movk x0, #4841, LSL #48
+;   Inst 2:   ret
+; }}
+
+function %f() -> i32 {
+block0:
+  v0 = iconst.i32 -1
+  return v0
+}
+
+; VCode_ShowWithRRU {{
+;   Entry block: 0
+; Block 0:
+;   (original IR block: block0)
+;   (instruction range: 0 .. 2)
+;   Inst 0:   orr x0, xzr, #4294967295
+;   Inst 1:   ret
+; }}
+
+function %f() -> i32 {
+block0:
+  v0 = iconst.i32 0xfffffff7
+  return v0
+}
+
+; VCode_ShowWithRRU {{
+;   Entry block: 0
+; Block 0:
+;   (original IR block: block0)
+;   (instruction range: 0 .. 2)
+;   Inst 0:   movn w0, #8
+;   Inst 1:   ret
+; }}
+
+function %f() -> i64 {
+block0:
+  v0 = iconst.i64 0xfffffff7
+  return v0
+}
+
+; VCode_ShowWithRRU {{
+;   Entry block: 0
+; Block 0:
+;   (original IR block: block0)
+;   (instruction range: 0 .. 2)
+;   Inst 0:   movn w0, #8
+;   Inst 1:   ret
+; }}
+
+function %f() -> i64 {
+block0:
+  v0 = iconst.i64 0xfffffffffffffff7
+  return v0
+}
+
+; VCode_ShowWithRRU {{
+;   Entry block: 0
+; Block 0:
+;   (original IR block: block0)
+;   (instruction range: 0 .. 2)
+;   Inst 0:   movn x0, #8
+;   Inst 1:   ret
+; }}
+
+function %f() -> f64 {
+block0:
+  v0 = f64const 0x1.0
+  return v0
+}
+
+; VCode_ShowWithRRU {{
+;   Entry block: 0
+; Block 0:
+;   (original IR block: block0)
+;   (instruction range: 0 .. 2)
+;   Inst 0:   fmov d0, #1
+;   Inst 1:   ret
+; }}
+
+function %f() -> f32 {
+block0:
+  v0 = f32const 0x5.0
+  return v0
+}
+
+; VCode_ShowWithRRU {{
+;   Entry block: 0
+; Block 0:
+;   (original IR block: block0)
+;   (instruction range: 0 .. 2)
+;   Inst 0:   fmov s0, #5
+;   Inst 1:   ret
+; }}
+
+function %f() -> f64 {
+block0:
+  v0 = f64const 0x32.0
+  return v0
+}
+
+; VCode_ShowWithRRU {{
+;   Entry block: 0
+; Block 0:
+;   (original IR block: block0)
+;   (instruction range: 0 .. 3)
+;   Inst 0:   movz x0, #16457, LSL #48
+;   Inst 1:   fmov d0, x0
+;   Inst 2:   ret
+; }}
+
+function %f() -> f32 {
+block0:
+  v0 = f32const 0x32.0
+  return v0
+}
+
+; VCode_ShowWithRRU {{
+;   Entry block: 0
+; Block 0:
+;   (original IR block: block0)
+;   (instruction range: 0 .. 3)
+;   Inst 0:   movz x0, #16968, LSL #16
+;   Inst 1:   fmov s0, w0
+;   Inst 2:   ret
+; }}
+
+function %f() -> f64 {
+block0:
+  v0 = f64const 0x0.0
+  return v0
+}
+
+; VCode_ShowWithRRU {{
+;   Entry block: 0
+; Block 0:
+;   (original IR block: block0)
+;   (instruction range: 0 .. 2)
+;   Inst 0:   movi v0.2s, #0
+;   Inst 1:   ret
+; }}
+
+function %f() -> f32 {
+block0:
+  v0 = f32const 0x0.0
+  return v0
+}
+
+; VCode_ShowWithRRU {{
+;   Entry block: 0
+; Block 0:
+;   (original IR block: block0)
+;   (instruction range: 0 .. 2)
+;   Inst 0:   movi v0.2s, #0
+;   Inst 1:   ret
+; }}
+
+function %f() -> f64 {
+block0:
+  v0 = f64const -0x10.0
+  return v0
+}
+
+; VCode_ShowWithRRU {{
+;   Entry block: 0
+; Block 0:
+;   (original IR block: block0)
+;   (instruction range: 0 .. 2)
+;   Inst 0:   fmov d0, #-16
+;   Inst 1:   ret
+; }}
+
+function %f() -> f32 {
+block0:
+  v0 = f32const -0x10.0
+  return v0
+}
+
+; VCode_ShowWithRRU {{
+;   Entry block: 0
+; Block 0:
+;   (original IR block: block0)
+;   (instruction range: 0 .. 2)
+;   Inst 0:   fmov s0, #-16
+;   Inst 1:   ret
+; }}

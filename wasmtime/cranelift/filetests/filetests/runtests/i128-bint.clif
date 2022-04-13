@@ -1,0 +1,12 @@
+test run
+set enable_llvm_abi_extensions=true
+target aarch64
+target x86_64
+
+function %bint_b8_i128() -> i128 {
+block0:
+  v0 = bconst.b8 true
+  v1 = bint.i128 v0
+  return v1
+}
+; run: %bint_b8_i128() == 1
