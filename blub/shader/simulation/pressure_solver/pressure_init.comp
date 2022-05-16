@@ -1,0 +1,84 @@
+// Use intitial pressure guess to start with an improved residual and clean the intial guess where it is not valid.
+
+#version 460
+
+#include "pressure.glsl"
+
+layout(set = 2, binding = 0, r32f) uniform restrict image3D Residual;
+layout(set = 2, binding = 1) buffer restrict ReduceResultAndMainDispatchBuffer {
+    vec2 DotProductReduceResult;
+    float MaxError;
+    float NumIterations;
+    uvec4 DispatchCommandRegular;
+    uvec4 DispatchCommandReduce0;
+    uvec4 DispatchCommandReduce1;
+};
+
+COMPUTE_PASS_PRESSURE
+
+void main() {
+    ivec3 gridCoord = ivec3(gl_GlobalInvocationID);
+
+    // Fill out dispatch command for all upcoming steps.
+    if (gl_GlobalInvocationID == ivec3(0)) {
+        NumIterations = 0.0;
+        uvec3 gridSize = imageSize(Residual);
+        DispatchCommandRegular = uvec4((gridSize + gl_WorkGroupSize - uvec3(1)) / gl_WorkGroupSize, 0);
+
+        uint numElements = gridSize.x * gridSize.y * gridSize.z;
+        DispatchCommandReduce0 = uvec4((numElements / REDUCE_READS_PER_THREAD + (LOCAL_SIZE_REDUCE - 1)) / LOCAL_SIZE_REDUCE, 1, 1, 0);
+        numElements /= REDUCE_READS_PER_THREAD * LOCAL_SIZE_REDUCE;
+        DispatchCommandReduce1 = uvec4((numElements / REDUCE_READS_PER_THREAD + (LOCAL_SIZE_REDUCE - 1)) / LOCAL_SIZE_REDUCE, 1, 1, 0);
+    }
+
+    // Don't solve outside of the fluid domain!
+    // However, in order to not pollute future initial pressure guesses, we zero set the Pressure everywhere else.
+    // (otherwise results from early steps influence much later ones which can lead to odd artifacts)
+    float marker = texelFetch(MarkerVolume, gridCoord, 0).x;
+    if (marker != CELL_FLUID) {
+        imageStore(Pressure, gridCoord, vec4(0.0));
+        return;
+    }
+
+    float markerX0 = texelFetch(MarkerVolume, gridCoord - ivec3(1, 0, 0), 0).x;
+    float markerX1 = texelFetch(MarkerVolume, gridCoord + ivec3(1, 0, 0), 0).x;
+    float markerY0 = texelFetch(MarkerVolume, gridCoord - ivec3(0, 1, 0), 0).x;
+    float markerY1 = texelFetch(MarkerVolume, gridCoord + ivec3(0, 1, 0), 0).x;
+    float markerZ0 = texelFetch(MarkerVolume, gridCoord - ivec3(0, 0, 1), 0).x;
+    float markerZ1 = texelFetch(MarkerVolume, gridCoord + ivec3(0, 0, 1), 0).x;
+
+    // The residual is computed as r -= A * x0
+    // r is assumed to be initialized already with b (divergence or density error)
+    // x0 is our initial guess
+    float residual = imageLoad(Residual, gridCoord).x;
+
+    // See MultiplyWithCoefficientMatrix (which works with textures not images :/)
+    float numNonSolidNeighbors = 0.0;
+    numNonSolidNeighbors += abs(markerX0); // float(markerX0 != CELL_SOLID);
+    numNonSolidNeighbors += abs(markerX1); // float(markerX1 != CELL_SOLID);
+    numNonSolidNeighbors += abs(markerY0); // float(markerY0 != CELL_SOLID);
+    numNonSolidNeighbors += abs(markerY1); // float(markerY1 != CELL_SOLID);
+    numNonSolidNeighbors += abs(markerZ0); // float(markerZ0 != CELL_SOLID);
+    numNonSolidNeighbors += abs(markerZ1); // float(markerZ1 != CELL_SOLID);
+    if (numNonSolidNeighbors > 0.0)
+        residual -= numNonSolidNeighbors * imageLoad(Pressure, gridCoord).x;
+    if (markerX0 == CELL_FLUID) {
+        residual += imageLoad(Pressure, gridCoord - ivec3(1, 0, 0)).x;
+    }
+    if (markerX1 == CELL_FLUID) {
+        residual += imageLoad(Pressure, gridCoord + ivec3(1, 0, 0)).x;
+    }
+    if (markerY0 == CELL_FLUID) {
+        residual += imageLoad(Pressure, gridCoord - ivec3(0, 1, 0)).x;
+    }
+    if (markerY1 == CELL_FLUID) {
+        residual += imageLoad(Pressure, gridCoord + ivec3(0, 1, 0)).x;
+    }
+    if (markerZ0 == CELL_FLUID) {
+        residual += imageLoad(Pressure, gridCoord - ivec3(0, 0, 1)).x;
+    }
+    if (markerZ1 == CELL_FLUID) {
+        residual += imageLoad(Pressure, gridCoord + ivec3(0, 0, 1)).x;
+    }
+    imageStore(Residual, gridCoord, residual.xxxx);
+}

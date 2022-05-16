@@ -1,0 +1,59 @@
+// Pressure & residual update
+
+#version 460
+
+#include "pressure.glsl"
+
+layout(set = 2, binding = 0) buffer restrict _ReduceBuffer { float ReduceBuffer[]; };
+layout(set = 2, binding = 1, r32f) uniform restrict image3D Residual;
+layout(set = 2, binding = 2) uniform texture3D Search;
+layout(set = 2, binding = 3) uniform PcgScalars_ { PcgScalars Scalars; };
+
+#define PRUPDATE_COMPUTE_MAX_ERROR 1
+
+COMPUTE_PASS_PRESSURE
+
+// It seems that there is a bug that will make this function misbehave if it is declared before the thread group layout declaration
+uint GetReduceBufferAddress() {
+    uint threadsPerWorkgroup = gl_WorkGroupSize.x * gl_WorkGroupSize.y * gl_WorkGroupSize.z;
+    uint threadGroupIndex = (gl_WorkGroupID.z * gl_NumWorkGroups.y + gl_WorkGroupID.y) * gl_NumWorkGroups.x + gl_WorkGroupID.x;
+    return gl_LocalInvocationIndex + threadsPerWorkgroup * threadGroupIndex;
+}
+
+void main() {
+    ivec3 gridCoord = ivec3(gl_GlobalInvocationID);
+    float marker = texelFetch(MarkerVolume, gridCoord, 0).x; // Empirically this test + skip is a speedup!
+    if (marker != CELL_FLUID) {
+        if (PushConstants.Mode == PRUPDATE_COMPUTE_MAX_ERROR) {
+            ReduceBuffer[GetReduceBufferAddress()] = 0.0;
+        }
+        return;
+    }
+
+    float search = texelFetch(Search, gridCoord, 0).x;
+    float alpha = Scalars.AlphaBeta;
+
+    // Update pressure
+    {
+        float pressureBefore = imageLoad(Pressure, gridCoord).x;
+        imageStore(Pressure, gridCoord, (pressureBefore + alpha * search).xxxx);
+    }
+
+    // Update residual
+    // This is usually r = r - a * z, but we didn't store z!
+    // So it's r = r - a * As
+    //
+    // Duplicating the work here is still faster since we saved on 2 reads and 1 write earlier
+    // by merging initial dotproduct calculation (scalar multiply) into calculating As earlier.
+    // (empirically confirmed)
+    {
+        float residual = imageLoad(Residual, gridCoord).x;
+        float searchTimesA = MultiplyWithCoefficientMatrix(gridCoord, Search, search); // The auxillary z!
+        residual -= alpha * searchTimesA;
+
+        if (PushConstants.Mode == PRUPDATE_COMPUTE_MAX_ERROR) {
+            ReduceBuffer[GetReduceBufferAddress()] = abs(residual);
+        }
+        imageStore(Residual, gridCoord, residual.xxxx);
+    }
+}

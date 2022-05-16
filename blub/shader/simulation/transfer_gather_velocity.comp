@@ -1,0 +1,128 @@
+// Builds velocity grid from particles and llgrid
+// Uses shepard interpolation on particles.
+// Performed on one velocity component at a time.
+
+#version 450
+
+#include "../utilities.glsl"
+#include "transfer_bindings.glsl"
+
+// Uses a shared memory so every thread loads one particle for its current cell and then accesses remaining neighbors (a 2x2x2 environment) from
+// there. Note that the naive approach (every thread goes through linked lists of 8 cells) is an order of magnitude slower than this approach!
+layout(local_size_x = 9, local_size_y = 9, local_size_z = 9) in;
+
+// TODO: Are we avoiding bank conflicts?
+shared vec4 SharedPositions[9][9][9];
+shared vec4 SharedVelocities[9][9][9];
+
+void addParticleContribution(inout float velocityComponent, inout float velocityWeight, vec3 particlePosition, vec4 ParticleBufferVelocityMatrixRow,
+                             vec3 staggeredVelocitySamplePosition) {
+    vec3 toSamplePosition = staggeredVelocitySamplePosition - particlePosition;
+    vec3 offset = saturate(vec3(1.0) - abs(toSamplePosition));
+    float weight = offset.x * offset.y * offset.z;
+
+    velocityComponent += weight * dot(ParticleBufferVelocityMatrixRow, vec4(toSamplePosition, 1.0));
+    velocityWeight += weight;
+}
+
+void addParticleContributionFromSharedMemory(inout float velocityComponent, inout float velocityWeight, uvec3 threadGroupOffset,
+                                             vec3 staggeredVelocitySamplePosition) {
+    uvec3 sharedMemoryAddress = gl_LocalInvocationID - threadGroupOffset;
+    vec4 particlePosition = SharedPositions[sharedMemoryAddress.x][sharedMemoryAddress.y][sharedMemoryAddress.z];
+    if (particlePosition.w != 0.0) {
+        vec4 ParticleBufferVelocityMatrixRow = SharedVelocities[sharedMemoryAddress.x][sharedMemoryAddress.y][sharedMemoryAddress.z];
+        addParticleContribution(velocityComponent, velocityWeight, particlePosition.xyz, ParticleBufferVelocityMatrixRow,
+                                staggeredVelocitySamplePosition);
+    }
+}
+
+void main() {
+    // TODO: Should/can we make it so that full warps are full of border threads? 🤔
+    ivec3 gridCoord = ivec3(gl_WorkGroupID * (gl_WorkGroupSize - uvec3(1)) + gl_LocalInvocationID) - ivec3(1);
+
+    bool isBorderThread = any(equal(gl_LocalInvocationID, uvec3(0)));
+
+    // We write velocity if we're not a read-only thread and the velocity value we care about is between at least one fluid cell.
+    ivec3 neighborGridCoord = gridCoord;
+    neighborGridCoord[VelocityTransferComponent] += 1;
+    float markerA = imageLoad(MarkerVolume, gridCoord).r;
+    float markerB = imageLoad(MarkerVolume, neighborGridCoord).r;
+    bool threadWritesFluid = !isBorderThread && (markerA == CELL_FLUID || markerB == CELL_FLUID);
+    bool threadComputesVelocity = !isBorderThread && (markerA != CELL_SOLID && markerB != CELL_SOLID);
+
+    vec3 staggeredVelocitySamplePosition = vec3(gridCoord) + vec3(0.5);
+    staggeredVelocitySamplePosition[VelocityTransferComponent] += 0.5;
+    float velocityComponent = 0.0;
+    float velocityWeight = 0.0;
+
+    uint localParticleIndex = imageLoad(LinkedListDualGrid, gridCoord).r - 1;
+
+    // A cell starts out with 8 particles, ideally that stays roughly constant.
+    for (int i = 0; i < 12; ++i) {
+        if (localParticleIndex != INVALID_LINKED_LIST_PTR) {
+            // Load a particle
+            vec3 particlePosition = Particles[localParticleIndex].Position;
+            vec4 ParticleBufferVelocityMatrixRow = ParticleBufferVelocityComponent[localParticleIndex];
+            localParticleIndex = Particles[localParticleIndex].LinkedListNext;
+
+            // Apply it
+            if (threadComputesVelocity) {
+                addParticleContribution(velocityComponent, velocityWeight, particlePosition, ParticleBufferVelocityMatrixRow,
+                                        staggeredVelocitySamplePosition);
+            }
+
+            // Write particle info to shared memory in order to share with others.
+            SharedPositions[gl_LocalInvocationID.x][gl_LocalInvocationID.y][gl_LocalInvocationID.z] = vec4(particlePosition, 1.0);
+            SharedVelocities[gl_LocalInvocationID.x][gl_LocalInvocationID.y][gl_LocalInvocationID.z] = ParticleBufferVelocityMatrixRow;
+        } else {
+            // TODO: Don't need to write every time.
+            SharedPositions[gl_LocalInvocationID.x][gl_LocalInvocationID.y][gl_LocalInvocationID.z].w = 0.0;
+        }
+
+        // Wait for shared variables to be updated.
+        barrier();
+
+        // Load & apply remaining seven neighbor particles.
+        if (threadComputesVelocity) {
+            addParticleContributionFromSharedMemory(velocityComponent, velocityWeight, uvec3(1, 0, 0), staggeredVelocitySamplePosition);
+            addParticleContributionFromSharedMemory(velocityComponent, velocityWeight, uvec3(0, 1, 0), staggeredVelocitySamplePosition);
+            addParticleContributionFromSharedMemory(velocityComponent, velocityWeight, uvec3(1, 1, 0), staggeredVelocitySamplePosition);
+            addParticleContributionFromSharedMemory(velocityComponent, velocityWeight, uvec3(0, 0, 1), staggeredVelocitySamplePosition);
+            addParticleContributionFromSharedMemory(velocityComponent, velocityWeight, uvec3(1, 0, 1), staggeredVelocitySamplePosition);
+            addParticleContributionFromSharedMemory(velocityComponent, velocityWeight, uvec3(0, 1, 1), staggeredVelocitySamplePosition);
+            addParticleContributionFromSharedMemory(velocityComponent, velocityWeight, uvec3(1, 1, 1), staggeredVelocitySamplePosition);
+        }
+
+        // Wait for shared variable reads to be done.
+        barrier();
+    }
+    // DEBUG CHECK for single cell scene - for comparison against linked list handling
+    // for (int i = 0; i < 8; ++i) {
+    //     addParticleContribution(velocityComponent, velocityWeight, Particles[i].Position, ParticleBufferVelocityComponent[i],
+    //                             staggeredVelocitySamplePosition);
+    // }
+    // DEBUG CHECK - for comparison against shared memory optimization
+    // ivec3 offsets[8] = {ivec3(0, 0, 0), ivec3(1, 0, 0), ivec3(0, 1, 0), ivec3(1, 1, 0),
+    //                     ivec3(0, 0, 1), ivec3(1, 0, 1), ivec3(0, 1, 1), ivec3(1, 1, 1)};
+    // for (int i = 0; i < 8; ++i) {
+    //     uint localParticleIndex = imageLoad(LinkedListDualGrid, gridCoord - offsets[i]).r - 1;
+    //     for (int i = 0; i < 12 && localParticleIndex != INVALID_LINKED_LIST_PTR; ++i) {
+    //         addParticleContribution(velocityComponent, velocityWeight, Particles[localParticleIndex].Position,
+    //                                 ParticleBufferVelocityComponent[localParticleIndex], staggeredVelocitySamplePosition);
+    //         localParticleIndex = Particles[localParticleIndex].LinkedListNext;
+    //     }
+    // }
+
+    if (threadWritesFluid) {
+        if (threadComputesVelocity) {
+            if (velocityWeight > 0.0)
+                velocityComponent /= velocityWeight;
+            velocityComponent += GravityGridSpace[VelocityTransferComponent] * Time.SimulationDelta;
+        } else {
+            // Don't flow into solid
+            velocityComponent = 0.0;
+        }
+
+        imageStore(VelocityComponentVolume, gridCoord, velocityComponent.xxxx);
+    }
+}

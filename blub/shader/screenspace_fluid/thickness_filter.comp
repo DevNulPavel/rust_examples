@@ -1,0 +1,59 @@
+// Filtering for the thickness texture - a simple gaussian filter.
+#version 460
+
+// Total filter size is (HALF_FILTER_SIZE + HALF_FILTER_SIZE + 1)
+#define HALF_FILTER_SIZE 16
+#define LOCAL_SIZE 64
+layout(local_size_x = LOCAL_SIZE, local_size_y = 1, local_size_z = 1) in;
+
+#include "../utilities.glsl"
+#include "filter.glsl"
+
+layout(set = 2, binding = 0, r16f) uniform restrict writeonly image2D Dest;
+layout(set = 2, binding = 1) uniform texture2D Source;
+
+// Relationship between the standard deviation sigma (for gaussian kernel) and the filter size.
+// (the lower, the boxier the filter gets)
+#define FILTERSIZE_TO_SIGMA 0.4
+
+shared float sharedBuffer[LOCAL_SIZE + HALF_FILTER_SIZE * 2];
+
+void main() {
+    // Preload to shared memory.
+    {
+        const uvec2 blockScreenCoord = getBlockScreenCoord();
+        for (uint smemIndex = gl_LocalInvocationID.x; smemIndex < LOCAL_SIZE + HALF_FILTER_SIZE * 2; smemIndex += LOCAL_SIZE) {
+            uvec2 sampleCoord = addInFilterDirection(blockScreenCoord, smemIndex - HALF_FILTER_SIZE);
+            float s = texelFetch(Source, ivec2(sampleCoord), 0).r;
+            sharedBuffer[smemIndex] = s;
+        }
+    }
+    barrier();
+
+    const uint sharedBufferCenterIndex = gl_LocalInvocationID.x + HALF_FILTER_SIZE;
+    float totalSamples = sharedBuffer[sharedBufferCenterIndex];
+    if (totalSamples == 0.0) {
+        return;
+    }
+
+    const float gaussianK = 0.5 / sq(HALF_FILTER_SIZE * FILTERSIZE_TO_SIGMA);
+    float totalWeight = 1.0;
+
+    for (uint r = 1; r <= HALF_FILTER_SIZE; ++r) {
+        float gaussianWeight = exp(-sq(r) * gaussianK);
+
+        float textureSample = sharedBuffer[sharedBufferCenterIndex + r];
+        if (textureSample != 0.0) {
+            totalSamples += textureSample * gaussianWeight;
+            totalWeight += gaussianWeight;
+        }
+        textureSample = sharedBuffer[sharedBufferCenterIndex - r];
+        if (textureSample != 0.0) {
+            totalSamples += textureSample * gaussianWeight;
+            totalWeight += gaussianWeight;
+        }
+    }
+
+    totalSamples /= totalWeight;
+    imageStore(Dest, ivec2(getScreenCoord()), totalSamples.rrrr);
+}

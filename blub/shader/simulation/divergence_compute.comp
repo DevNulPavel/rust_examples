@@ -1,0 +1,87 @@
+// Computes velocity divergence plus solid wall influence
+// So technically not just divergence, just the right hand sight of the pressure solve!
+//
+// Another "technicallity" is that the pressure we compute is premultiplied with dTime / density
+// as this is what we need later on to remove divergence.
+
+#version 460
+
+#include "../utilities.glsl"
+#include "hybrid_fluid.glsl"
+
+layout(set = 2, binding = 0) uniform texture3D MarkerVolume;
+layout(set = 2, binding = 1) uniform texture3D VelocityVolumeX;
+layout(set = 2, binding = 2) uniform texture3D VelocityVolumeY;
+layout(set = 2, binding = 3) uniform texture3D VelocityVolumeZ;
+layout(set = 2, binding = 4, r32f) uniform restrict image3D Divergence;
+
+COMPUTE_PASS_VOLUME
+
+float solidWallContribution(ivec3 gridCoord, float wallVelocity, float solidVelocity) {
+    float marker = texelFetch(MarkerVolume, gridCoord, 0).x;
+    if (marker == CELL_SOLID)
+        return wallVelocity - solidVelocity;
+    else
+        return 0.0;
+}
+
+void main() {
+    ivec3 gridCoord = ivec3(gl_GlobalInvocationID);
+
+    // If there is no fluid, we don't need to compute divergence.
+    // Divergence tells us how much fluid is going in/out. If we're at a air/solid cell then that's clearly zero as there's no fluid in the first
+    // place!
+    float marker = texelFetch(MarkerVolume, gridCoord, 0).x;
+    if (marker != CELL_FLUID) {
+        return;
+    }
+
+    // A relatively easy way to mesh boundaries would be to take into account volume fractions here and in the pressure solve (i.e. the coefficient
+    // matrix) The idea is described in Bridson's book. Basically instead of treating the marker grid entirely binary, a fluid volume fraction is
+    // introduced. Note though that is is all about lack of solid - a fully filled air cell has the volume fraction 1.
+    //
+    // My hunch is that this wouldn't add visually much to blub since with the direct rendering method particle size is the bigger issue - reducing it
+    // also increases grid resolution, lessening again the need for volume fractions. (might be more important when rendering a surface level set).
+    // Regardless, it would improve accuracy quite a bit though especially for thin passages between solid, where today no fluid can go through. I
+    // could imagine this having more drastic effect for smoke effects, where the rendering might be less forgiving with air/solid gaps.
+
+    // Since we know the cell at gridCoord is a fluid cell, we know that the velocities at the positive and negative boundary are well defined.
+    vec3 velocityPositiveBoundary;
+    velocityPositiveBoundary.x = texelFetch(VelocityVolumeX, gridCoord, 0).x;
+    velocityPositiveBoundary.y = texelFetch(VelocityVolumeY, gridCoord, 0).x;
+    velocityPositiveBoundary.z = texelFetch(VelocityVolumeZ, gridCoord, 0).x;
+    vec3 velocityNegativeBoundary;
+    velocityNegativeBoundary.x = texelFetch(VelocityVolumeX, gridCoord - ivec3(1, 0, 0), 0).x;
+    velocityNegativeBoundary.y = texelFetch(VelocityVolumeY, gridCoord - ivec3(0, 1, 0), 0).x;
+    velocityNegativeBoundary.z = texelFetch(VelocityVolumeZ, gridCoord - ivec3(0, 0, 1), 0).x;
+
+    // Actual divergence computation.
+    float divergence;
+    divergence = velocityPositiveBoundary.x - velocityNegativeBoundary.x;
+    divergence += velocityPositiveBoundary.y - velocityNegativeBoundary.y;
+    divergence += velocityPositiveBoundary.z - velocityNegativeBoundary.z;
+
+    // TODO? Solid velocity isn't available as a proper staggered grid right now
+
+    // Account for solid walls.
+    divergence +=
+        solidWallContribution(gridCoord - ivec3(1, 0, 0), velocityNegativeBoundary.x, texelFetch(SceneVoxelization, gridCoord - ivec3(1, 0, 0), 0).x)
+            .x;
+    divergence +=
+        solidWallContribution(gridCoord - ivec3(0, 1, 0), velocityNegativeBoundary.y, texelFetch(SceneVoxelization, gridCoord - ivec3(0, 1, 0), 0).y)
+            .x;
+    divergence +=
+        solidWallContribution(gridCoord - ivec3(0, 0, 1), velocityNegativeBoundary.z, texelFetch(SceneVoxelization, gridCoord - ivec3(0, 0, 1), 0).z)
+            .x;
+    divergence -=
+        solidWallContribution(gridCoord + ivec3(1, 0, 0), velocityPositiveBoundary.x, texelFetch(SceneVoxelization, gridCoord + ivec3(1, 0, 0), 0).x)
+            .x;
+    divergence -=
+        solidWallContribution(gridCoord + ivec3(0, 1, 0), velocityPositiveBoundary.y, texelFetch(SceneVoxelization, gridCoord + ivec3(0, 1, 0), 0).y)
+            .x;
+    divergence -=
+        solidWallContribution(gridCoord + ivec3(0, 0, 1), velocityPositiveBoundary.z, texelFetch(SceneVoxelization, gridCoord + ivec3(0, 0, 1), 0).z)
+            .x;
+
+    imageStore(Divergence, gridCoord, divergence.xxxx);
+}

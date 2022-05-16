@@ -1,0 +1,50 @@
+// Subtracts pressure gradient from velocity volume to make it divergence free.
+// (applies pressure forces)
+
+#version 450
+
+#include "../utilities.glsl"
+#include "bindings_write_volume.glsl"
+
+COMPUTE_PASS_VOLUME
+
+float samplePressure(ivec3 gridCoord, float cellType) {
+    if (cellType == CELL_FLUID)
+        return texelFetch(PressureVolume, gridCoord, 0).x;
+    else
+        return 0.0;
+}
+
+// Macro because image3D can't be passed to functions
+#define correctVelocityForDirection(velocityVolume, centerGridCoord, centerPressure, centerCellType, component)                                      \
+    {                                                                                                                                                \
+        ivec3 neighborGridCoord = centerGridCoord;                                                                                                   \
+        neighborGridCoord[component] += 1;                                                                                                           \
+                                                                                                                                                     \
+        float neighborCellType = texelFetch(MarkerVolume, neighborGridCoord, 0).x;                                                                   \
+        if (centerCellType == CELL_FLUID || neighborCellType == CELL_FLUID) {                                                                        \
+            float velocity = 0.0;                                                                                                                    \
+            if (centerCellType == CELL_SOLID) {                                                                                                      \
+                velocity = texelFetch(SceneVoxelization, centerGridCoord, 0)[component];                                                             \
+            } else if (neighborCellType == CELL_SOLID) {                                                                                             \
+                velocity = texelFetch(SceneVoxelization, neighborGridCoord, 0)[component];                                                           \
+            } else {                                                                                                                                 \
+                velocity = imageLoad(velocityVolume, centerGridCoord).x;                                                                             \
+                velocity -= centerPressure - samplePressure(neighborGridCoord, neighborCellType);                                                    \
+            }                                                                                                                                        \
+            imageStore(velocityVolume, centerGridCoord, velocity.xxxx);                                                                              \
+        } else {                                                                                                                                     \
+            imageStore(velocityVolume, centerGridCoord, (0.0).xxxx);                                                                                 \
+        }                                                                                                                                            \
+    }
+
+void main() {
+    ivec3 centerGridCoord = ivec3(gl_GlobalInvocationID);
+
+    float centerCellType = texelFetch(MarkerVolume, centerGridCoord, 0).x;
+
+    float centerPressure = samplePressure(centerGridCoord, centerCellType);
+    correctVelocityForDirection(VelocityVolumeX, centerGridCoord, centerPressure, centerCellType, 0);
+    correctVelocityForDirection(VelocityVolumeY, centerGridCoord, centerPressure, centerCellType, 1);
+    correctVelocityForDirection(VelocityVolumeZ, centerGridCoord, centerPressure, centerCellType, 2);
+}

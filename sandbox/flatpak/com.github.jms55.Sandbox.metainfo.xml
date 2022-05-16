@@ -1,0 +1,43 @@
+<?xml version="1.0" encoding="UTF-8"?>
+<component type="desktop-application">
+
+  <id>com.github.jms55.Sandbox</id>
+  <launchable type="desktop-id">com.github.jms55.Sandbox.desktop</launchable>
+
+  <metadata_license>CC0-1.0</metadata_license>
+  <project_license>AGPL-3.0-only</project_license>
+
+  <releases>
+    <release version="1.3.0" date="2021-02-14">
+      <url>https://github.com/JMS55/sandbox/blob/master/CHANGELOG.md#120</url>
+    </release>
+    <release version="1.2.0" date="2020-10-03">
+      <url>https://github.com/JMS55/sandbox/blob/master/CHANGELOG.md#120</url>
+    </release>
+    <release version="1.1.0" date="2020-07-22">
+      <url>https://github.com/JMS55/sandbox/blob/master/CHANGELOG.md#110</url>
+    </release>
+    <release version="1.0.0" date="2020-07-12">
+      <url>https://github.com/JMS55/sandbox/blob/master/CHANGELOG.md#100</url>
+    </release>
+  </releases>
+
+  <content_rating type="oars-1.1" />
+
+  <url type="homepage">https://github.com/JMS55/sandbox</url>
+  <url type="bugtracker">https://github.com/JMS55/sandbox/issues</url>
+
+  <name>Sandbox</name>
+  <summary>A sand simulation game</summary>
+  <description>
+    <p>A sand simulation game</p>
+    <p>For a list of keyboard controls visit https://github.com/JMS55/sandbox#controls</p>
+  </description>
+
+  <screenshots>
+    <screenshot type="default">
+      <image>https://raw.githubusercontent.com/JMS55/sandbox/master/flatpak/screenshot.png</image>
+    </screenshot>
+  </screenshots>
+
+</component>

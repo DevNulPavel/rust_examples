@@ -1,0 +1,24 @@
+// Updates search vector with conjugate gradient
+
+#version 460
+
+#include "pressure.glsl"
+
+layout(set = 2, binding = 1, r32f) uniform restrict image3D Search;
+layout(set = 2, binding = 2) uniform texture3D Auxillary;
+layout(set = 2, binding = 3) uniform PcgScalars_ { PcgScalars Scalars; };
+
+COMPUTE_PASS_PRESSURE
+
+void main() {
+    ivec3 gridCoord = ivec3(gl_GlobalInvocationID);
+    float marker = texelFetch(MarkerVolume, gridCoord, 0).x; // Empirically this test + skip is a speedup!
+    if (marker != CELL_FLUID) {
+        return;
+    }
+
+    float beta = Scalars.AlphaBeta;
+    float searchBefore = imageLoad(Search, gridCoord).x;
+    float auxiliary = texelFetch(Auxillary, gridCoord, 0).x;
+    imageStore(Search, gridCoord, (auxiliary + beta * searchBefore).xxxx);
+}

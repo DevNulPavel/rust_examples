@@ -1,0 +1,199 @@
+// Computes right hand side of pressure equation from density
+// TODO: Similar to transfer_gather_velocity.comp - can share more code?
+//
+// Just as in compute_divergence the pressure we compute is premultiplied with dTime / density.
+
+#version 450
+
+#include "../global_bindings.glsl"
+#include "../utilities.glsl"
+#include "hybrid_fluid.glsl"
+#include "particles.glsl"
+
+layout(set = 2, binding = 0) buffer restrict readonly ParticlePositionLlBuffer { ParticlePositionLl Particles[]; };
+layout(set = 2, binding = 1) uniform utexture3D LinkedListDualGrid;
+layout(set = 2, binding = 2, r8_snorm) uniform restrict image3D MarkerVolume;
+layout(set = 2, binding = 3, r32f) uniform restrict image3D DensityVolume;
+layout(set = 2, binding = 4) uniform utexture3D SolidPenetrationDepth;
+// layout(push_constant) uniform PushConstants { uint VelocityTransferComponent; };
+
+// Uses a shared memory so every thread loads one particle for its current cell and then accesses remaining neighbors (a 2x2x2 environment) from
+// there. Note that the naive approach (every thread goes through linked lists of 8 cells) is an order of magnitude slower than this approach!
+layout(local_size_x = 9, local_size_y = 9, local_size_z = 9) in;
+
+// TODO: Are we avoiding bank conflicts?
+shared vec4 SharedPositions[9][9][9];
+
+void addParticleContribution(inout float density, vec3 particlePosition, vec3 samplePosition) {
+    vec3 toSamplePosition = samplePosition - particlePosition;
+    vec3 offset = saturate(vec3(1.0) - abs(toSamplePosition));
+    density += offset.x * offset.y * offset.z;
+}
+
+void addParticleContributionFromSharedMemory(inout float density, uvec3 threadGroupOffset, vec3 samplePosition) {
+    uvec3 sharedMemoryAddress = gl_LocalInvocationID - threadGroupOffset;
+    vec4 particlePosition = SharedPositions[sharedMemoryAddress.x][sharedMemoryAddress.y][sharedMemoryAddress.z];
+    if (particlePosition.w != 0.0) {
+        addParticleContribution(density, particlePosition.xyz, samplePosition);
+    }
+}
+
+void main() {
+    // TODO: Should/can we make it so that full warps are full of border threads? 🤔
+    ivec3 gridCoord = ivec3(gl_WorkGroupID * (gl_WorkGroupSize - uvec3(1)) + gl_LocalInvocationID) - ivec3(1);
+
+    float marker = imageLoad(MarkerVolume, gridCoord).r;
+
+    bool isBorderThread = any(equal(gl_LocalInvocationID, uvec3(0)));
+    bool threadWritesFluid = !isBorderThread && marker == CELL_FLUID;
+
+    vec3 samplePosition = vec3(gridCoord) + vec3(0.5);
+
+    uint localParticleIndex = texelFetch(LinkedListDualGrid, gridCoord, 0).r - 1;
+
+    float density = 0.0;
+
+    // Debug: Count number of particles in cell.
+    // if (!isBorderThread) {
+    //     uint numParticles = 0;
+    //     while (localParticleIndex != INVALID_LINKED_LIST_PTR) {
+    //         ++numParticles;
+    //         localParticleIndex = Particles[localParticleIndex].LinkedListNext;
+    //     }
+    //     localParticleIndex = texelFetch(LinkedListDualGrid, gridCoord, 0).r - 1;
+    //     imageStore(DebugVolume, gridCoord, vec4(numParticles / 8.0));
+    // }
+
+    // A cell starts out with 8 particles, ideally that stays roughly constant.
+    // At 16 we observe significant underestimiation
+    for (int i = 0; i < 32; ++i) {
+        if (localParticleIndex != INVALID_LINKED_LIST_PTR) {
+            // Load a particle
+            vec3 particlePosition = Particles[localParticleIndex].Position;
+            localParticleIndex = Particles[localParticleIndex].LinkedListNext;
+
+            // Apply it
+            if (threadWritesFluid) {
+                addParticleContribution(density, particlePosition, samplePosition);
+            }
+
+            // Write particle info to shared memory in order to share with others.
+            SharedPositions[gl_LocalInvocationID.x][gl_LocalInvocationID.y][gl_LocalInvocationID.z] = vec4(particlePosition, 1.0);
+        } else {
+            // TODO: Don't need to write every time.
+            SharedPositions[gl_LocalInvocationID.x][gl_LocalInvocationID.y][gl_LocalInvocationID.z].w = 0.0;
+        }
+
+        // Wait for shared variables to be updated.
+        barrier(); // (newer GLSL specifications clarify that this is ALSO a memoryBarrierShared)
+
+        // Load & apply remaining seven neighbor particles.
+        if (threadWritesFluid) {
+            addParticleContributionFromSharedMemory(density, uvec3(1, 0, 0), samplePosition);
+            addParticleContributionFromSharedMemory(density, uvec3(0, 1, 0), samplePosition);
+            addParticleContributionFromSharedMemory(density, uvec3(1, 1, 0), samplePosition);
+            addParticleContributionFromSharedMemory(density, uvec3(0, 0, 1), samplePosition);
+            addParticleContributionFromSharedMemory(density, uvec3(1, 0, 1), samplePosition);
+            addParticleContributionFromSharedMemory(density, uvec3(0, 1, 1), samplePosition);
+            addParticleContributionFromSharedMemory(density, uvec3(1, 1, 1), samplePosition);
+        }
+
+        // Wait for shared variable reads to be done.
+        barrier();
+    }
+
+    if (!threadWritesFluid)
+        return;
+
+    // To simplify we set the volume of a cell and the mass of a single particle to 1.
+    // Our normal density is defined by 8 evenly distributed particles in a cell. Therefore the normal density is defines as 8!
+    const float Density0 = 8.0;
+
+    // Handle special neighbor situations.
+    // For simplicity & perf looking only at 6 direct neighbors.
+
+    // TODO: Can easily shared-mem optimize the marker. Also need to consider to put all this in a separate pass (might be faster)
+    float marker_px = imageLoad(MarkerVolume, gridCoord + ivec3(1, 0, 0)).r;
+    float marker_py = imageLoad(MarkerVolume, gridCoord + ivec3(0, 1, 0)).r;
+    float marker_pz = imageLoad(MarkerVolume, gridCoord + ivec3(0, 0, 1)).r;
+    float marker_nx = imageLoad(MarkerVolume, gridCoord - ivec3(1, 0, 0)).r;
+    float marker_ny = imageLoad(MarkerVolume, gridCoord - ivec3(0, 1, 0)).r;
+    float marker_nz = imageLoad(MarkerVolume, gridCoord - ivec3(0, 0, 1)).r;
+
+    // Three kinds of (solid) neighbors, if they were filled with particles they would contribute:
+    // * (6) share a surface        0.25 * 0.75 * 0.75 * 4 = 0.5625
+    // * (12) share only an edge    0.25 * 0.25 * 0.75 * 2 = 0.09375
+    // * (8) share only a corner    0.25 * 0.25 * 0.25 = 0.015625
+    // (adds up to 4.625, middle cell (if filled) itself is weighted with 0.75 * 0.75 * 0.75 * 8 = 3.375 -> 3.375 + 4.625 = 8)
+
+    // More precise version.
+#if 0
+    float markers[3][3][3];
+    bool anyAir = false;
+    [[unroll]] for (int x = -1; x <= 1; ++x) {
+        [[unroll]] for (int y = -1; y <= 1; ++y) {
+            [[unroll]] for (int z = -1; z <= 1; ++z) {
+                if (x == 0 && y == 0 && z == 0)
+                    continue;
+                float marker = imageLoad(MarkerVolume, gridCoord + ivec3(x, y, z)).r;
+                markers[x][y][z] = marker;
+
+                anyAir = anyAir || marker == CELL_AIR;
+
+                if (marker == CELL_SOLID) {
+                    int numNonZeroOffset = abs(x) + abs(y) + abs(z);
+                    if (numNonZeroOffset == 0)
+                        density += 0.5625;
+                    else if (numNonZeroOffset == 1)
+                        density += 0.09375;
+                    else // if (numNonZeroOffset == 2)
+                        density += 0.015625;
+                }
+            }
+        }
+    }
+
+    if (anyAir)
+        density = max(Density0, density);
+
+        // Approximiation
+#else
+
+    // Handle solid cells: Look at all the neighbors and for every SOLID cell compute how much particles in there would add mass to this sample.
+    // If there were particles in those solid cells (error) then the density gets too high, but that's a good thing since the gradient should work in
+    // our favor then!
+    // For equally filled out space with 8 particles per cell, the direct neighbors account for a weight of 3.375 (0.5625 for every cell)
+    // Middle cell makes 3.375 of the total weight, distributing the rest to 6 neighbors gives 0.77
+    const float solidNeighborContribution = 0.5625; // 0.77
+    if (marker_px == CELL_SOLID)
+        density += solidNeighborContribution;
+    if (marker_py == CELL_SOLID)
+        density += solidNeighborContribution;
+    if (marker_pz == CELL_SOLID)
+        density += solidNeighborContribution;
+    if (marker_nx == CELL_SOLID)
+        density += solidNeighborContribution;
+    if (marker_ny == CELL_SOLID)
+        density += solidNeighborContribution;
+    if (marker_nz == CELL_SOLID)
+        density += solidNeighborContribution;
+
+    // Clamp too low pressure at the borders of the fluid to work around fluid deficiency
+    if (marker_px == CELL_AIR || marker_py == CELL_AIR || marker_pz == CELL_AIR || marker_nx == CELL_AIR || marker_ny == CELL_AIR ||
+        marker_nz == CELL_AIR)
+        density = max(Density0, density);
+
+#endif
+
+    density = 1.0 - density / Density0;
+    // imageStore(DebugVolume, gridCoord, vec4(density));
+
+    // Clamp density as suggested in paper to avoid displacement of more than half a cell at a time
+    density = clamp(density, -0.5, 0.5);
+
+    // We could remove the time factor on both sides of the equation (this is multiplied back during density_projection_position_change),
+    // but by keeping it the pressure solver configuration becomes more similar to the configuration for the divergence projection.
+    density /= Time.SimulationDelta;
+
+    imageStore(DensityVolume, gridCoord, density.xxxx);
+}
