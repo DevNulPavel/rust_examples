@@ -1,0 +1,2 @@
+[workspace]
+members = ["heap_size", "heap_size_derive", "derive_example"]

@@ -2,7 +2,7 @@ use eyre::{Context, ContextCompat};
 use log::debug;
 use std::env;
 use wgpu::{
-    Backends, Device, Features, Instance, PowerPreference, Queue, RenderPipeline,
+    include_wgsl, Backends, Device, Features, Instance, PowerPreference, Queue, RenderPipeline,
     RequestAdapterOptions, Surface, SurfaceConfiguration,
 };
 use winit::{
@@ -203,12 +203,13 @@ impl RenderContext {
         surface.configure(&device, &config);
 
         // Шейдер
-        let shader = device.create_shader_module(&wgpu::ShaderModuleDescriptor {
-            label: Some("Shader"),
-            source: wgpu::ShaderSource::Wgsl(include_str!("shader.wgsl").into()),
-        });
+        // let shader = device.create_shader_module(&wgpu::ShaderModuleDescriptor {
+        //     label: Some("Shader"),
+        //     source: wgpu::ShaderSource::Wgsl(include_str!("shader.wgsl").into()),
+        // });
+        let shader = device.create_shader_module(&include_wgsl!("shader.wgsl")); // Кототкий вариант записи
 
-        
+        // Лаяут нашего пайплайна
         let render_pipeline_layout =
             device.create_pipeline_layout(&wgpu::PipelineLayoutDescriptor {
                 label: Some("Render Pipeline Layout"),
@@ -216,46 +217,44 @@ impl RenderContext {
                 push_constant_ranges: &[],
             });
 
+        // Непосредственно сам лаяут рендеринга
         let pipeline = device.create_render_pipeline(&wgpu::RenderPipelineDescriptor {
             label: Some("Render Pipeline"),
             layout: Some(&render_pipeline_layout),
+            // Описание обработки вершин
             vertex: wgpu::VertexState {
                 module: &shader,
-                entry_point: "vs_main", // 1.
-                buffers: &[],           // 2.
+                entry_point: "vs_main", // Функция в шейдере
+                buffers: &[], // Буфферы для отрисовки, пока испольузются лишь индексы, так что буффер пустой
             },
+            // Описание обработки пикселей, она опциональная
             fragment: Some(wgpu::FragmentState {
-                // 3.
                 module: &shader,
                 entry_point: "fs_main",
                 targets: &[wgpu::ColorTargetState {
-                    // 4.
                     format: config.format,
                     blend: Some(wgpu::BlendState::REPLACE),
                     write_mask: wgpu::ColorWrites::ALL,
                 }],
             }),
+
             primitive: wgpu::PrimitiveState {
-                topology: wgpu::PrimitiveTopology::TriangleList, // 1.
+                topology: wgpu::PrimitiveTopology::TriangleList, // Используем список треугольников
                 strip_index_format: None,
-                front_face: wgpu::FrontFace::Ccw, // 2.
-                cull_mode: Some(wgpu::Face::Back),
-                // Setting this to anything other than Fill requires Features::NON_FILL_POLYGON_MODE
-                polygon_mode: wgpu::PolygonMode::Fill,
-                // Requires Features::DEPTH_CLIP_CONTROL
-                unclipped_depth: false,
-                // Requires Features::CONSERVATIVE_RASTERIZATION
-                conservative: false,
+                front_face: wgpu::FrontFace::Ccw, // Обход против часовой стрелки будет
+                cull_mode: Some(wgpu::Face::Back), // Задняя грань отбрасыается
+                polygon_mode: wgpu::PolygonMode::Fill, // Полигоны заполняем при рендеринге
+                unclipped_depth: false,           // Requires Features::DEPTH_CLIP_CONTROL
+                conservative: false,              // Requires Features::CONSERVATIVE_RASTERIZATION
             },
             depth_stencil: None, // 1.
             multisample: wgpu::MultisampleState {
                 count: 1,                         // 2.
-                mask: !0,                         // 3.
+                mask: !0_u64,                     // 3.
                 alpha_to_coverage_enabled: false, // 4.
             },
             multiview: None, // 5.
         });
-        // continued ...
 
         Ok(RenderContext {
             surface,
