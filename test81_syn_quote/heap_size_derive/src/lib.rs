@@ -1,7 +1,13 @@
+// Включаем фичу трассировки макросов
+#![feature(trace_macros)]
+
+// Непосредственно само включение трассировки макросов
+trace_macros!(true);
+
 // Вспомогательная стандартная библиотека для работы с макросами
-use proc_macro::TokenStream as TokenStream1;
+// use proc_macro::TokenStream as TokenStream1;
 // Библиотека внешняя более удобная для работы с макросами
-use proc_macro2::TokenStream as TokenStream2;
+use proc_macro2::TokenStream as TokenStream;
 // Специальный макрос для генерации токенов Rust на основе шаблона
 use quote::{quote, quote_spanned};
 // Парсинг ввода в виде макроса + тип
@@ -33,7 +39,7 @@ fn add_trait_bounds(mut generics: Generics, bound: TypeParamBound) -> Generics {
 }
 
 /// Создаем выражение для суммарного вычисления размера в куче для каждого поля нашей структуры
-fn heap_size_sum(data: &Data) -> TokenStream2 {
+fn heap_size_sum(data: &Data) -> TokenStream {
     // Сначала определим к чему применяется наш макрос
     // Это структура, enum, union?
     match data {
@@ -98,7 +104,11 @@ fn heap_size_sum(data: &Data) -> TokenStream2 {
 
 // Здесь мы описываем тип нашего Derive макроса и его название
 #[proc_macro_derive(HeapSize)]
-pub fn derive_heap_size(input: TokenStream1) -> TokenStream1 {
+pub fn derive_heap_size(input: proc_macro::TokenStream) -> proc_macro::TokenStream {
+    // Отладка с помощью паники
+    // panic!("Found {}", input);
+    // dbg!(&input);
+
     // Парсим входные токены в синтаксическое дерево интерпретируя ввод как DeriveInput
     // Формат который мы хотим получить как раз и указывается после as
     // То есть это не каст, а параметр для макроса, который фейлится при ошибке
