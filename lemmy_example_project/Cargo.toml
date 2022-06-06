@@ -52,7 +52,7 @@ strum = "0.20.0"
 url = { version = "2.2.1", features = ["serde"] }
 openssl = "0.10.32"
 http-signature-normalization-actix = { version = "0.4.1", default-features = false, features = ["sha-2"] }
-tokio = "0.3.6"
+tokio = "1.8.4"
 anyhow = "1.0.38"
 reqwest = { version = "0.10.10", features = ["json"] }
 activitystreams = "0.7.0-alpha.10"

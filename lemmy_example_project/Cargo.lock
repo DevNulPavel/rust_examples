@@ -1759,7 +1759,7 @@ dependencies = [
  "strum",
  "strum_macros",
  "thiserror",
- "tokio 0.3.7",
+ "tokio 1.8.4",
  "url",
  "uuid",
 ]
@@ -1822,7 +1822,7 @@ dependencies = [
  "strum",
  "strum_macros",
  "thiserror",
- "tokio 0.3.7",
+ "tokio 1.8.4",
  "url",
  "uuid",
 ]
@@ -1869,7 +1869,7 @@ dependencies = [
  "strum",
  "strum_macros",
  "thiserror",
- "tokio 0.3.7",
+ "tokio 1.8.4",
  "url",
  "uuid",
 ]
@@ -1914,7 +1914,7 @@ dependencies = [
  "strum",
  "strum_macros",
  "thiserror",
- "tokio 0.3.7",
+ "tokio 1.8.4",
  "url",
 ]
 
@@ -2047,7 +2047,7 @@ dependencies = [
  "serde",
  "serde_json",
  "strum",
- "tokio 0.3.7",
+ "tokio 1.8.4",
  "url",
 ]
 
@@ -2081,7 +2081,7 @@ dependencies = [
  "strum",
  "strum_macros",
  "thiserror",
- "tokio 0.3.7",
+ "tokio 1.8.4",
  "url",
 ]
 
@@ -2107,7 +2107,7 @@ dependencies = [
  "serde_json",
  "strum",
  "strum_macros",
- "tokio 0.3.7",
+ "tokio 1.8.4",
 ]
 
 [[package]]
@@ -3565,9 +3565,9 @@ dependencies = [
 
 [[package]]
 name = "tokio"
-version = "0.3.7"
+version = "1.8.4"
 source = "registry+https://github.com/rust-lang/crates.io-index"
-checksum = "46409491c9375a693ce7032101970a54f8a2010efb77e13f70788f0d84489e39"
+checksum = "50dae83881bc9b0403dd5b44ea9deed3e939856cc8722d5be37f0d6e5c6d53dd"
 dependencies = [
  "autocfg",
  "pin-project-lite 0.2.4",
