@@ -7,7 +7,7 @@ mod args;
 // use proc_macro2::TokenStream;
 
 use crate::args::Args;
-use proc_macro_error::{abort, proc_macro_error};
+use proc_macro_error::proc_macro_error;
 use quote::quote;
 use syn::{fold::Fold, parse_macro_input, ItemFn};
 
@@ -41,7 +41,7 @@ pub fn trace_var(
     // Use a syntax tree traversal to transform the function body.
     let output = args.fold_item_fn(input);
 
-    // abort! { output,
+    // proc_macro_error::abort! { output,
     //     "I don't like this part!";
     //         note = "I see what you did there...";
     //         help = "I need only one part, you know?";
