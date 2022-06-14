@@ -229,30 +229,37 @@ impl RenderContext {
             },
             // Описание обработки пикселей, она опциональная
             fragment: Some(wgpu::FragmentState {
-                module: &shader,
-                entry_point: "fs_main",
+                module: &shader, // Указываем имя фрагментного шейдера
+                entry_point: "fs_main", // Имя функции в шейдере
                 targets: &[wgpu::ColorTargetState {
                     format: config.format,
-                    blend: Some(wgpu::BlendState::REPLACE),
-                    write_mask: wgpu::ColorWrites::ALL,
+                    blend: Some(wgpu::BlendState::REPLACE), // Полность покрашиваем пиксели
+                    write_mask: wgpu::ColorWrites::ALL,     // Пишем полностью все цвета в буффер цвета
                 }],
             }),
-
+            // Описываем способ интерпритации вершин из входного буфера
             primitive: wgpu::PrimitiveState {
-                topology: wgpu::PrimitiveTopology::TriangleList, // Используем список треугольников
+                topology: wgpu::PrimitiveTopology::TriangleList,    // Используем список треугольников
                 strip_index_format: None,
-                front_face: wgpu::FrontFace::Ccw, // Обход против часовой стрелки будет
-                cull_mode: Some(wgpu::Face::Back), // Задняя грань отбрасыается
-                polygon_mode: wgpu::PolygonMode::Fill, // Полигоны заполняем при рендеринге
-                unclipped_depth: false,           // Requires Features::DEPTH_CLIP_CONTROL
-                conservative: false,              // Requires Features::CONSERVATIVE_RASTERIZATION
+                front_face: wgpu::FrontFace::Ccw,                   // Обход против часовой стрелки будет
+                cull_mode: Some(wgpu::Face::Back),                  // Задняя грань отбрасыается
+                polygon_mode: wgpu::PolygonMode::Fill,              // Полигоны заполняем при рендеринге
+                // Если мы выходим за границы от 0 до 1 по глубине, нужно ли отбрасывать пиксель?
+                unclipped_depth: false,                             // Requires Features::DEPTH_CLIP_CONTROL
+                // Заполняется каждый пиксель при рендеринге если режим Fill
+                // Иначе можно было бы использовать оптимизации в духе
+                // Наверное тут речь про включенный режим отрисовки пискелей с двух сторон?
+                conservative: false,                                // Requires Features::CONSERVATIVE_RASTERIZATION
             },
-            depth_stencil: None, // 1.
+            // Пока не используем никак буффер трафарета
+            depth_stencil: None,
+            // Режим мультисемплинга
             multisample: wgpu::MultisampleState {
-                count: 1,                         // 2.
-                mask: !0_u64,                     // 3.
-                alpha_to_coverage_enabled: false, // 4.
+                count: 1,                         // Пока не используем никак
+                mask: !0_u64,                     // Сейчас используем все пиксели, поэтому маска полная
+                alpha_to_coverage_enabled: false, // 
             },
+            // Не рендерим пока в массив буфферов
             multiview: None, // 5.
         });
 
