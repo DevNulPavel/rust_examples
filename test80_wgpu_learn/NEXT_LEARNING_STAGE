@@ -1,2 +1,16 @@
 Прохождение туториала остановилось на этом вот этапе: 
 https://sotrh.github.io/learn-wgpu/beginner/tutorial5-textures/#textures-and-bind-groups
+
+Полезные ссылки почитать:
+- https://github.com/gfx-rs/naga
+- https://docs.rs/wgpu/latest/wgpu/
+- https://github.com/gfx-rs/wgpu
+- https://github.com/rofrol/awesome-wgpu
+- https://github.com/parasyte/pixels
+- https://www.youtube.com/watch?v=Z1l91Y3_oyw
+- https://web.dev/gpu-compute/
+- https://www.youtube.com/watch?v=KZTmTbcA-VY
+- https://vulkano.rs/guide/introduction
+- https://gpuweb.github.io/gpuweb/
+- https://rust-tutorials.github.io/learn-wgpu/
+- 
