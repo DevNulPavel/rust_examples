@@ -2,6 +2,7 @@ mod app;
 mod render_context;
 mod vertex;
 mod pipeline_builders;
+mod figures;
 
 use self::{app::App, render_context::RenderContext};
 use eyre::Context;

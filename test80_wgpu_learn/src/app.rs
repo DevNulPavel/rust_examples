@@ -1,6 +1,6 @@
 use crate::{
     pipeline_builders::build_color_triangle_pipeline, render_context::RenderContext,
-    vertex::VERTICES,
+    figures::{VERTICES, INDICES},
 };
 use eyre::Context;
 use log::debug;
@@ -26,7 +26,9 @@ pub struct App {
     color_triangle_pipeline: RenderPipeline,
     // Triangle buffer
     triangle_vertex_buffer: Buffer,
-    triangle_vertex_len: u32,
+    //triangle_vertex_len: u32,
+    triangle_index_buffer: Buffer,
+    triangle_index_len: u32,
 }
 
 impl App {
@@ -49,6 +51,16 @@ impl App {
                     // Описываем как будет использоваться буффер
                     usage: BufferUsages::VERTEX,
                 });
+        // Создаем буффер для индексов
+        let triangle_index_buffer = render_context
+            .device
+            .create_buffer_init(&BufferInitDescriptor {
+                label: Some("Index Buffer"),
+                // Ссылка на данные, которые будут загружаться на видеокарту
+                contents: bytemuck::cast_slice(INDICES),
+                // Описываем как будет использоваться буффер
+                usage: BufferUsages::INDEX,
+            });
 
         App {
             // loop_proxy,
@@ -64,7 +76,9 @@ impl App {
             previous_mouse_pos: PhysicalPosition { x: 0.0, y: 0.0 },
             color_triangle_pipeline,
             triangle_vertex_buffer,
-            triangle_vertex_len: VERTICES.len() as u32,
+            //triangle_vertex_len: VERTICES.len() as u32,
+            triangle_index_buffer,
+            triangle_index_len: INDICES.len() as u32,
         }
     }
 
@@ -198,8 +212,10 @@ impl App {
             render_pass.set_pipeline(&self.color_triangle_pipeline);
             // Выставляем вертекс буффер
             render_pass.set_vertex_buffer(0, self.triangle_vertex_buffer.slice(..));
+            // Выставляем буфер индексов
+            render_pass.set_index_buffer(self.triangle_index_buffer.slice(..), wgpu::IndexFormat::Uint16);
             // Рисуем один раз вершины от 0 до 3
-            render_pass.draw(0..self.triangle_vertex_len, 0..1);
+            render_pass.draw_indexed(0..self.triangle_index_len, 0, 0..1);
         }
 
         // Ставим в очередь команды рендеринга
