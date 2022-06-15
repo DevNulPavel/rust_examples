@@ -1,5 +1,7 @@
 mod app;
 mod render_context;
+mod vertex;
+mod pipeline_builders;
 
 use self::{app::App, render_context::RenderContext};
 use eyre::Context;

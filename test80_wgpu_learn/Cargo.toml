@@ -14,3 +14,5 @@ color-eyre = "0.5"
 wgpu = "0.12"
 winit = "0.26"
 pollster = "0.2"
+bytemuck = {version = "1", features = ["derive"]}
+const-field-offset = "0.1"

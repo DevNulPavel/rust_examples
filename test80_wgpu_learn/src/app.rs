@@ -1,47 +1,60 @@
-use crate::render_context::RenderContext;
+use crate::{
+    pipeline_builders::build_color_triangle_pipeline, render_context::RenderContext,
+    vertex::VERTICES,
+};
 use eyre::Context;
 use log::debug;
-use std::rc::Rc;
-use wgpu::{include_wgsl, RenderPipeline};
+use wgpu::{
+    util::{BufferInitDescriptor, DeviceExt},
+    Buffer, BufferUsages, Color, RenderPipeline,
+};
 use winit::{
     dpi::PhysicalPosition,
     event::*,
-    event_loop::{ControlFlow, EventLoop, EventLoopProxy},
-    window::{Window, WindowBuilder},
+    event_loop::{ControlFlow, EventLoopProxy},
+    window::Window,
 };
-
-enum RenderMode {
-    Simple,
-    Color,
-}
 
 pub struct App {
     window: Window,
-    loop_proxy: EventLoopProxy<()>,
+    //loop_proxy: EventLoopProxy<()>,
     render_context: RenderContext,
     clear_color: wgpu::Color,
     previous_mouse_pos: PhysicalPosition<f64>,
     mouse_drag_active: bool,
-    simple_triangle_pipeline: RenderPipeline,
+    // Render pipeline
     color_triangle_pipeline: RenderPipeline,
-    render_mode: RenderMode,
+    // Triangle buffer
+    triangle_vertex_buffer: Buffer,
+    triangle_vertex_len: u32,
 }
 
 impl App {
     pub fn new(
-        loop_proxy: EventLoopProxy<()>,
+        _loop_proxy: EventLoopProxy<()>,
         window: Window,
         render_context: RenderContext,
     ) -> Self {
         // Создаем разные пайплайны заранее
-        let simple_triangle_pipeline = create_simple_triangle_pipeline(&render_context);
-        let color_triangle_pipeline = create_color_triangle_pipeline(&render_context);
+        let color_triangle_pipeline = build_color_triangle_pipeline(&render_context);
+
+        // Создаем буффер для вершин
+        let triangle_vertex_buffer =
+            render_context
+                .device
+                .create_buffer_init(&BufferInitDescriptor {
+                    label: Some("Vertex Buffer"),
+                    // Ссылка на данные, которые будут загружаться на видеокарту
+                    contents: bytemuck::cast_slice(VERTICES),
+                    // Описываем как будет использоваться буффер
+                    usage: BufferUsages::VERTEX,
+                });
 
         App {
-            loop_proxy,
+            // loop_proxy,
             window,
             render_context,
-            clear_color: wgpu::Color {
+            clear_color: Color {
                 r: 0.1,
                 g: 0.1,
                 b: 0.1,
@@ -49,9 +62,9 @@ impl App {
             },
             mouse_drag_active: false,
             previous_mouse_pos: PhysicalPosition { x: 0.0, y: 0.0 },
-            simple_triangle_pipeline,
             color_triangle_pipeline,
-            render_mode: RenderMode::Simple,
+            triangle_vertex_buffer,
+            triangle_vertex_len: VERTICES.len() as u32,
         }
     }
 
@@ -72,11 +85,7 @@ impl App {
             WindowEvent::CloseRequested => *control_flow = ControlFlow::Exit,
 
             // Клавиатурное событие
-            WindowEvent::KeyboardInput {
-                input,
-                device_id,
-                is_synthetic,
-            } => match input {
+            WindowEvent::KeyboardInput { input, .. } => match input {
                 // Клавиша escape
                 KeyboardInput {
                     virtual_keycode: Some(VirtualKeyCode::Escape),
@@ -89,10 +98,6 @@ impl App {
                     state: ElementState::Pressed,
                     ..
                 } => {
-                    self.render_mode = match self.render_mode {
-                        RenderMode::Simple => RenderMode::Color,
-                        RenderMode::Color => RenderMode::Simple,
-                    };
                     self.window.request_redraw();
                 }
 
@@ -101,12 +106,7 @@ impl App {
             },
 
             // Событие мышки
-            WindowEvent::MouseInput {
-                device_id,
-                state,
-                button,
-                ..
-            } => match button {
+            WindowEvent::MouseInput { state, button, .. } => match button {
                 MouseButton::Left => match state {
                     ElementState::Pressed => {
                         self.mouse_drag_active = true;
@@ -121,11 +121,7 @@ impl App {
                 },
                 _ => {}
             },
-            WindowEvent::CursorMoved {
-                device_id,
-                position,
-                ..
-            } => {
+            WindowEvent::CursorMoved { position, .. } => {
                 if self.mouse_drag_active {
                     let diff_x = position.x - self.previous_mouse_pos.x;
                     let diff_y = position.y - self.previous_mouse_pos.y;
@@ -198,16 +194,12 @@ impl App {
                 depth_stencil_attachment: None,
             });
 
-            // Выбираем нужный пайплайн
-            let pipeline = match self.render_mode {
-                RenderMode::Simple => &self.simple_triangle_pipeline,
-                RenderMode::Color => &self.color_triangle_pipeline,
-            };
-
             // Для рендер прохода выставляем наш пайплайн для рендеринга
-            render_pass.set_pipeline(pipeline);
+            render_pass.set_pipeline(&self.color_triangle_pipeline);
+            // Выставляем вертекс буффер
+            render_pass.set_vertex_buffer(0, self.triangle_vertex_buffer.slice(..));
             // Рисуем один раз вершины от 0 до 3
-            render_pass.draw(0..3, 0..1);
+            render_pass.draw(0..self.triangle_vertex_len, 0..1);
         }
 
         // Ставим в очередь команды рендеринга
@@ -220,148 +212,4 @@ impl App {
 
         Ok(())
     }
-}
-
-/// Создаем простой пайплайн для рендеринга простого треугольника
-fn create_simple_triangle_pipeline(render_context: &RenderContext) -> RenderPipeline {
-    // Шейдер
-    // let shader = device.create_shader_module(&wgpu::ShaderModuleDescriptor {
-    //     label: Some("Shader"),
-    //     source: wgpu::ShaderSource::Wgsl(include_str!("shader.wgsl").into()),
-    // });
-    let shader = render_context
-        .device
-        .create_shader_module(&include_wgsl!("shaders/simple_triangle.wgsl")); // Кототкий вариант записи
-
-    // Лаяут нашего пайплайна
-    let render_pipeline_layout =
-        render_context
-            .device
-            .create_pipeline_layout(&wgpu::PipelineLayoutDescriptor {
-                label: Some("Render Pipeline Layout"),
-                bind_group_layouts: &[],
-                push_constant_ranges: &[],
-            });
-
-    // Непосредственно сам лаяут рендеринга
-    let pipeline = render_context
-        .device
-        .create_render_pipeline(&wgpu::RenderPipelineDescriptor {
-            label: Some("Render Pipeline"),
-            layout: Some(&render_pipeline_layout),
-            // Описание обработки вершин
-            vertex: wgpu::VertexState {
-                module: &shader,
-                entry_point: "vs_main", // Функция в шейдере
-                buffers: &[], // Буфферы для отрисовки, пока испольузются лишь индексы, так что буффер пустой
-            },
-            // Описание обработки пикселей, она опциональная
-            fragment: Some(wgpu::FragmentState {
-                module: &shader,        // Указываем имя фрагментного шейдера
-                entry_point: "fs_main", // Имя функции в шейдере
-                targets: &[wgpu::ColorTargetState {
-                    format: render_context.config.format,
-                    blend: Some(wgpu::BlendState::REPLACE), // Полность покрашиваем пиксели
-                    write_mask: wgpu::ColorWrites::ALL, // Пишем полностью все цвета в буффер цвета
-                }],
-            }),
-            // Описываем способ интерпритации вершин из входного буфера
-            primitive: wgpu::PrimitiveState {
-                topology: wgpu::PrimitiveTopology::TriangleList, // Используем список треугольников
-                strip_index_format: None,
-                front_face: wgpu::FrontFace::Ccw, // Обход против часовой стрелки будет
-                cull_mode: Some(wgpu::Face::Back), // Задняя грань отбрасыается
-                polygon_mode: wgpu::PolygonMode::Fill, // Полигоны заполняем при рендеринге
-                // Если мы выходим за границы от 0 до 1 по глубине, нужно ли отбрасывать пиксель?
-                unclipped_depth: false, // Requires Features::DEPTH_CLIP_CONTROL
-                // Заполняется каждый пиксель при рендеринге если режим Fill
-                // Иначе можно было бы использовать оптимизации в духе
-                // Наверное тут речь про включенный режим отрисовки пискелей с двух сторон?
-                conservative: false, // Requires Features::CONSERVATIVE_RASTERIZATION
-            },
-            // Пока не используем никак буффер трафарета
-            depth_stencil: None,
-            // Режим мультисемплинга
-            multisample: wgpu::MultisampleState {
-                count: 1,                         // Пока не используем никак
-                mask: !0_u64, // Сейчас используем все пиксели, поэтому маска полная
-                alpha_to_coverage_enabled: false, //
-            },
-            // Не рендерим пока в массив буфферов
-            multiview: None, // 5.
-        });
-
-    pipeline
-}
-
-/// Создаем пайплайн для рендеринга цветного треугольника
-fn create_color_triangle_pipeline(render_context: &RenderContext) -> RenderPipeline {
-    // Шейдер
-    // let shader = device.create_shader_module(&wgpu::ShaderModuleDescriptor {
-    //     label: Some("Shader"),
-    //     source: wgpu::ShaderSource::Wgsl(include_str!("shader.wgsl").into()),
-    // });
-    let shader = render_context
-        .device
-        .create_shader_module(&include_wgsl!("shaders/color_triangle.wgsl")); // Кототкий вариант записи
-
-    // Лаяут нашего пайплайна
-    let render_pipeline_layout =
-        render_context
-            .device
-            .create_pipeline_layout(&wgpu::PipelineLayoutDescriptor {
-                label: Some("Render Pipeline Layout"),
-                bind_group_layouts: &[],
-                push_constant_ranges: &[],
-            });
-
-    // Непосредственно сам лаяут рендеринга
-    let pipeline = render_context
-        .device
-        .create_render_pipeline(&wgpu::RenderPipelineDescriptor {
-            label: Some("Render Pipeline"),
-            layout: Some(&render_pipeline_layout),
-            // Описание обработки вершин
-            vertex: wgpu::VertexState {
-                module: &shader,
-                entry_point: "vs_main", // Функция в шейдере
-                buffers: &[], // Буфферы для отрисовки, пока испольузются лишь индексы, так что буффер пустой
-            },
-            // Описание обработки пикселей, она опциональная
-            fragment: Some(wgpu::FragmentState {
-                module: &shader,        // Указываем имя фрагментного шейдера
-                entry_point: "fs_main", // Имя функции в шейдере
-                targets: &[wgpu::ColorTargetState {
-                    format: render_context.config.format,
-                    blend: Some(wgpu::BlendState::REPLACE), // Полность покрашиваем пиксели
-                    write_mask: wgpu::ColorWrites::ALL, // Пишем полностью все цвета в буффер цвета
-                }],
-            }),
-            // Описываем способ интерпритации вершин из входного буфера
-            primitive: wgpu::PrimitiveState {
-                topology: wgpu::PrimitiveTopology::TriangleList, // Используем список треугольников
-                strip_index_format: None,
-                front_face: wgpu::FrontFace::Ccw, // Обход против часовой стрелки будет
-                cull_mode: Some(wgpu::Face::Back), // Задняя грань отбрасыается
-                polygon_mode: wgpu::PolygonMode::Fill, // Полигоны заполняем при рендеринге
-                // Если мы выходим за границы от 0 до 1 по глубине, нужно ли отбрасывать пиксель?
-                unclipped_depth: false, // Requires Features::DEPTH_CLIP_CONTROL
-                // Заполняется каждый пиксель при рендеринге если режим Fill
-                // Иначе можно было бы использовать оптимизации в духе
-                // Наверное тут речь про включенный режим отрисовки пискелей с двух сторон?
-                conservative: false, // Requires Features::CONSERVATIVE_RASTERIZATION
-            },
-            // Пока не используем никак буффер трафарета
-            depth_stencil: None,
-            // Режим мультисемплинга
-            multisample: wgpu::MultisampleState {
-                count: 1,                         // Пока не используем никак
-                mask: !0_u64, // Сейчас используем все пиксели, поэтому маска полная
-                alpha_to_coverage_enabled: false, //
-            },
-            // Не рендерим пока в массив буфферов
-            multiview: None, // 5.
-        });
-
-    pipeline
 }
