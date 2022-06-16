@@ -2,7 +2,7 @@ use pest::Parser;
 use std::fs;
 
 #[derive(pest_derive::Parser)]
-#[grammar = "csv.pest"]
+#[grammar = "csv/rules.pest"]
 pub struct CSVParser;
 
 #[allow(dead_code)]
