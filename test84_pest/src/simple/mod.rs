@@ -5,7 +5,7 @@ use pest::Parser;
 struct SimpleParser;
 
 #[allow(dead_code)]
-pub fn parse_ini() {
+pub fn parse_simple() {
     {
         let parse_result = SimpleParser::parse(Rule::sum, "1773 + 1362").unwrap();
         // Получаем список токенов, которые смогли распарсить
