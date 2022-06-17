@@ -11,7 +11,7 @@ default = []
 flame_it = ["flame", "flamer"]
 
 [dependencies]
-tokio = {version="0.2.24", features=["full"]} # https://docs.rs/crate/tokio/0.3.6/features
+tokio = {version="1.8.4", features=["full"]} # https://docs.rs/crate/tokio/0.3.6/features
 reqwest = {version="0.10.10"}
 lazy_static = "1.4.0"
 rayon = "1.5.0"
