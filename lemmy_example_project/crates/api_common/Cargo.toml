@@ -17,7 +17,7 @@ lemmy_db_schema = { path = "../db_schema" }
 lemmy_utils = { path = "../utils" }
 serde = { version = "1.0.123", features = ["derive"] }
 log = "0.4.14"
-diesel = "1.4.5"
+diesel = "1.4.6"
 actix-web = "3.3.2"
 chrono = { version = "0.4.19", features = ["serde"] }
 serde_json = { version = "1.0.61", features = ["preserve_order"] }

@@ -40,7 +40,7 @@ lemmy_db_views_actor = { path = "./crates/db_views_actor" }
 lemmy_api_common = { path = "crates/api_common" }
 lemmy_websocket = { path = "./crates/websocket" }
 lemmy_routes = { path = "./crates/routes" }
-diesel = "1.4.5"
+diesel = "1.4.6"
 diesel_migrations = "1.4.0"
 chrono = { version = "0.4.19", features = ["serde"] }
 serde = { version = "1.0.123", features = ["derive"] }
