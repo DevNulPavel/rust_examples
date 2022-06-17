@@ -1,4 +1,4 @@
-use log::{debug, trace};
+use log::debug;
 use pest::Parser;
 use std::collections::HashMap;
 use std::fs::read_to_string;
@@ -39,11 +39,14 @@ pub fn parse_ini() {
                 // Получаем итератор по ключу и значению
                 let mut pair_iter = line_pair.into_inner();
 
+                // Больше не нужно это делать так как мы определили специальное правило с "_"
+                // в самом начале. Тем самым у нас будут пропускаться символы при парсинге
+                //
                 // Пропускаем возможный пробел перед именем секции
-                while pair_iter.peek().map(|p| p.as_rule()) != Some(Rule::key) {
-                    trace!("Skip space at section name");
-                    pair_iter.next();
-                }
+                // while pair_iter.peek().map(|p| p.as_rule()) != Some(Rule::key) {
+                //     log::trace!("Skip space at section name");
+                //     pair_iter.next();
+                // }
 
                 // Получаем имя секции
                 let section_name = pair_iter.next().unwrap().as_str().to_owned();
@@ -62,11 +65,14 @@ pub fn parse_ini() {
                 assert!(key_pair.as_rule() == Rule::key);
                 let key = key_pair.as_str().to_owned();
 
+                // Больше не нужно это делать так как мы определили специальное правило с "_"
+                // в самом начале. Тем самым у нас будут пропускаться символы при парсинге
+                //
                 // Пропускаем возможный пробел между ключем и значением
-                while key_val_pair_iter.peek().map(|p| p.as_rule()) != Some(Rule::value) {
-                    trace!("Skip space at section key values");
-                    key_val_pair_iter.next();
-                }
+                // while key_val_pair_iter.peek().map(|p| p.as_rule()) != Some(Rule::value) {
+                //     log::trace!("Skip space at section key values");
+                //     key_val_pair_iter.next();
+                // }
 
                 // А вот значение уже не всегда может быть
                 let value_pair = key_val_pair_iter.next();
