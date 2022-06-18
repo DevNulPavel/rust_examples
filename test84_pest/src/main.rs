@@ -27,8 +27,8 @@ fn main() -> Result<(), eyre::Error> {
     // ident::parse_ident();
     // csv::parse_csv_1();
     // csv::parse_csv_2();
-    // simple::parse_simple();
-    ini::parse_ini();
+    simple::parse_simple();
+    // ini::parse_ini();
 
     Ok(())
 }

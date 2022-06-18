@@ -6,3 +6,5 @@ enclosed = { "(.." ~ number ~ "..)" } // for instance, "(..6472..)"
 
 // Просто сумма двух чисел: "1362 + 12"
 sum = { number ~ " + " ~ number }
+
+with_implicit_spaces = { number ~ "+" ~ number }

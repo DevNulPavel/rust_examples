@@ -60,5 +60,14 @@ pub fn parse_simple() {
             assert_eq!(Rule::number, found.as_rule());
             assert_eq!(expected, found.as_str());
         }
+
+        {
+            // Парсим и сразу же получаем итератор на вложенные пары
+            let _pairs = SimpleParser::parse(Rule::with_implicit_spaces, "1773+1362")
+                .unwrap()
+                .next()
+                .unwrap()
+                .into_inner();
+        }
     }
 }
