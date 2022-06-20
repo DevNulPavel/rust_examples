@@ -3,7 +3,7 @@ use log::debug;
 use nom::{
     bytes::complete::{tag, take_while_m_n},
     combinator::map_res,
-    sequence::tuple
+    sequence::tuple,
 };
 
 #[derive(Debug, PartialEq)]
@@ -46,7 +46,7 @@ fn parse_hex_color(input: &str) -> nom::IResult<&str, Color> {
 pub fn test_parse_hex_color() -> Result<(), eyre::Error> {
     let (input, color) = parse_hex_color("#2F14DF").wrap_err("Color parse failed")?;
 
-    eyre::ensure!(input == "", "New input must be empty");
+    eyre::ensure!(input.is_empty(), "New input must be empty");
     #[rustfmt::skip]
     eyre::ensure!(color == Color{red: 47, green: 20, blue: 223}, "Color must be valid");
 

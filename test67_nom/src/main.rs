@@ -15,7 +15,6 @@ fn main() {
     // Настройка логирования
     env_logger::builder()
         .filter_level(log::LevelFilter::Trace)
-        .format_timestamp(None)
         .init();
 
     // Запуск приложения c обработкой ошибки
