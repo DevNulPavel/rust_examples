@@ -30,6 +30,7 @@ fn main() -> Result<(), eyre::Error> {
     // csv::parse_csv_2();
     // simple::parse_simple();
     // ini::parse_ini();
+    json::parse_json();
 
     Ok(())
 }
