@@ -19,7 +19,7 @@ struct IniFile {
 #[allow(dead_code)]
 pub fn parse_ini() {
     // Читаем полностью данные
-    let file_content = read_to_string("test_data/sample_data.ini").unwrap();
+    let file_content = read_to_string("test_data/sample.ini").unwrap();
 
     // Парсим файлик, получаем сразу же его содержимое для анализа
     let parsed_content = IniParser::parse(Rule::file, &file_content)

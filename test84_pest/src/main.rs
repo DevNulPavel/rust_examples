@@ -2,6 +2,7 @@ mod csv;
 mod ident;
 mod simple;
 mod ini;
+mod json;
 
 use eyre::Context;
 // use log::{debug, warn};
@@ -27,7 +28,7 @@ fn main() -> Result<(), eyre::Error> {
     // ident::parse_ident();
     // csv::parse_csv_1();
     // csv::parse_csv_2();
-    simple::parse_simple();
+    // simple::parse_simple();
     // ini::parse_ini();
 
     Ok(())
