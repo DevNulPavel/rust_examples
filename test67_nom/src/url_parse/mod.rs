@@ -1,8 +1,9 @@
 pub mod error;
-pub mod scheme;
 pub mod authority;
+pub mod scheme;
+pub mod host;
 
-use self::{scheme::Scheme, authority::Authority};
+use self::{authority::Authority, host::Host, scheme::Scheme};
 use eyre::{Context, WrapErr};
 use nom::{
     branch::alt,
@@ -10,16 +11,9 @@ use nom::{
     error::{context, make_error, Error, ErrorKind, VerboseError},
     IResult,
 };
-use std::net::IpAddr;
 
 /////////////////////////////////////////////////////////////////////////////////
 
-
-#[derive(Debug)]
-enum Host<'a> {
-    Name(&'a str),
-    Ip(IpAddr),
-}
 
 #[derive(Debug)]
 struct QueryParam<'a> {
@@ -37,7 +31,6 @@ struct URI<'a> {
     scheme: Scheme<'a>,
     authority: Option<Authority<'a>>,
     host: Host<'a>,
-    port: Option<u16>,
     path: Option<Vec<&'a str>>,
     query: Option<QueryParams<'a>>,
     fragment: Option<&'a str>, // Символы после #

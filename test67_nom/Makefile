@@ -14,5 +14,8 @@ TEST_SCHEME:
 TEST_AUTHORITY:
 	cargo test -- url_parse::authority::tests
 
+TEST_HOST:
+	cargo test -- url_parse::host::tests
+
 BENCH_ALL:
 	cargo bench
