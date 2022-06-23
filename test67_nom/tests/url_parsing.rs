@@ -1,9 +1,9 @@
-mod hex_color_example;
+use test67_nom::url_parse::parse_url;
 
 use std::process::exit;
 
 fn execute_app() -> Result<(), eyre::Error> {
-    hex_color_example::test_parse_hex_color()?;
+    // hex_color_example::test_parse_hex_color()?;
 
     Ok(())
 }

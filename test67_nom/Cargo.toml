@@ -12,8 +12,16 @@ color-eyre = "0.6"
 nom = "7"
 log = "0.4"
 env_logger = "0.9"
+thiserror = "1"
 
-[profile.release]
+# [profile.release]
 # lto = true
 # codegen-units = 1
 # panic = "abort"
+
+[dev-dependencies]
+criterion = "0.3"
+
+[[bench]]
+name = "url_parse_benches"
+harness = false

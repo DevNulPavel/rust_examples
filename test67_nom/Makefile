@@ -7,3 +7,12 @@ TEST_APP:
 	cargo clippy && \
 	cargo build && \
 	target/debug/test67_nom
+
+TEST_SCHEME:
+	cargo test -- url_parse::scheme::tests
+
+TEST_AUTHORITY:
+	cargo test -- url_parse::authority::tests
+
+BENCH_ALL:
+	cargo bench

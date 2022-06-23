@@ -43,6 +43,8 @@ fn parse_hex_color(input: &str) -> nom::IResult<&str, Color> {
     Ok((input, Color { red, green, blue }))
 }
 
+// Разрешаем из-за того, что у нас просто демонстрационный пример
+#[allow(dead_code)]
 pub fn test_parse_hex_color() -> Result<(), eyre::Error> {
     let (input, color) = parse_hex_color("#2F14DF").wrap_err("Color parse failed")?;
 
