@@ -16,13 +16,11 @@ fn faker_wrapper(mut conn: Connection, count: i64) {
 fn faker(tx: &Transaction, count: i64) {
     // Заранее подготавливаем запросы
     let mut stmt_with_area = tx
-        .prepare_cached("INSERT INTO user VALUES (?, ?, ?, ?)")
+        .prepare_cached("INSERT INTO user VALUES (NULL, ?, ?, ?)")
         .unwrap();        
     let mut stmt = tx
-        .prepare_cached("INSERT INTO user VALUES (?, NULL, ?, ?)")
+        .prepare_cached("INSERT INTO user VALUES (NULL, NULL, ?, ?)")
         .unwrap();
-
-    let mut pk: i64 = 1;
 
     for _ in 0..count {
         // Рандомные значения
@@ -33,12 +31,11 @@ fn faker(tx: &Transaction, count: i64) {
         if with_area {
             let area_code = common::get_random_area_code();
             stmt_with_area
-                .execute(params![pk, area_code, age, is_active])
+                .execute(params![area_code, age, is_active])
                 .unwrap();
         } else {
-            stmt.execute(params![pk, age, is_active]).unwrap();
+            stmt.execute(params![age, is_active]).unwrap();
         }
-        pk += 1;
     }
 }
 
@@ -47,7 +44,7 @@ fn main() {
     conn.execute_batch(common::pragma_rules()).expect("PRAGMA");
     conn.execute(
         "CREATE TABLE IF NOT EXISTS user (
-                id INTEGER not null primary key,
+                id INTEGER not null primary key AUTOINCREMENT,
                 area CHAR(6),
                 age INTEGER not null,
                 active INTEGER not null)",

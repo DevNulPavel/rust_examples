@@ -86,7 +86,7 @@ fn main() {
     conn.execute_batch(common::pragma_rules()).expect("PRAGMA");
     conn.execute(
         "CREATE TABLE IF NOT EXISTS user (
-                id INTEGER not null primary key,
+                id INTEGER not null primary key AUTOINCREMENT,
                 area CHAR(6),
                 age INTEGER not null,
                 active INTEGER not null)",

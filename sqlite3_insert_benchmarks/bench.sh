@@ -1,5 +1,11 @@
 export TZ=":Europe/Moscow"
 
+# # Просто запросы вообще без открытой транзакции, очень долго работает
+# rm -rf basic_no_tr.db basic_no_tr.db-shm basic_no_tr.db-wal
+# cargo build --release --quiet --bin basic_no_tr
+# echo "$(date)" "[RUST] basic_no_tr.rs (1_000_000) inserts"
+# /usr/bin/time ./target/release/basic_no_tr
+
 # Просто запросы в пределах транзакции
 rm -rf basic.db basic.db-shm basic.db-wal
 cargo build --release --quiet --bin basic
