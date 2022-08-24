@@ -1,0 +1,7 @@
+### Ignore all database files
+*.db
+*.db-shm
+*.db-wal
+
+### All Rust Stuff
+/target
