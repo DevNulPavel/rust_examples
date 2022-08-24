@@ -10,3 +10,4 @@ tokio = {version = "^1", features = ["full"]}
 rand = "^0.8"
 num_cpus = "^1"
 rusqlite = "^0.25"
+smallstr = "^0.3"

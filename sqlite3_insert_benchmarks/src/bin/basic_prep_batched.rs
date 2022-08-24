@@ -1,5 +1,6 @@
 use rusqlite::{Connection, ToSql, Transaction};
 
+use smallstr::SmallString;
 use sqlite3_insert_benchmarks as common;
 
 fn faker_wrapper(mut conn: Connection, count: i64) {
@@ -20,11 +21,12 @@ fn faker(tx: &Transaction, count: i64) {
 
     // Повторяем 50 раз строку для параметов
     let mut stmt_with_area = {
-        let mut with_area_params = " (NULL, ?, ?, ?),".repeat(min_batch_size as usize);
-        with_area_params.pop();
-        let with_area_params = with_area_params.as_str();
-
-        let st = format!("INSERT INTO user VALUES {}", with_area_params);
+        let mut st: SmallString<[u8; 2048]> = SmallString::new();
+        st.push_str("INSERT INTO user VALUES ");
+        for _ in 0..min_batch_size {
+            st.push_str("(NULL, ?, ?, ?),")
+        }
+        st.pop();
 
         // Кешируем запрос
         tx.prepare_cached(st.as_str()).unwrap()
@@ -32,11 +34,12 @@ fn faker(tx: &Transaction, count: i64) {
 
     // Повторяем 50 раз строку для параметов
     let mut stmt = {
-        let mut without_area_params = " (NULL, NULL, ?, ?),".repeat(min_batch_size as usize);
-        without_area_params.pop();
-        let without_area_params = without_area_params.as_str();
-
-        let st = format!("INSERT INTO user VALUES {}", without_area_params);
+        let mut st: SmallString<[u8; 2048]> = SmallString::new();
+        st.push_str("INSERT INTO user VALUES ");
+        for _ in 0..min_batch_size {
+            st.push_str("(NULL, NULL, ?, ?),")
+        }
+        st.pop();
 
         // Кешируем запрос
         tx.prepare_cached(st.as_str()).unwrap()
@@ -49,7 +52,7 @@ fn faker(tx: &Transaction, count: i64) {
         let is_active = common::get_random_active();
 
         let mut param_values: Vec<_> = Vec::new();
-        
+
         if with_area {
             // lets prepare the batch
             let mut vector = Vec::<(String, i8, i8)>::new();
