@@ -6,11 +6,11 @@ export TZ=":Europe/Moscow"
 # echo "$(date)" "[RUST] basic_no_tr.rs (10_000) inserts"
 # /usr/bin/time ./target/release/basic_no_tr
 
-# Бенчмарк периодического открытия и закрытия транзакции SQLite
-rm -rf basic_raw_tr.db basic_raw_tr.db-shm basic_raw_tr.db-wal
-cargo build --release --quiet --bin basic_raw_tr
-echo "$(date)" "[RUST] basic_raw_tr.rs (1_000_000) inserts"
-/usr/bin/time ./target/release/basic_raw_tr
+# # Бенчмарк периодического открытия и закрытия транзакции SQLite
+# rm -rf basic_raw_tr.db basic_raw_tr.db-shm basic_raw_tr.db-wal
+# cargo build --release --quiet --bin basic_raw_tr
+# echo "$(date)" "[RUST] basic_raw_tr.rs (1_000_000) inserts"
+# /usr/bin/time ./target/release/basic_raw_tr
 
 # # Просто запросы в пределах транзакции
 # rm -rf basic.db basic.db-shm basic.db-wal
@@ -29,6 +29,12 @@ echo "$(date)" "[RUST] basic_raw_tr.rs (1_000_000) inserts"
 # cargo build --release --quiet --bin basic_prep
 # echo "$(date)" "[RUST] basic_prep.rs (1_000_000) inserts"
 # /usr/bin/time ./target/release/basic_prep
+
+# Каждый запрос заранее дополнительно был подготовлен и закеширован + транзакции периодически завершаются для сброса
+rm -rf basic_prep_raw_tr.db basic_prep_raw_tr.db-shm basic_prep_raw_tr.db-wal
+cargo build --release --quiet --bin basic_prep_raw_tr
+echo "$(date)" "[RUST] basic_prep_raw_tr.rs (1_000_000) inserts"
+/usr/bin/time ./target/release/basic_prep_raw_tr
 
 # # Каждый запрос заранее подготовлен, но каждый запрос состоит из 50ти строк на добавление
 # rm -rf basic_prep_batched.db basic_prep_batched.db-shm basic_prep_batched.db-wal

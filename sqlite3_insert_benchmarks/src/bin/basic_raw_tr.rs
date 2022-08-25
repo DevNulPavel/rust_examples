@@ -3,6 +3,8 @@ use sqlite3_insert_benchmarks as common;
 
 fn faker(conn: Connection, count: i64) {
     let mut tr = conn.unchecked_transaction().unwrap();
+    tr.set_drop_behavior(rusqlite::DropBehavior::Commit);
+    // conn.execute("BEGIN TRANSACTION", []).unwrap();
     for key in 0..count {
         // Генерируем рандомные значения
         let with_area = common::get_random_bool();
@@ -30,7 +32,7 @@ fn faker(conn: Connection, count: i64) {
             })
             .unwrap();
 
-        if key > 0 && key % 1000 == 0 {
+        if key > 0 && key % 100_000 == 0 {
             tr.commit().unwrap();
             tr = conn.unchecked_transaction().unwrap();
             // conn.execute("COMMIT TRANSACTION", []).unwrap();
