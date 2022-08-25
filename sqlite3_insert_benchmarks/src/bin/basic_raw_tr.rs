@@ -2,6 +2,7 @@ use rusqlite::{params, Connection};
 use sqlite3_insert_benchmarks as common;
 
 fn faker(conn: Connection, count: i64) {
+    let mut tr = conn.unchecked_transaction().unwrap();
     for key in 0..count {
         // Генерируем рандомные значения
         let with_area = common::get_random_bool();
@@ -10,19 +11,34 @@ fn faker(conn: Connection, count: i64) {
 
         if with_area {
             let area_code = common::get_random_area_code();
-            conn.execute(
+            tr.execute(
                 "INSERT INTO user VALUES (?, ?, ?, ?)",
                 params![key, area_code, age, is_active],
             )
             .unwrap();
         } else {
-            conn.execute(
+            tr.execute(
                 "INSERT INTO user VALUES (?, NULL, ?, ?)",
                 params![key, age, is_active],
             )
             .unwrap();
         }
+
+        let _val: i32 = tr
+            .query_row("SELECT age FROM user WHERE id = ?", params![key], |r| {
+                r.get(0)
+            })
+            .unwrap();
+
+        if key > 0 && key % 1000 == 0 {
+            tr.commit().unwrap();
+            tr = conn.unchecked_transaction().unwrap();
+            // conn.execute("COMMIT TRANSACTION", []).unwrap();
+            // conn.execute("BEGIN TRANSACTION", []).unwrap();
+        }
     }
+    tr.commit().unwrap();
+    // conn.execute("COMMIT TRANSACTION", []).unwrap();
 }
 
 fn main() {
@@ -37,5 +53,5 @@ fn main() {
         [],
     )
     .unwrap();
-    faker(conn, 10_000)
+    faker(conn, 1_000_000)
 }
