@@ -30,11 +30,17 @@ export TZ=":Europe/Moscow"
 # echo "$(date)" "[RUST] basic_prep.rs (1_000_000) inserts"
 # /usr/bin/time ./target/release/basic_prep
 
+# # Каждый запрос заранее дополнительно был подготовлен и закеширован + транзакции периодически завершаются для сброса
+# rm -rf basic_prep_raw_tr.db basic_prep_raw_tr.db-shm basic_prep_raw_tr.db-wal
+# cargo build --release --quiet --bin basic_prep_raw_tr
+# echo "$(date)" "[RUST] basic_prep_raw_tr.rs (1_000_000) inserts"
+# /usr/bin/time ./target/release/basic_prep_raw_tr
+
 # Каждый запрос заранее дополнительно был подготовлен и закеширован + транзакции периодически завершаются для сброса
-rm -rf basic_prep_raw_tr.db basic_prep_raw_tr.db-shm basic_prep_raw_tr.db-wal
-cargo build --release --quiet --bin basic_prep_raw_tr
-echo "$(date)" "[RUST] basic_prep_raw_tr.rs (1_000_000) inserts"
-/usr/bin/time ./target/release/basic_prep_raw_tr
+rm -rf basic_async_actor.db basic_async_actor.db-shm basic_async_actor.db-wal
+cargo build --release --quiet --bin basic_async_actor
+echo "$(date)" "[RUST] basic_async_actor.rs (1_000_000) inserts"
+/usr/bin/time ./target/release/basic_async_actor
 
 # # Каждый запрос заранее подготовлен, но каждый запрос состоит из 50ти строк на добавление
 # rm -rf basic_prep_batched.db basic_prep_batched.db-shm basic_prep_batched.db-wal
