@@ -20,6 +20,8 @@ async fn faker(tx: tokio::sync::mpsc::Sender<Task>, count: usize) {
         .await
         .unwrap();
 
+        // Больше всего времени тратится на ожидании результата здесь, так как async системе нужно проснуться
+        // let _res = resp_r.try_recv().ok();
         let _new_tr = resp_r.await.unwrap();
     }
 }
@@ -72,9 +74,9 @@ async fn main() {
                 tr.commit().unwrap();
                 tr = conn.unchecked_transaction().unwrap();
 
-                resp.send(true).unwrap();
+                resp.send(true).ok();
             } else {
-                resp.send(false).unwrap();
+                resp.send(false).ok();
             }
         }
 
