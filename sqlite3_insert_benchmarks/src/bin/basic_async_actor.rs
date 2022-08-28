@@ -70,7 +70,7 @@ async fn main() {
                 .execute(params![key, area_code, age, is_active])
                 .unwrap();
 
-            if key > 0 && key % 500 == 0 {
+            if key > 0 && key % 1000 == 0 {
                 tr.commit().unwrap();
                 tr = conn.unchecked_transaction().unwrap();
 

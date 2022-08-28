@@ -2,6 +2,7 @@
 *.db
 *.db-shm
 *.db-wal
+sled_db*/
 
 ### All Rust Stuff
 /target

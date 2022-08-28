@@ -36,11 +36,21 @@ export TZ=":Europe/Moscow"
 # echo "$(date)" "[RUST] basic_prep_raw_tr.rs (1_000_000) inserts"
 # /usr/bin/time ./target/release/basic_prep_raw_tr
 
-# Каждый запрос заранее дополнительно был подготовлен и закеширован + транзакции периодически завершаются для сброса
-rm -rf basic_async_actor.db basic_async_actor.db-shm basic_async_actor.db-wal
-cargo build --release --quiet --bin basic_async_actor
-echo "$(date)" "[RUST] basic_async_actor.rs (1_000_000) inserts"
-/usr/bin/time ./target/release/basic_async_actor
+# # Каждый запрос заранее дополнительно был подготовлен и закеширован + транзакции периодически завершаются для сброса
+# rm -rf basic_async_actor.db basic_async_actor.db-shm basic_async_actor.db-wal
+# cargo build --release --quiet --bin basic_async_actor
+# echo "$(date)" "[RUST] basic_async_actor.rs (1_000_000) inserts"
+# /usr/bin/time ./target/release/basic_async_actor
+
+# Sled insert
+cargo build --release --quiet --bin sled
+echo "$(date)" "[RUST] sled.rs (1_000_000) inserts"
+/usr/bin/time ./target/release/sled
+
+# # Sled tr insert
+# cargo build --release --quiet --bin sled_tr
+# echo "$(date)" "[RUST] sled_tr.rs (1_000_000) inserts"
+# /usr/bin/time ./target/release/sled_tr
 
 # # Каждый запрос заранее подготовлен, но каждый запрос состоит из 50ти строк на добавление
 # rm -rf basic_prep_batched.db basic_prep_batched.db-shm basic_prep_batched.db-wal
@@ -68,3 +78,4 @@ echo "$(date)" "[RUST] basic_async_actor.rs (1_000_000) inserts"
 
 
 rm -rf *.db *.db-shm *.db-wal
+rm -rf sled_db/
