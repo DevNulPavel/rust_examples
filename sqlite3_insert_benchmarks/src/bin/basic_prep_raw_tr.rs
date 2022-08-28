@@ -39,6 +39,8 @@ fn faker_wrapper(conn: Connection, count: i64) {
         if key > 0 && key % 1_000 == 0 {
             tr.commit().unwrap();
             tr = conn.unchecked_transaction().unwrap();
+            // let row_id = tr.last_insert_rowid();
+            // println!("{row_id}");
         }
     }
 

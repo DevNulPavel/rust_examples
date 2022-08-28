@@ -1,3 +1,4 @@
+// use std::sync::Arc;
 use rusqlite::{params, Connection};
 use sqlite3_insert_benchmarks as common;
 
@@ -10,6 +11,7 @@ async fn faker(tx: tokio::sync::mpsc::Sender<Task>, count: usize) {
 
         let (resp, resp_r) = tokio::sync::oneshot::channel();
         // let (resp, resp_r) = futures::channel::oneshot::channel();
+        // let notify = Arc::new(tokio::sync::Notify::new());
 
         tx.send(Task {
             key,
@@ -17,13 +19,16 @@ async fn faker(tx: tokio::sync::mpsc::Sender<Task>, count: usize) {
             is_active,
             area_code,
             resp,
+            // notify: notify.clone(),
         })
         .await
         .unwrap();
 
+        // !!! WARNING !!!
         // Больше всего времени тратится на ожидании результата здесь, так как async системе нужно проснуться
         // let _res = resp_r.try_recv().ok();
         let _new_tr = resp_r.await.unwrap();
+        // notify.notified().await;
     }
 }
 
@@ -35,6 +40,7 @@ struct Task {
     area_code: String,
     resp: tokio::sync::oneshot::Sender<bool>,
     // resp: futures::channel::oneshot::Sender<bool>
+    // notify: Arc<tokio::sync::Notify>,
 }
 
 #[tokio::main]
@@ -67,6 +73,7 @@ async fn main() {
             is_active,
             area_code,
             resp,
+            // notify
         }) = rx.blocking_recv()
         {
             prepared_sql
@@ -78,8 +85,10 @@ async fn main() {
                 tr = conn.unchecked_transaction().unwrap();
 
                 resp.send(true).ok();
+                // notify.notify_one();
             } else {
                 resp.send(false).ok();
+                // notify.notify_one();
             }
         }
 
