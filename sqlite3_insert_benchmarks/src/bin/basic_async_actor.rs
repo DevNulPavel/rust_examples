@@ -9,6 +9,7 @@ async fn faker(tx: tokio::sync::mpsc::Sender<Task>, count: usize) {
         let area_code = common::get_random_area_code();
 
         let (resp, resp_r) = tokio::sync::oneshot::channel();
+        // let (resp, resp_r) = futures::channel::oneshot::channel();
 
         tx.send(Task {
             key,
@@ -33,6 +34,7 @@ struct Task {
     is_active: i8,
     area_code: String,
     resp: tokio::sync::oneshot::Sender<bool>,
+    // resp: futures::channel::oneshot::Sender<bool>
 }
 
 #[tokio::main]
@@ -41,10 +43,11 @@ async fn main() {
 
     let j = tokio::task::spawn_blocking(move || {
         let conn = Connection::open("basic_async_actor.db").unwrap();
+        println!("SQLite version: {}", rusqlite::version());
         conn.execute_batch(common::pragma_rules()).expect("PRAGMA");
         conn.execute(
             "CREATE TABLE IF NOT EXISTS user (
-                    id INTEGER not null primary key AUTOINCREMENT,
+                    id INTEGER NOT NULL PRIMARY KEY,
                     area CHAR(6),
                     age INTEGER not null,
                     active INTEGER not null)",
@@ -53,7 +56,7 @@ async fn main() {
         .unwrap();
 
         let mut prepared_sql = conn
-            .prepare_cached("INSERT INTO user VALUES (?, ?, ?, ?)")
+            .prepare_cached("INSERT INTO user VALUES (NULL, ?, ?, ?)")
             .unwrap();
 
         let mut tr = conn.unchecked_transaction().unwrap();
@@ -67,10 +70,10 @@ async fn main() {
         }) = rx.blocking_recv()
         {
             prepared_sql
-                .execute(params![key, area_code, age, is_active])
+                .execute(params![area_code, age, is_active])
                 .unwrap();
 
-            if key > 0 && key % 1000 == 0 {
+            if key > 0 && key % 1_000 == 0 {
                 tr.commit().unwrap();
                 tr = conn.unchecked_transaction().unwrap();
 

@@ -9,7 +9,7 @@ sqlx = { version = "^0.5", features = ["runtime-tokio-native-tls", "sqlite"]}
 tokio = {version = "^1", features = ["full"]}
 rand = "^0.8"
 num_cpus = "^1"
-rusqlite = "^0.25"
+rusqlite = {version = "^0.25", features = ["serde_json", "bundled"]}
 smallstr = "^0.3"
 oneshot = "^0.1"
 sled = "^0.34"
@@ -17,4 +17,4 @@ bincode = "^1"
 serde = {version = "^1", features = ["derive"]}
 smallvec = "^1"
 # async-oneshot = "^0.5"
-# futures = "^0.3"
+futures = "^0.3"

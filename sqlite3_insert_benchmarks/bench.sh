@@ -36,16 +36,16 @@ export TZ=":Europe/Moscow"
 # echo "$(date)" "[RUST] basic_prep_raw_tr.rs (1_000_000) inserts"
 # /usr/bin/time ./target/release/basic_prep_raw_tr
 
-# # Каждый запрос заранее дополнительно был подготовлен и закеширован + транзакции периодически завершаются для сброса
-# rm -rf basic_async_actor.db basic_async_actor.db-shm basic_async_actor.db-wal
-# cargo build --release --quiet --bin basic_async_actor
-# echo "$(date)" "[RUST] basic_async_actor.rs (1_000_000) inserts"
-# /usr/bin/time ./target/release/basic_async_actor
+# Каждый запрос заранее дополнительно был подготовлен и закеширован + транзакции периодически завершаются для сброса
+rm -rf basic_async_actor.db basic_async_actor.db-shm basic_async_actor.db-wal
+cargo build --release --bin basic_async_actor
+echo "$(date)" "[RUST] basic_async_actor.rs (1_000_000) inserts"
+/usr/bin/time ./target/release/basic_async_actor
 
-# Sled insert
-cargo build --release --quiet --bin sled
-echo "$(date)" "[RUST] sled.rs (1_000_000) inserts"
-/usr/bin/time ./target/release/sled
+# # Sled insert
+# cargo build --release --quiet --bin sled
+# echo "$(date)" "[RUST] sled.rs (1_000_000) inserts"
+# /usr/bin/time ./target/release/sled
 
 # # Sled tr insert
 # cargo build --release --quiet --bin sled_tr
