@@ -12,7 +12,7 @@ async fn faker(tx: tokio::sync::mpsc::Sender<Task>, count: usize) {
             let from = step * i;
             let to = (step * (i + 1)).min(total);
             let range = from..to;
-            dbg!(&range);
+            //dbg!(&range);
             let tx = tx.clone();
             tokio::spawn(async move {
                 for key in range {
