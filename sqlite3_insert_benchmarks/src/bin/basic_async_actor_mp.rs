@@ -2,8 +2,7 @@
 use rusqlite::{params, Connection};
 use sqlite3_insert_benchmarks as common;
 
-async fn faker(tx: tokio::sync::mpsc::Sender<Task>, count: usize) {
-    let total = 1_000_000;
+async fn faker(tx: tokio::sync::mpsc::Sender<Task>, total: usize) {
     let count = 16;
     let step = total / count;
 
