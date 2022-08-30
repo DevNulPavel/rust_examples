@@ -1,6 +1,7 @@
 // use std::sync::Arc;
-use rusqlite::{params, Connection};
+use rusqlite::{params, named_params, Connection};
 use sqlite3_insert_benchmarks as common;
+use std::time::{Duration, Instant};
 
 async fn faker(tx: tokio::sync::mpsc::Sender<Task>, total: usize) {
     let count = 16;
@@ -63,7 +64,7 @@ struct Task {
 
 #[tokio::main]
 async fn main() {
-    let (tx, mut rx) = tokio::sync::mpsc::channel(32);
+    let (tx, mut rx) = tokio::sync::mpsc::channel(64);
 
     let j = tokio::task::spawn_blocking(move || {
         let conn = Connection::open("basic_async_actor_mp.db").unwrap();
@@ -80,10 +81,12 @@ async fn main() {
         .unwrap();
 
         let mut prepared_sql = conn
-            .prepare_cached("INSERT INTO user VALUES (NULL, ?, ?, ?)")
+            .prepare_cached("INSERT INTO user VALUES (NULL, ?1, ?2, ?3)")
             .unwrap();
 
         let mut tr = conn.unchecked_transaction().unwrap();
+
+        let mut total_spent = Duration::default();
 
         while let Some(Task {
             key,
@@ -94,6 +97,8 @@ async fn main() {
             // notify
         }) = rx.blocking_recv()
         {
+            let start = Instant::now();
+
             prepared_sql
                 .execute(params![area_code, age, is_active])
                 .unwrap();
@@ -108,9 +113,12 @@ async fn main() {
                 resp.send(false).ok();
                 // notify.notify_one();
             }
+            total_spent += start.elapsed();
         }
 
         tr.commit().unwrap();
+
+        println!("Time elapsed in SQL: {:?}", total_spent);
     });
 
     faker(tx, 1_000_000).await;
