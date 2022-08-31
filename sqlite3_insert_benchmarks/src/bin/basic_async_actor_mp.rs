@@ -1,5 +1,5 @@
 // use std::sync::Arc;
-use rusqlite::{params, named_params, Connection};
+use rusqlite::{named_params, params, Connection};
 use sqlite3_insert_benchmarks as common;
 use std::time::{Duration, Instant};
 
@@ -84,6 +84,10 @@ async fn main() {
             .prepare_cached("INSERT INTO user VALUES (NULL, ?1, ?2, ?3)")
             .unwrap();
 
+        let mut prepared_select_sql = conn
+            .prepare_cached("SELECT rowid, id, age FROM user WHERE id > ?1 LIMIT ?2")
+            .unwrap();
+
         let mut tr = conn.unchecked_transaction().unwrap();
 
         let mut total_spent = Duration::default();
@@ -97,8 +101,6 @@ async fn main() {
             // notify
         }) = rx.blocking_recv()
         {
-            let start = Instant::now();
-
             prepared_sql
                 .execute(params![area_code, age, is_active])
                 .unwrap();
@@ -107,18 +109,27 @@ async fn main() {
                 tr.commit().unwrap();
                 tr = conn.unchecked_transaction().unwrap();
 
+                /*let start = Instant::now();
+                let mut rows = prepared_select_sql.query(params![key, 1000]).unwrap();
+                while let Some(row) = rows.next().unwrap() {
+                    let _row_id: u64 = row.get(0).unwrap();
+                    let _id: u64 = row.get(1).unwrap();
+                    let _age: u32 = row.get(2).unwrap();
+                    //println!("rowid: {_row_id}, id: {_id}, age: {_age}");
+                }
+                total_spent += start.elapsed();*/
+
                 resp.send(true).ok();
                 // notify.notify_one();
             } else {
                 resp.send(false).ok();
                 // notify.notify_one();
             }
-            total_spent += start.elapsed();
         }
 
         tr.commit().unwrap();
 
-        println!("Time elapsed in SQL: {:?}", total_spent);
+        println!("Time elapsed in SELECT SQL: {:?}", total_spent);
     });
 
     faker(tx, 1_000_000).await;

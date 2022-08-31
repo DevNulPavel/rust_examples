@@ -28,9 +28,9 @@ pub fn pragma_rules() -> &'static str {
     // PRAGMA cache_size = 1000000;
     // PRAGMA locking_mode = EXCLUSIVE;
     // PRAGMA temp_store = MEMORY;
+    // PRAGMA synchronous = normal;\
     "\
         PRAGMA journal_mode = WAL;\
-        PRAGMA synchronous = normal;\
         PRAGMA foreign_keys = on;\
     "
 }

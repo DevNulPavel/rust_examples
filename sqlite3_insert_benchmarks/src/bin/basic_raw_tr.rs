@@ -32,7 +32,7 @@ fn faker(conn: Connection, count: i64) {
             })
             .unwrap();
 
-        if key > 0 && key % 1_000 == 0 {
+        if key > 0 && key % 10_000 == 0 {
             tr.commit().unwrap();
             tr = conn.unchecked_transaction().unwrap();
             // conn.execute("COMMIT TRANSACTION", []).unwrap();
@@ -55,5 +55,5 @@ fn main() {
         [],
     )
     .unwrap();
-    faker(conn, 1_000_000)
+    faker(conn, 1_000_000);
 }

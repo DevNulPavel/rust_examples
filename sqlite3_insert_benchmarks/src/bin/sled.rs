@@ -27,11 +27,13 @@ struct Data {
 fn main() {
     let db = sled::Config::default()
         .use_compression(false)
+        .mode(sled::Mode::HighThroughput)
+        // .print_profile_on_drop(true)
         .path("sled_db")
         .open()
         .unwrap();
     // let db = sled::open("sled_db").unwrap();
-    for _ in 0..1_000_000 {
+    for _ in 0..10_000_000 {
         let id = db.generate_id().unwrap();
         let area = common::get_random_area_code();
         let age = common::get_random_age();
