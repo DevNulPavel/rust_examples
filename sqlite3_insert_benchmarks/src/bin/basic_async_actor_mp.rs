@@ -1,7 +1,6 @@
 // use std::sync::Arc;
-use rusqlite::{named_params, params, Connection};
+use rusqlite::{params, Connection};
 use sqlite3_insert_benchmarks as common;
-use std::time::{Duration, Instant};
 
 async fn faker(tx: tokio::sync::mpsc::Sender<Task>, total: usize) {
     let count = 16;
@@ -84,13 +83,14 @@ async fn main() {
             .prepare_cached("INSERT INTO user VALUES (NULL, ?1, ?2, ?3)")
             .unwrap();
 
-        let mut prepared_select_sql = conn
-            .prepare_cached("SELECT rowid, id, age FROM user WHERE id > ?1 LIMIT ?2")
-            .unwrap();
+        // let mut prepared_select_sql = conn
+        //     .prepare_cached("SELECT rowid, id, age FROM user WHERE id > ?1 LIMIT ?2")
+        //     .unwrap();
 
         let mut tr = conn.unchecked_transaction().unwrap();
 
-        let mut total_spent = Duration::default();
+        // use std::time::{Duration, Instant};
+        // let mut total_spent = Duration::default();
 
         while let Some(Task {
             key,
@@ -129,7 +129,7 @@ async fn main() {
 
         tr.commit().unwrap();
 
-        println!("Time elapsed in SELECT SQL: {:?}", total_spent);
+        // println!("Time elapsed in SELECT SQL: {:?}", total_spent);
     });
 
     faker(tx, 1_000_000).await;
