@@ -1,9 +1,12 @@
 export TZ=":Europe/Moscow"
 
-# Просто запросы вообще без открытой транзакции, очень долго работает
-cargo build --release --quiet --bin basic_no_tr
-echo "$(date)" "[RUST] basic_no_tr.rs (10_000) inserts"
-/usr/bin/time ./target/release/basic_no_tr
+rm -rf *.db *.db-shm *.db-wal
+rm -rf sled_db/
+
+# # Просто запросы вообще без открытой транзакции, очень долго работает
+# cargo build --release --quiet --bin basic_no_tr
+# echo "$(date)" "[RUST] basic_no_tr.rs (10_000) inserts"
+# /usr/bin/time ./target/release/basic_no_tr
 
 # # Бенчмарк периодического открытия и закрытия транзакции SQLite
 # cargo build --release --quiet --bin basic_raw_tr
@@ -40,15 +43,20 @@ echo "$(date)" "[RUST] basic_prep_raw_tr.rs (1_000_000) inserts"
 # echo "$(date)" "[RUST] basic_async_actor_mp.rs (1_000_000) inserts"
 # /usr/bin/time ./target/release/basic_async_actor_mp
 
-# Sled insert
-cargo build --release --quiet --bin sled
-echo "$(date)" "[RUST] sled.rs (1_000_000) inserts"
-/usr/bin/time ./target/release/sled
+# # Sled insert
+# cargo build --release --quiet --bin sled
+# echo "$(date)" "[RUST] sled.rs (1_000_000) inserts"
+# /usr/bin/time ./target/release/sled
 
 # # Sled tr insert
 # cargo build --release --quiet --bin sled_tr
 # echo "$(date)" "[RUST] sled_tr.rs (1_000_000) inserts"
 # /usr/bin/time ./target/release/sled_tr
+
+# Sled batch insert
+cargo build --release --quiet --bin sled_batch
+echo "$(date)" "[RUST] sled_batch.rs (1_000_000) inserts"
+/usr/bin/time ./target/release/sled_batch
 
 # # Каждый запрос заранее подготовлен, но каждый запрос состоит из 50ти строк на добавление
 # cargo build --release --quiet --bin basic_prep_batched
@@ -70,6 +78,10 @@ echo "$(date)" "[RUST] sled.rs (1_000_000) inserts"
 # echo "$(date)" "[RUST] basic_async.rs (1_000_000) inserts"
 # /usr/bin/time ./target/release/basic_async
 
+# Каждый запрос заранее дополнительно был подготовлен и закеширован + транзакции периодически завершаются для сброса
+cargo build --release --quiet --bin hash_map
+echo "$(date)" "[RUST] hash_map.rs (1_000_000) inserts"
+/usr/bin/time ./target/release/hash_map
 
-# rm -rf *.db *.db-shm *.db-wal
-# rm -rf sled_db/
+rm -rf *.db *.db-shm *.db-wal
+rm -rf sled_db/

@@ -16,5 +16,6 @@ sled = "^0.34"
 bincode = "^1"
 serde = {version = "^1", features = ["derive"]}
 smallvec = "^1"
-# async-oneshot = "^0.5"
+nohash-hasher = "^0.2"
 futures = "^0.3"
+# async-oneshot = "^0.5"
