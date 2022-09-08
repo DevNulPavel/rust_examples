@@ -8,10 +8,10 @@ rm -rf sled_db/
 # echo "$(date)" "[RUST] basic_no_tr.rs (10_000) inserts"
 # /usr/bin/time ./target/release/basic_no_tr
 
-# Бенчмарк периодического открытия и закрытия транзакции SQLite
-cargo build --release --quiet --bin basic_raw_tr
-echo "$(date)" "[RUST] basic_raw_tr.rs (1_000_000) inserts"
-/usr/bin/time ./target/release/basic_raw_tr
+# # Бенчмарк периодического открытия и закрытия транзакции SQLite
+# cargo build --release --quiet --bin basic_raw_tr
+# echo "$(date)" "[RUST] basic_raw_tr.rs (1_000_000) inserts"
+# /usr/bin/time ./target/release/basic_raw_tr
 
 # # Просто запросы в пределах транзакции
 # cargo build --release --quiet --bin basic
@@ -28,15 +28,20 @@ echo "$(date)" "[RUST] basic_raw_tr.rs (1_000_000) inserts"
 # echo "$(date)" "[RUST] basic_prep.rs (1_000_000) inserts"
 # /usr/bin/time ./target/release/basic_prep
 
-# Каждый запрос каждый раз кешируется при подготовке + транзакции периодически завершаются для сброса
-cargo build --release --quiet --bin basic_cached_prep_raw_tr
-echo "$(date)" "[RUST] basic_cached_prep_raw_tr.rs (1_000_000) inserts"
-/usr/bin/time ./target/release/basic_cached_prep_raw_tr
+# # Каждый запрос каждый раз кешируется при подготовке + транзакции периодически завершаются для сброса
+# cargo build --release --quiet --bin basic_cached_prep_raw_tr
+# echo "$(date)" "[RUST] basic_cached_prep_raw_tr.rs (1_000_000) inserts"
+# /usr/bin/time ./target/release/basic_cached_prep_raw_tr
+
+# # Каждый запрос заранее дополнительно был подготовлен и закеширован + транзакции периодически завершаются для сброса
+# cargo build --release --quiet --bin basic_prep_raw_tr
+# echo "$(date)" "[RUST] basic_prep_raw_tr.rs (1_000_000) inserts"
+# /usr/bin/time ./target/release/basic_prep_raw_tr
 
 # Каждый запрос заранее дополнительно был подготовлен и закеширован + транзакции периодически завершаются для сброса
-cargo build --release --quiet --bin basic_prep_raw_tr
-echo "$(date)" "[RUST] basic_prep_raw_tr.rs (1_000_000) inserts"
-/usr/bin/time ./target/release/basic_prep_raw_tr
+cargo build --release --quiet --bin basic_deadpool
+echo "$(date)" "[RUST] basic_deadpool.rs (1_000_000) inserts"
+/usr/bin/time ./target/release/basic_deadpool
 
 # # Каждый запрос заранее дополнительно был подготовлен и закеширован + транзакции периодически завершаются для сброса
 # cargo build --release --bin basic_async_actor

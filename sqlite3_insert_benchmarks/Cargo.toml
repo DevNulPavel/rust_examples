@@ -18,4 +18,7 @@ serde = {version = "^1", features = ["derive"]}
 smallvec = "^1"
 nohash-hasher = "^0.2"
 futures = "^0.3"
+deadpool = "^0.9"
+async-trait = "^0.1"
+flume = "^0.10"
 # async-oneshot = "^0.5"
