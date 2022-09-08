@@ -31,6 +31,7 @@ pub fn pragma_rules() -> &'static str {
     // PRAGMA synchronous = normal;\
     "\
         PRAGMA journal_mode = WAL;\
+        PRAGMA synchronous = normal;\
         PRAGMA foreign_keys = on;\
     "
 }

@@ -8,10 +8,10 @@ rm -rf sled_db/
 # echo "$(date)" "[RUST] basic_no_tr.rs (10_000) inserts"
 # /usr/bin/time ./target/release/basic_no_tr
 
-# # Бенчмарк периодического открытия и закрытия транзакции SQLite
-# cargo build --release --quiet --bin basic_raw_tr
-# echo "$(date)" "[RUST] basic_raw_tr.rs (1_000_000) inserts"
-# /usr/bin/time ./target/release/basic_raw_tr
+# Бенчмарк периодического открытия и закрытия транзакции SQLite
+cargo build --release --quiet --bin basic_raw_tr
+echo "$(date)" "[RUST] basic_raw_tr.rs (1_000_000) inserts"
+/usr/bin/time ./target/release/basic_raw_tr
 
 # # Просто запросы в пределах транзакции
 # cargo build --release --quiet --bin basic
@@ -27,6 +27,11 @@ rm -rf sled_db/
 # cargo build --release --quiet --bin basic_prep
 # echo "$(date)" "[RUST] basic_prep.rs (1_000_000) inserts"
 # /usr/bin/time ./target/release/basic_prep
+
+# Каждый запрос каждый раз кешируется при подготовке + транзакции периодически завершаются для сброса
+cargo build --release --quiet --bin basic_cached_prep_raw_tr
+echo "$(date)" "[RUST] basic_cached_prep_raw_tr.rs (1_000_000) inserts"
+/usr/bin/time ./target/release/basic_cached_prep_raw_tr
 
 # Каждый запрос заранее дополнительно был подготовлен и закеширован + транзакции периодически завершаются для сброса
 cargo build --release --quiet --bin basic_prep_raw_tr
@@ -53,10 +58,10 @@ echo "$(date)" "[RUST] basic_prep_raw_tr.rs (1_000_000) inserts"
 # echo "$(date)" "[RUST] sled_tr.rs (1_000_000) inserts"
 # /usr/bin/time ./target/release/sled_tr
 
-# Sled batch insert
-cargo build --release --quiet --bin sled_batch
-echo "$(date)" "[RUST] sled_batch.rs (1_000_000) inserts"
-/usr/bin/time ./target/release/sled_batch
+# # Sled batch insert
+# cargo build --release --quiet --bin sled_batch
+# echo "$(date)" "[RUST] sled_batch.rs (1_000_000) inserts"
+# /usr/bin/time ./target/release/sled_batch
 
 # # Каждый запрос заранее подготовлен, но каждый запрос состоит из 50ти строк на добавление
 # cargo build --release --quiet --bin basic_prep_batched
@@ -78,10 +83,10 @@ echo "$(date)" "[RUST] sled_batch.rs (1_000_000) inserts"
 # echo "$(date)" "[RUST] basic_async.rs (1_000_000) inserts"
 # /usr/bin/time ./target/release/basic_async
 
-# Каждый запрос заранее дополнительно был подготовлен и закеширован + транзакции периодически завершаются для сброса
-cargo build --release --quiet --bin hash_map
-echo "$(date)" "[RUST] hash_map.rs (1_000_000) inserts"
-/usr/bin/time ./target/release/hash_map
+# # Каждый запрос заранее дополнительно был подготовлен и закеширован + транзакции периодически завершаются для сброса
+# cargo build --release --quiet --bin hash_map
+# echo "$(date)" "[RUST] hash_map.rs (1_000_000) inserts"
+# /usr/bin/time ./target/release/hash_map
 
 rm -rf *.db *.db-shm *.db-wal
 rm -rf sled_db/
