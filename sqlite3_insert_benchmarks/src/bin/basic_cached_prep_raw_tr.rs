@@ -9,12 +9,13 @@ fn faker_wrapper(conn: Connection, count: i64) {
     for key in 0..count {
         // Работа
         // Заранее подготавливаем запросы
-        let mut stmt_with_area = conn
+        let mut stmt_with_area = tr
             .prepare_cached("INSERT INTO user VALUES (?, ?, ?, ?)")
             .unwrap();
-        let mut stmt = conn
+        let mut stmt = tr
             .prepare_cached("INSERT INTO user VALUES (?, NULL, ?, ?)")
             .unwrap();
+
         // let mut update = tx
         //     .prepare_cached("UPDATE user SET age = ? WHERE id = ?")
         //     .unwrap();
@@ -36,6 +37,9 @@ fn faker_wrapper(conn: Connection, count: i64) {
         // let age = common::get_random_age();
         // update.execute(params![age, key]).unwrap();
 
+        drop(stmt_with_area);
+        drop(stmt);
+
         if key > 0 && key % 1_000 == 0 {
             tr.commit().unwrap();
             tr = conn.unchecked_transaction().unwrap();
@@ -53,6 +57,7 @@ fn faker_wrapper(conn: Connection, count: i64) {
 fn main() {
     {
         let conn = Connection::open("basic_cached_prep_raw_tr.db").unwrap();
+        conn.set_prepared_statement_cache_capacity(128);
         conn.execute_batch(common::pragma_rules()).expect("PRAGMA");
         conn.execute(
             "CREATE TABLE IF NOT EXISTS user (
