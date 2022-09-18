@@ -28,6 +28,7 @@ fn main() {
     let db = sled::Config::default()
         .use_compression(false)
         .mode(sled::Mode::HighThroughput)
+        .use_compression(true)
         // .print_profile_on_drop(true)
         .path("sled_db")
         .open()

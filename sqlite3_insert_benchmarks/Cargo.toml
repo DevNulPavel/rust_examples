@@ -12,7 +12,7 @@ num_cpus = "^1"
 rusqlite = {version = "^0.25", features = ["serde_json", "bundled"]}
 smallstr = "^0.3"
 oneshot = "^0.1"
-sled = "^0.34"
+sled = {version = "^0.34", features = ["compression"]}
 bincode = "^1"
 serde = {version = "^1", features = ["derive"]}
 smallvec = "^1"

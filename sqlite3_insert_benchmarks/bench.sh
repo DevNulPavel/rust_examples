@@ -38,10 +38,10 @@ rm -rf sled_db/
 # echo "$(date)" "[RUST] basic_prep_raw_tr.rs (1_000_000) inserts"
 # /usr/bin/time ./target/release/basic_prep_raw_tr
 
-# Каждый запрос заранее дополнительно был подготовлен и закеширован + транзакции периодически завершаются для сброса
-cargo build --release --quiet --bin basic_deadpool
-echo "$(date)" "[RUST] basic_deadpool.rs (1_000_000) inserts"
-/usr/bin/time ./target/release/basic_deadpool
+# # Каждый запрос заранее дополнительно был подготовлен и закеширован + транзакции периодически завершаются для сброса
+# cargo build --release --quiet --bin basic_deadpool
+# echo "$(date)" "[RUST] basic_deadpool.rs (1_000_000) inserts"
+# /usr/bin/time ./target/release/basic_deadpool
 
 # # Каждый запрос заранее дополнительно был подготовлен и закеширован + транзакции периодически завершаются для сброса
 # cargo build --release --bin basic_async_actor
@@ -53,10 +53,10 @@ echo "$(date)" "[RUST] basic_deadpool.rs (1_000_000) inserts"
 # echo "$(date)" "[RUST] basic_async_actor_mp.rs (1_000_000) inserts"
 # /usr/bin/time ./target/release/basic_async_actor_mp
 
-# # Sled insert
-# cargo build --release --quiet --bin sled
-# echo "$(date)" "[RUST] sled.rs (1_000_000) inserts"
-# /usr/bin/time ./target/release/sled
+# Sled insert
+cargo build --release --quiet --bin sled
+echo "$(date)" "[RUST] sled.rs (1_000_000) inserts"
+/usr/bin/time ./target/release/sled
 
 # # Sled tr insert
 # cargo build --release --quiet --bin sled_tr
@@ -94,4 +94,5 @@ echo "$(date)" "[RUST] basic_deadpool.rs (1_000_000) inserts"
 # /usr/bin/time ./target/release/hash_map
 
 rm -rf *.db *.db-shm *.db-wal
+du -h -d 0 sled_db/
 rm -rf sled_db/
