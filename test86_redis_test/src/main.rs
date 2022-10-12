@@ -20,19 +20,20 @@ fn main() {
     let mut conn = client.get_connection().unwrap();
 
     /*for i in 0..4_000_000 {
-        let key = format_small!(32, "u:{}", i);
+        let key = format_small!(32, "u:{:010}", i);
         conn.set::<_, _, ()>(key.as_str(), i).unwrap();
 
         if i % 100_000 == 0 {
-            println!("{}", i);
+            println!("{}: {}", i, key.as_str());
         }
     }*/
 
-    /*for i in 0..4_000_000 {
-        conn.hset::<_, _, _, ()>("users", i, i).unwrap();
+    for i in 0..4_000_000 {
+        let key2 = format_small!(32, "{:010}", i);
+        conn.hset::<_, _, _, ()>("users", key2.as_str(), i).unwrap();
 
         if i % 100_000 == 0 {
             println!("{}", i);
         }
-    }*/
+    }
 }
