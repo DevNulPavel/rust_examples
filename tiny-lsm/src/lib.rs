@@ -382,8 +382,10 @@ fn id_format(id: u64) -> String {
 
 /// Получаем список sstable в директории
 fn list_sstables(path: &Path, remove_tmp: bool) -> Result<BTreeMap<u64, u64>> {
+    // Создаем мапу
     let mut sstable_map = BTreeMap::new();
 
+    // Обходим файлики в директории
     for dir_entry_res in fs::read_dir(path.join(SSTABLE_DIR))? {
         let dir_entry = dir_entry_res?;
         let file_name = if let Ok(f) = dir_entry.file_name().into_string() {
@@ -392,11 +394,13 @@ fn list_sstables(path: &Path, remove_tmp: bool) -> Result<BTreeMap<u64, u64>> {
             continue;
         };
 
+        // Конвертируем строковое представление числа в u64 в 16тиричной системе
         if let Ok(id) = u64::from_str_radix(&file_name, 16) {
             let metadata = dir_entry.metadata()?;
 
             sstable_map.insert(id, metadata.len());
         } else {
+            // Если это какой-то временный файлик, тогда удаляем
             if remove_tmp && file_name.ends_with("-tmp") {
                 log::warn!("removing incomplete sstable rewrite {}", file_name);
                 fs::remove_file(path.join(SSTABLE_DIR).join(file_name))?;
@@ -407,6 +411,7 @@ fn list_sstables(path: &Path, remove_tmp: bool) -> Result<BTreeMap<u64, u64>> {
     Ok(sstable_map)
 }
 
+/// Пишем sstable на диск
 fn write_sstable<const K: usize, const V: usize>(
     path: &Path,
     id: u64,
@@ -415,33 +420,45 @@ fn write_sstable<const K: usize, const V: usize>(
     config: &Config,
 ) -> Result<()> {
     let sst_dir_path = path.join(SSTABLE_DIR);
+
+    // Временный ли файлик?
     let sst_path = if tmp_mv {
         sst_dir_path.join(format!("{:x}-tmp", id))
     } else {
         sst_dir_path.join(id_format(id))
     };
 
+    // Открываем файлик на запись
     let file = fs::OpenOptions::new()
         .create(true)
         .write(true)
         .open(&sst_path)?;
 
+    // Уровень сжатия
     let max_zstd_level = zstd::compression_level_range();
     let zstd_level = config
         .zstd_sstable_compression_level
         .min(*max_zstd_level.end() as u8);
 
+    // Создаем буфферизированного писателя с поддержкой сжатия для записи в файлик
     let mut bw =
         BufWriter::new(zstd::Encoder::new(file, zstd_level as _).expect("zstd encoder failure"));
 
+    // Пишем благополучно количество элементов на диск с помощью этого вызова
     bw.write_all(&(items.len() as u64).to_le_bytes())?;
 
+    // Теперь пишем каждый элемент
     for (k, v) in items {
+        // Делаем хеш
         let crc: u32 = hash(k, v);
+        // Пишем хеш
         bw.write_all(&crc.to_le_bytes())?;
+        // Пишем флаг значения
         bw.write_all(&[v.is_some() as u8])?;
+        // Пишем ключ
         bw.write_all(k)?;
 
+        // Пишем само значение или нули
         if let Some(v) = v {
             bw.write_all(v)?;
         } else {
@@ -449,11 +466,16 @@ fn write_sstable<const K: usize, const V: usize>(
         }
     }
 
+    // Скидываем все на диск
     bw.flush()?;
 
+    // Делаем fsync
     bw.get_mut().get_mut().sync_all()?;
+
+    // Делаем синхронизацию для директории
     fs::File::open(path.join(SSTABLE_DIR))?.sync_all()?;
 
+    // Если у нас это был временный файлик, перемещаем в постоянный
     if tmp_mv {
         let new_path = sst_dir_path.join(id_format(id));
         fs::rename(sst_path, new_path)?;
@@ -462,28 +484,36 @@ fn write_sstable<const K: usize, const V: usize>(
     Ok(())
 }
 
+/// Читаем SSTable из файлика
 fn read_sstable<const K: usize, const V: usize>(
     path: &Path,
     id: u64,
 ) -> Result<Vec<([u8; K], Option<[u8; V]>)>> {
+    // Открываем файлик на чтение
     let file = fs::OpenOptions::new()
         .read(true)
         .open(path.join(SSTABLE_DIR).join(id_format(id)))?;
 
+    // Создаем ридер на чтение сжатых данных, внутренний буффер - 16 мегабайт?
     let mut reader = zstd::Decoder::new(BufReader::with_capacity(16 * 1024 * 1024, file)).unwrap();
 
+    // Читаем значение количества элементов
+    let len_buf = &mut [0; 8];
+    reader.read_exact(len_buf)?;
+    let expected_len: u64 = u64::from_le_bytes(*len_buf);
+
+    // Создаем вектор для чтения нужного количества элементов sstable
+    let mut sstable = Vec::with_capacity(expected_len as usize);
+
+    // Создаем локальный буффер для чтения значения
     // crc + tombstone discriminant + key + value
     let mut buf = vec![0; 4 + 1 + K + V];
 
-    let len_buf = &mut [0; 8];
-
-    reader.read_exact(len_buf)?;
-
-    let expected_len: u64 = u64::from_le_bytes(*len_buf);
-    let mut sstable = Vec::with_capacity(expected_len as usize);
-
+    // Читаем каждое значеение отдельно в буффер из файлика
     while let Ok(()) = reader.read_exact(&mut buf) {
+        // Вычитываем значение контрольной суммы
         let crc_expected: u32 = u32::from_le_bytes(buf[0..4].try_into().unwrap());
+        // Получаем флаг удаления значения
         let d: bool = match buf[4] {
             0 => false,
             1 => true,
@@ -492,22 +522,29 @@ fn read_sstable<const K: usize, const V: usize>(
                 break;
             }
         };
+        // Читаем ключ
         let k: [u8; K] = buf[5..K + 5].try_into().unwrap();
+        // Читаем сами данные если они есть
         let v: Option<[u8; V]> = if d {
             Some(buf[K + 5..5 + K + V].try_into().unwrap())
         } else {
             None
         };
+
+        // Пеересчитываем значения хеш-суммы
         let crc_actual: u32 = hash(&k, &v);
 
+        // Делаем сверку
         if crc_expected != crc_actual {
             log::warn!("detected torn-write while reading sstable {:016x}", id);
             break;
         }
 
+        // Сохраняем результат
         sstable.push((k, v));
     }
 
+    // Проверим количество элементов в списке
     if sstable.len() as u64 != expected_len {
         log::warn!(
             "sstable {:016x} tear detected - process probably crashed \
@@ -519,19 +556,36 @@ fn read_sstable<const K: usize, const V: usize>(
     Ok(sstable)
 }
 
+//////////////////////////////////////////////////////////////////////////////////////////////////////
+
 pub struct Lsm<const K: usize, const V: usize> {
     // `BufWriter` flushes on drop
+    // TODO: Непосредственно само дерево значений?
+    // Судя по коду - это отдельное дерево с лог-файликом для непосредственной работы в реальном времени
     memtable: BTreeMap<[u8; K], Option<[u8; V]>>,
+    // TODO: ???
+    // Вроде как похоже на ту же самую базу в оперативной памяти, которая восстановлена с диска
     db: BTreeMap<[u8; K], [u8; V]>,
+    /// Канал для отправки значений воркеру
     worker_outbox: mpsc::Sender<WorkerMessage>,
+    // Следующее значение id для следующей таблицы, значения просто увеличиваются постоянно
     next_sstable_id: u64,
+    // TODO: ???
     dirty_bytes: usize,
+
+    // TODO:
+    /// Сам воркер
     #[cfg(test)]
     worker: Worker<K, V>,
+
+    // TODO: Лог-файлик?
     #[cfg(test)]
     pub log: tearable::Tearable<fs::File>,
+
+    /// Обычный лог файлик
     #[cfg(not(test))]
     log: BufWriter<fs::File>,
+
     path: PathBuf,
     config: Config,
     stats: Stats,
@@ -540,16 +594,21 @@ pub struct Lsm<const K: usize, const V: usize> {
 
 impl<const K: usize, const V: usize> Drop for Lsm<K, V> {
     fn drop(&mut self) {
+        // Канал ожидания завершения работы воркера
         let (tx, rx) = mpsc::channel();
 
+        // Отсылаем событие завершения работы воркера
         if self.worker_outbox.send(WorkerMessage::Stop(tx)).is_err() {
             log::error!("failed to shut down compaction worker on Lsm drop");
             return;
         }
 
+        // Ассерт, который срабатывает лишь при тестах
+        // Воркер уже должен быть завершен
         #[cfg(test)]
         assert!(!self.worker.tick());
 
+        // Ждем завершения воркера
         for _ in rx {}
     }
 }
@@ -557,38 +616,36 @@ impl<const K: usize, const V: usize> Drop for Lsm<K, V> {
 impl<const K: usize, const V: usize> std::ops::Deref for Lsm<K, V> {
     type Target = BTreeMap<[u8; K], [u8; V]>;
 
+    /// Возаращаем фактическое дерево значений для LSM на чтение
     fn deref(&self) -> &Self::Target {
         &self.db
     }
 }
 
 impl<const K: usize, const V: usize> Lsm<K, V> {
-    /// Recover the LSM off disk. Make sure to never
-    /// recover a DB using different K, V parameters than
-    /// it was created with, or there may be data loss.
+    /// Восстанавливаем LSM дерево с диска. Лучше удостовериться сначала, что мы не восстанавливаем данные
+    /// с диска с другими параметрами, иначе возможна потеря данных.
     ///
-    /// This is an O(N) operation and involves reading
-    /// all previously written sstables and the log,
-    /// to recover all data into an in-memory `BTreeMap`.
+    /// Это действие происходит за O(N) и включает в себя чтение всех предыдущих записанных sstable и лог-файлика
+    /// для восстановления всех данных в in-memory BTreeMap.
     pub fn recover<P: AsRef<Path>>(p: P) -> Result<Lsm<K, V>> {
         Lsm::recover_with_config(p, Config::default())
     }
 
-    /// Recover the LSM, and provide custom options
-    /// around IO and merging. All values in the `Config`
-    /// object are safe to change across restarts, unlike
-    /// the fixed K and V lengths for data in the database.
+    /// Восстановим LSM дерево с кастомным конфигов. Значения конфига можно менять все, кроме размера ключа и значения.
     pub fn recover_with_config<P: AsRef<Path>>(p: P, config: Config) -> Result<Lsm<K, V>> {
         let path = p.as_ref();
         if !path.exists() {
+            // Создаем директории все нужные
             fs::create_dir_all(path)?;
             fs::create_dir(path.join(SSTABLE_DIR))?;
             fs::File::open(path.join(SSTABLE_DIR))?.sync_all()?;
             fs::File::open(path)?.sync_all()?;
+
             let mut parent_opt = path.parent();
 
-            // need to recursively fsync parents since
-            // we used create_dir_all
+            // Нам нужно рекурсивно сделать fsync для родителей всех данной директории из-за того
+            // что мы используем create_dir_all
             while let Some(parent) = parent_opt {
                 if parent.file_name().is_none() {
                     break;
@@ -603,11 +660,16 @@ impl<const K: usize, const V: usize> Lsm<K, V> {
             }
         }
 
+        // Получаем список id LSM файликов в директории
         let sstable_directory = list_sstables(path, true)?;
 
+        // Создаем дерево базы
         let mut db = BTreeMap::new();
+
+        // Читаем каждый файлик, расширяя базу
         for sstable_id in sstable_directory.keys() {
-            for (k, v) in read_sstable::<K, V>(path, *sstable_id)? {
+            let table = read_sstable::<K, V>(path, *sstable_id);
+            for (k, v) in table? {
                 if let Some(v) = v {
                     db.insert(k, v);
                 } else {
@@ -616,30 +678,43 @@ impl<const K: usize, const V: usize> Lsm<K, V> {
             }
         }
 
+        // Получаем максимальный id
         let max_sstable_id = sstable_directory.keys().next_back().copied();
 
+        // Создаем log файлик, либо открываем имеющийся уже файлик
         let log = fs::OpenOptions::new()
             .create(true)
             .read(true)
             .write(true)
             .open(path.join("log"))?;
 
+        // Читаем этот самый лог-файлик
         let mut reader = BufReader::new(log);
 
+        // Буфферы для чтения значений из этого самого файлика
         let tuple_sz = U64_SZ.max(K + V);
         let header_sz = 5;
         let header_tuple_sz = header_sz + tuple_sz;
         let mut buf = vec![0; header_tuple_sz];
 
+        // Создаем другое дерево из LSM лога
         let mut memtable = BTreeMap::new();
         let mut recovered = 0;
 
         // write_batch is the pending memtable updates, the number
         // of remaining items in the write batch, and the number of
         // bytes that have been recovered in the write batch.
+
+        // write_batch - это ожидающие обновления memtable, количество оставшихся элементов в
+        // группе записи.
+        // Количество байт, которые были восстановлены.
         let mut write_batch: Option<(_, usize, u64)> = None;
+
+        // Читаем буффер из лог-файлика
         while let Ok(()) = reader.read_exact(&mut buf) {
+            // Считаем хеш
             let crc_expected: u32 = u32::from_le_bytes(buf[0..4].try_into().unwrap());
+            // Удаленное ли это значение или групповое значение
             let d: bool = match buf[4] {
                 0 => false,
                 1 => true,
@@ -691,7 +766,11 @@ impl<const K: usize, const V: usize> Lsm<K, V> {
                     break;
                 }
             };
+
+            // Читаем ключ
             let k: [u8; K] = buf[5..5 + K].try_into().unwrap();
+
+            // Читаем значение, если оно еще есть
             let v: Option<[u8; V]> = if d {
                 Some(buf[5 + K..5 + K + V].try_into().unwrap())
             } else {
@@ -771,8 +850,9 @@ impl<const K: usize, const V: usize> Lsm<K, V> {
             written_bytes: 0.into(),
         });
 
+        // Создаем воркер
         let worker: Worker<K, V> = Worker {
-            path: path.clone().into(),
+            path: path.to_owned(),
             sstable_directory,
             inbox: rx,
             db_sz: db.len() as u64 * (K + V) as u64,
@@ -780,6 +860,7 @@ impl<const K: usize, const V: usize> Lsm<K, V> {
             stats: worker_stats.clone(),
         };
 
+        // Воркера запускаем в работу
         #[cfg(not(test))]
         std::thread::spawn(move || worker.run());
 
@@ -823,20 +904,22 @@ impl<const K: usize, const V: usize> Lsm<K, V> {
         Ok(lsm)
     }
 
-    /// Writes a KV pair into the `Lsm`, returning the
-    /// previous value if it existed. This operation might
-    /// involve blocking for a very brief moment as a 32kb
-    /// `BufWriter` wrapping the log file is flushed.
+    /// Пишем KV в LSM, возвращая предыдущее значение если оно было.
+    /// Данная операция может быть заблокирована на доволньо короткий момент времени, так
+    /// как 32х килобайтный буффер из `BufWriter` может сбрасывать данные на диск.
     ///
-    /// If you require blocking until all written data is
-    /// durable, use the `Lsm::flush` method below.
+    /// Если требуется блокировка до тех пор пока все данные не будут записаны, можно использовать
+    /// вызов `Lsm::flush`.
     pub fn insert(&mut self, k: [u8; K], v: [u8; V]) -> Result<Option<[u8; V]>> {
+        // Дописываем в лог файлик
         self.log_mutation(k, Some(v))?;
 
+        // Сбрасываем на диск при достижении размера лога
         if self.dirty_bytes > self.config.max_log_length {
             self.flush()?;
         }
 
+        // Пишем в основную базу тоже
         Ok(self.db.insert(k, v))
     }
 
@@ -895,6 +978,7 @@ impl<const K: usize, const V: usize> Lsm<K, V> {
         Ok(())
     }
 
+    /// Модификация лог-файлика, записываем новые значения в файлик + обновляем дерево в оперативке на новое значение.
     fn log_mutation(&mut self, k: [u8; K], v: Option<[u8; V]>) -> Result<()> {
         let crc: u32 = hash(&k, &v);
         self.log.write_all(&crc.to_le_bytes())?;
@@ -926,14 +1010,9 @@ impl<const K: usize, const V: usize> Lsm<K, V> {
         Ok(())
     }
 
-    /// Blocks until all log data has been
-    /// written out to disk and fsynced. If
-    /// the log file has grown above a certain
-    /// threshold, it will be compacted into
-    /// a new sstable and the log file will
-    /// be truncated after the sstable has
-    /// been written, fsynced, and the sstable
-    /// directory has been fsyced.
+    /// Блокируемся, пока все данные из лог-файлика не будут записаны на диск и синхронизованы.
+    /// Если лог-файлик вырос до определенного лимита, он будет сжат в новую sstable, а лог файлик будет урезан
+    /// после записи таблицы новой
     pub fn flush(&mut self) -> Result<()> {
         #[cfg(test)]
         {
@@ -942,23 +1021,31 @@ impl<const K: usize, const V: usize> Lsm<K, V> {
             }
         }
 
+        // Сброс самого файлика на диск
         self.log.flush()?;
         self.log.get_mut().sync_all()?;
 
+        // Превышен ли лимит байтов?
         if self.dirty_bytes > self.config.max_log_length {
             log::debug!("compacting log to sstable");
+
+            // Обнуляем дерево данного класса
             let memtable = std::mem::take(&mut self.memtable);
+
+            // Пишем на диск дерево из оперативки с новым id
             let sst_id = self.next_sstable_id;
             if let Err(e) = write_sstable(&self.path, sst_id, &memtable, false, &self.config) {
-                // put memtable back together before returning
+                // При ошибке - возвращаем назад дерево в оперативку
                 self.memtable = memtable;
                 log::error!("failed to flush lsm log to sstable: {:?}", e);
-                return Err(e.into());
+                return Err(e);
             }
 
             let sst_sz = 8 + (memtable.len() as u64 * (4 + K + V) as u64);
             let db_sz = self.db.len() as u64 * (K + V) as u64;
 
+            // Отсылаем воркеру сообщение о создании новой таблицы со строками
+            // В фоне будут мержиться данные таблицы в общую кучу
             if let Err(e) = self.worker_outbox.send(WorkerMessage::NewSST {
                 id: sst_id,
                 sst_sz,
@@ -972,8 +1059,10 @@ impl<const K: usize, const V: usize> Lsm<K, V> {
             #[cfg(test)]
             assert!(self.worker.tick());
 
+            // Увеличиваем значение id следующей таблицы
             self.next_sstable_id += 1;
 
+            // Лог-файлик обрезаем до нулевого размера
             let log_file: &mut fs::File = self.log.get_mut();
             log_file.seek(io::SeekFrom::Start(0))?;
             log_file.set_len(0)?;

@@ -1,0 +1,47 @@
+[package]
+name = "marble"
+authors = ["Tyler Neely <t@jujit.su>"]
+version = "15.0.0"
+edition = "2021"
+description = "garbage-collecting on-disk object store"
+license = "GPL-3.0"
+repository = "https://github.com/komora-io/marble"
+documentation = "https://docs.rs/marble/"
+
+[profile.release]
+debug = true
+panic = "abort"
+
+[profile.dev]
+debug = true
+panic = "abort"
+
+[features]
+runtime_validation = ["rand"]
+
+[dev-dependencies]
+env_logger = "0.9.0"
+rand = "0.8.5"
+
+[dependencies]
+crc32fast = "1.3.2"
+log = "0.4.17"
+fs2 = "0.4.3"
+pagetable = { version = "0.3" }
+fault-injection = "1.0.7"
+rand = { version = "0.8.5", optional = true }
+zstd-safe = { version="5.0.2", features=["std", "experimental"] }
+serde = { version = "1.0.144", features = ["derive"], optional = true }
+bincode = { version = "1.3.3", optional = true }
+concurrent-map = { version ="5.0" }
+criterion = {version = "0.3.6", features = ["html_reports"], optional = true}
+
+[[bench]]
+name = "marble_bench"
+path = "benches/marble_bench.rs"
+harness = false
+
+[[test]]
+name = "crash_atomicity"
+path = "tests/crash_atomicity.rs"
+harness = false
