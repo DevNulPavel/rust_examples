@@ -23,6 +23,9 @@ where
     Input: Stream<Token = char>,
     // Ошибка у входного потока должна быть ошибкой парсинга
     Input::Error: ParseError<Input::Token, Input::Range, Input::Position>,
+    // Интересное ограничение для указания возможности конверации ошибки из нашего типа
+    // <Input::Error as ParseError<Input::Token, Input::Range, Input::Position>>::StreamError:
+    //     From<()>,
 {
     // Словом является последовательность из 1 и более букв
     let word = many1(letter());
@@ -66,15 +69,27 @@ where
 //
 // Данный макрос не использует `impl Trait`, что значит - он может использован быть в
 // rust < 1.26 для эмуляции `impl Trait`
+//
+// Здесь квадратные скобки - это шаблонный параметр судя по всему
 parser! {
     fn expr[Input]()(Input) -> Expr
-    where [Input: Stream<Token = char>]
+    where [
+        // Тип входного потока
+        Input: Stream<Token = char>,
+        
+        // Ошибка у входного потока должна быть ошибкой парсинга
+        Input::Error: ParseError<Input::Token, Input::Range, Input::Position>,
+
+        // Интересное ограничение для указания возможности конверации ошибки из нашего типа
+        // <Input::Error as ParseError<Input::Token, Input::Range, Input::Position>>::StreamError:
+        //     From<()>,
+    ]
     {
         expr_outer()
     }
 }
 
-pub fn test_macros() {
+pub fn test_macros_1() {
     // Создаем парсер
     let mut parser = expr();
 

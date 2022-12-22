@@ -1,11 +1,12 @@
 use combine::{
+    attempt,
     parser::{
         char::{char, spaces},
         range::take_while1,
     },
     sep_by,
     stream::easy,
-    EasyParser, Parser, attempt,
+    EasyParser, Parser,
 };
 
 pub fn parse_numbers() {
