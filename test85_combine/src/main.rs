@@ -3,6 +3,7 @@ mod macros_1;
 mod macros_2;
 mod numbers;
 mod word;
+mod by_ref;
 
 fn main() {
     numbers::parse_numbers();
@@ -14,4 +15,6 @@ fn main() {
     word::word();
 
     float::float();
+
+    by_ref::rest_ref();
 }

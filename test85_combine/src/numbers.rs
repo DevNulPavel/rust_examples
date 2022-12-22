@@ -26,7 +26,7 @@ pub fn parse_numbers() {
     let mut parser = sep_by(number, separator);
 
     // Данные парсинга
-    let input = "1234, 45, 78 ,123 ,  1234  123 asd as";
+    let input = "1234, 45, 78 ,123 ,  1234, 123 asd as";
 
     // Парсим
     // easy_parse принимать может совершенно разные типы, даже стрим данных с определенными манипуляциями
