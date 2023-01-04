@@ -1,7 +1,7 @@
 export TZ=":Europe/Moscow"
 
-rm -rf *.db *.db-shm *.db-wal
-rm -rf sled_db/
+# rm -rf *.db *.db-shm *.db-wal
+# rm -rf sled_db/
 
 # # Просто запросы вообще без открытой транзакции, очень долго работает
 # cargo build --release --quiet --bin basic_no_tr
@@ -54,11 +54,11 @@ rm -rf sled_db/
 # /usr/bin/time ./target/release/basic_async_actor_mp
 
 # Sled insert
-cargo build --release --quiet --bin sled
-echo "$(date)" "[RUST] sled.rs (1_000_000) inserts"
-/usr/bin/time ./target/release/sled
+# cargo build --release --quiet --bin sled
+# echo "$(date)" "[RUST] sled.rs (1_000_000) inserts"
+# /usr/bin/time ./target/release/sled
 
-# # Sled tr insert
+# Sled tr insert
 # cargo build --release --quiet --bin sled_tr
 # echo "$(date)" "[RUST] sled_tr.rs (1_000_000) inserts"
 # /usr/bin/time ./target/release/sled_tr
@@ -88,11 +88,20 @@ echo "$(date)" "[RUST] sled.rs (1_000_000) inserts"
 # echo "$(date)" "[RUST] basic_async.rs (1_000_000) inserts"
 # /usr/bin/time ./target/release/basic_async
 
-# # Каждый запрос заранее дополнительно был подготовлен и закеширован + транзакции периодически завершаются для сброса
-# cargo build --release --quiet --bin hash_map
-# echo "$(date)" "[RUST] hash_map.rs (1_000_000) inserts"
-# /usr/bin/time ./target/release/hash_map
+# Референс для хешмапы
+cargo build --release --quiet --bin hash_map
+echo "$(date)" "[RUST] hash_map.rs (1_000_000) inserts"
+/usr/bin/time ./target/release/hash_map
 
-rm -rf *.db *.db-shm *.db-wal
-du -h -d 0 sled_db/
-rm -rf sled_db/
+# Postgres insert transaction
+cargo build --release --quiet --bin postgres_tr
+echo "$(date)" "[RUST] postgres_tr.rs (1_000_000) inserts"
+/usr/bin/time ./target/release/postgres_tr
+
+# rm -rf *.db *.db-shm *.db-wa
+
+du -h -d 0 sled_db*/
+rm -rf sled_db*/
+
+du -h -d 0 postgres_db*/
+# rm -rf postgres_db*/

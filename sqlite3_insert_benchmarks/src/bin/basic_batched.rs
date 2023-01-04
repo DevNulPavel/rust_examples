@@ -1,5 +1,5 @@
-use sqlite3_insert_benchmarks as common;
 use rusqlite::Connection;
+use sqlite3_insert_benchmarks as common;
 
 fn faker(mut conn: Connection, count: i64) {
     let tx = conn.transaction().unwrap();
@@ -9,7 +9,7 @@ fn faker(mut conn: Connection, count: i64) {
         let with_area = common::get_random_bool();
         let age = common::get_random_age();
         let is_active = common::get_random_active();
-        
+
         for _ in 0..min_batch_size {
             if with_area {
                 let area_code = common::get_random_area_code();
@@ -27,7 +27,7 @@ fn faker(mut conn: Connection, count: i64) {
         // Notice the `,` at the, which we will replace it with `;`
         stmt.pop();
         stmt.push(';');
-        tx.execute(&*stmt, []).unwrap();
+        tx.execute(stmt.as_str(), []).unwrap();
     }
     tx.commit().unwrap();
 }

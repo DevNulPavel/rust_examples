@@ -12,7 +12,7 @@ fn faker(conn: Connection, count: i64) {
             let area_code = common::get_random_area_code();
             conn.execute(
                 "INSERT INTO user VALUES (?, ?, ?, ?)",
-                params![key, area_code, age, is_active],
+                params![key, area_code.as_str(), age, is_active],
             )
             .unwrap();
         } else {

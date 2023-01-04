@@ -10,7 +10,7 @@ tokio = {version = "^1", features = ["full"]}
 rand = "^0.8"
 num_cpus = "^1"
 rusqlite = {version = "^0.25", features = ["serde_json", "bundled"]}
-smallstr = "^0.3"
+smallstr = {version = "^0.3", features = ["std"]}
 oneshot = "^0.1"
 sled = {version = "^0.34", features = ["compression"]}
 bincode = "^1"
@@ -21,4 +21,5 @@ futures = "^0.3"
 deadpool = "^0.9"
 async-trait = "^0.1"
 flume = "^0.10"
+tokio-postgres = "^0.7"
 # async-oneshot = "^0.5"

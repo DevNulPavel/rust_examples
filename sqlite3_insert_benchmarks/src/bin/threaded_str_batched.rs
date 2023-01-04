@@ -19,7 +19,7 @@ fn consumer(rx: Receiver<String>) {
     .unwrap();
     let tx = conn.transaction().unwrap();
     for stmt in rx {
-        tx.execute(&*stmt, []).unwrap();
+        tx.execute(stmt.as_str(), []).unwrap();
     }
     tx.commit().unwrap();
 }

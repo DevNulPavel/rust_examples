@@ -42,7 +42,7 @@ fn main() {
                     let d = Data {
                         active,
                         age,
-                        area: area.into(),
+                        area,
                         id,
                     };
 

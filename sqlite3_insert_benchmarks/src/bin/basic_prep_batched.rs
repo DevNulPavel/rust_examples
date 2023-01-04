@@ -58,7 +58,7 @@ fn faker(tx: &Transaction, count: i64) {
             let mut vector = Vec::<(String, i8, i8)>::new();
             for _ in 0..min_batch_size {
                 let area_code = common::get_random_area_code();
-                vector.push((area_code, age, is_active));
+                vector.push((area_code.to_string(), age, is_active));
             }
             for batch in vector.iter() {
                 param_values.push(&batch.0 as &dyn ToSql);

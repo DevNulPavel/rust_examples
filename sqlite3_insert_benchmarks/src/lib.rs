@@ -1,5 +1,6 @@
 use rand::prelude::SliceRandom;
 use rand::Rng;
+use smallstr::SmallString;
 
 pub fn get_random_age() -> i8 {
     let vs: Vec<i8> = vec![5, 10, 15];
@@ -17,9 +18,12 @@ pub fn get_random_bool() -> bool {
     rand::random()
 }
 
-pub fn get_random_area_code() -> String {
+pub fn get_random_area_code() -> SmallString<[u8; 6]> {
+    use std::fmt::Write;
+    let mut buf = SmallString::<[u8; 6]>::new();
     let mut rng = rand::thread_rng();
-    format!("{:06}", rng.gen_range(0..999999))
+    write!(buf, "{:06}", rng.gen_range(0..999999)).unwrap();
+    buf
 }
 
 pub fn pragma_rules() -> &'static str {

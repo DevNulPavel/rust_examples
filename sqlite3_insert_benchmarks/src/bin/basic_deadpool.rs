@@ -53,7 +53,7 @@ async fn executor(pool: Pool<SQLiteManager>, rx: Receiver<usize>) {
             let area_code = common::get_random_area_code();
             tr.prepare("INSERT INTO user VALUES (NULL, ?, ?, ?)")
                 .unwrap()
-                .execute(params![area_code, age, is_active])
+                .execute(params![area_code.as_str(), age, is_active])
                 .unwrap();
         } else {
             tr.prepare("INSERT INTO user VALUES (NULL, NULL, ?, ?)")

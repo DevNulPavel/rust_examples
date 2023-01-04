@@ -1,5 +1,6 @@
 // use std::sync::Arc;
 use rusqlite::{params, Connection};
+use smallstr::SmallString;
 use sqlite3_insert_benchmarks as common;
 
 async fn faker(tx: tokio::sync::mpsc::Sender<Task>, count: usize) {
@@ -37,7 +38,7 @@ struct Task {
     key: usize,
     age: i8,
     is_active: i8,
-    area_code: String,
+    area_code: SmallString<[u8; 6]>,
     resp: tokio::sync::oneshot::Sender<bool>,
     // resp: futures::channel::oneshot::Sender<bool>
     // notify: Arc<tokio::sync::Notify>,
@@ -77,7 +78,7 @@ async fn main() {
         }) = rx.blocking_recv()
         {
             prepared_sql
-                .execute(params![area_code, age, is_active])
+                .execute(params![area_code.as_str(), age, is_active])
                 .unwrap();
 
             if key > 0 && key % 1_000 == 0 {

@@ -28,7 +28,7 @@ fn faker_wrapper(conn: Connection, count: i64) {
         if with_area {
             let area_code = common::get_random_area_code();
             stmt_with_area
-                .execute(params![key, area_code, age, is_active])
+                .execute(params![key, area_code.as_str(), age, is_active])
                 .unwrap();
         } else {
             stmt.execute(params![key, age, is_active]).unwrap();

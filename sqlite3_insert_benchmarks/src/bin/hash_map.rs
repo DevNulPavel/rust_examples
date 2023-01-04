@@ -14,7 +14,7 @@ use std::{collections::HashMap, mem::size_of};
 #[allow(unused)]
 struct Data {
     id: u64,
-    area: SmallString<[u8; 14]>,
+    area: SmallString<[u8; 6]>,
     age: i8,
     active: bool,
 }
@@ -36,7 +36,7 @@ fn main() {
         let d = Data {
             active,
             age,
-            area: area.into(),
+            area,
             id,
         };
 

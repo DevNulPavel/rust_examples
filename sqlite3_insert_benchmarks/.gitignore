@@ -1,8 +1,9 @@
 ### Ignore all database files
-*.db
-*.db-shm
-*.db-wal
-sled_db*/
+/*.db
+/*.db-shm
+/*.db-wal
+/sled_db*
+/postgres_db*
 
 ### All Rust Stuff
 /target

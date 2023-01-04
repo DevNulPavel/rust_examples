@@ -1,5 +1,5 @@
-use sqlite3_insert_benchmarks as common;
 use rusqlite::{params, Connection};
+use sqlite3_insert_benchmarks as common;
 
 fn faker(mut conn: Connection, count: i64) {
     // Запускаем транзакцию
@@ -14,7 +14,7 @@ fn faker(mut conn: Connection, count: i64) {
             let area_code = common::get_random_area_code();
             tx.execute(
                 "INSERT INTO user VALUES (NULL, ?, ?, ?)",
-                params![area_code, age, is_active],
+                params![area_code.as_str(), age, is_active],
             )
             .unwrap();
         } else {
@@ -25,7 +25,7 @@ fn faker(mut conn: Connection, count: i64) {
             .unwrap();
         }
     }
-    
+
     // Завершаем транзакцию
     tx.commit().unwrap();
 }
