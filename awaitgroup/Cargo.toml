@@ -1,0 +1,18 @@
+[package]
+name = "awaitgroup"
+description = "Wait for a collection of async tasks to finish."
+license = "MIT"
+version = "0.6.0"
+repository = "https://github.com/ibraheemdev/awaitgroup"
+authors = ["Ibraheem Ahmed <ibraheem@ibraheem.ca>"]
+edition = "2018"
+keywords = ["waitgroup", "notify", "wake", "futures", "async"]
+categories = ["asynchronous", "concurrency"]
+readme = "README.md"
+
+[dependencies]
+atomic-waker = "1.0.0"
+
+
+[dev-dependencies]
+tokio = { version = "1", features = ["rt", "time"] }
