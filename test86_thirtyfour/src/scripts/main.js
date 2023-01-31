@@ -14,7 +14,7 @@ window.generateBogus = function generateBogus(params) {
 
 window.getNavigationInfo = function getNavigationInfo(params) {
     return {
-        deviceScaleFactor: window.devicePixelRatio,
+        device_scale_factor: window.devicePixelRatio,
         user_agent: window.navigator.userAgent,
         browser_language: window.navigator.language,
         browser_platform: window.navigator.platform,

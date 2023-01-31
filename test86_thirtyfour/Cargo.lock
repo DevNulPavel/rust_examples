@@ -880,8 +880,11 @@ dependencies = [
 name = "test86_thirtyfour"
 version = "0.1.0"
 dependencies = [
+ "serde",
+ "serde_json",
  "thirtyfour",
  "tokio",
+ "url",
 ]
 
 [[package]]
