@@ -14,9 +14,9 @@ export TZ=":Europe/Moscow"
 # /usr/bin/time ./target/release/basic_raw_tr
 
 # # Просто запросы в пределах транзакции
-# cargo build --release --quiet --bin basic
-# echo "$(date)" "[RUST] basic.rs (1_000_000) inserts"
-# /usr/bin/time ./target/release/basic
+cargo build --release --quiet --bin basic
+echo "$(date)" "[RUST] basic.rs (1_000_000) inserts"
+/usr/bin/time ./target/release/basic
 
 # # Каждый запрос состоит из 50ти строк
 # cargo build --release --quiet --bin basic_batched
@@ -84,9 +84,9 @@ export TZ=":Europe/Moscow"
 # /usr/bin/time ./target/release/threaded_batched
 
 # # benching with all prev sqlite optimisations, but on rust with sqlx async
-# cargo build --release --quiet --bin basic_async
-# echo "$(date)" "[RUST] basic_async.rs (1_000_000) inserts"
-# /usr/bin/time ./target/release/basic_async
+cargo build --release --quiet --bin basic_async
+echo "$(date)" "[RUST] basic_async.rs (1_000_000) inserts"
+/usr/bin/time ./target/release/basic_async
 
 # Референс для хешмапы
 cargo build --release --quiet --bin hash_map
@@ -94,11 +94,11 @@ echo "$(date)" "[RUST] hash_map.rs (1_000_000) inserts"
 /usr/bin/time ./target/release/hash_map
 
 # Postgres insert transaction
-cargo build --release --quiet --bin postgres_tr
-echo "$(date)" "[RUST] postgres_tr.rs (1_000_000) inserts"
-/usr/bin/time ./target/release/postgres_tr
+# cargo build --release --quiet --bin postgres_tr
+# echo "$(date)" "[RUST] postgres_tr.rs (1_000_000) inserts"
+# /usr/bin/time ./target/release/postgres_tr
 
-# rm -rf *.db *.db-shm *.db-wa
+rm -rf *.db *.db-shm *.db-wa
 
 du -h -d 0 sled_db*/
 rm -rf sled_db*/

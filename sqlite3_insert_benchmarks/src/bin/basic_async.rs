@@ -1,7 +1,8 @@
 use sqlite3_insert_benchmarks as common;
-use sqlx::sqlite::SqliteConnectOptions; // SqliteJournalMode, SqliteSynchronous
+use sqlx::sqlite::{SqliteConnectOptions, SqliteJournalMode, SqliteSynchronous, SqliteAutoVacuum, SqliteLockingMode}; // SqliteJournalMode, SqliteSynchronous
 use sqlx::{ConnectOptions, Connection, Executor, SqliteConnection, Statement};
 use std::str::FromStr;
+use std::time::Duration;
 
 async fn faker(mut conn: SqliteConnection, count: i64) -> Result<(), sqlx::Error> {
     let mut tx = conn.begin().await?;
@@ -38,11 +39,17 @@ async fn faker(mut conn: SqliteConnection, count: i64) -> Result<(), sqlx::Error
 
 #[tokio::main]
 async fn main() -> Result<(), sqlx::Error> {
-    let mut conn = SqliteConnectOptions::from_str("basic_async.db")
-        .unwrap()
+    let mut conn = SqliteConnectOptions::new()
+        .filename(":memory:")
         .create_if_missing(true)
-        // .journal_mode(SqliteJournalMode::Off)
-        // .synchronous(SqliteSynchronous::Off)
+        .journal_mode(SqliteJournalMode::Wal)
+        .synchronous(SqliteSynchronous::Normal)
+        .auto_vacuum(SqliteAutoVacuum::None)
+        .foreign_keys(true)
+        .locking_mode(SqliteLockingMode::Normal)
+        .shared_cache(true)
+        .busy_timeout(Duration::from_secs(600))
+        .disable_statement_logging()
         .connect()
         .await?;
     conn.execute(common::pragma_rules()).await?;

@@ -1,7 +1,9 @@
 mod test;
 
 use serde::Deserialize;
-use thirtyfour::{error::WebDriverError, DesiredCapabilities, WebDriver};
+use thirtyfour::{
+    error::WebDriverError, extensions::cdp::ChromeDevTools, DesiredCapabilities, WebDriver,
+};
 use tokio::sync::{mpsc, oneshot};
 use url::Url;
 
@@ -56,6 +58,21 @@ async fn sign_url_actor(user_agent: String, mut receiver: mpsc::Receiver<Task>) 
 
         WebDriver::new("http://localhost:9515", caps).await.unwrap()
     };
+
+    let devtools = ChromeDevTools::new(driver.handle.clone());
+    devtools
+        .execute_cdp_with_params(
+            "Fetch.enable",
+            serde_json::json!({
+                "patterns": [
+                    {
+                        "resourceType": "Script"
+                    }
+                ]
+            }),
+        )
+        .await
+        .unwrap();
 
     // Делаем переход на страничку
     driver
@@ -189,6 +206,8 @@ async fn main() -> Result<(), WebDriverError> {
         .append_pair("_signature", signature.as_str());
 
     let query_str = url.query().unwrap();
+
+    tokio::time::sleep(std::time::Duration::from_secs(3)).await;
 
     let bogus = {
         let (send, receive) = oneshot::channel();
