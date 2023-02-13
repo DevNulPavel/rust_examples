@@ -21,5 +21,8 @@ futures = "^0.3"
 deadpool = "^0.9"
 async-trait = "^0.1"
 flume = "^0.10"
-tokio-postgres = "^0.7"
 # async-oneshot = "^0.5"
+
+# Postgres
+tokio-postgres = "^0.7"
+postgres = "^0.19"
