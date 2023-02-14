@@ -26,3 +26,6 @@ flume = "^0.10"
 # Postgres
 tokio-postgres = "^0.7"
 postgres = "^0.19"
+
+# MySQL
+mysql = "^23.0"

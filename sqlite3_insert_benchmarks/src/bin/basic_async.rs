@@ -1,7 +1,8 @@
 use sqlite3_insert_benchmarks as common;
-use sqlx::sqlite::{SqliteConnectOptions, SqliteJournalMode, SqliteSynchronous, SqliteAutoVacuum, SqliteLockingMode}; // SqliteJournalMode, SqliteSynchronous
+use sqlx::sqlite::{
+    SqliteAutoVacuum, SqliteConnectOptions, SqliteJournalMode, SqliteLockingMode, SqliteSynchronous,
+};
 use sqlx::{ConnectOptions, Connection, Executor, SqliteConnection, Statement};
-use std::str::FromStr;
 use std::time::Duration;
 
 async fn faker(mut conn: SqliteConnection, count: i64) -> Result<(), sqlx::Error> {
@@ -49,9 +50,13 @@ async fn main() -> Result<(), sqlx::Error> {
         .locking_mode(SqliteLockingMode::Normal)
         .shared_cache(true)
         .busy_timeout(Duration::from_secs(600))
+        .pragma("temp_store", "memory")
+        .pragma("cache_size", "-524288")
+        .pragma("wal_autocheckpoint", "0")
         .disable_statement_logging()
         .connect()
         .await?;
+
     conn.execute(common::pragma_rules()).await?;
     conn.execute(
         "CREATE TABLE IF NOT EXISTS user (

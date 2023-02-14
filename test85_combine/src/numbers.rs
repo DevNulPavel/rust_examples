@@ -34,10 +34,10 @@ pub fn parse_numbers() {
     let result: Result<(Vec<i32>, &str), easy::ParseError<&str>> = parser.easy_parse(input);
     match result {
         Ok((value, remain)) => {
-            println!("Values: {:?}, remain: '{}'", value, remain);
+            println!("Values: {value:?}, remain: '{remain}'");
         }
         Err(err) => {
-            eprintln!("Error: {}", err);
+            eprintln!("Error: {err}");
         }
     }
 }

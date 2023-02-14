@@ -59,9 +59,9 @@ export TZ=":Europe/Moscow"
 # /usr/bin/time ./target/release/sled
 
 # Sled tr insert
-cargo build --release --quiet --bin sled_tr
-echo "$(date)" "[RUST] sled_tr.rs (1_000_000) inserts"
-/usr/bin/time ./target/release/sled_tr
+# cargo build --release --quiet --bin sled_tr
+# echo "$(date)" "[RUST] sled_tr.rs (1_000_000) inserts"
+# /usr/bin/time ./target/release/sled_tr
 
 # # Sled batch insert
 # cargo build --release --quiet --bin sled_batch
@@ -103,6 +103,10 @@ echo "$(date)" "[RUST] hash_map.rs (1_000_000) inserts"
 # echo "$(date)" "[RUST] postgres_tr.rs (1_000_000) inserts"
 # /usr/bin/time ./target/release/postgres_tr
 
+# MySQL SYNC insert transaction
+cargo build --release --quiet --bin mysql_tr
+echo "$(date)" "[RUST] mysql_tr.rs (1_000_000) inserts"
+/usr/bin/time ./target/release/mysql_tr
 
 rm -rf *.db *.db-shm *.db-wa
 
@@ -111,3 +115,6 @@ rm -rf sled_db*/
 
 du -h -d 0 postgres_db*/
 rm -rf postgres_db*/
+
+du -h -d 0 mysql_db*/
+rm -rf mysql_db*/
