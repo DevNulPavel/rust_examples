@@ -67,7 +67,7 @@ fn apis(
     .or(delete::apis(db_manager.clone(), index_manager.clone()))
     .or(put::apis(db_manager.clone(), index_manager, dl_dir_path));
     #[cfg(not(feature = "openid"))]
-    let routes = routes.or(post::apis(db_manager.clone()));
+    let routes = routes.or(post::apis(db_manager));
     routes
 }
 
@@ -111,37 +111,54 @@ async fn run_server(config: Config) -> anyhow::Result<()> {
         config.crate_files_config.dl_dir_path
     );
 
+    // Создаем директорию для крейтов
     tokio::fs::create_dir_all(&config.crate_files_config.dl_dir_path).await?;
+
     #[cfg(feature = "crates-io-mirroring")]
     tokio::fs::create_dir_all(&config.crate_files_config.cache_dir_path).await?;
+
     let dl_dir_path = config.crate_files_config.dl_dir_path.clone();
+
     #[cfg(feature = "crates-io-mirroring")]
     let cache_dir_path = config.crate_files_config.cache_dir_path.clone();
+
     let dl_path = config.crate_files_config.dl_path.clone();
+
     let server_config = config.server_config.clone();
 
+    // Открываем нужную нам базу
     #[cfg(all(
         feature = "db-sled",
         not(all(feature = "db-redis", feature = "db-mongo"))
     ))]
     let db_manager = SledDbManager::new(&config.db_config).await?;
+
     #[cfg(all(
         feature = "db-redis",
         not(all(feature = "db-sled", feature = "db-mongo"))
     ))]
     let db_manager = RedisDbManager::new(&config.db_config).await?;
+
     #[cfg(all(
         feature = "db-mongo",
         not(all(feature = "db-sled", feature = "db-redis"))
     ))]
     let db_manager = MongoDbManager::new(&config.db_config).await?;
+
+    // Создаем менеджер индексов в репозитории git
     let index_manager = IndexManager::new(config.index_config).await?;
+
+    // Пулим оттуда все изменения
     index_manager.pull().await?;
 
+    // Клиент для crates.io при кешировании crates.io крейтов
     #[cfg(feature = "crates-io-mirroring")]
     let http_client = Client::builder().build()?;
 
+    // Обернем нашу базу в Arc + RwLock
     let db_manager = Arc::new(RwLock::new(db_manager));
+
+    // Создаем роутинг для warp
     let routes = apis(
         db_manager.clone(),
         Arc::new(index_manager),
@@ -153,12 +170,14 @@ async fn run_server(config: Config) -> anyhow::Result<()> {
         dl_path,
     );
 
+    // Для поддержки openid
     #[cfg(feature = "openid")]
     let routes = routes.or(openid::apis(
         db_manager.clone(),
         Arc::new(config.openid_config),
     ));
 
+    // Добавляем обработку трассировки каждого запроса + обработку реджектов
     let routes = routes
         .with(warp::trace::request())
         .recover(handle_rejection);
@@ -220,20 +239,28 @@ fn matches() -> ArgMatches<'static> {
 async fn main() -> anyhow::Result<()> {
     tracing_subscriber::fmt::init();
 
+    // Получаем аргументы командной строки
     let matches = matches();
 
+    // Путь к конфигу
     let config_file_path = matches.value_of("CONFIG").unwrap_or("ktra.toml");
+
+    // Вычитываем конфг из файлка, дополнительно параметры перегружаются
+    // из параметров командной строки
     let mut config = config(config_file_path).await?;
 
+    // Директория загрузки крейтов
     if let Some(dl_dir_path) = matches.value_of("DL_DIR_PATH").map(PathBuf::from) {
         config.crate_files_config.dl_dir_path = dl_dir_path;
     }
 
+    // Зеркалирование в crates.io
     #[cfg(feature = "crates-io-mirroring")]
     if let Some(cache_dir_path) = matches.value_of("CACHE_DIR_PATH").map(PathBuf::from) {
         config.crate_files_config.cache_dir_path = cache_dir_path;
     }
 
+    // Путь к загрузке
     if let Some(dl_path) = matches
         .values_of("DL_PATH")
         .map(|vs| vs.map(ToOwned::to_owned).collect())

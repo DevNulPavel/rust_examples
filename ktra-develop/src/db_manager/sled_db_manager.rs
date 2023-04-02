@@ -557,12 +557,14 @@ impl SledDbManager {
                 "current schema version will migrate to {:?}.",
                 SCHEMA_VERSION
             );
+
             let tokens: String = tokens
                 .map(|v| v.to_vec())
                 .map(String::from_utf8)
                 .transpose()
                 .map_err(Error::InvalidUtf8Bytes)?
                 .unwrap_or_default();
+
             tree.transaction(|tree| {
                 tree.insert(TOKENS_KEY, tokens.as_str())?;
                 tree.remove(OLD_TOKENS_KEY)?;
