@@ -4,6 +4,7 @@
 /*.db-wal
 /sled_db*
 /postgres_db*
+/mysql_db*
 
 ### All Rust Stuff
 /target
