@@ -4,7 +4,12 @@
 name = "raytracer_on_rust"
 version = "0.1.0"
 authors = ["Pavel Ershov <pershov@game-insight.com>"]
-edition = "2018"
+edition = "2021"
+
+[profile.release]
+debug = 1 # Можно 2?
+# lto = "thin"
+# strip = "debuginfo"
 
 [features]
 # default = ["multi_threaded", "allow_unsafe"]        # Дефолтные фичи

@@ -1,22 +1,9 @@
-use image::{
-    DynamicImage
-};
-use crate::{
-    structs::{
-        Color
-    }
-};
 use super::{
-    traits::{
-        Material
-    },
-    tex_coord_delegate::{
-        TexCoordDelegate
-    },
-    material_modificator::{
-        MaterialModificator
-    }
+    material_modificator::MaterialModificator, tex_coord_delegate::TexCoordDelegate,
+    traits::Material,
 };
+use crate::structs::Color;
+use image::DynamicImage;
 
 fn wrap(val: f32, bound: u32) -> u32 {
     let signed_bound = bound as i32;
@@ -31,27 +18,25 @@ fn wrap(val: f32, bound: u32) -> u32 {
 
 // Макрос для устранения дублирования кода
 macro_rules! get_pixel {
-    ($tex_coord:ident, $texture:ident) => {
-        {
-            let tex_x = wrap($tex_coord.x, $texture.width());
-            let tex_y = wrap($tex_coord.y, $texture.height());
+    ($tex_coord:ident, $texture:ident) => {{
+        let tex_x = wrap($tex_coord.x, $texture.width());
+        let tex_y = wrap($tex_coord.y, $texture.height());
 
-            let pixel = $texture.get_pixel(tex_x, tex_y);
-            
-            pixel
-        }
-    };
+        let pixel = $texture.get_pixel(tex_x, tex_y);
+
+        pixel
+    }};
 }
 
-pub struct TextureMaterial{
+pub struct TextureMaterial {
     pub texture: DynamicImage,
-    pub modificator: MaterialModificator
+    pub modificator: MaterialModificator,
 }
 
 impl Material for TextureMaterial {
     fn get_color_at_tex_coord(&self, get_tex_coord_delegate: TexCoordDelegate) -> Color {
         let tex_coord = get_tex_coord_delegate.get_tex_coord();
-    
+
         match self.texture {
             DynamicImage::ImageRgb8(ref texture) => {
                 let pixel = get_pixel!(tex_coord, texture);
@@ -61,7 +46,7 @@ impl Material for TextureMaterial {
                 let pixel = get_pixel!(tex_coord, texture);
                 Color::from_rgba(pixel)
             }
-            _ =>{
+            _ => {
                 panic!("Invalid image format")
             }
         }

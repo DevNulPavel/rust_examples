@@ -1,4 +1,4 @@
-pub enum LightDistance{
+pub enum LightDistance {
     Infinite,
-    Some(f32)
+    Some(f32),
 }

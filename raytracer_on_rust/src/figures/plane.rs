@@ -1,38 +1,15 @@
+use super::traits::{Colorable, Figure, Intersectable, Materiable, Normalable, Texturable};
 use crate::{
-    traits::{
-        Dotable,
-        Crossable,
-        Length
-    },
-    structs::{
-        Vector2,
-        Vector3,
-        Color
-    },
-    material::{
-        Material,
-        MaterialsContainer,
-        TexCoordDelegate
-    },
-    render::{
-        Ray
-    }
-};
-use super::{
-    traits::{
-        Intersectable,
-        Normalable,
-        Texturable,
-        Colorable,
-        Materiable,
-        Figure
-    }
+    material::{Material, MaterialsContainer, TexCoordDelegate},
+    render::Ray,
+    structs::{Color, Vector2, Vector3},
+    traits::{Crossable, Dotable, Length},
 };
 
 pub struct Plane {
     pub origin: Vector3,
     pub normal: Vector3,
-    pub material: MaterialsContainer
+    pub material: MaterialsContainer,
 }
 
 impl Texturable for Plane {
@@ -52,7 +29,7 @@ impl Texturable for Plane {
             });
         }
         let y_axis = self.normal.cross(&x_axis);
-        // TODO: Разобраться 
+        // TODO: Разобраться
         let hit_vec = *hit_point - self.origin;
         Vector2 {
             x: hit_vec.dot(&x_axis),
@@ -61,13 +38,16 @@ impl Texturable for Plane {
     }
 }
 
-impl Colorable for Plane{
+impl Colorable for Plane {
     fn color_at(&self, hit_point: &Vector3) -> Color {
-        let tex_coord_delegate = TexCoordDelegate{
+        let tex_coord_delegate = TexCoordDelegate {
             target: self,
-            hit_point: hit_point
+            hit_point: hit_point,
         };
-        let color = self.material.get_material().get_color_at_tex_coord(tex_coord_delegate);
+        let color = self
+            .material
+            .get_material()
+            .get_color_at_tex_coord(tex_coord_delegate);
         color
     }
 }
@@ -88,21 +68,20 @@ impl Intersectable for Plane {
             }
         }
         None
-    } 
+    }
 }
 
 impl Normalable for Plane {
-    fn normal_at(&self, _: &Vector3) -> Vector3{
+    fn normal_at(&self, _: &Vector3) -> Vector3 {
         -self.normal
     }
 }
 
-impl Materiable for Plane{
-    fn get_material<'a>(&'a self) -> &'a dyn Material{
+impl Materiable for Plane {
+    fn get_material<'a>(&'a self) -> &'a dyn Material {
         self.material.get_material()
     }
 }
 
 // Пустая реализация просто чтобы пометить тип
-impl Figure for Plane{
-}
+impl Figure for Plane {}

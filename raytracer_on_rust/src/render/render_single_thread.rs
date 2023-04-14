@@ -1,18 +1,6 @@
-use image::{
-    Pixel,
-    GenericImage,
-    DynamicImage,
-    Rgba
-};
-use crate::{
-    scene::{
-        Scene,
-        Intersection
-    },
-};
-use super::{
-    Ray
-};
+use super::Ray;
+use crate::scene::{Intersection, Scene};
+use image::{DynamicImage, GenericImage, Pixel, Rgba};
 
 // Обычный однопоточный вариант рендеринга
 #[cfg(not(feature = "multi_threaded"))]
@@ -33,13 +21,13 @@ pub fn render(scene: &Scene) -> DynamicImage {
             let intersection: Option<Intersection<'_>> = scene.trace_nearest_intersection(&ray);
 
             // Если нашлось - считаем свет
-            if let Some(intersection) = intersection{
+            if let Some(intersection) = intersection {
                 // Расчет цвета в найденном пересечении
                 let result_color = scene.calculate_intersection_color(&ray, &intersection.into());
 
                 // Установка пикселя
                 image.put_pixel(x, y, result_color.to_rgba());
-            }else{
+            } else {
                 // Установка пикселя
                 image.put_pixel(x, y, black);
             }

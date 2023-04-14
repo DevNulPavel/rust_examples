@@ -1,37 +1,15 @@
+use super::traits::{Colorable, Figure, Intersectable, Materiable, Normalable, Texturable};
 use crate::{
-    traits::{
-        Dotable,
-        Normalizable
-    },
-    structs::{
-        Vector2,
-        Vector3,
-        Color
-    },
-    render::{
-        Ray
-    },
-    material::{
-        Material,
-        MaterialsContainer,
-        TexCoordDelegate
-    }
-};
-use super::{
-    traits::{
-        Intersectable,
-        Figure,
-        Normalable,
-        Texturable,
-        Materiable,
-        Colorable
-    }
+    material::{Material, MaterialsContainer, TexCoordDelegate},
+    render::Ray,
+    structs::{Color, Vector2, Vector3},
+    traits::{Dotable, Normalizable},
 };
 
 pub struct Sphere {
     pub center: Vector3,
     pub radius: f32,
-    pub material: MaterialsContainer
+    pub material: MaterialsContainer,
 }
 
 impl Texturable for Sphere {
@@ -43,20 +21,20 @@ impl Texturable for Sphere {
         const PI: f32 = std::f32::consts::PI;
         let x = (1.0_f32 + (hit_vec.z.atan2(hit_vec.x)) / PI) * 0.5_f32;
         let y = (hit_vec.y / self.radius).acos() / PI;
-        Vector2 {
-            x,
-            y,
-        }
+        Vector2 { x, y }
     }
 }
 
-impl Colorable for Sphere{
+impl Colorable for Sphere {
     fn color_at(&self, hit_point: &Vector3) -> Color {
-        let tex_coord_delegate = TexCoordDelegate{
+        let tex_coord_delegate = TexCoordDelegate {
             target: self,
-            hit_point: hit_point
+            hit_point: hit_point,
         };
-        let color = self.material.get_material().get_color_at_tex_coord(tex_coord_delegate);
+        let color = self
+            .material
+            .get_material()
+            .get_color_at_tex_coord(tex_coord_delegate);
         color
     }
 }
@@ -70,10 +48,10 @@ impl Intersectable for Sphere {
         // Создаем вектор между начальной точкой луча и центром сферы
         let ray_origin_to_center: Vector3 = self.center - ray.origin;
 
-        // Используем векторное произведение и луч как гипотенузу для нахождения перпендикуляра, 
+        // Используем векторное произведение и луч как гипотенузу для нахождения перпендикуляра,
         // который является вектором от центра к лучу рейтрейсинга
         let adj2 = ray_origin_to_center.dot(&ray.direction);
-        
+
         // Находим квадрат длины этого вектора? (Find the length-squared of the opposite side)
         // Это эквавалентно, но быстрее чем (l.length() * l.length()) - (adj2 * adj2)
         let d2 = ray_origin_to_center.dot(&ray_origin_to_center) - (adj2 * adj2);
@@ -89,15 +67,15 @@ impl Intersectable for Sphere {
 
         // Создаем вектор между начальной точкой луча и центром сферы
         let ray_origin_to_center: Vector3 = self.center - ray.origin;
-        
-        // Используем векторное произведение и луч как гипотенузу для нахождения перпендикуляра, 
+
+        // Используем векторное произведение и луч как гипотенузу для нахождения перпендикуляра,
         // который является вектором от центра к лучу рейтрейсинга
         let adj = ray_origin_to_center.dot(&ray.direction);
-        
+
         // Находим квадрат длины этого вектора? (Find the length-squared of the opposite side)
         // Это эквавалентно, но быстрее чем (l.length() * l.length()) - (adj2 * adj2)
         let d2 = ray_origin_to_center.dot(&ray_origin_to_center) - (adj * adj);
-        
+
         // Сначала проверяем квадрат радиуса - если меньше, значит вообще нет
         let radius2 = self.radius * self.radius;
         if d2 > radius2 {
@@ -108,15 +86,15 @@ impl Intersectable for Sphere {
         let thc = (radius2 - d2).sqrt();
         let t0 = adj - thc;
         let t1 = adj + thc;
- 
+
         if t0 < 0.0 && t1 < 0.0 {
             return None;
         }
- 
-        let distance = if t0 < t1 { 
-            t0 
-        } else { 
-            t1 
+
+        let distance = if t0 < t1 {
+            t0
+        } else {
+            t1
         };
 
         Some(distance)
@@ -131,7 +109,7 @@ impl Intersectable for Sphere {
         // Создаем вектор между начальной точкой луча и центром сферы
         let ray_origin_to_center: Vector3 = self.center - ray.origin;
 
-        // Используем векторное произведение и луч как гипотенузу для нахождения перпендикуляра, 
+        // Используем векторное произведение и луч как гипотенузу для нахождения перпендикуляра,
         // который является вектором от центра к лучу рейтрейсинга
         let adj = ray_origin_to_center.dot(&ray.direction);
 
@@ -164,17 +142,16 @@ impl Intersectable for Sphere {
 }
 
 impl Normalable for Sphere {
-    fn normal_at(&self, hit_point: &Vector3) -> Vector3{
+    fn normal_at(&self, hit_point: &Vector3) -> Vector3 {
         (hit_point.clone() - self.center).normalize()
     }
 }
 
-impl Materiable for Sphere{
-    fn get_material<'a>(&'a self) -> &'a dyn Material{
+impl Materiable for Sphere {
+    fn get_material<'a>(&'a self) -> &'a dyn Material {
         self.material.get_material()
     }
 }
 
 // Пустая реализация просто чтобы пометить тип
-impl Figure for Sphere{
-}
+impl Figure for Sphere {}

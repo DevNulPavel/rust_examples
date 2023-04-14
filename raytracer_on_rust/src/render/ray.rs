@@ -1,12 +1,6 @@
 use crate::{
-    traits::{
-        Zero,
-        Normalizable,
-        Dotable,
-    },
-    structs::{
-        Vector3
-    }
+    structs::Vector3,
+    traits::{Dotable, Normalizable, Zero},
 };
 
 pub struct Ray {
@@ -28,9 +22,11 @@ impl Ray {
 
         // Приводим значения к диапазону от -1.0 к 1.0 как в OpenGL/DirectX/Metal/Vulkan
         // Направление x - слева направо, y - снизу вверх, z  - от нас
-        let sensor_x = ((((x as f32 + 0.5) / width as f32) * 2.0 - 1.0) * aspect_ratio * fov_adjustment) as f32;
+        let sensor_x = ((((x as f32 + 0.5) / width as f32) * 2.0 - 1.0)
+            * aspect_ratio
+            * fov_adjustment) as f32;
         let sensor_y = ((1.0 - ((y as f32 + 0.5) / height as f32) * 2.0) * fov_adjustment) as f32;
-   
+
         // Создаем направление луча рендеринга в нормализованном виде
         let dir = Vector3::new(sensor_x, sensor_y, -1.0).normalize();
 
@@ -41,10 +37,12 @@ impl Ray {
         }
     }
 
-    pub fn create_reflection(origin: Vector3, 
-                             normal: Vector3, 
-                             direction_to_origin: Vector3, 
-                             bias: f32) -> Ray {
+    pub fn create_reflection(
+        origin: Vector3,
+        normal: Vector3,
+        direction_to_origin: Vector3,
+        bias: f32,
+    ) -> Ray {
         Ray {
             origin: origin + (normal * bias),
             direction: direction_to_origin - (normal * 2.0 * direction_to_origin.dot(&normal)),
@@ -52,11 +50,13 @@ impl Ray {
     }
 
     // TODO: TEST + Remove mut
-    pub fn create_refraction(origin: Vector3,
-                             normal: Vector3,
-                             direction_to_origin: Vector3,
-                             index: f32,
-                             bias: f32) -> Option<Ray> {
+    pub fn create_refraction(
+        origin: Vector3,
+        normal: Vector3,
+        direction_to_origin: Vector3,
+        index: f32,
+        bias: f32,
+    ) -> Option<Ray> {
         let mut ref_n = normal;
         let mut eta_t = index;
         let mut eta_i = 1.0;
@@ -117,13 +117,13 @@ impl Ray {
 }
 
 #[cfg(test)]
-mod test{
+mod test {
     use super::*;
 
     // TODO: Tests
 
     #[test]
-    fn test_refraction_1(){
+    fn test_refraction_1() {
         let origin = Vector3::new(0.0, 0.0, 0.0);
         let normal = Vector3::new(0.0, 1.0, 0.0).normalize();
         let direction = Vector3::new(1.0, 1.0, 0.0).normalize();

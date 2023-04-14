@@ -1,23 +1,12 @@
-use crate::{
-    structs::{
-        Color
-    }
-};
 use super::{
-    traits::{
-        Material
-    },
-    tex_coord_delegate::{
-        TexCoordDelegate
-    },
-    material_modificator::{
-        MaterialModificator
-    }
+    material_modificator::MaterialModificator, tex_coord_delegate::TexCoordDelegate,
+    traits::Material,
 };
+use crate::structs::Color;
 
-pub struct SolidColorMaterial{
+pub struct SolidColorMaterial {
     pub diffuse_solid_color: Color,
-    pub modificator: MaterialModificator
+    pub modificator: MaterialModificator,
 }
 
 impl Material for SolidColorMaterial {

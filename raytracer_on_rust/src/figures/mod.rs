@@ -1,20 +1,11 @@
-mod sphere;
-mod plane;
-mod traits;
 mod figures_container;
+mod plane;
+mod sphere;
+mod traits;
 
 pub(crate) use self::{
-    traits::{
-        Figure,
-        Texturable
-    },
-    figures_container::{
-        FiguresContainer
-    },
-    sphere::{
-        Sphere
-    },
-    plane::{
-        Plane
-    }
+    figures_container::FiguresContainer,
+    plane::Plane,
+    sphere::Sphere,
+    traits::{Figure, Texturable},
 };

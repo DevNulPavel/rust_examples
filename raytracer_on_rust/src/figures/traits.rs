@@ -1,15 +1,7 @@
 use crate::{
-    structs::{
-        Vector2,
-        Vector3,
-        Color
-    },
-    material::{
-        Material
-    },
-    render::{
-        Ray
-    }
+    material::Material,
+    render::Ray,
+    structs::{Color, Vector2, Vector3},
 };
 
 ////////////////////////////////////////////////////////////////////////
@@ -22,20 +14,19 @@ pub trait Normalable {
     fn normal_at(&self, hit_point: &Vector3) -> Vector3;
 }
 
-pub trait Colorable{
+pub trait Colorable {
     fn color_at(&self, hit_point: &Vector3) -> Color;
 }
 
-pub trait Materiable{
+pub trait Materiable {
     fn get_material<'a>(&'a self) -> &'a dyn Material;
 }
 
 // Описываем обязательные свойства фигуры
-pub trait Figure: Intersectable + Colorable + Normalable + Materiable {
-}
+pub trait Figure: Intersectable + Colorable + Normalable + Materiable {}
 
 ////////////////////////////////////////////////////////////////////////
 
-pub trait Texturable{
+pub trait Texturable {
     fn tex_coords_at(&self, hit_point: &Vector3) -> Vector2;
 }

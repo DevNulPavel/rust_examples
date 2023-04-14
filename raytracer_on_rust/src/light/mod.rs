@@ -1,23 +1,10 @@
-mod traits;
 mod directional_light;
-mod spherical_light;
 mod light_distance;
 mod lights_container;
+mod spherical_light;
+mod traits;
 
 pub use self::{
-    traits::{
-        Light
-    },
-    light_distance::{
-        LightDistance
-    },
-    directional_light::{
-        DirectionalLight
-    },
-    spherical_light::{
-        SphericalLight
-    },
-    lights_container::{
-        LightsContainer
-    }
+    directional_light::DirectionalLight, light_distance::LightDistance,
+    lights_container::LightsContainer, spherical_light::SphericalLight, traits::Light,
 };

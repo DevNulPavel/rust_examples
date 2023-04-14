@@ -1,24 +1,8 @@
+use super::Ray;
+use crate::scene::{Intersection, Scene};
+use image::{DynamicImage, GenericImage, Pixel, Rgba};
 #[cfg(feature = "multi_threaded")]
-use rayon::{
-    prelude::{
-        *
-    }
-};
-use image::{
-    Pixel,
-    GenericImage,
-    DynamicImage,
-    Rgba
-};
-use crate::{
-    scene::{
-        Scene,
-        Intersection
-    },
-};
-use super::{
-    Ray
-};
+use rayon::prelude::*;
 
 #[cfg(all(feature = "multi_threaded", feature = "allow_unsafe"))]
 pub fn render(scene: &Scene) -> DynamicImage {
@@ -32,30 +16,31 @@ pub fn render(scene: &Scene) -> DynamicImage {
     let par_image_iter = image_ref_iter.into_par_iter();
     // let image_ref_iter = rayon::iter::repeat(10).p;
 
-    unsafe{
-    (0..scene.width)
-        .into_par_iter()
-        .zip(par_image_iter)
-        .for_each(|(x, image)|{
-            for y in 0..scene.height {
-                let ray = Ray::create_prime(x, y, scene.width, scene.height, scene.fov);
+    unsafe {
+        (0..scene.width)
+            .into_par_iter()
+            .zip(par_image_iter)
+            .for_each(|(x, image)| {
+                for y in 0..scene.height {
+                    let ray = Ray::create_prime(x, y, scene.width, scene.height, scene.fov);
 
-                // Ближайшее пересечение с объектом
-                let intersection: Option<Intersection<'_>> = scene.trace_nearest_intersection(&ray);
+                    // Ближайшее пересечение с объектом
+                    let intersection: Option<Intersection<'_>> =
+                        scene.trace_nearest_intersection(&ray);
 
-                // Если нашлось - считаем свет
-                if let Some(intersection) = intersection{
-                    // Расчет цвета в найденном пересечении
-                    let result_color = scene.calculate_intersection_color(&intersection.into());
+                    // Если нашлось - считаем свет
+                    if let Some(intersection) = intersection {
+                        // Расчет цвета в найденном пересечении
+                        let result_color = scene.calculate_intersection_color(&intersection.into());
 
-                    // Установка пикселя
-                    image.put_pixel(x, y, result_color.to_rgba());
-                }else{
-                    // Установка пикселя
-                    image.put_pixel(x, y, black);
+                        // Установка пикселя
+                        image.put_pixel(x, y, result_color.to_rgba());
+                    } else {
+                        // Установка пикселя
+                        image.put_pixel(x, y, black);
+                    }
                 }
-            }
-        });
+            });
     }
 
     return image;

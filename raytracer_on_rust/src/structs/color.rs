@@ -1,20 +1,6 @@
-use std::{
-    ops::{
-        Mul,
-        Add,
-        Div
-    }
-};
-use image::{
-    Rgba,
-    Rgb
-};
-use crate::{
-    traits::{
-        Zero,
-        Clamp
-    }
-};
+use crate::traits::{Clamp, Zero};
+use image::{Rgb, Rgba};
+use std::ops::{Add, Div, Mul};
 
 #[derive(Copy, Clone)]
 pub struct Color {
@@ -25,29 +11,29 @@ pub struct Color {
 
 impl Zero for Color {
     fn zero() -> Self {
-        Color{
+        Color {
             red: 0.0_f32,
             green: 0.0_f32,
             blue: 0.0_f32,
-        }   
+        }
     }
 }
 
 impl Clamp<f32> for Color {
     fn clamp(self, min: f32, max: f32) -> Color {
-        Color{
+        Color {
             red: self.red.max(min).min(max),
             green: self.green.max(min).min(max),
-            blue: self.blue.max(min).min(max)
-        }   
+            blue: self.blue.max(min).min(max),
+        }
     }
 }
 
 // TODO: TEST
-impl Mul<f32> for Color{
+impl Mul<f32> for Color {
     type Output = Color;
     fn mul(self, rhs: f32) -> Self::Output {
-        Color{
+        Color {
             red: self.red * rhs,
             green: self.green * rhs,
             blue: self.blue * rhs,
@@ -56,10 +42,10 @@ impl Mul<f32> for Color{
 }
 
 // TODO: TEST
-impl Mul<Color> for Color{
+impl Mul<Color> for Color {
     type Output = Color;
     fn mul(self, rhs: Color) -> Self::Output {
-        Color{
+        Color {
             red: self.red * rhs.red,
             green: self.green * rhs.green,
             blue: self.blue * rhs.blue,
@@ -68,10 +54,10 @@ impl Mul<Color> for Color{
 }
 
 // TODO: TEST
-impl Div<f32> for Color{
+impl Div<f32> for Color {
     type Output = Color;
     fn div(self, rhs: f32) -> Self::Output {
-        Color{
+        Color {
             red: self.red / rhs,
             green: self.green / rhs,
             blue: self.blue / rhs,
@@ -80,19 +66,19 @@ impl Div<f32> for Color{
 }
 
 // TODO: Test
-impl Add<Color> for Color{
+impl Add<Color> for Color {
     type Output = Color;
     fn add(self, rhs: Color) -> Self::Output {
-        Color{
+        Color {
             red: self.red + rhs.red,
             green: self.green + rhs.green,
-            blue: self.blue + rhs.blue
+            blue: self.blue + rhs.blue,
         }
     }
 }
 
 impl Color {
-    pub fn to_rgba(&self) -> Rgba<u8>{
+    pub fn to_rgba(&self) -> Rgba<u8> {
         let r = (self.red * 255.0) as u8;
         let g = (self.green * 255.0) as u8;
         let b = (self.blue * 255.0) as u8;
@@ -102,20 +88,20 @@ impl Color {
         let r = pixel.0[0] as f32 / 255.0_f32;
         let g = pixel.0[1] as f32 / 255.0_f32;
         let b = pixel.0[2] as f32 / 255.0_f32;
-        Color{
+        Color {
             red: r,
             green: g,
-            blue: b
+            blue: b,
         }
     }
     pub fn from_rgb(pixel: &Rgb<u8>) -> Color {
         let r = pixel.0[0] as f32 / 255.0_f32;
         let g = pixel.0[1] as f32 / 255.0_f32;
         let b = pixel.0[2] as f32 / 255.0_f32;
-        Color{
+        Color {
             red: r,
             green: g,
-            blue: b
+            blue: b,
         }
     }
 }
