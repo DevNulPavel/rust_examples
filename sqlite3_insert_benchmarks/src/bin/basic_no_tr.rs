@@ -37,5 +37,5 @@ fn main() {
         [],
     )
     .unwrap();
-    faker(conn, 10_000)
+    faker(conn, 1_000_000)
 }

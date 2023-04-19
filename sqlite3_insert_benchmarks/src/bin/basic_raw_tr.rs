@@ -44,7 +44,7 @@ fn faker(conn: Connection, count: i64) {
 }
 
 fn main() {
-    let conn = Connection::open("basic.db").unwrap();
+    let conn = Connection::open("basic_raw_tr.db").unwrap();
     conn.execute_batch(common::pragma_rules()).expect("PRAGMA");
     conn.execute(
         "CREATE TABLE IF NOT EXISTS user (

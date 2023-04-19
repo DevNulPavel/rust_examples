@@ -5,7 +5,7 @@ export TZ=":Europe/Moscow"
 # rm -rf postgres_db*/
 # rm -rf mysql_db*/
 
-# # Просто запросы вообще без открытой транзакции, очень долго работает
+# Просто запросы вообще без открытой транзакции, очень долго работает
 # cargo build --release --quiet --bin basic_no_tr
 # echo "$(date)" "[RUST] basic_no_tr.rs (10_000) inserts"
 # /usr/bin/time ./target/release/basic_no_tr
@@ -101,9 +101,9 @@ echo "$(date)" "[RUST] hash_map.rs (1_000_000) inserts"
 # /usr/bin/time ./target/release/postgres_async_tr
 
 # Postgres SYNC insert transaction
-cargo build --release --quiet --bin postgres_tr
-echo "$(date)" "[RUST] postgres_tr.rs (1_000_000) inserts"
-/usr/bin/time ./target/release/postgres_tr
+# cargo build --release --quiet --bin postgres_tr
+# echo "$(date)" "[RUST] postgres_tr.rs (1_000_000) inserts"
+# /usr/bin/time ./target/release/postgres_tr
 
 # MySQL SYNC insert transaction
 # cargo build --release --quiet --bin mysql_tr
