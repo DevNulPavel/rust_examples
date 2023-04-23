@@ -2,7 +2,7 @@ use rand::{distributions::Alphanumeric, Rng};
 pub use std::collections::{HashMap, HashSet};
 
 type Key = [u8; 16];
-type Value = [u8; 20];
+type Value = [u8; 16];
 
 /// The amount of dummy data bytes in `BigStruct`.
 const DUMMY_DATA_COUNT: usize = 512;
@@ -23,35 +23,45 @@ pub struct BigStruct {
 type CollectionType = HashMap<Key, BigStruct>;
 // type CollectionType = Vec<(Key, BigStruct)>;
 
-/// Returns an iterator of random `(Key, BigStruct)` pairs.
+/// Создаем итератор рандомных `(Key, BigStruct)` пар.
 pub fn generate_random_pairs(amount: u32) -> impl Iterator<Item = (Key, BigStruct)> {
+    // Генератор рандома
     let mut rng = rand::thread_rng();
+
+    // Создаем вектор из нужных рандомных значений размером DUMMY_DATA_COUNT = 512
     let dum: DummyData = (&mut rng)
         .sample_iter(Alphanumeric)
         .take(DUMMY_DATA_COUNT)
         .collect::<Vec<u8>>();
 
     (0..amount).map(move |_| {
-        (
-            rng.gen(), // A random key.
-            BigStruct {
-                uuid: rng.gen(),  // This is the value we will use for inverse map.
-                dum: dum.clone(), // Extra dummy data to bloat the memory.
-            },
-        )
+        let key = uuid::Uuid::new_v4().into_bytes();
+
+        let val = BigStruct {
+            uuid: uuid::Uuid::new_v4().into_bytes(), // This is the value we will use for inverse map.
+            dum: dum.clone(),                        // Extra dummy data to bloat the memory.
+        };
+
+        (key, val)
     })
 }
 
-/// Fills the inverse map without storing/collecting any data beforehand.
-/// Just loops over an iterator of random data without collecting this iterator in-memory.
+/// Заполняется только обратная хешмапа без предварительного какого-то сохранения заранее.
+/// Чисто собираем значения из итератора.
 pub fn fill_map_light(inverse_map: &mut HashMap<Value, HashSet<Key>>, amount: u32) {
+    // Итератор по рандомным значениям
     let iter = generate_random_pairs(amount);
+
     for (key, val_s) in iter {
         let (key, val) = (key, val_s.uuid);
+
+        // Получаем из обратной мапы значение хешсета если уже есть
         if let Some(set) = inverse_map.get_mut(&val) {
+            // Добавляем туда ключ
             set.insert(key);
         } else {
-            inverse_map.insert(val, HashSet::from_iter(vec![key]));
+            // Либо добавляем новый сет с первым элементом
+            inverse_map.insert(val, HashSet::from_iter(std::iter::once(key)));
         }
     }
 }
@@ -61,6 +71,7 @@ pub fn fill_map_light(inverse_map: &mut HashMap<Value, HashSet<Key>>, amount: u3
 /// This takes the most memory but is trimmable to the same size as `fill_map_light`.
 pub fn fill_map_iter(inverse_map: &mut HashMap<Value, HashSet<Key>>, amount: u32) {
     let map: CollectionType = generate_random_pairs(amount).collect();
+
     for (key, val_s) in map.iter() {
         let (key, val) = (*key, val_s.uuid);
         if let Some(set) = inverse_map.get_mut(&val) {

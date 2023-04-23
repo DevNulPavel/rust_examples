@@ -1,19 +1,24 @@
-#[cfg(feature = "jemallocator")]
-use jemallocator::Jemalloc;
+use mem_hog::*;
+use std::io::BufRead;
 
 #[cfg(feature = "jemallocator")]
 #[global_allocator]
-static GLOBAL: Jemalloc = Jemalloc;
+static GLOBAL: jemallocator::Jemalloc = jemallocator::Jemalloc;
 
-use mem_hog::*;
+// #[cfg(feature = "tikv-jemallocator")]
+// #[global_allocator]
+// static GLOBAL: tikv_jemallocator::Jemalloc = tikv_jemallocator::Jemalloc;
 
 /// Gets the input from stdin.
 pub fn get_input() -> Result<u32, String> {
-    let mut buf = String::new();
-    match std::io::stdin().read_line(&mut buf) {
+    // TODO: Замена на smallstr
+    let mut buf = String::with_capacity(8);
+
+    match std::io::stdin().lock().read_line(&mut buf) {
         Ok(_) => {}
         Err(e) => panic!("Error reading the input: {e}"),
     }
+
     buf.trim()
         .parse()
         .map_err(|e| format!("Couldn't parse the input: {e:?}"))
@@ -39,27 +44,44 @@ Choice: "
 }
 
 fn main() {
-    let mut accumulator = HashMap::new();
+    // Размер накопителя
     let mut accumulator_size = 0;
-    // let mut amount = 5_000_000;
+
+    // Размер
+    let mut amount = 5_000_000;
     // let mut amount = 1_000_000;
-    let mut amount = 500_000;
+    // let mut amount = 500_000;
     // let mut amount = 200_000;
     // let mut amount = 100_000;
     // let mut amount = 50_000;
+
+    // Хешмапа для накопления
+    let mut accumulator = HashMap::with_capacity(cast::usize(amount));
+
     loop {
+        // Текущий размер накопителя
         print!("Accumulator Size = {accumulator_size}");
+
+        // Выводим команды
         print_commands();
+
+        // Получаем ввод
         let input = get_input();
+
+        // Время старта выполнения
         let start_time = std::time::Instant::now();
+
         match input {
-            Ok(x) if [1, 2, 3].contains(&x) => {
-                match x {
-                    1 => fill_map_light(&mut accumulator, amount),
-                    2 => fill_map_iter(&mut accumulator, amount),
-                    3 => fill_map(&mut accumulator, amount),
-                    _ => unreachable!(),
-                }
+            Ok(1) => {
+                fill_map_light(&mut accumulator, amount);
+                accumulator_size += amount;
+            }
+            Ok(2) => {
+                fill_map_iter(&mut accumulator, amount);
+                accumulator_size += amount;
+            }
+            Ok(3) => {
+                fill_map(&mut accumulator, amount);
                 accumulator_size += amount;
             }
             Ok(4) => {
@@ -73,11 +95,13 @@ fn main() {
                 }
             }
             Ok(5) => {
+                // Чистим значения в хемапе, но память остается для будущего использования
                 accumulator.clear(); // Note that `clear` keeps the used memory allocated for future use.
                 accumulator_size = 0;
             }
             Ok(6) => {
-                accumulator = HashMap::new();
+                // Полностью пересоздаем накопитель
+                accumulator = HashMap::with_capacity(cast::usize(amount));
                 accumulator_size = 0;
             }
             Ok(7) => match get_input() {
