@@ -1,0 +1,38 @@
+# Copyright Ian Jackson and contributors to Rust async-condvar-fair
+# SPDX-License-Identifier: GPL-3.0-or-later
+# There is NO WARRANTY.
+
+[package]
+name = "async-condvar-fair"
+version = "1.0.0"
+edition = "2018"
+license = "GPL-3.0-or-later"
+repository = "https://salsa.debian.org/iwj/rust-async-condvar-fair"
+description = "Condition variables for async Rust"
+
+[dependencies]
+dlv-list = "0.4"
+pin-project-lite = "0.2"
+parking_lot = "0.12"
+
+parking_lot_0_9  = { package="parking_lot", version="0.9" , optional=true }
+parking_lot_0_10 = { package="parking_lot", version="0.10", optional=true }
+parking_lot_0_11 = { package="parking_lot", version="0.11", optional=true }
+
+tokio = { version="1", features=["sync"], optional=true }
+smol  = { version="1",                    optional=true }
+
+[features]
+all = ["tokio","smol"]
+parking_lot_0_12 = []
+
+[dev-dependencies]
+futures-test = "0.3"
+futures-util = "0.3"
+paste = "1"
+rayon = "1.5"
+smol  = { version="1" }
+tokio = { version="1", features=["full"] }
+
+parking_lot_0_11={package="parking_lot",version="0.11",features=["send_guard"]}
+parking_lot     ={                      version="0.12",features=["send_guard"]}

@@ -1,0 +1,36 @@
+This is "async-condvar-fair", conditions variables for async Rust.
+
+
+This is free software: you can redistribute it and/or modify
+it under the terms of the GNU General Public License as published by
+the Free Software Foundation, either version 3 of the License, or
+(at your option) any later version.
+
+This program is distributed in the hope that it will be useful,
+but WITHOUT ANY WARRANTY; without even the implied warranty of
+MERCHANTABILITY or FITNESS FOR A PARTICULAR PURPOSE.  See the
+GNU General Public License for more details.
+
+You should have received a copy of the GNU General Public
+License v3 along with this program, in the file GPL-3.
+If not, see <http://www.gnu.org/licenses/>.
+
+
+Formalities
+-----------
+
+Individual files generally contain the following tag (or similar)
+in the copyright notice, instead of the full licence grant text:
+  SPDX-License-Identifier: GPL-3.0-or-later
+As is conventional, this should be read as a licence grant.
+
+Contributions are accepted based on the git commit
+Signed-off-by convention, by which the contributors' certify their
+contributions according to the Developer Certificate of Origin version
+1.1 - see the file DEVELOPER-CERTIFICATE.
+
+If you create a new file please be sure to add an appropriate licence
+header, probably something like this:
+// Copyright contributors to the Rust package async-condvar-fair
+// SPDX-License-Identifier: GPL-3.0-or-later
+// There is NO WARRANTY.
