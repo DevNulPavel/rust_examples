@@ -95,7 +95,8 @@ pub fn largest_common_subtree(forest: &[Node]) -> Option<&Node> {
         trees_iter: forest.iter().enumerate(),
     }];
 
-    // Хешмапа с поддеревьями
+    // Хешмапа с поддеревьями с помощью которой мы будем
+    // как раз находить наличие поддеревьев
     let mut subtrees: HashMap<u64, SubtreeEntry<'_>> = HashMap::new();
 
     // Главный цикл обработки
@@ -223,13 +224,10 @@ pub fn largest_common_subtree(forest: &[Node]) -> Option<&Node> {
                 hash,
                 size,
             } => {
-
                 // Смотрим последнюю операцию в очереди
                 match ops.last_mut().unwrap() {
                     // Обход дерева - ничего не делает
-                    Op::TraverseForest { .. } => {
-
-                    },
+                    Op::TraverseForest { .. } => {}
                     // Обход ветки, можно там в последнем элементе обновить значения
                     Op::TraverseBranch {
                         hasher,
@@ -248,31 +246,44 @@ pub fn largest_common_subtree(forest: &[Node]) -> Option<&Node> {
                     }
                 }
 
+                // Проверяем наличие поддерева с таким же хешем
                 match subtrees.entry(hash) {
+                    // Такого поддерева там нету + глубина у нас нулевая
                     Entry::Vacant(ev) if tree_node.tree_index == 0 => {
+                        // Значит сам узел и является общим поддеревом у всего дерева
                         ev.insert(SubtreeEntry {
                             expected_tree_index: 1,
                             subtree_root: tree_node.node,
                             subtree_size: size,
                         });
                     }
+                    // Такого поддерева не было сохранено в хешах, значит его не было
                     Entry::Vacant(..) => (),
+                    // Такое поддерево есть, но текущее дерево имеет нулевой индекс
                     Entry::Occupied(..) if tree_node.tree_index == 0 => (),
+                    // Такое поддерево есть и индекс совпадает
                     Entry::Occupied(mut eo)
                         if tree_node.tree_index == eo.get().expected_tree_index =>
                     {
+                        // Берем поддерево мутабельно
                         let subtree_entry = eo.get_mut();
+                        // Увеличиваем индекс поддерева
                         subtree_entry.expected_tree_index += 1;
                     }
+                    // Все остальные поддеревья
                     Entry::Occupied(..) => (),
                 }
             }
         }
     }
 
+    // Перегоняем хешмапу с поддеревьями
     subtrees
         .into_values()
+        // Фильтруем лишь ожидаемую длину дерева
         .filter(|entry| entry.expected_tree_index == forest.len())
+        // Находим поддерево максимального размера
         .max_by_key(|entry| entry.subtree_size)
+        // Возвращаем корень поддерева
         .map(|entry| entry.subtree_root)
 }
