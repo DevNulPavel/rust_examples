@@ -14,6 +14,7 @@ use std::{
 pub enum Node {
     /// Отдельный лист
     Leaf { value: &'static str },
+
     /// Ветка с нодами
     Branch { children: Vec<Node> },
 }
@@ -22,7 +23,7 @@ pub enum Node {
 
 /// Ссылка на нод в дереве с индексом
 #[derive(Clone, Copy, Debug)]
-struct TreeNode<'a> {
+struct TreeNodeRef<'a> {
     /// Индекс
     tree_index: usize,
 
@@ -38,12 +39,12 @@ enum Op<'a, I> {
     TraverseForest { trees_iter: I },
 
     /// Проверить ссылку на ноду
-    AnalyzeNode { tree_node: TreeNode<'a> },
+    AnalyzeNode { tree_node_ref: TreeNodeRef<'a> },
 
     /// Обойти ветку
     TraverseBranch {
         /// Ссылка на ноду с индексом
-        tree_node: TreeNode<'a>,
+        tree_node_ref: TreeNodeRef<'a>,
 
         /// Итератор по чилдам
         children_iter: I,
@@ -58,7 +59,7 @@ enum Op<'a, I> {
     /// Выход из ветки?
     Return {
         /// Ссылка на ноду
-        tree_node: TreeNode<'a>,
+        tree_node_ref: TreeNodeRef<'a>,
 
         /// Хеш от ноды
         hash: u64,
@@ -72,7 +73,7 @@ enum Op<'a, I> {
 
 /// Поддерево
 #[derive(Debug)]
-struct SubtreeEntry<'a> {
+struct SubtreeNodeRef<'a> {
     /// Индекс
     expected_tree_index: usize,
 
@@ -97,7 +98,7 @@ pub fn largest_common_subtree(forest: &[Node]) -> Option<&Node> {
 
     // Хешмапа с поддеревьями с помощью которой мы будем
     // как раз находить наличие поддеревьев
-    let mut subtrees: HashMap<u64, SubtreeEntry<'_>> = HashMap::new();
+    let mut subtrees: HashMap<u64, SubtreeNodeRef<'_>> = HashMap::new();
 
     // Главный цикл обработки
     loop {
@@ -119,7 +120,7 @@ pub fn largest_common_subtree(forest: &[Node]) -> Option<&Node> {
 
                     // Добавляем операцию проверки ноды текущей из итератора
                     ops.push(Op::AnalyzeNode {
-                        tree_node: TreeNode {
+                        tree_node_ref: TreeNodeRef {
                             tree_index,
                             node: tree,
                         },
@@ -128,9 +129,11 @@ pub fn largest_common_subtree(forest: &[Node]) -> Option<&Node> {
             }
 
             // Непосредственно проверка конкретной ноды
-            Op::AnalyzeNode { tree_node } => {
+            Op::AnalyzeNode {
+                tree_node_ref,
+            } => {
                 // Смотрим на тип нашей ноды
-                match &tree_node.node {
+                match &tree_node_ref.node {
                     // Тип ноды - лист
                     Node::Leaf { value } => {
                         // Считаем хеш от значения в листе.
@@ -146,7 +149,7 @@ pub fn largest_common_subtree(forest: &[Node]) -> Option<&Node> {
 
                         // Добавляем новую операцию возврата, сохраняя туда хеш и текущий нод с индексом
                         ops.push(Op::Return {
-                            tree_node,
+                            tree_node_ref,
                             hash,
                             size: 1,
                         });
@@ -157,12 +160,12 @@ pub fn largest_common_subtree(forest: &[Node]) -> Option<&Node> {
                         // Создаем итератор по всем детям данного узла
                         let children_iter = children.iter().enumerate();
 
-                        // Создаем хешер, который будет накапливать хеши
+                        // Создаем хешер, который будет накапливать хеши от листов и от индексов в дереве
                         let hasher = DefaultHasher::new();
 
                         // Добавляем новую операцию - обход детей ветки
                         ops.push(Op::TraverseBranch {
-                            tree_node,
+                            tree_node_ref,
                             children_iter,
                             hasher,
                             current_size: 1,
@@ -173,7 +176,7 @@ pub fn largest_common_subtree(forest: &[Node]) -> Option<&Node> {
 
             // Обход узла, котоый содержит детей (ветка)
             Op::TraverseBranch {
-                tree_node,
+                tree_node_ref,
                 mut children_iter,
                 mut hasher,
                 current_size,
@@ -187,7 +190,7 @@ pub fn largest_common_subtree(forest: &[Node]) -> Option<&Node> {
 
                         // Можно добавить операцию возврата.
                         ops.push(Op::Return {
-                            tree_node,
+                            tree_node_ref,
                             hash,
                             size: current_size,
                         });
@@ -195,13 +198,15 @@ pub fn largest_common_subtree(forest: &[Node]) -> Option<&Node> {
 
                     // Еще есть чилды какие-то
                     Some((child_index, child_node)) => {
-                        // Хешируем индекс хеша в общий хешер
+                        // Хешируем индекс в общий хешер.
+                        // Это нужно для того, чтобы проверять, что поддерево действительно одинаковое и не содержит
+                        // лишних узлов на пути.
                         child_index.hash(&mut hasher);
 
                         // Добавляем операцию очередной итерации проверки чилда,
                         // записывая туда текущий незавершенный итератор.
                         ops.push(Op::TraverseBranch {
-                            tree_node,
+                            tree_node_ref,
                             children_iter,
                             hasher,
                             current_size,
@@ -209,9 +214,9 @@ pub fn largest_common_subtree(forest: &[Node]) -> Option<&Node> {
 
                         // Сохраняем узел для проверки
                         ops.push(Op::AnalyzeNode {
-                            tree_node: TreeNode {
+                            tree_node_ref: TreeNodeRef {
                                 node: child_node,
-                                ..tree_node
+                                ..tree_node_ref
                             },
                         });
                     }
@@ -220,7 +225,7 @@ pub fn largest_common_subtree(forest: &[Node]) -> Option<&Node> {
 
             // Операция возврата
             Op::Return {
-                tree_node,
+                tree_node_ref,
                 hash,
                 size,
             } => {
@@ -228,6 +233,7 @@ pub fn largest_common_subtree(forest: &[Node]) -> Option<&Node> {
                 match ops.last_mut().unwrap() {
                     // Обход дерева - ничего не делает
                     Op::TraverseForest { .. } => {}
+
                     // Обход ветки, можно там в последнем элементе обновить значения
                     Op::TraverseBranch {
                         hasher,
@@ -235,35 +241,41 @@ pub fn largest_common_subtree(forest: &[Node]) -> Option<&Node> {
                         ..
                     } => {
                         // TODO: ???
-                        // Хешируем имеющийся хеш снова в хешер?
+                        // Хешируем имеющийся хеш от узла снова в хешер обхода ветки
                         hash.hash(hasher);
 
                         // Текущий размер в последнем элементе увеличиваем на указанное значение.
                         *current_size += size;
                     }
+
                     _ => {
                         panic!("Other operation cannot posible");
                     }
                 }
 
-                // Проверяем наличие поддерева с таким же хешем
+                // Проверяем наличие уникального поддерева с таким же хешем.
+                // Хеш считается суммарно от значений в листах и от значений индексов веток в поддереве.
+                // Тем самым достигается проверка уникальности порядка в поддереве.
                 match subtrees.entry(hash) {
                     // Такого поддерева там нету + глубина у нас нулевая
-                    Entry::Vacant(ev) if tree_node.tree_index == 0 => {
+                    Entry::Vacant(ev) if tree_node_ref.tree_index == 0 => {
                         // Значит сам узел и является общим поддеревом у всего дерева
-                        ev.insert(SubtreeEntry {
+                        ev.insert(SubtreeNodeRef {
                             expected_tree_index: 1,
-                            subtree_root: tree_node.node,
+                            subtree_root: tree_node_ref.node,
                             subtree_size: size,
                         });
                     }
+
                     // Такого поддерева не было сохранено в хешах, значит его не было
                     Entry::Vacant(..) => (),
+
                     // Такое поддерево есть, но текущее дерево имеет нулевой индекс
-                    Entry::Occupied(..) if tree_node.tree_index == 0 => (),
+                    Entry::Occupied(..) if tree_node_ref.tree_index == 0 => (),
+
                     // Такое поддерево есть и индекс совпадает
                     Entry::Occupied(mut eo)
-                        if tree_node.tree_index == eo.get().expected_tree_index =>
+                        if tree_node_ref.tree_index == eo.get().expected_tree_index =>
                     {
                         // Берем поддерево мутабельно
                         let subtree_entry = eo.get_mut();
