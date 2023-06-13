@@ -1,0 +1,9 @@
+[package]
+name = "alloc-pool"
+version = "0.4.14"
+authors = ["Alexey Voznyuk <me@swizard.info>"]
+description = "Cache pool for objects which are expensive for allocation."
+edition = "2021"
+
+[dependencies]
+crossbeam-epoch = "^0.9"
