@@ -98,6 +98,8 @@ pub(super)  struct Shutdown {
 #[derive(Debug, Default)]
 pub struct Counters {
     pub spawn_total_count: atomic::AtomicUsize,
+    
+    /// Метрика коллизий при попытке добавить задачу новую в корзину
     pub spawn_touch_tag_collisions: atomic::AtomicUsize,
 }
 

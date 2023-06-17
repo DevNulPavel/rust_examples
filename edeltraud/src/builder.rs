@@ -37,8 +37,8 @@ impl Builder {
     }
 
     /// Создаем пул потоков.
-    /// Тип U должен реализовать трейт Job + поддержку конвертации из JobUnit с параметрами J, 
-    /// которые в свою очередь должны реализовать Send для перекидывания между потоками + 
+    /// Тип U должен реализовать трейт Job + поддержку конвертации из JobUnit с параметрами J,
+    /// которые в свою очередь должны реализовать Send для перекидывания между потоками +
     /// содержать в себе лишь 'static ссылки.
     pub fn build<J, U>(&mut self) -> Result<Edeltraud<J>, BuildError>
     where
@@ -54,8 +54,10 @@ impl Builder {
             return Err(BuildError::ZeroWorkerThreadsCount);
         }
 
+        // Общие счетчики
         let counters = Arc::new(Counters::default());
         
+        // Создаем Inner обработчик
         let inner: Arc<inner::Inner<J>> =
             Arc::new(inner::Inner::new(worker_threads, counters.clone())?);
 
