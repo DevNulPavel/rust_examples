@@ -61,10 +61,16 @@ impl Builder {
         let inner: Arc<inner::Inner<J>> =
             Arc::new(inner::Inner::new(worker_threads, counters.clone())?);
 
+        // Тип ошибки
         let mut maybe_error = Ok(());
+
+        // Массив воркеров
         let mut workers = Vec::with_capacity(worker_threads);
+
+        // CondVar для воркеров
         let workers_sync: Arc<(Mutex<Option<Arc<Vec<_>>>>, Condvar)> =
             Arc::new((Mutex::new(None), Condvar::new()));
+        
         for worker_index in 0..worker_threads {
             let inner = inner.clone();
             let workers_sync = workers_sync.clone();

@@ -256,61 +256,97 @@ impl<J> Inner<J> {
             // Ссылка на корзину
             let bucket = &self.buckets[bucket_index];
 
+            // Создаем объект для backoff
             let backoff = Backoff::new();
+
+            // Получаем значение тега текущего из корзины
             let mut prev_tag = bucket.touch_tag.load();
             loop {
+                // Не завершена ли работа еще?
                 if self.is_terminated() {
                     return None;
                 }
 
+                // Декодируем полученный тег из корзины
                 let decoded = TouchTag::decompose(prev_tag);
 
+                // Есть ли здесь какие-то задачи в корзине?
                 if decoded.jobs_count == 0 {
-                    // empty bucket encountered, have to wait for a job to appear
+                    // Если у нас оказалась корзина данная пустой без задач, тогда
+                    // мы ждем эти самые задачи из вызова `spawn`.
 
+                    // Получаем текущее время
                     let now = Instant::now();
+
+                    // Не закончилось ли еще количество backoff для данной корзины?
                     if !backoff.is_completed() {
-                        // spin a little
+                        // Какое-то время спим на спинлоке, либо делаем yield для потока,
+                        // если превышен лимит спинлока.
                         backoff.snooze();
+
+                        // Делаем увеличение значений для метрик
                         stats.acquire_job_backoff_time += now.elapsed();
                         stats.acquire_job_backoff_count += 1;
+
+                        // Заново подтягиваем тег, чтобы узнать, не прилетела ли еще работа?
                         prev_tag = bucket.touch_tag.load();
+
                         continue;
                     }
 
-                    // park the worker if there is no job for a long time
+                    // Задача не была взята текущим воркером индексом до этого?
                     if decoded.taken_by != worker_index + 1 {
+                        // Если задача никем не была взята еще вообще
                         if decoded.taken_by == 0 {
-                            // try to acquire parking lot on this bucket
+                            // Создаем новый тег, который говорит, что используем текущий воркер
                             let new_tag = TouchTag::compose(TouchTagDecoded {
                                 taken_by: worker_index + 1,
                                 jobs_count: 0,
                             });
+
+                            // Пробуем обновить значение тега в текущей корзине
                             if let Err(changed_tag) = bucket.touch_tag.try_set(prev_tag, new_tag) {
+                                // Если не удалось, значит идем снова на полную итерацию взятия работы очередной
                                 prev_tag = changed_tag;
+
+                                // Сброс политики backoff
                                 backoff.reset();
+
                                 continue;
                             }
                         } else {
-                            // there is another thread parked on this bucket, proceed to the next one
+                            // Другой поток уже прицепился к этой корзине, тогда делаем +1
+                            // к счетчику коллизий и заново пытаемся взять задачу.
                             stats.acquire_job_taken_by_collisions += 1;
                             continue 'pick_bucket;
                         }
                     }
 
+                    // Если у нас за короткий промежуток Backoff так и не прилетели задачи,
+                    // тогда делаем парковку потока исполнения до тех пор, пока его никто не разбудит.
                     thread::park();
+                    
+                    // Делаем +1 к парковке и статистике
                     stats.acquire_job_thread_park_time += now.elapsed();
                     stats.acquire_job_thread_park_count += 1;
+
+                    // Получаем снова тег
                     prev_tag = bucket.touch_tag.load();
+
+                    // Сброс политики backoff
                     backoff.reset();
+
                     continue;
                 }
 
-                // non-empty bucket, try to reserve a job
+                // Не пустая корзина, пробуем зарезервировать работу
                 let new_tag = TouchTag::compose(TouchTagDecoded {
                     taken_by: 0,
                     jobs_count: decoded.jobs_count - 1,
                 });
+
+                // Пробуем обновить тек для корзины, либо сбрасываем
+                // если не удалось обновить его.
                 if let Err(changed_tag) = bucket.touch_tag.try_set(prev_tag, new_tag) {
                     prev_tag = changed_tag;
                     continue;
@@ -319,15 +355,24 @@ impl<J> Inner<J> {
                 break;
             }
 
-            // try to pop a job
+            // Сброс времени
             let now = Instant::now();
+
+            // Делаем сброс backoff
             backoff.reset();
+
             loop {
+                // Извлекаем работу из очереди корзины
                 if let Some(job) = bucket.slot.jobs_queue.pop() {
+                    // Метрики
                     stats.acquire_job_seg_queue_pop_time += now.elapsed();
                     stats.acquire_job_seg_queue_pop_count += 1;
+
+                    // Выдаем результат наружу
                     return Some(job);
                 }
+
+                // Если задачи нету, то снова спим?
                 backoff.snooze();
             }
         }
