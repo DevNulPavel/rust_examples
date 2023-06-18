@@ -8,6 +8,8 @@ use std::{
     time::{Duration, Instant},
 };
 
+///////////////////////////////////////////////////////////////////////////////////////////
+
 struct SleepJob;
 
 impl Computation for SleepJob {
@@ -18,24 +20,49 @@ impl Computation for SleepJob {
     }
 }
 
+/////////////////////////////////////////////////
+
 #[test]
 fn basic() {
+    // Создаем систему
     let edeltraud = Builder::new()
         .worker_threads(4)
         .build::<_, JobUnit<_, _>>()
         .unwrap();
+
+    // Получаем хендл пула потоков
     let pool = edeltraud.handle();
+
+    // Создаем рантайм tokio
     let runtime = tokio::runtime::Builder::new_current_thread()
         .build()
         .unwrap();
+
+    // Получаем текущее время
     let now = Instant::now();
+
+    // Запускаем асинхронный рантайм в работу
     runtime.block_on(async move {
-        let mut tasks = Vec::new();
+        // Буфер для задач
+        let mut tasks = Vec::with_capacity(16);
+
+        // Создаем футуры с задачами
         for _ in 0..16 {
-            tasks.push(async { job_async(&pool, SleepJob).unwrap().await });
+            // Футура
+            let f = async {
+                // Создаем асинхронную задачу на пуле, которая просто спит
+                job_async(&pool, SleepJob).unwrap().await
+            };
+
+            // Сохраняем задачу
+            tasks.push(f);
         }
+
+        // Ждем завершения всех задач на пуле потоков
         let _: Vec<()> = futures::future::try_join_all(tasks).await.unwrap();
     });
+
+    // Делаем замер времени исполнения
     let elapsed = now.elapsed().as_secs_f64();
     assert!(
         elapsed >= 0.4,
@@ -47,14 +74,18 @@ fn basic() {
     );
 }
 
-// recursive_spawn
+///////////////////////////////////////////////////////////////////////////////////////////
 
 enum SleepJobRec {
     Master { sync_tx: mpsc::Sender<WorkComplete> },
     Slave { tx: mpsc::Sender<WorkComplete> },
 }
 
+/////////////////////////////////////////////////
+
 struct WorkComplete;
+
+/////////////////////////////////////////////////
 
 struct SleepJobRecUnit<J>(JobUnit<J, SleepJobRec>);
 
@@ -90,6 +121,8 @@ where
         }
     }
 }
+
+/////////////////////////////////////////////////
 
 #[test]
 fn recursive_spawn() {
@@ -173,7 +206,7 @@ fn multilayer_job() {
     );
 }
 
-// async_job
+///////////////////////////////////////////////////////////////////////////////////////////
 
 struct SleepJobValue(isize);
 

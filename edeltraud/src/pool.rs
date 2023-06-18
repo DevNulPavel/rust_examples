@@ -25,7 +25,9 @@ pub trait Job: Sized {
 ////////////////////////////////////////////////////////////////////////
 
 pub struct JobUnit<J, G> {
+    /// Хендл, содержащий ссылку на менеджера и на потоки.
     pub handle: Handle<J>,
+    /// Непосредственно сама задача
     pub job: G,
 }
 
@@ -59,66 +61,6 @@ pub struct Edeltraud<J> {
 
     /// Специальный объект-сигнал для оповещения о завершении работы.
     pub(super) shutdown: Arc<Shutdown>,
-}
-
-////////////////////////////////////////////////////////////////////////
-
-pub struct Handle<J> {
-    pub(super) inner: Arc<inner::Inner<J>>,
-    pub(super) threads: Arc<Vec<thread::Thread>>,
-}
-
-impl<J> Clone for Handle<J> {
-    fn clone(&self) -> Self {
-        Self {
-            inner: self.inner.clone(),
-            threads: self.threads.clone(),
-        }
-    }
-}
-
-impl<J> Handle<J> {
-    pub fn spawn<G>(&self, job: G) -> Result<(), SpawnError>
-    where
-        J: From<G>,
-    {
-        self.inner.spawn(job.into(), &self.threads)
-    }
-}
-
-////////////////////////////////////////////////////////////////////////
-
-pub(super)  struct Shutdown {
-    pub(super) mutex: Mutex<bool>,
-    pub(super) condvar: Condvar,
-}
-
-////////////////////////////////////////////////////////////////////////
-
-#[derive(Debug, Default)]
-pub struct Counters {
-    pub spawn_total_count: atomic::AtomicUsize,
-    
-    /// Метрика коллизий при попытке добавить задачу новую в корзину
-    pub spawn_touch_tag_collisions: atomic::AtomicUsize,
-}
-
-////////////////////////////////////////////////////////////////////////
-
-#[derive(Debug, Default)]
-pub struct Stats {
-    pub acquire_job_time: Duration,
-    pub acquire_job_count: usize,
-    pub acquire_job_backoff_time: Duration,
-    pub acquire_job_backoff_count: usize,
-    pub acquire_job_thread_park_time: Duration,
-    pub acquire_job_thread_park_count: usize,
-    pub acquire_job_seg_queue_pop_time: Duration,
-    pub acquire_job_seg_queue_pop_count: usize,
-    pub acquire_job_taken_by_collisions: usize,
-    pub job_run_time: Duration,
-    pub job_run_count: usize,
-    pub counters: Arc<Counters>,
 }
 
 impl<J> Edeltraud<J> {
@@ -172,12 +114,94 @@ impl<J> Drop for Edeltraud<J> {
     }
 }
 
+////////////////////////////////////////////////////////////////////////
+
+pub(super) struct EdeltraudLocal<J> {
+    pub(super) handle: Handle<J>,
+    pub(super) stats: Stats,
+}
+
+impl<J> Drop for EdeltraudLocal<J> {
+    fn drop(&mut self) {
+        self.handle.inner.force_terminate(&self.handle.threads);
+        log::info!(
+            "EdeltraudLocal::drop on {:?}, stats: {:?}",
+            thread::current(),
+            self.stats
+        );
+    }
+}
+
+////////////////////////////////////////////////////////////////////////÷
+
+pub struct Handle<J> {
+    pub(super) inner: Arc<inner::Inner<J>>,
+    pub(super) threads: Arc<Vec<thread::Thread>>,
+}
+
+impl<J> Clone for Handle<J> {
+    fn clone(&self) -> Self {
+        Self {
+            inner: self.inner.clone(),
+            threads: self.threads.clone(),
+        }
+    }
+}
+
+impl<J> Handle<J> {
+    pub fn spawn<G>(&self, job: G) -> Result<(), SpawnError>
+    where
+        J: From<G>,
+    {
+        self.inner.spawn(job.into(), &self.threads)
+    }
+}
+
+////////////////////////////////////////////////////////////////////////
+
+pub(super) struct Shutdown {
+    pub(super) mutex: Mutex<bool>,
+    pub(super) condvar: Condvar,
+}
+
+////////////////////////////////////////////////////////////////////////
+
+#[derive(Debug, Default)]
+pub struct Counters {
+    pub spawn_total_count: atomic::AtomicUsize,
+
+    /// Метрика коллизий при попытке добавить задачу новую в корзину
+    pub spawn_touch_tag_collisions: atomic::AtomicUsize,
+}
+
+////////////////////////////////////////////////////////////////////////
+
+#[derive(Debug, Default)]
+pub struct Stats {
+    pub acquire_job_time: Duration,
+    pub acquire_job_count: usize,
+    pub acquire_job_backoff_time: Duration,
+    pub acquire_job_backoff_count: usize,
+    pub acquire_job_thread_park_time: Duration,
+    pub acquire_job_thread_park_count: usize,
+    pub acquire_job_seg_queue_pop_time: Duration,
+    pub acquire_job_seg_queue_pop_count: usize,
+    pub acquire_job_taken_by_collisions: usize,
+    pub job_run_time: Duration,
+    pub job_run_count: usize,
+    pub counters: Arc<Counters>,
+}
+
+////////////////////////////////////////////////////////////////////////
+
 #[derive(Debug)]
 pub enum BuildError {
     ZeroWorkerThreadsCount,
     TooBigWorkerThreadsCount,
     WorkerSpawn(io::Error),
 }
+
+////////////////////////////////////////////////////////////////////////
 
 #[derive(Debug)]
 pub enum SpawnError {
@@ -226,22 +250,6 @@ where
         if let Err(_send_error) = self.job.result_tx.send(output) {
             log::warn!("async result channel dropped before job is finished");
         }
-    }
-}
-
-pub(super) struct EdeltraudLocal<J> {
-    pub(super) handle: Handle<J>,
-    pub(super) stats: Stats,
-}
-
-impl<J> Drop for EdeltraudLocal<J> {
-    fn drop(&mut self) {
-        self.handle.inner.force_terminate(&self.handle.threads);
-        log::info!(
-            "EdeltraudLocal::drop on {:?}, stats: {:?}",
-            thread::current(),
-            self.stats
-        );
     }
 }
 

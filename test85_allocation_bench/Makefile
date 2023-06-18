@@ -1,0 +1,2 @@
+BENCH:
+	cargo bench

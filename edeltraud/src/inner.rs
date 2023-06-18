@@ -325,7 +325,7 @@ impl<J> Inner<J> {
                     // Если у нас за короткий промежуток Backoff так и не прилетели задачи,
                     // тогда делаем парковку потока исполнения до тех пор, пока его никто не разбудит.
                     thread::park();
-                    
+
                     // Делаем +1 к парковке и статистике
                     stats.acquire_job_thread_park_time += now.elapsed();
                     stats.acquire_job_thread_park_count += 1;

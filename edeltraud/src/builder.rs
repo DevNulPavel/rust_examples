@@ -56,7 +56,7 @@ impl Builder {
 
         // Общие счетчики
         let counters = Arc::new(Counters::default());
-        
+
         // Создаем Inner обработчик
         let inner: Arc<inner::Inner<J>> =
             Arc::new(inner::Inner::new(worker_threads, counters.clone())?);
@@ -70,30 +70,51 @@ impl Builder {
         // CondVar для воркеров
         let workers_sync: Arc<(Mutex<Option<Arc<Vec<_>>>>, Condvar)> =
             Arc::new((Mutex::new(None), Condvar::new()));
-        
+
+        // Код создания
         for worker_index in 0..worker_threads {
+            // Клоним распределитель для задач
             let inner = inner.clone();
+
+            // Клоним CondVar для воркеров
             let workers_sync = workers_sync.clone();
+
+            // Клоним счетчики для метрик
             let counters = counters.clone();
+
+            // Создаем поток исполнения с определенным именем
             let maybe_join_handle = thread::Builder::new()
                 .name(format!("edeltraud worker {}", worker_index))
                 .spawn(move || {
+                    // Получаем Arc на вектор потоков
                     let threads = 'outer: loop {
+                        // Блокируемся на Mutex синхронизации
                         let Ok(mut workers_sync_lock) =
                             workers_sync.0.lock() else { return; };
+
                         loop {
+                            // Есть ли потоки уже?
+                            // Если есть - возвращаем из цикла вектор потоков
                             if let Some(threads) = workers_sync_lock.as_ref() {
                                 break 'outer threads.clone();
                             }
+
+                            // Если потоков еще нету, тогжа ждем на CondVar+Lock когда появятся.
+                            // Получается некоторый аналог барьера своего рода.
                             let Ok(next_workers_sync_lock) =
                                 workers_sync.1.wait(workers_sync_lock) else { return; };
+
+                            // Возвращаем Lock назад для очередной итерации
                             workers_sync_lock = next_workers_sync_lock;
+
+                            // Не была ли еще завершена работа?
                             if inner.is_terminated() {
                                 return;
                             }
                         }
                     };
 
+                    // Создаем пул потоков с потоками созданными
                     let mut worker_thread_pool = EdeltraudLocal {
                         handle: Handle {
                             inner: inner.clone(),
@@ -104,38 +125,57 @@ impl Builder {
                             ..Default::default()
                         },
                     };
+
+                    // Пробуем получить работу из менеджера
                     while let Some(job) =
                         inner.acquire_job(worker_index, &mut worker_thread_pool.stats)
                     {
+                        // Замер времени
                         let now = Instant::now();
+
+                        // Создаем задачу
                         let job_unit = JobUnit {
                             handle: worker_thread_pool.handle.clone(),
                             job,
                         };
+
+                        // Создаем юнит
                         let unit = U::from(job_unit);
+
+                        // Запускаем его в работу на текущем потоке исполнения
                         unit.run();
+
+                        // Делаем замеры
                         worker_thread_pool.stats.job_run_time += now.elapsed();
                         worker_thread_pool.stats.job_run_count += 1;
                     }
                 })
                 .map_err(BuildError::WorkerSpawn);
+
+            // Сохраняем запущенного воркера
             match maybe_join_handle {
+                // Пушим воркера
                 Ok(join_handle) => workers.push(join_handle),
+                // Либо сохраняем ошибку создания
                 Err(error) => maybe_error = Err(error),
             }
         }
 
+        // Здесь мы складываем в синхронизацию созданные потоки исполнения.
         let threads: Arc<Vec<_>> = Arc::new(
             workers
                 .iter()
                 .map(|handle| handle.thread().clone())
                 .collect(),
         );
+        // Фактически с этого самого момента и начинается у нас исполнение задач после того,
+        // как мы записали хендлы потоков в общуюу кучу.
         if let Ok(mut workers_sync_lock) = workers_sync.0.lock() {
             *workers_sync_lock = Some(threads.clone());
             workers_sync.1.notify_all();
         }
 
+        // Создаем систему
         let thread_pool = Edeltraud {
             inner,
             threads,
@@ -146,11 +186,14 @@ impl Builder {
             }),
         };
 
+        // Не было ли ошибок никаких?
         maybe_error?;
+
         log::debug!(
             "Edeltraud::new() success with {} workers",
             thread_pool.threads.len()
         );
+
         Ok(thread_pool)
     }
 }
