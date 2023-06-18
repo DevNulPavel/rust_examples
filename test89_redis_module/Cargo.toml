@@ -5,9 +5,15 @@ authors = ["Pavel Ershov <devnulpavel@gmail.com>"]
 edition = "2021"
 
 [[example]]
+name = "scan_keys"
+crate-type = ["cdylib"]
+# required-features = ["min-redis-compatibility-version-7-2"]
+
+[[example]]
 name = "simple_module"
 crate-type = ["cdylib"]
 # required-features = ["min-redis-compatibility-version-7-2"]
 
 [dependencies]
 redis-module = "^2.0.4"
+smallstr = "^0.3.0"

@@ -45,10 +45,11 @@ redis_module! {
     version: 1,
     // Используемый аллокатор. Формат: (тип, код создания)
     allocator: (redis_module::alloc::RedisAlloc, redis_module::alloc::RedisAlloc),
-    //
+    // Кастомные наши типы
     data_types: [],
     // Регистрируемые команды редиса.
     // Формат: [имя, вызываемая функция, флаги, первый ключ, последний ключ, шаг]
+    // Флаги можно посмотреть здесь: https://docs.rs/redis-module/2.0.4/redis_module/struct.ContextFlags.html
     commands: [
         ["hello.mul", hello_mul, "", 0, 0, 0],
     ],
