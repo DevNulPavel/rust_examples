@@ -1,0 +1,13 @@
+[package]
+name = "test89_redis_module"
+version = "0.1.0"
+authors = ["Pavel Ershov <devnulpavel@gmail.com>"]
+edition = "2021"
+
+[[example]]
+name = "simple_module"
+crate-type = ["cdylib"]
+# required-features = ["min-redis-compatibility-version-7-2"]
+
+[dependencies]
+redis-module = "^2.0.4"
