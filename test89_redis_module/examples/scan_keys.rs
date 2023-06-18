@@ -30,16 +30,6 @@ fn deinit(ctx: &Context) -> Status {
 }
 
 fn scan_keys(ctx: &Context, _args: Vec<RedisString>) -> RedisResult {
-    // Так можно выводить логи
-    let redis_version = ctx.get_redis_version()?;
-    ctx.log_debug(
-        format!(
-            "Redis version: {}.{}.{}",
-            redis_version.major, redis_version.minor, redis_version.patch
-        )
-        .as_str(),
-    );
-
     // Создаем курсор для сохранения позиции обхода всех ключей в редисе
     let cursor = KeysCursor::new();
 
