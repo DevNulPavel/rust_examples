@@ -25,6 +25,25 @@ RUN_SCAN_KEYS:
 	make BASIC_RUN_REDIS_MODULE MODULE=scan_keys
 
 TEST_SCAN_KEYS:
-	redis-cli HSET my_key_1 key_1 val_1 key_2 val_2 && \
-	redis-cli SET my_key_2 val_3 && \
+	redis-cli HSET hash_key_1 key_1 val_1 key_2 val_2 && \
+	redis-cli SET set_key_2 val_3 && \
 	redis-cli scan_keys
+
+####################################################################################
+
+RUN_RESPONSE:
+	make BASIC_RUN_REDIS_MODULE MODULE=response
+
+TEST_RESPONSE:
+	redis-cli HSET hash_key_1 key_1 val_1 key_2 val_2 && \
+	redis-cli HSET hash_key_2 key_3 val_3 key_4 val_4 key_5 val_3 && \
+	redis-cli MAP.MGET hash_key_1 key_1 && \
+	redis-cli MAP.UNIQUE hash_key_2 key_3 key_4 key_5
+
+####################################################################################
+
+RUN_KEYS_POS:
+	make BASIC_RUN_REDIS_MODULE MODULE=keys_pos
+
+TEST_KEYS_POS:
+	redis-cli KEYS_POS key_1 1 key_2 2 key_3 3

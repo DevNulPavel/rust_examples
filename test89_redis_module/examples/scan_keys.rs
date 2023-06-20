@@ -80,7 +80,10 @@ redis_module! {
     data_types: [],
     init: init,
     deinit: deinit,
-    // Флаги можно посмотреть здесь: https://docs.rs/redis-module/2.0.4/redis_module/struct.ContextFlags.html
+    // Регистрируемые команды редиса.
+    // Формат: [имя, вызываемая функция, флаги, первый ключ, последний ключ, шаг]
+    // Флаги можно посмотреть здесь поиском по `RedisModule_CreateCommand`: 
+    // https://redis.io/docs/reference/modules/modules-api-ref/
     commands: [
         ["scan_keys", scan_keys, "readonly", 0, 0, 0],
     ],
