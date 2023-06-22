@@ -47,3 +47,11 @@ RUN_KEYS_POS:
 
 TEST_KEYS_POS:
 	redis-cli KEYS_POS key_1 1 key_2 2 key_3 3
+
+####################################################################################
+
+RUN_BLOCK:
+	make BASIC_RUN_REDIS_MODULE MODULE=block
+
+TEST_BLOCK:
+	redis-cli block
