@@ -2,25 +2,61 @@ use redis_module::native_types::RedisType;
 use redis_module::{raw, redis_module, Context, NextArg, RedisResult, RedisString};
 use std::os::raw::c_void;
 
+////////////////////////////////////////////////////////////////////////////////////////
+
+/// Наша собственная структура с какими-то там данными.
 #[derive(Debug)]
 struct MyType {
+    // В виде данных пока что у нас будет просто строка
     data: String,
 }
 
+////////////////////////////////////////////////////////////////////////////////////////
+
+/// Создаем статическую переменную, которая содержит описание нашего нового типа данных.
+/// Подробнее можно почитать здесь по пункту `RedisModule_CreateDataType`: 
+/// - https://redis.io/docs/reference/modules/modules-api-ref/
+/// - https://redis.io/docs/reference/modules/modules-native-types/
 static MY_REDIS_TYPE: RedisType = RedisType::new(
+    // Уникальное имя нашего типа, состоящее из 9ти символов.
+    // Это связано с тем, что внутри редиса данный ключ конвертируется в u64 значение при сохранении данных.
+    // При ошибке, u64 снова конвертируется в строку и выдается подсказка при ошибке или отсутствии модуля.
+    // Так же этот код выдается при вызове команды TYPE.
+    //
+    // Почему 9 символов, а не 8? 
+    // Возможно, что дело в том, что используется представление 127 символов ASCII, а не 255,
+    // поэтому появляется запас для одного лишнего символа еще. 
+    // Один символ - 6 бит. Остается при сохранении еще 10 бит на версию типа.
+    // Иначе говоря: 6 * 9 + 10 = 64
+    //
+    // The type name is a 9 character name in the character 
+    // set that includes from A-Z, a-z, 0-9, plus 
+    // the underscore _ and minus - characters.
     "mytype123",
+    // Версия нашего типа, нужно для возмиожности подгрузки из 
+    // бекапов данных о типах старшей версии.
     0,
+    // Различные метода нашего нового типа для редиса.
+    // Часть этих самых методов являются обязательными, а часть - нет.
     raw::RedisModuleTypeMethods {
+        // Версия именно текущей библиотеки модулей, а не самих данных
         version: raw::REDISMODULE_TYPE_METHOD_VERSION as u64,
+        // Функция загрузки данных из бекапа
         rdb_load: None,
+        // Функция сохранения данных в бекап
         rdb_save: None,
+        // Вызывается, когда AppenOnlyFile был перезаписан и надо его заполнить еще раз.
         aof_rewrite: None,
+        // Функция по очистке данных в редисе, вызывается при удалении объекта по ключу
         free: Some(free),
 
-        // Currently unused by Redis
+        // Пока не используется редисом.
+        // Вызывается при попытке узнать потребление данных объектом памяти во время вызова MEMORY
         mem_usage: None,
+        // Цифровой хеш по вызову DEBUG DIGEST
         digest: None,
 
+        // TODO: ???
         // Aux data
         aux_load: None,
         aux_save: None,
@@ -83,9 +119,14 @@ redis_module! {
     name: "alloc",
     version: 1,
     allocator: (redis_module::alloc::RedisAlloc, redis_module::alloc::RedisAlloc),
+    // Здесь мы описываем конкретный наш новый тип
     data_types: [
         MY_REDIS_TYPE,
     ],
+    // Регистрируемые команды редиса.
+    // Формат: [имя, вызываемая функция, флаги, первый ключ, последний ключ, шаг]
+    // Флаги можно посмотреть здесь поиском по `RedisModule_CreateCommand`:
+    // https://redis.io/docs/reference/modules/modules-api-ref/
     commands: [
         ["alloc.set", alloc_set, "write", 1, 1, 1],
         ["alloc.get", alloc_get, "readonly", 1, 1, 1],

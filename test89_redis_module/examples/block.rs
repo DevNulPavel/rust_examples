@@ -56,6 +56,7 @@ redis_module! {
     version: 1,
     allocator: (redis_module::alloc::RedisAlloc, redis_module::alloc::RedisAlloc),
     data_types: [],
+    // Описание команды
     commands: [
         ["block", block, "", 0, 0, 0],
     ]
