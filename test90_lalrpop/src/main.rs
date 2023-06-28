@@ -10,5 +10,5 @@ fn main() {
     assert!(syntax::TermParser::new().parse("((123)").is_err());
     
     // Continue:
-    // http://lalrpop.github.io/lalrpop/tutorial/003_type_inference.html
+    // http://lalrpop.github.io/lalrpop/tutorial/004_full_expressions.html
 }
