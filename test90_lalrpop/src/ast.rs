@@ -1,6 +1,5 @@
-use std::fmt::{Debug, Formatter};
-
 use lalrpop_util::lalrpop_mod;
+use std::fmt::{Debug, Formatter};
 
 lalrpop_mod!(ast);
 
