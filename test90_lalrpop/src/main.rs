@@ -1,14 +1,12 @@
-use lalrpop_util::lalrpop_mod;
-
-lalrpop_mod!(basic);
+mod basic;
+mod calculator;
+mod ast;
 
 fn main() {
-    assert_eq!(basic::TermParser::new().parse("123").unwrap(), 123);
-    assert_eq!(basic::TermParser::new().parse("(123)").unwrap(), 123);
-
-    assert!(basic::TermParser::new().parse("((123a))").is_err());
-    assert!(basic::TermParser::new().parse("((123)").is_err());
+    basic::test_basic();
+    calculator::test_calculator();
+    ast::test_ast();
     
     // Continue:
-    // http://lalrpop.github.io/lalrpop/tutorial/005_building_asts.html
+    // http://lalrpop.github.io/lalrpop/tutorial/006_macros.html
 }
