@@ -12,7 +12,6 @@ pub(crate) enum Expr {
 
     /// Рекурсивное выражение, поэтому используем здесь Box
     Op(Box<Expr>, Opcode, Box<Expr>),
-    // Error,
 }
 
 impl Debug for Expr {
@@ -21,29 +20,9 @@ impl Debug for Expr {
         match self {
             Number(n) => write!(fmt, "{:?}", n),
             Op(ref l, op, ref r) => write!(fmt, "({:?} {:?} {:?})", l, op, r),
-            // Error => write!(fmt, "error"),
         }
     }
 }
-
-//////////////////////////////////////////////////////////////////////////////////////////
-
-/*pub(crate) enum ExprSymbol<'input> {
-    NumSymbol(&'input str),
-    Op(Box<ExprSymbol<'input>>, Opcode, Box<ExprSymbol<'input>>),
-    Error,
-}
-
-impl<'input> Debug for ExprSymbol<'input> {
-    fn fmt(&self, fmt: &mut Formatter) -> Result<(), std::fmt::Error> {
-        use self::ExprSymbol::*;
-        match *self {
-            NumSymbol(n) => write!(fmt, "{:?}", n),
-            Op(ref l, op, ref r) => write!(fmt, "({:?} {:?} {:?})", l, op, r),
-            Error => write!(fmt, "error"),
-        }
-    }
-}*/
 
 //////////////////////////////////////////////////////////////////////////////////////////
 

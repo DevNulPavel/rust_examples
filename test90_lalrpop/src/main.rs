@@ -3,6 +3,7 @@ mod calculator;
 mod ast;
 mod macros;
 mod errors;
+mod recover;
 
 fn main() {
     basic::test_basic();
@@ -10,6 +11,7 @@ fn main() {
     ast::test_ast();
     macros::test_macros();
     errors::test_errors();
+    recover::test_recover();
     
     // Continue:
     // http://lalrpop.github.io/lalrpop/tutorial/007_fallible_actions.html
