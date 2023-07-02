@@ -1,10 +1,17 @@
 use std::str::FromStr;
 use lalrpop_util::ParseError;
+use crate::errors::Calculator6Error;
 
 grammar;
 
+/// Таким вот способом мы можем определять нашу собственную ошибку для lalrpop.
+// TODO: Главная проблема здесь в том, что не указать никак нормально `pub(crate)`.
+extern {
+    type Error = Calculator6Error;
+}
+
 /// Мы можем сделать некоторые typedef для списка выражений, разделенных запятыми.
-pub(crate) Exprs = Comma<Expr>;
+pub Exprs = Comma<Expr>;
 
 /// Список представляет из себя вектор итемов
 Comma<T>: Vec<T> = {
@@ -62,9 +69,23 @@ Num: i32 = {
     /// Тогда внутри мы сможем возвращать тип `ParseError` к которому мы будем 
     /// конвертировать все ошибки, которые у нас вылезают.
     r"[0-9]+" =>? {
+        // i32::from_str(<>)
+        //     .map_err(|_| ParseError::User {
+        //         error: "number is too big"
+        //     })
+
+        // Таким образом мы можем передавать в качестве ошибки уже не какую-то там строку,
+        // а конкретный наш тип ошибки уже.
         i32::from_str(<>)
             .map_err(|_| ParseError::User {
-                error: "number is too big"
+                error: Calculator6Error::InputTooBig
+            })
+            .and_then(|i| if i % 2 == 0 {
+                Ok(i)
+            } else {
+                Err(ParseError::User {
+                    error: Calculator6Error::OddNumber
+                })
             })
     }
 };
