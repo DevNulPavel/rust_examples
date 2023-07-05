@@ -1,8 +1,8 @@
 // Включаем фичу трассировки макросов
-#![feature(trace_macros)]
+// #![feature(trace_macros)]
 
 // Непосредственно само включение трассировки макросов
-trace_macros!(true);
+// trace_macros!(true);
 
 // Вспомогательная стандартная библиотека для работы с макросами
 // use proc_macro::TokenStream as TokenStream1;
