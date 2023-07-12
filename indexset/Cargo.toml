@@ -1,0 +1,25 @@
+[package]
+name = "indexset"
+version = "0.3.1"
+edition = "2021"
+documentation = "https://docs.rs/indexset/"
+repository = "https://github.com/brurucy/indexset"
+license = "Apache-2.0 OR MIT"
+description = "A two-level BTree with fast iteration and indexing operations"
+keywords = ["btreemap", "btreeset", "set", "map"]
+categories = ["data-structures"]
+readme = "README.md"
+
+[features]
+serde = ["dep:serde"]
+
+[[bench]]
+name = "stdlib"
+harness = false
+
+[dependencies]
+serde = { version = "1.0.151", optional = true, features = ["derive"] }
+
+[dev-dependencies]
+criterion = { version = "0.5.1", features = ["html_reports"] }
+rand = "0.8.5"
