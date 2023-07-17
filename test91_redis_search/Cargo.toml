@@ -1,0 +1,11 @@
+[package]
+name = "test91_redis_search"
+version = "0.1.0"
+authors = ["Pavel Ershov <devnulpavel@gmail.com>"]
+edition = "2021"
+
+[dependencies]
+tokio = {version = "^1.29.1", features = ["full"]}
+redis = {version = "^0.23.0", features = ["tokio-comp", "connection-manager"]}
+rand = "^0.8.5"
+cast = "^0.3.0"

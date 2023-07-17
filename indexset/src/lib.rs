@@ -2,6 +2,9 @@ mod internal_data_structures;
 
 use crate::internal_data_structures::fenwick_tree::FenwickTree;
 use crate::internal_data_structures::node::{Node, INNER_SIZE};
+use crate::Entry::{Occupied, Vacant};
+#[cfg(feature = "serde")]
+use serde::{Deserialize, Serialize};
 use std::borrow::Borrow;
 use std::cmp::Ordering;
 use std::collections::Bound;
@@ -9,9 +12,6 @@ use std::iter::FusedIterator;
 use std::mem::swap;
 use std::ops::{Index, RangeBounds};
 use std::vec;
-use crate::Entry::{Occupied, Vacant};
-#[cfg(feature = "serde")]
-use serde::{Deserialize, Serialize};
 
 /// An ordered set based on a B-Tree.
 ///
@@ -76,8 +76,9 @@ where
 {
     /// Просто список нодов
     inner: Vec<Node<T>>,
-    /// 
+    /// Индекс на ноды
     index: FenwickTree,
+    /// Количество элементов
     len: usize,
 }
 
@@ -95,10 +96,11 @@ where
 /// ```
 impl<T: Clone + Ord> BTreeSet<T> {
     pub fn new() -> Self {
-        return Self {
+        Self {
             ..Default::default()
-        };
+        }
     }
+
     /// Clears the set, removing all elements.
     ///
     /// # Examples
@@ -116,6 +118,7 @@ impl<T: Clone + Ord> BTreeSet<T> {
         self.index = FenwickTree::new(&self.inner, |node| node.len());
         self.len = 0;
     }
+
     fn locate_node<Q>(&self, value: &Q) -> usize
     where
         T: Borrow<Q>,
@@ -126,19 +129,20 @@ impl<T: Clone + Ord> BTreeSet<T> {
                 return max.borrow() < value;
             };
 
-            return false;
+            false
         });
 
         // When value is greater than all elements inside inner[node_idx], then len
         // of inner[node_idx], which is not a valid place for insertion, is returned. It will
         // never return less than 0, so it is only necessary to check whether it is out of bounds
         // from the right
-        if let None = self.inner.get(node_idx) {
-            node_idx = node_idx - 1
+        if self.inner.get(node_idx).is_none() {
+            node_idx -= 1
         }
 
-        return node_idx;
+        node_idx
     }
+    
     fn locate_vertebra_cmp<P, Q>(&self, mut cmp: P) -> usize
     where
         T: Borrow<Q>,
@@ -229,7 +233,7 @@ impl<T: Clone + Ord> BTreeSet<T> {
     fn get_mut_index(&mut self, index: usize) -> Option<&mut T> {
         let (node_idx, position_within_node) = self.locate_ith(index);
         if let Some(_) = self.inner.get(node_idx) {
-            return self.inner[node_idx].inner.get_mut(position_within_node)
+            return self.inner[node_idx].inner.get_mut(position_within_node);
         }
 
         return None;
@@ -303,7 +307,7 @@ impl<T: Clone + Ord> BTreeSet<T> {
     /// assert_eq!(v.len(), 1);
     /// ```
     pub fn len(&self) -> usize {
-        return self.len
+        return self.len;
     }
     /// Adds a value to the set.
     ///
@@ -1705,16 +1709,18 @@ where
 }
 
 pub struct VacantEntry<'a, K, V>
-where K: Clone + Ord,
-      V : Clone
+where
+    K: Clone + Ord,
+    V: Clone,
 {
     map: &'a mut BTreeMap<K, V>,
     key: K,
 }
 
 pub struct OccupiedEntry<'a, K, V>
-    where K: Clone + Ord,
-          V : Clone
+where
+    K: Clone + Ord,
+    V: Clone,
 {
     map: &'a mut BTreeMap<K, V>,
     key: K,
@@ -1722,18 +1728,18 @@ pub struct OccupiedEntry<'a, K, V>
 }
 
 pub enum Entry<'a, K, V>
-    where
-        K: 'a + Clone + Ord,
-        V: 'a + Clone,
+where
+    K: 'a + Clone + Ord,
+    V: 'a + Clone,
 {
     Vacant(VacantEntry<'a, K, V>),
     Occupied(OccupiedEntry<'a, K, V>),
 }
 
 impl<'a, K, V> Entry<'a, K, V>
-    where
-        K: 'a + Clone + Ord,
-        V: 'a + Clone,
+where
+    K: 'a + Clone + Ord,
+    V: 'a + Clone,
 {
     pub fn or_insert(self, default: V) -> &'a mut V {
         match self {
@@ -1743,7 +1749,7 @@ impl<'a, K, V> Entry<'a, K, V>
     }
     pub fn or_insert_with<F>(self, default: F) -> &'a mut V
     where
-        F : FnOnce() -> V
+        F: FnOnce() -> V,
     {
         match self {
             Vacant(entry) => entry.insert(default()),
@@ -1752,14 +1758,14 @@ impl<'a, K, V> Entry<'a, K, V>
     }
     pub fn or_insert_with_key<F>(self, default: F) -> &'a mut V
     where
-    F : FnOnce(&K) -> V,
+        F: FnOnce(&K) -> V,
     {
         match self {
             Vacant(entry) => {
                 let value = default(entry.key());
                 entry.insert(value)
-            },
-            Occupied(entry) => entry.into_mut()
+            }
+            Occupied(entry) => entry.into_mut(),
         }
     }
     pub fn key(&self) -> &K {
@@ -1770,32 +1776,34 @@ impl<'a, K, V> Entry<'a, K, V>
     }
     pub fn and_modify<F>(self, f: F) -> Self
     where
-    F: FnOnce(&mut V),
+        F: FnOnce(&mut V),
     {
         match self {
             Occupied(mut entry) => {
                 f(entry.get_mut());
                 Occupied(entry)
-            },
-            Vacant(entry) => Vacant(entry)
+            }
+            Vacant(entry) => Vacant(entry),
         }
     }
     pub fn or_default(self) -> &'a mut V
-    where V : Default
+    where
+        V: Default,
     {
         match self {
             Occupied(entry) => entry.into_mut(),
-            Vacant(entry) => entry.insert(Default::default())
+            Vacant(entry) => entry.insert(Default::default()),
         }
     }
 }
 
 impl<'a, K, V> OccupiedEntry<'a, K, V>
-where K: Ord + Clone,
-      V : Clone
+where
+    K: Ord + Clone,
+    V: Clone,
 {
     pub fn key(&self) -> &K {
-        return &self.key
+        return &self.key;
     }
     pub fn remove_entry(self) -> (K, V) {
         self.map.pop_index(self.idx)
@@ -1814,25 +1822,27 @@ where K: Ord + Clone,
         let mut previous_value = value;
         swap(&mut previous_value, current_value);
 
-        return previous_value
+        return previous_value;
     }
     pub fn remove(self) -> V {
-        return self.map.pop_index(self.idx).1
+        return self.map.pop_index(self.idx).1;
     }
 }
 
-impl <'a, K, V>VacantEntry<'a, K, V>
-    where K: Ord + Clone,
-          V: Clone
+impl<'a, K, V> VacantEntry<'a, K, V>
+where
+    K: Ord + Clone,
+    V: Clone,
 {
     pub fn key(&self) -> &K {
-        return &self.key
+        return &self.key;
     }
     pub fn into_key(self) -> K {
-        return self.key
+        return self.key;
     }
     pub fn insert(self, value: V) -> &'a mut V {
-        let (node_idx, position_within_node) = self.map.set.locate_value_cmp(|item| item.key < self.key);
+        let (node_idx, position_within_node) =
+            self.map.set.locate_value_cmp(|item| item.key < self.key);
         let rank = self.map.set.rank((node_idx, position_within_node));
         self.map.insert(self.key, value);
         return self.map.get_mut_index(rank).unwrap();
@@ -2206,7 +2216,7 @@ where
     /// ```
     pub fn get_mut_index(&mut self, index: usize) -> Option<&mut V> {
         if let Some(entry) = self.set.get_mut_index(index) {
-            return Some(&mut entry.value)
+            return Some(&mut entry.value);
         }
 
         return None;
@@ -2921,16 +2931,20 @@ where
     /// assert_eq!(count["c"], 1);
     /// ```
     pub fn entry(&mut self, key: K) -> Entry<'_, K, V>
-        where
-            K: Ord,
+    where
+        K: Ord,
     {
         if self.contains_key(&key) {
             let location = self.set.locate_value_cmp(|item| item.key < key);
             let rank = self.set.rank(location);
-            return Occupied(OccupiedEntry { map: self, key: key, idx: rank })
+            return Occupied(OccupiedEntry {
+                map: self,
+                key: key,
+                idx: rank,
+            });
         }
 
-        return Vacant(VacantEntry { map: self, key})
+        return Vacant(VacantEntry { map: self, key });
     }
     /// Returns the first entry in the map for in-place manipulation.
     /// The key of this entry is the minimum key in the map.
@@ -2952,19 +2966,19 @@ where
     /// assert_eq!(*map.get(&2).unwrap(), "b");
     /// ```
     pub fn first_entry(&mut self) -> Option<OccupiedEntry<'_, K, V>>
-        where
-            K: Ord,
+    where
+        K: Ord,
     {
         if self.len() > 0 {
             let first_key = self.set.first().unwrap().key.clone();
             return Some(OccupiedEntry {
                 map: self,
                 idx: 0,
-                key: first_key
-            })
+                key: first_key,
+            });
         }
 
-        return None
+        return None;
     }
     /// Returns the last entry in the map for in-place manipulation.
     /// The key of this entry is the maximum key in the map.
@@ -2986,8 +3000,8 @@ where
     /// assert_eq!(*map.get(&2).unwrap(), "last");
     /// ```
     pub fn last_entry(&mut self) -> Option<OccupiedEntry<'_, K, V>>
-        where
-            K: Ord,
+    where
+        K: Ord,
     {
         let len = self.len();
         if len > 0 {
@@ -2995,11 +3009,11 @@ where
             return Some(OccupiedEntry {
                 map: self,
                 idx: len - 1,
-                key: last_key
-            })
+                key: last_key,
+            });
         }
 
-        return None
+        return None;
     }
     /// Returns a [`Cursor`] pointing at the first element that is above the
     /// given bound.
@@ -3027,17 +3041,28 @@ where
     /// assert_eq!(cursor.key(), Some(&3));
     /// ```
     pub fn lower_bound<Q>(&self, bound: Bound<&Q>) -> CursorMap<'_, K, V>
-        where
-            K: Borrow<Q> + Ord,
-            Q: Ord,
+    where
+        K: Borrow<Q> + Ord,
+        Q: Ord,
     {
         let start_idx = match bound {
-            Bound::Included(start) => self.set.rank(self.set.locate_value_cmp(|item| item.key.borrow() < start)),
-            Bound::Excluded(start) => self.set.rank(self.set.locate_value_cmp(|item| item.key.borrow() < start)) + 1,
+            Bound::Included(start) => self
+                .set
+                .rank(self.set.locate_value_cmp(|item| item.key.borrow() < start)),
+            Bound::Excluded(start) => {
+                self.set
+                    .rank(self.set.locate_value_cmp(|item| item.key.borrow() < start))
+                    + 1
+            }
             Bound::Unbounded => 0,
         };
 
-        return CursorMap { cursor: Cursor { set: &self.set, idx: start_idx } }
+        return CursorMap {
+            cursor: Cursor {
+                set: &self.set,
+                idx: start_idx,
+            },
+        };
     }
 }
 
@@ -3662,7 +3687,8 @@ where
 }
 
 pub struct Cursor<'a, T>
-where T: Ord + Clone,
+where
+    T: Ord + Clone,
 {
     set: &'a BTreeSet<T>,
     idx: usize,
@@ -3691,31 +3717,32 @@ impl<'a, T: Ord + Clone> Cursor<'a, T> {
     }
     pub fn peek_next(&self) -> Option<&'a T> {
         if self.idx == self.set.len() {
-            return self.set.first()
+            return self.set.first();
         }
 
         return self.set.get_index(self.idx + 1);
     }
     pub fn peek_index(&self, index: usize) -> Option<&'a T> {
-        return self.set.get_index(index)
+        return self.set.get_index(index);
     }
     pub fn peek_prev(&self) -> Option<&'a T> {
         if self.idx == 0 {
-            return None
+            return None;
         }
 
-        return self.set.get_index(self.idx - 1)
+        return self.set.get_index(self.idx - 1);
     }
 }
 
 pub struct CursorMap<'a, K, V>
-    where K: 'a + Ord + Clone,
-          V : 'a + Clone
+where
+    K: 'a + Ord + Clone,
+    V: 'a + Clone,
 {
     cursor: Cursor<'a, Pair<K, V>>,
 }
 
-impl<'a, K: Ord + Clone, V : Clone> CursorMap<'a, K, V> {
+impl<'a, K: Ord + Clone, V: Clone> CursorMap<'a, K, V> {
     pub fn move_next(&mut self) {
         self.cursor.move_next()
     }
@@ -3727,45 +3754,45 @@ impl<'a, K: Ord + Clone, V : Clone> CursorMap<'a, K, V> {
     }
     pub fn key(&self) -> Option<&'a K> {
         if let Some(entry) = self.cursor.item() {
-            return Some(&entry.key)
+            return Some(&entry.key);
         }
 
-        return None
+        return None;
     }
     pub fn value(&self) -> Option<&'a V> {
         if let Some(entry) = self.cursor.item() {
-            return Some(&entry.value)
+            return Some(&entry.value);
         }
 
-        return None
+        return None;
     }
     pub fn key_value(&self) -> Option<(&'a K, &'a V)> {
         if let Some(entry) = self.cursor.item() {
-            return Some((&entry.key, &entry.value))
+            return Some((&entry.key, &entry.value));
         }
 
-        return None
+        return None;
     }
     pub fn peek_next(&self) -> Option<(&'a K, &'a V)> {
         if let Some(entry) = self.cursor.peek_next() {
-            return Some((&entry.key, &entry.value))
+            return Some((&entry.key, &entry.value));
         }
 
-        return None
+        return None;
     }
     pub fn peek_index(&self, index: usize) -> Option<(&'a K, &'a V)> {
         if let Some(entry) = self.cursor.peek_index(index) {
-            return Some((&entry.key, &entry.value))
+            return Some((&entry.key, &entry.value));
         }
 
-        return None
+        return None;
     }
     pub fn peek_prev(&self) -> Option<(&'a K, &'a V)> {
         if let Some(entry) = self.cursor.peek_prev() {
-            return Some((&entry.key, &entry.value))
+            return Some((&entry.key, &entry.value));
         }
 
-        return None
+        return None;
     }
 }
 
