@@ -56,7 +56,10 @@ redis_module! {
     version: 1,
     allocator: (redis_module::alloc::RedisAlloc, redis_module::alloc::RedisAlloc),
     data_types: [],
-    // Описание команды
+    // Регистрируемые команды редиса.
+    // Формат: [имя, вызываемая функция, флаги, первый ключ, последний ключ, шаг]
+    // Флаги можно посмотреть здесь поиском по `RedisModule_CreateCommand`:
+    // https://redis.io/docs/reference/modules/modules-api-ref/
     commands: [
         ["block", block, "", 0, 0, 0],
     ]

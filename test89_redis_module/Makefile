@@ -55,3 +55,22 @@ RUN_BLOCK:
 
 TEST_BLOCK:
 	redis-cli block
+
+####################################################################################
+
+RUN_DATA_TYPE:
+	make BASIC_RUN_REDIS_MODULE MODULE=data_type
+
+TEST_DATA_TYPE:
+	redis-cli alloc.set test_key_1 5 && \
+	redis-cli alloc.get test_key_1
+
+####################################################################################
+
+RUN_EVENTS:
+	make BASIC_RUN_REDIS_MODULE MODULE=events
+
+TEST_EVENTS:
+	redis-cli events.send && \
+	redis-cli GET aaa && \
+	redis-cli events.num_key_miss

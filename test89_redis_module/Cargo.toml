@@ -34,6 +34,11 @@ name = "data_type"
 crate-type = ["cdylib"]
 # required-features = ["min-redis-compatibility-version-7-2"]
 
+[[example]]
+name = "events"
+crate-type = ["cdylib"]
+# required-features = ["min-redis-compatibility-version-7-2"]
+
 [dependencies]
 redis-module = "^2.0.4"
 smallstr = "^0.3.0"

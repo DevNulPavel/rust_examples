@@ -41,7 +41,7 @@ fn hello_mul(_: &Context, args: Vec<RedisString>) -> RedisResult {
 redis_module! {
     // Имя данного модуля
     name: "hello",
-    // Версия
+    // Версия самого модуля
     version: 1,
     // Используемый аллокатор. Формат: (тип, код создания)
     allocator: (redis_module::alloc::RedisAlloc, redis_module::alloc::RedisAlloc),
