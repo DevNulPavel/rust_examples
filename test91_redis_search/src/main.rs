@@ -1,7 +1,7 @@
 use std::{str::from_utf8, time::SystemTime};
 
 use rand::Rng;
-use redis::{aio::ConnectionManager, cmd, Client};
+use redis::{aio::ConnectionManager, cmd, pipe, Client};
 
 #[tokio::main]
 async fn main() {
@@ -54,18 +54,30 @@ async fn main() {
             .unwrap()
             .as_secs();
 
-        for i in 0..1_000_000 {
-            let key = format!("t:{i}");
-            let last_check = now_timestamp - rand_generator.gen_range(600..60000);
-            let important: u8 = rand_generator.gen_range(0..=1);
+        const TOTAL_COUNT: usize = 1_000_000;
+        const BUNCH_SIZE: usize = 1_000;
 
-            cmd("HSET")
-                .arg(key.as_str())
-                .arg("l")
-                .arg(last_check)
-                .arg("i")
-                .arg(important)
-                .query_async::<_, ()>(&mut connection_manager)
+        for i in 0..(TOTAL_COUNT / BUNCH_SIZE) {
+            let mut pipe = pipe();
+
+            for j in 0..BUNCH_SIZE {
+                let key = format!("t:{i}:{j}");
+                let last_check = now_timestamp - rand_generator.gen_range(600..60000);
+                let important: u8 = rand_generator.gen_range(0..=1);
+
+                let mut command = cmd("HSET");
+
+                command
+                    .arg(key.as_str())
+                    .arg("l")
+                    .arg(last_check)
+                    .arg("i")
+                    .arg(important);
+
+                pipe.add_command(command);
+            }
+
+            pipe.query_async::<_, ()>(&mut connection_manager)
                 .await
                 .unwrap();
         }
@@ -87,12 +99,12 @@ async fn main() {
         const SEARCH_COUNT: usize = 1_000;
 
         for _ in 0..SEARCH_COUNT {
-            let last_check_start = now_timestamp - 60000;
+            // let last_check_start = now_timestamp - 60000;
             let last_check = now_timestamp - rand_generator.gen_range(600..60000);
             let important = rand_generator.gen_range(0..=1);
 
             // let query = format!("'@l:[-inf {0}] @i:[{1} {1}]'", last_check, important);
-            let query = format!("'@l:[{last_check_start} {0}]'", last_check);
+            let query = format!("'@l:[-inf {0}]'", last_check);
             // let query = "*";
 
             let search_resp = cmd("FT.SEARCH")
