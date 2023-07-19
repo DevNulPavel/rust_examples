@@ -1,6 +1,7 @@
-use redis_module::native_types::RedisType;
-use redis_module::{raw, redis_module, Context, NextArg, RedisModuleIO, RedisResult, RedisString};
-use std::mem::size_of;
+use redis_module::{
+    native_types::RedisType, raw, redis_module, Context, NextArg, RedisModuleIO, RedisResult,
+    RedisString,
+};
 use std::os::raw::c_void;
 
 ////////////////////////////////////////////////////////////////////////////////////////
@@ -9,7 +10,14 @@ use std::os::raw::c_void;
 #[derive(Debug)]
 struct MyType {
     // В виде данных пока что у нас будет просто строка
-    data: String,
+    // data: String,
+
+    // Можно так же использовать редис-строку, тогда должен вроде бы использоваться
+    // общий аллокатор и тд.
+    data: RedisString,
+    // Можно так же использовать редис-строку, тогда должен вроде бы использоваться
+    // общий аллокатор и тд.
+    // data: RedisModuleString,
 }
 
 ////////////////////////////////////////////////////////////////////////////////////////
@@ -18,6 +26,7 @@ struct MyType {
 /// Подробнее можно почитать здесь по пункту `RedisModule_CreateDataType`:
 /// - https://redis.io/docs/reference/modules/modules-api-ref/
 /// - https://redis.io/docs/reference/modules/modules-native-types/
+/// - https://redis.io/docs/reference/modules/modules-api-ref/#RedisModule_CreateDataType
 static MY_REDIS_TYPE: RedisType = RedisType::new(
     // Уникальное имя нашего типа, состоящее из 9ти символов.
     // Это связано с тем, что внутри редиса данный ключ конвертируется в u64 значение при сохранении данных.
@@ -55,6 +64,7 @@ static MY_REDIS_TYPE: RedisType = RedisType::new(
         // Пока не используется редисом.
         // Вызывается при попытке узнать потребление данных объектом памяти во время вызова MEMORY
         mem_usage: None,
+
         // Цифровой хеш по вызову DEBUG DIGEST
         digest: None,
 
@@ -81,33 +91,41 @@ static MY_REDIS_TYPE: RedisType = RedisType::new(
 // Load
 unsafe extern "C" fn load(rdb: *mut RedisModuleIO, encver: i32) -> *mut c_void {
     if encver == 0 {
+        // Подгружаем чисто строчку содержимого из дампа
         match redis_module::load_string(rdb) {
             Ok(d) => {
                 // TODO: Конвертация подсмотрена в `Context::set_value` методе ниже
 
                 // Создаем сначала наш конкретный тип
-                let v = MyType {
-                    data: d.to_string(),
-                };
+                let v = MyType { data: d };
 
                 // Теперь перемещаем его в кучу
                 let boxed = Box::new(v);
 
-                // Конвертаруем в сырой указатель на данные и конвертируем тип указателя
+                // Конвертируем в сырой указатель на данные и конвертируем тип указателя
                 Box::into_raw(boxed).cast()
             }
-            Err(err) => {
-                panic!("{}", err)
+            Err(_) => {
+                // TODO: Что именно тут делать? Пока вернем просто нулевой указатель
+                std::ptr::null_mut()
             }
         }
     } else {
-        panic!("Unsupported");
+        // TODO: Что именно тут делать? Пока вернем просто нулевой указатель
+        std::ptr::null_mut()
     }
 }
 
 // Save
 unsafe extern "C" fn save(rdb: *mut RedisModuleIO, value: *mut c_void) {
-    todo!()
+    // Сначала кастуем указатель на данные к указателю на наш тип
+    let value_ptr = value.cast::<MyType>();
+
+    // Теперь мы проверяем указатель на нулевой и пробразуем его в ссылку
+    if let Some(value_ref) = value_ptr.as_ref() {
+        // Если у нас есть объект, тогда просто записываем содержимое строки в дамп
+        redis_module::save_redis_string(rdb, &value_ref.data);
+    }
 }
 
 /// Данная сишная функция у нас вызывается при попытке очистить память нашей структурой
@@ -156,12 +174,12 @@ fn alloc_set(ctx: &Context, args: Vec<RedisString>) -> RedisResult {
     // с помощью передачи в качестве параметра информации о типе.
     if let Some(value) = key_write_guard.get_value::<MyType>(&MY_REDIS_TYPE)? {
         // Если у нас такое значение уже было, заполняем его значениями B много раз
-        value.data = "B".repeat(size as usize);
+        value.data = ctx.create_string("B".repeat(size as usize));
     } else {
         // Если такого значения еще у нас не было, тогда мы создаем структурку
         // с нуля и заполняем значениями
         let value = MyType {
-            data: "A".repeat(size as usize),
+            data: ctx.create_string("A".repeat(size as usize)),
         };
 
         // Записываем это самое значение с помощью указания типа переменной
@@ -185,7 +203,7 @@ fn alloc_get(ctx: &Context, args: Vec<RedisString>) -> RedisResult {
     let value = match key_read_guard.get_value::<MyType>(&MY_REDIS_TYPE)? {
         Some(value) => {
             // Раз получили ссылку на данные, тогда можем извлечь и содержимое
-            value.data.as_str().into()
+            value.data.clone().into()
         }
         // Либо возвращаем пустоту
         None => ().into(),
