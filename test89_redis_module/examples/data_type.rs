@@ -1,5 +1,6 @@
 use redis_module::native_types::RedisType;
-use redis_module::{raw, redis_module, Context, NextArg, RedisResult, RedisString};
+use redis_module::{raw, redis_module, Context, NextArg, RedisModuleIO, RedisResult, RedisString};
+use std::mem::size_of;
 use std::os::raw::c_void;
 
 ////////////////////////////////////////////////////////////////////////////////////////
@@ -43,9 +44,9 @@ static MY_REDIS_TYPE: RedisType = RedisType::new(
         // Версия именно текущей библиотеки модулей, а не самих данных
         version: raw::REDISMODULE_TYPE_METHOD_VERSION as u64,
         // Функция загрузки данных из бекапа
-        rdb_load: None,
+        rdb_load: Some(load),
         // Функция сохранения данных в бекап
-        rdb_save: None,
+        rdb_save: Some(save),
         // Вызывается, когда AppenOnlyFile был перезаписан и надо его заполнить еще раз.
         aof_rewrite: None,
         // Функция по очистке данных в редисе, вызывается при удалении объекта по ключу
@@ -78,14 +79,51 @@ static MY_REDIS_TYPE: RedisType = RedisType::new(
 ////////////////////////////////////////////////////////////////////////////////////////
 
 // Load
-// fn(*mut RedisModuleIO, i32) -> *mut c_void
+unsafe extern "C" fn load(rdb: *mut RedisModuleIO, encver: i32) -> *mut c_void {
+    if encver == 0 {
+        match redis_module::load_string(rdb) {
+            Ok(d) => {
+                // TODO: Конвертация подсмотрена в `Context::set_value` методе ниже
+
+                // Создаем сначала наш конкретный тип
+                let v = MyType {
+                    data: d.to_string(),
+                };
+
+                // Теперь перемещаем его в кучу
+                let boxed = Box::new(v);
+
+                // Конвертаруем в сырой указатель на данные и конвертируем тип указателя
+                Box::into_raw(boxed).cast()
+            }
+            Err(err) => {
+                panic!("{}", err)
+            }
+        }
+    } else {
+        panic!("Unsupported");
+    }
+}
 
 // Save
-// fn(*mut RedisModuleIO, *mut c_void)
+unsafe extern "C" fn save(rdb: *mut RedisModuleIO, value: *mut c_void) {
+    todo!()
+}
 
 /// Данная сишная функция у нас вызывается при попытке очистить память нашей структурой
 unsafe extern "C" fn free(value: *mut c_void) {
+    // Другой пример деаллокации:
+    // use std::alloc::{dealloc, Layout};
+    // use std::ptr;
+    // let x = Box::new(String::from("Hello"));
+    // let p = Box::into_raw(x);
+    // unsafe {
+    //     ptr::drop_in_place(p);
+    //     dealloc(p as *mut u8, Layout::new::<String>());
+    // }
+
     // Сначала кастим сишный указатель к нашему конкретному типу
+    // TODO: Учитывать ли порядок байтов litle/big endian ?
     let value_obj = value.cast::<MyType>();
 
     // Теперь преобразуем в box
@@ -148,7 +186,7 @@ fn alloc_get(ctx: &Context, args: Vec<RedisString>) -> RedisResult {
         Some(value) => {
             // Раз получили ссылку на данные, тогда можем извлечь и содержимое
             value.data.as_str().into()
-        },
+        }
         // Либо возвращаем пустоту
         None => ().into(),
     };
