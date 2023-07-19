@@ -82,7 +82,7 @@ redis_module! {
     deinit: deinit,
     // Регистрируемые команды редиса.
     // Формат: [имя, вызываемая функция, флаги, первый ключ, последний ключ, шаг]
-    // Флаги можно посмотреть здесь поиском по `RedisModule_CreateCommand`: 
+    // Флаги можно посмотреть здесь поиском по `RedisModule_CreateCommand`:
     // https://redis.io/docs/reference/modules/modules-api-ref/
     commands: [
         ["scan_keys", scan_keys, "readonly", 0, 0, 0],
