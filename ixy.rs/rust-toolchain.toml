@@ -1,0 +1,6 @@
+# https://rust-lang.github.io/rustup/overrides.html
+[toolchain]
+channel = "stable"
+components = [ "rustc", "rust-std", "rustfmt", "clippy" ]
+targets = [ "x86_64-unknown-linux-gnu" ]
+profile = "default"

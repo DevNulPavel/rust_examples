@@ -1,20 +1,20 @@
-use std::collections::VecDeque;
-use std::env;
-use std::process;
-use std::time::Instant;
-
-use ixy::memory::Packet;
-use ixy::*;
+use ixy::{memory::Packet, *};
 use simple_logger::SimpleLogger;
+use std::{collections::VecDeque, env, process, time::Instant};
 
 const BATCH_SIZE: usize = 32;
 
 pub fn main() {
+    // Создаем тестовый логгер
     SimpleLogger::new().init().unwrap();
 
+    // Перем параметры с которыми было запущего приложение
     let mut args = env::args();
+
+    // Пропустим имя самого приложения
     args.next();
 
+    // Получаем адрес первого устройства
     let pci_addr_1 = match args.next() {
         Some(arg) => arg,
         None => {
@@ -23,6 +23,7 @@ pub fn main() {
         }
     };
 
+    // Получаем адрес второго устройства
     let pci_addr_2 = match args.next() {
         Some(arg) => arg,
         None => {
@@ -31,6 +32,7 @@ pub fn main() {
         }
     };
 
+    // На основе этих самых адресов
     let mut dev1 = ixy_init(&pci_addr_1, 1, 1, 0).unwrap();
     let mut dev2 = ixy_init(&pci_addr_2, 1, 1, 0).unwrap();
 
