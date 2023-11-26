@@ -102,39 +102,66 @@ pub fn main() {
     // Создаем пул для пакетов нужного размера
     let pool = Mempool::allocate(NUM_PACKETS, 0).unwrap();
 
-    // pre-fill all packet buffer in the pool with data and return them to the packet pool
+    // Предзаполняем буферы всех пакетов в пуле данными и возвращаем их в пулы
     {
+        // Создаем буфер для пакетов пулы
         let mut buffer: VecDeque<Packet> = VecDeque::with_capacity(NUM_PACKETS);
 
+        // TODO: ???
+        // Аллоцируем сразу же большую кучу пакетов в буффере с использованием пула памяти
         alloc_pkt_batch(&pool, &mut buffer, NUM_PACKETS, PACKET_SIZE);
 
+        // Для каждого пакеты в буффере
         for p in buffer.iter_mut() {
+            // Перебираем байты исходного референсного пакета
             for (i, data) in pkt_data.iter().enumerate() {
-                p[i] = *data;
+                // Получаем мутабельную ссылку на байт пакета
+                let target_byte = p.get_mut(i).unwrap();
+
+                // Теперь записываем в целевой пакет нужный нам байт
+                *target_byte = *data;
             }
-            let checksum = calc_ipv4_checksum(&p[14..14 + 20]);
-            // Calculated checksum is little-endian; checksum field is big-endian
-            p[24] = (checksum >> 8) as u8;
-            p[25] = (checksum & 0xff) as u8;
+
+            // Байты пакета от которых надо полчитать контрольную сумму
+            let checksum_bytes = {
+                let begin = 14;
+                let end = begin + 20;
+                p.get(begin..end).unwrap()
+            };
+
+            // Делаем расчет теперь котрольной суммы + конвертируем сразу в BigEndian формат
+            let checksum = calc_ipv4_checksum(checksum_bytes).to_be_bytes();
+
+            // Записываем контрольную сумму в пакет
+            p.get_mut(24..=25).unwrap().copy_from_slice(&checksum);
         }
     }
 
+    // Сбрасываем статистику на девайсе
+    dev.reset_stats();
+
+    // Создаем буферы для статистики
     let mut dev_stats = Default::default();
     let mut dev_stats_old = Default::default();
 
-    dev.reset_stats();
-
+    // Сразу же вычитываем новую статистику
     dev.read_stats(&mut dev_stats);
     dev.read_stats(&mut dev_stats_old);
 
+    // Создаем буферы и переменные
     let mut buffer: VecDeque<Packet> = VecDeque::with_capacity(BATCH_SIZE);
     let mut time = Instant::now();
     let mut seq_num = 0;
     let mut counter = 0;
 
+    // Главный цикл
     loop {
-        // re-fill our packet queue with new packets to send out
+        // Аллоцируем небольшую кучу пакетов в буффере с использованием пула памяти.
+        // Пакетов берем из пула немного - 32 всего
         alloc_pkt_batch(&pool, &mut buffer, BATCH_SIZE, PACKET_SIZE);
+
+
+        !!!!!!!!
 
         // update sequence number of all packets (and checksum if necessary)
         for p in buffer.iter_mut() {
@@ -162,6 +189,8 @@ pub fn main() {
     }
 }
 
+//////////////////////////////////////////////////////////////////////////////////////////////////
+
 /// Calculates IPv4 header checksum
 fn calc_ipv4_checksum(ipv4_header: &[u8]) -> u16 {
     assert_eq!(ipv4_header.len() % 2, 0);
@@ -178,6 +207,8 @@ fn calc_ipv4_checksum(ipv4_header: &[u8]) -> u16 {
     }
     !(checksum as u16)
 }
+
+//////////////////////////////////////////////////////////////////////////////////////////////////
 
 #[cfg(test)]
 mod tests {
