@@ -67,50 +67,75 @@ pub fn main() {
 
     // Запусаем работу в цикле
     loop {
-        // Делаем эхо
+        // Делаем эхо входящих и исходящих пакетов для первого девайса
         echo(&mut buffer, dev1.deref_mut(), 0, 0);
+
+        // Делаем эхо входящих и исходящих пакетов для второго девайса
         echo(&mut buffer, dev2.deref_mut(), 0, 0);
 
-        // don't poll the time unnecessarily
+        // Если количество итераций кратно 0xfff
         if counter & 0xfff == 0 {
+            // Делаем замер времени
             let elapsed = time.elapsed();
-            let nanos = elapsed.as_secs() * 1_000_000_000 + u64::from(elapsed.subsec_nanos());
-            // every second
+
+            // Считаем количество наносекунд
+            let nanos: u64 = elapsed.as_secs() * 1_000_000_000 + u64::from(elapsed.subsec_nanos());
+
+            // Если прошедшее время больше 1-й секунды, тогда
             if nanos > 1_000_000_000 {
-                dev1.read_stats(&mut dev1_stats);
-                dev1_stats.print_stats_diff(&dev1, &dev1_stats_old, nanos);
-                dev1_stats_old = dev1_stats;
+                {
+                    // Читаем статы по первому устройству
+                    dev1.read_stats(&mut dev1_stats);
+                    // Выводим разницу в статистике по сравнению с прошлым разом
+                    dev1_stats.print_stats_diff(&dev1, &dev1_stats_old, nanos);
+                    // Обновляем переменную со статами на новые статы
+                    dev1_stats_old = dev1_stats;
+                }
 
-                dev2.read_stats(&mut dev2_stats);
-                dev2_stats.print_stats_diff(&dev2, &dev2_stats_old, nanos);
-                dev2_stats_old = dev2_stats;
+                {
+                    // Читаем статы по второму устройству
+                    dev2.read_stats(&mut dev2_stats);
+                    // Выводим эти статы
+                    dev2_stats.print_stats_diff(&dev2, &dev2_stats_old, nanos);
+                    // Обновляем переменную со статами на новые статы
+                    dev2_stats_old = dev2_stats;
+                }
 
+                // Обновляем время для повторной статистики
                 time = Instant::now();
             }
         }
 
+        // +1 к итерациям
         counter += 1;
     }
 }
 
 //////////////////////////////////////////////////////////////////////////////////////////////////
 
-/// Специальная эхо-фунция, которая ???
-/// TODO: ???
+/// Специальная эхо-фунция, которая берет прилетевшие данные и отправляет
+/// эти самые данные назад, лишь слегка модифицируя 48й байт пакетов
 fn echo(buffer: &mut VecDeque<Packet>, dev: &mut dyn IxyDevice, rx_queue: u16, tx_queue: u16) {
     // Получаем какое-то количество пакетов
     // в кольцевой буфер из очереди сетевой карты
     let num_rx = dev.rx_batch(rx_queue, buffer, BATCH_SIZE);
 
+    // Если у нас количество пакетов больше, чем 0
     if num_rx > 0 {
-        // touch all packets for a realistic workload
+        // Для приличия сделаем модификацию прилетевших данных
         for p in buffer.iter_mut() {
-            p[48] += 1;
+            // Модифицируем 48 байт в пакете данных
+            *p.get_mut(48).unwrap() += 1;
         }
 
+        // Теперь мы можем те же самые данные в буфере отправить клиенту назад в тот же интерфейс
         dev.tx_batch(tx_queue, buffer);
 
-        // drop packets if they haven't been sent out
-        buffer.drain(..);
+        // Очищаем пакеты в буффере, если там какие-то остались еще неотправленные
+        buffer.clear();
+
+        // RangeFull
+        // let range = ..;
+        // buffer.drain(range);
     }
 }
