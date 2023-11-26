@@ -1,8 +1,12 @@
 use ixy::{memory::Packet, *};
 use simple_logger::SimpleLogger;
-use std::{collections::VecDeque, env, process, time::Instant};
+use std::{collections::VecDeque, env, ops::DerefMut, process, time::Instant};
+
+//////////////////////////////////////////////////////////////////////////////////////////////////
 
 const BATCH_SIZE: usize = 32;
+
+//////////////////////////////////////////////////////////////////////////////////////////////////
 
 pub fn main() {
     // Создаем тестовый логгер
@@ -32,30 +36,40 @@ pub fn main() {
         }
     };
 
-    // На основе этих самых адресов
+    // На основе этих самых адресов создаем девайсы
     let mut dev1 = ixy_init(&pci_addr_1, 1, 1, 0).unwrap();
     let mut dev2 = ixy_init(&pci_addr_2, 1, 1, 0).unwrap();
 
+    // На девайсах делаем сброс статистиики
+    dev1.reset_stats();
+    dev2.reset_stats();
+
+    // Создаем буферы для записи статистики
     let mut dev1_stats = Default::default();
     let mut dev1_stats_old = Default::default();
     let mut dev2_stats = Default::default();
     let mut dev2_stats_old = Default::default();
 
-    dev1.reset_stats();
-    dev2.reset_stats();
-
+    // Вычитываем статистику
     dev1.read_stats(&mut dev1_stats);
     dev1.read_stats(&mut dev1_stats_old);
     dev2.read_stats(&mut dev2_stats);
     dev2.read_stats(&mut dev2_stats_old);
 
+    // Создаем кольцевой буфер сразу с желаемой емкостью
     let mut buffer: VecDeque<Packet> = VecDeque::with_capacity(BATCH_SIZE);
-    let mut time = Instant::now();
+
+    // Счетчик
     let mut counter = 0;
 
+    // Время запуска
+    let mut time = Instant::now();
+
+    // Запусаем работу в цикле
     loop {
-        echo(&mut buffer, &mut *dev1, 0, 0);
-        echo(&mut buffer, &mut *dev2, 0, 0);
+        // Делаем эхо
+        echo(&mut buffer, dev1.deref_mut(), 0, 0);
+        echo(&mut buffer, dev2.deref_mut(), 0, 0);
 
         // don't poll the time unnecessarily
         if counter & 0xfff == 0 {
@@ -79,7 +93,13 @@ pub fn main() {
     }
 }
 
+//////////////////////////////////////////////////////////////////////////////////////////////////
+
+/// Специальная эхо-фунция, которая ???
+/// TODO: ???
 fn echo(buffer: &mut VecDeque<Packet>, dev: &mut dyn IxyDevice, rx_queue: u16, tx_queue: u16) {
+    // Получаем какое-то количество пакетов
+    // в кольцевой буфер из очереди сетевой карты
     let num_rx = dev.rx_batch(rx_queue, buffer, BATCH_SIZE);
 
     if num_rx > 0 {
