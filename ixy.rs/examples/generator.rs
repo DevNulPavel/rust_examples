@@ -1,12 +1,12 @@
-use std::collections::VecDeque;
-use std::env;
-use std::process;
-use std::time::Instant;
-
 use byteorder::{ByteOrder, LittleEndian};
-use ixy::memory::{alloc_pkt_batch, Mempool, Packet};
-use ixy::*;
+use ixy::{
+    memory::{alloc_pkt_batch, Mempool, Packet},
+    *,
+};
 use simple_logger::SimpleLogger;
+use std::{collections::VecDeque, env, process, time::Instant};
+
+//////////////////////////////////////////////////////////////////////////////////////////////////
 
 // number of packets sent simultaneously by our driver
 const BATCH_SIZE: usize = 32;
@@ -15,12 +15,19 @@ const NUM_PACKETS: usize = 2048;
 // size of our packets
 const PACKET_SIZE: usize = 60;
 
+//////////////////////////////////////////////////////////////////////////////////////////////////
+
 pub fn main() {
+    // Создаем тестовый логгер
     SimpleLogger::new().init().unwrap();
 
+    // Перем параметры с которыми было запущего приложение
     let mut args = env::args();
+
+    // Пропустим имя самого приложения
     args.next();
 
+    // Получаем адрес устройства
     let pci_addr = match args.next() {
         Some(arg) => arg,
         None => {
@@ -29,23 +36,45 @@ pub fn main() {
         }
     };
 
+    // На основе этих самых адресов создаем девайс
     let mut dev = ixy_init(&pci_addr, 1, 1, 0).unwrap();
 
+    // Массив байт пакета
+    // https://www.eit.lth.se/ppplab/IPHeader.htm
+    // https://habr.com/ru/articles/413851/
     #[rustfmt::skip]
     let mut pkt_data = [
-        0x01, 0x02, 0x03, 0x04, 0x05, 0x06,         // dst MAC
-        0x10, 0x10, 0x10, 0x10, 0x10, 0x10,         // src MAC
-        0x08, 0x00,                                 // ether type: IPv4
-        0x45, 0x00,                                 // Version, IHL, TOS
-        ((PACKET_SIZE - 14) >> 8) as u8,            // ip len excluding ethernet, high byte
-        ((PACKET_SIZE - 14) & 0xFF) as u8,          // ip len excluding ethernet, low byte
-        0x00, 0x00, 0x00, 0x00,                     // id, flags, fragmentation
-        0x40, 0x11, 0x00, 0x00,                     // TTL (64), protocol (UDP), checksum
-        0x0A, 0x00, 0x00, 0x01,                     // src ip (10.0.0.1)
-        0x0A, 0x00, 0x00, 0x02,                     // dst ip (10.0.0.2)
-        0x00, 0x2A, 0x05, 0x39,                     // src and dst ports (42 -> 1337)
-        ((PACKET_SIZE - 20 - 14) >> 8) as u8,       // udp len excluding ip & ethernet, high byte
-        ((PACKET_SIZE - 20 - 14) & 0xFF) as u8,     // udp len excluding ip & ethernet, low byte
+        // Часть Ethernet
+
+        // Целевой MAC
+        0x01, 0x02, 0x03, 0x04, 0x05, 0x06,
+        // Исходный MAC
+        0x10, 0x10, 0x10, 0x10, 0x10, 0x10,
+        // Тип пакета: IPv4
+        0x08, 0x00,
+
+        // Часть IP
+
+        // Version, размер заголовка, type of service для обнаружения заторов и отбросов
+        0x45, 0x00,
+        // Полная длина пакета без etherner заголовка, первый верхний байт
+        ((PACKET_SIZE - 14) >> 8) as u8,
+        // Полная длина пакета без etherner заголовка, второй нижний байт
+        ((PACKET_SIZE - 14) & 0xFF) as u8,
+        // Идентификатор, флаги, смещение фрагмента
+        0x00, 0x00, 0x00, 0x00,
+        // Значение TTL (64), протокол (UDP), контрольная сумма пакета
+        0x40, 0x11, 0x00, 0x00,
+        // Исходный адрес пакета ip (10.0.0.1)
+        0x0A, 0x00, 0x00, 0x01,
+        // Целевой адрес ip пакета (10.0.0.2)
+        0x0A, 0x00, 0x00, 0x02,
+        // Исходный и конечные порты у пакета (42 -> 1337)
+        0x00, 0x2A, 0x05, 0x39,                     
+        // Длина UDP, исключая размеры IP & ethernet, первый верхний байт
+        ((PACKET_SIZE - 20 - 14) >> 8) as u8,
+        // Длина UDP, исключая размеры IP & ethernet, второй младший байт
+        ((PACKET_SIZE - 20 - 14) & 0xFF) as u8,
         0x00, 0x00,                                 // udp checksum, optional
         b'i', b'x', b'y'                            // payload
         // rest of the payload is zero-filled because mempools guarantee empty bufs

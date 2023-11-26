@@ -40,6 +40,10 @@ pub fn main() {
     let mut dev1 = ixy_init(&pci_addr_1, 1, 1, 0).unwrap();
     let mut dev2 = ixy_init(&pci_addr_2, 1, 1, 0).unwrap();
 
+    // Больше адреса не нужны
+    drop(pci_addr_1);
+    drop(pci_addr_2);
+
     // На девайсах делаем сброс статистиики
     dev1.reset_stats();
     dev2.reset_stats();
