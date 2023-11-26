@@ -8,11 +8,13 @@ use std::{collections::VecDeque, env, process, time::Instant};
 
 //////////////////////////////////////////////////////////////////////////////////////////////////
 
-// number of packets sent simultaneously by our driver
+// Количество пакетов, отправляемых параллельно драйвером
 const BATCH_SIZE: usize = 32;
-// number of packets in our mempool
+
+// Количество пакетов в пуле памяти
 const NUM_PACKETS: usize = 2048;
-// size of our packets
+
+// Размер наших пакетов
 const PACKET_SIZE: usize = 60;
 
 //////////////////////////////////////////////////////////////////////////////////////////////////
@@ -70,19 +72,34 @@ pub fn main() {
         // Целевой адрес ip пакета (10.0.0.2)
         0x0A, 0x00, 0x00, 0x02,
         // Исходный и конечные порты у пакета (42 -> 1337)
-        0x00, 0x2A, 0x05, 0x39,                     
+        0x00, 0x2A, 0x05, 0x39,
+
+        // UDP часть
+
         // Длина UDP, исключая размеры IP & ethernet, первый верхний байт
         ((PACKET_SIZE - 20 - 14) >> 8) as u8,
         // Длина UDP, исключая размеры IP & ethernet, второй младший байт
         ((PACKET_SIZE - 20 - 14) & 0xFF) as u8,
-        0x00, 0x00,                                 // udp checksum, optional
-        b'i', b'x', b'y'                            // payload
-        // rest of the payload is zero-filled because mempools guarantee empty bufs
+        // Контрольная сумма UDP, опциональный один байт
+        0x00, 0x00,                                 
+        // Какие-то данные в этом UDP пакете
+        b'i', b'x', b'y'    
+                                
+        // Остаток данных является незаполненным, так как пулы памяти гарантируют пустые буфферы
     ];
 
-    // VFs: src MAC must be MAC of the device (spoof check of PF)
-    pkt_data[6..12].clone_from_slice(&dev.get_mac_addr());
+    // Получаем ссылку на слайс исходного MAC адреса и записываем туда реальный MAC адрес
+    // TODO: spoof check of PF
+    {
+        // Мутабельный слайс на MAC адрес
+        let mac_slice_mut = unsafe { pkt_data.get_unchecked_mut(6..12) };
+        // Получаем реальный MAC адрес
+        let dev_mac_addr = dev.get_mac_addr();
+        // Клонируем его в девайс
+        mac_slice_mut.clone_from_slice(&dev_mac_addr);
+    }
 
+    // Создаем пул для пакетов нужного размера
     let pool = Mempool::allocate(NUM_PACKETS, 0).unwrap();
 
     // pre-fill all packet buffer in the pool with data and return them to the packet pool
