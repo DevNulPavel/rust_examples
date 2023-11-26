@@ -160,27 +160,45 @@ pub fn main() {
         // Пакетов берем из пула немного - 32 всего
         alloc_pkt_batch(&pool, &mut buffer, BATCH_SIZE, PACKET_SIZE);
 
-
-        !!!!!!!!
-
-        // update sequence number of all packets (and checksum if necessary)
+        // Обновляем номер сообщения всех пакетов, которые аллоцировали пакетно,
+        // а так же их контрольные суммы тоже.
         for p in buffer.iter_mut() {
-            LittleEndian::write_u32(&mut p[(PACKET_SIZE - 4)..], seq_num);
+            // TODO: Const
+            let begin = PACKET_SIZE - 4;
+            let end = PACKET_SIZE;
+
+            // Мутабельный слайс
+            let packet_bytes = p.get_mut(begin..end).unwrap();
+
+            // Записываем туда номер
+            LittleEndian::write_u32(packet_bytes, seq_num);
+
+            // Увеличиваем номер
             seq_num = seq_num.wrapping_add(1);
         }
 
+        // Дожидаемся возможности очередной записи данных и пишем пачку пакетов в девайс
         dev.tx_batch_busy_wait(0, &mut buffer);
 
-        // don't poll the time unnecessarily
+        // Если количество итераций кратно 0xfff
         if counter & 0xfff == 0 {
+            // Делаем замер времени
             let elapsed = time.elapsed();
+            // Считаем количество наносекунд
             let nanos = elapsed.as_secs() * 1_000_000_000 + u64::from(elapsed.subsec_nanos());
-            // every second
+
+            // Если прошедшее время больше 1-й секунды, тогда
             if nanos > 1_000_000_000 {
+                // Читаем статы
                 dev.read_stats(&mut dev_stats);
+
+                // Выводим разницу в статистике по сравнению с прошлым разом
                 dev_stats.print_stats_diff(&*dev, &dev_stats_old, nanos);
+
+                // Обновляем переменную со статами на новые статы
                 dev_stats_old = dev_stats;
 
+                // Начинаем снова замеры
                 time = Instant::now();
             }
         }
