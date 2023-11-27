@@ -209,20 +209,32 @@ pub fn main() {
 
 //////////////////////////////////////////////////////////////////////////////////////////////////
 
-/// Calculates IPv4 header checksum
+/// Расчет контрольной суммы IPV4 для заголовка
 fn calc_ipv4_checksum(ipv4_header: &[u8]) -> u16 {
+    // Проверяем, что заголовок у нас имеет размер, кратный двум
     assert_eq!(ipv4_header.len() % 2, 0);
-    let mut checksum = 0;
+
+    // Результат
+    let mut checksum: u32 = 0;
+
+    // Итерируемся через один байт
     for i in 0..ipv4_header.len() / 2 {
+        // Если это 10-й байт - пропуск
         if i == 5 {
             // Assume checksum field is set to 0
             continue;
         }
+
+        // Складываем два байта соседних
         checksum += (u32::from(ipv4_header[i * 2]) << 8) + u32::from(ipv4_header[i * 2 + 1]);
+
+        // Если значение больше u16, то берем остаток + 1
         if checksum > 0xffff {
             checksum = (checksum & 0xffff) + 1;
         }
     }
+
+    // Инвертируем полученное значение, оно там всегда меньше u16 будет
     !(checksum as u16)
 }
 
