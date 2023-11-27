@@ -104,7 +104,7 @@ pub fn main() {
 
     // Предзаполняем буферы всех пакетов в пуле данными и возвращаем их в пулы
     {
-        // Создаем буфер для пакетов пулы
+        // Создаем буфер для пакетов
         let mut buffer: VecDeque<Packet> = VecDeque::with_capacity(NUM_PACKETS);
 
         // TODO: ???
