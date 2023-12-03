@@ -174,21 +174,28 @@ pub const VIRTQ_AVAIL_F_NO_INTERRUPT: u16 = 1;
 
 use std::num::Wrapping;
 
-/* VirtIO ring descriptors: 16 bytes.
- * These can chain together via "next". */
+/// VirtIO кольцевые дескрипторы: 16 bytes.
+/// Они могут быть соединены вместе с помощью "next".
 #[repr(C)]
 #[derive(Default)]
 pub struct VirtqDesc {
-    pub addr: usize, /* Address (guest-physical). */
-    pub len: u32,    /* Length. */
-    pub flags: u16,  /* The flags as indicated above. */
-    pub next: u16,   /* We chain unused descriptors via this. */
+    /// Address (guest-physical)
+    pub addr: usize,
+    /// Длина в байтах
+    pub len: u32,
+    /// Данные флаги указаны выше
+    pub flags: u16,
+    /// Мы сцепляем неиспользованные дескрипторы с помощью этого поля
+    pub next: u16,
 }
 
 #[repr(C)]
 pub struct VirtqAvail {
+    /// Флаги
     pub flags: u16,
+    /// Идентификатор с Wrapping арифметикой
     pub idx: Wrapping<u16>,
+    /// Массив из 0 элементов в виде кольца
     pub ring: [u16; 0],
 }
 

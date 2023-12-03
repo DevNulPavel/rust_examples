@@ -119,7 +119,7 @@ impl IxyDevice for VirtioDevice {
     fn set_mac_addr(&self, mac: [u8; 6]) {
         // Так как мы используем legacy интерфейс, то мы можем обновить MAC адрес
         // без переговоров `VIRTIO_NET_F_CTRL_MAC_ADDR` во время инициализации.
-        // 
+        //
         // Клонируем файлик
         let mut bar0 = self.bar0.try_clone().unwrap();
         // Итерируемся по байтам мак-адреса
@@ -129,6 +129,7 @@ impl IxyDevice for VirtioDevice {
         }
     }
 
+    /// Пакетное получение пакетов в буффер
     fn rx_batch(
         &mut self,
         _queue_id: u16,
@@ -137,27 +138,43 @@ impl IxyDevice for VirtioDevice {
     ) -> usize {
         // 2.6.14
 
+        // Вызываем синхронизацию атомарных значений и памяти в кешах и памяти
         mfence();
-        // remove received packets from the virtqueue and make them available to the user
+
+        // Удаляем полученные пакеты из virtqueue и делаем их доступными для пользователя
         for _ in 0..num_packets {
+            // Если в очереди получения последний использованный id
+            // совпадает с использованным id
             if self.rx_queue.last_used_idx == self.rx_queue.used.idx {
                 break;
             }
 
-            let used =
-                &self.rx_queue.used[self.rx_queue.last_used_idx.0 % self.rx_queue.size].clone();
+            // Получаем индекс пакета, который мы будем вычитывать
+            let index = self.rx_queue.last_used_idx.0 % self.rx_queue.size;
+
+            // Получаем элемент по индексу
+            let used = &self.rx_queue.used[index].clone();
+
+            // Последний уменьшаем последний использованный идентификатор на 1,
+            // но делаем это с переполнением
             self.rx_queue.last_used_idx += Wrapping(1);
 
-            // mark used descriptor as unused again
+            // Помечаем теперь использованный дескриптор как неиспользованный снова
             let desc = &mut self.rx_queue.descriptors_mut()[used.id as usize];
+
+            // Проверяем флаги, там должен быть флаг записи
             assert_eq!(
                 desc.flags, VIRTQ_DESC_F_WRITE,
                 "unsupported flags on rx descriptor: {:x}",
                 desc.flags
             );
+
+            // Устанавливаем адрес снова в 0
             desc.addr = 0;
 
+            фывфв
             let mut buf = self.rx_inflight.pop_front().unwrap();
+
             // adjust buffer length to actual packet size
             buf.len = used.len as usize - mem::size_of::<VirtioNetHdr>();
 
@@ -543,6 +560,9 @@ impl VirtioDevice {
     }
 }
 
+////////////////////////////////////////////////////////////////////////////////////////////////
+
+
 #[derive(Debug, Clone, Copy)]
 enum VirtqueueType {
     Receive,
@@ -562,9 +582,17 @@ impl VirtqueueType {
     }
 }
 
+////////////////////////////////////////////////////////////////////////////////////////////////
+
+/// Очередь устройства
 pub struct Virtqueue {
+    /// Размер очереди
     size: u16,
+
+    /// Указатель на структуру описания
     desc: *mut VirtqDesc,
+
+    /// Доступные
     available: RingWrapper<VirtqAvail>,
     used: RingWrapper<VirtqUsed>,
     last_used_idx: Wrapping<u16>,
@@ -615,24 +643,39 @@ impl Virtqueue {
     }
 }
 
+////////////////////////////////////////////////////////////////////////////////////////////////
+
+/// Специальная обертка кольцевая, которая содержит указатель
+/// и размер
 struct RingWrapper<T: Ring> {
     ptr: *mut T,
     size: u16,
 }
 
+/// Реализация поиндексного доступа
 impl<T: Ring> Index<u16> for RingWrapper<T> {
+    /// Выходной тип - это элемент в кольце
     type Output = <T as Ring>::Element;
+
+    /// Получение значения по определенному индексу
     fn index(&self, idx: u16) -> &Self::Output {
+        // Жестко проверяем, что индекс у нас меньше размера
         assert!(
             idx < self.size,
             "index {} is greater than queue size {}",
             idx,
             self.size
         );
-        unsafe { &*self.ring().add(idx as usize) }
+
+        // Получаем текущий указатель на позицию в кольце
+        let current_ring_ptr = self.ring();
+
+        // Делаем разыменование значения по индексу в кольце и получаем ссылку
+        unsafe { &*current_ring_ptr.add(idx as usize) }
     }
 }
 
+/// Мутабельный доступ к элементам в кольце
 impl<T: Ring> IndexMut<u16> for RingWrapper<T> {
     fn index_mut(&mut self, idx: u16) -> &mut Self::Output {
         assert!(
@@ -658,6 +701,10 @@ impl<T: Ring> DerefMut for RingWrapper<T> {
     }
 }
 
+////////////////////////////////////////////////////////////////////////////////////////////////
+
+
+// Вызываем синхронизацию атомарных значений и памяти в кешах и памяти
 fn mfence() {
     atomic::fence(Ordering::SeqCst);
 }
