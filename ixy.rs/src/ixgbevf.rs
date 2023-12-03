@@ -11,6 +11,7 @@ use std::ptr;
 use std::rc::Rc;
 use std::thread;
 use std::time::Duration;
+use log::{error, info, warn, debug};
 
 use crate::constants::*;
 use crate::memory::*;

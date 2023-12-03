@@ -1,3 +1,4 @@
+use log::{error, info, warn, debug};
 use std::collections::VecDeque;
 use std::error::Error;
 use std::mem;

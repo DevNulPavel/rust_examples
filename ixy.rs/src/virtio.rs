@@ -8,6 +8,7 @@ use std::rc::Rc;
 use std::sync::atomic::{self, Ordering};
 use std::time::Duration;
 use std::{io, mem, slice, thread};
+use log::{error, info, warn, debug};
 
 use crate::memory;
 use crate::memory::{Dma, Packet, PACKET_HEADROOM};

@@ -9,6 +9,7 @@ use std::rc::Rc;
 use std::sync::atomic::{AtomicUsize, Ordering};
 use std::sync::Mutex;
 use std::{fs, mem, process, ptr, slice};
+use log::{error, info, warn, debug};
 
 use crate::vfio::vfio_map_dma;
 

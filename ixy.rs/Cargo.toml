@@ -4,6 +4,15 @@ version = "0.1.0"
 authors = ["Simon Ellmann <simon.ellmann@tum.de>"]
 edition = "2018"
 
+# Настройки линтинга в самом проекте
+# https://doc.rust-lang.org/cargo/reference/manifest.html#the-lints-section
+
+[lints.rust]
+rust_2018_idioms = { level = "warn", priority = 0 }
+
+[lints.clippy]
+rust_2018_idioms = { level = "warn", priority = 0 }
+
 [dependencies]
 libc = "^0.2.150"
 byteorder = "^1.5.0"

@@ -7,6 +7,7 @@ use std::mem;
 use std::os::unix::io::{IntoRawFd, RawFd};
 use std::path::Path;
 use std::ptr;
+use log::{error, info, warn, debug};
 
 use crate::memory::{
     get_vfio_container, set_vfio_container, IOVA_WIDTH, VFIO_GROUP_FILE_DESCRIPTORS,

@@ -3,6 +3,7 @@ use crate::vfio::{
     VFIO_IRQ_INFO_EVENTFD, VFIO_IRQ_SET_ACTION_TRIGGER, VFIO_IRQ_SET_DATA_EVENTFD,
     VFIO_IRQ_SET_DATA_NONE, VFIO_PCI_MSIX_IRQ_INDEX, VFIO_PCI_MSI_IRQ_INDEX,
 };
+use log::{error, info, warn};
 use std::collections::VecDeque;
 use std::error::Error;
 use std::mem;

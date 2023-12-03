@@ -6,38 +6,36 @@
 
 #![warn(rust_2018_idioms)]
 
-#[macro_use]
-extern crate log;
+////////////////////////////////////////////////////////////////////////////////////////////////
 
-#[rustfmt::skip]
 mod constants;
 mod interrupts;
 mod ixgbe;
 mod ixgbevf;
-pub mod memory;
 mod pci;
 mod vfio;
 mod virtio;
-#[rustfmt::skip]
 mod virtio_constants;
 
-use self::interrupts::*;
-use self::ixgbe::*;
-use self::ixgbevf::*;
-use self::memory::*;
-use self::pci::*;
-use self::virtio::VirtioDevice;
+////////////////////////////////////////////////////////////////////////////////////////////////
 
-use std::collections::VecDeque;
-use std::error::Error;
-use std::os::unix::io::RawFd;
+pub mod memory;
 
-/// Used for implementing an ixy device driver like ixgbe or virtio.
+////////////////////////////////////////////////////////////////////////////////////////////////
+
+use self::{interrupts::*, ixgbe::*, ixgbevf::*, memory::*, pci::*, virtio::VirtioDevice};
+use log::warn;
+use std::{collections::VecDeque, error::Error, os::unix::io::RawFd};
+
+////////////////////////////////////////////////////////////////////////////////////////////////
+
+/// Используется для реализации ixy драйвера устройства похожим на ixgbe or virtio.
+/// Это чисто трейт, который должен быть реализован устройствами.
 pub trait IxyDevice {
-    /// Returns the driver's name.
+    /// Получаем имя драйвера
     fn get_driver_name(&self) -> &str;
 
-    /// Returns the card's iommu capability.
+    /// Возвращает наличие совместимости с iommu картами
     fn is_card_iommu_capable(&self) -> bool;
 
     /// Returns VFIO container file descriptor or [`None`] if IOMMU is not available.
