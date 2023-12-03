@@ -71,9 +71,12 @@ pub fn pci_open_resource(pci_addr: &str, resource: &str) -> Result<File, Box<dyn
     Ok(OpenOptions::new().read(true).write(true).open(path)?)
 }
 
-/// Opens a pci resource file at the given address in read-only mode.
+/// Открываем PCI файлик на данном адресе и режиме чтения
 pub fn pci_open_resource_ro(pci_addr: &str, resource: &str) -> Result<File, Box<dyn Error>> {
+    // Форматируем строку с указанием пути
     let path = format!("/sys/bus/pci/devices/{}/{}", pci_addr, resource);
+    
+    // Открываем файлик в режиме только чтения
     Ok(OpenOptions::new().read(true).write(false).open(path)?)
 }
 

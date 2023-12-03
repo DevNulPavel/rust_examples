@@ -50,11 +50,13 @@ pub trait IxyDevice {
     /// Устанавливаем адрес уровеня 2 данного девайса
     fn set_mac_addr(&self, mac: [u8; 6]);
 
-    /// Pushes up to `num_packets` `Packet`s onto `buffer` depending on the amount of
-    /// received packets by the network card. Returns the number of received packets.
+    /// # Info
+    /// Получает до `num_packets` `Packet`s в `buffer` в зависимости от размера
+    /// полученных пакетов сетевой картой.
     ///
-    /// # Examples
+    /// Возвращает количество полученных пакетов.
     ///
+    /// # Примеры
     /// ```rust,no_run
     /// use ixy::*;
     /// use ixy::memory::Packet;
@@ -72,10 +74,14 @@ pub trait IxyDevice {
         num_packets: usize,
     ) -> usize;
 
-    /// Takes `Packet`s out of `buffer` until `buffer` is empty or the network card's tx
-    /// queue is full. Returns the number of sent packets.
+    /// # Info
     ///
-    /// # Examples
+    /// Берет `Packet`s из `buffer` до тех пор, пока `buffer` не будет пуст или очередь
+    /// сетевой карты на получение не будет полна.
+    ///
+    /// Возврает количество отправленных успешно пакетов.
+    ///
+    /// # Примеры
     ///
     /// ```rust,no_run
     /// use ixy::*;
@@ -103,9 +109,11 @@ pub trait IxyDevice {
     /// ```
     fn read_stats(&self, stats: &mut DeviceStats);
 
-    /// Resets the network card's stats registers.
+    /// # Примеры
     ///
-    /// # Examples
+    /// Сбрасывает регистры статов сетевой карты
+    ///
+    /// # Примеры
     ///
     /// ```rust,no_run
     /// use ixy::*;
@@ -115,7 +123,7 @@ pub trait IxyDevice {
     /// ```
     fn reset_stats(&mut self);
 
-    /// Returns the network card's link speed.
+    /// Возвращает скорость сетевой карты.
     ///
     /// # Examples
     ///
@@ -127,16 +135,21 @@ pub trait IxyDevice {
     /// ```
     fn get_link_speed(&self) -> u16;
 
-    /// Takes `Packet`s out of `buffer` to send out. This will busy wait until all packets from
-    /// `buffer` are queued.
+    /// Берет `Packet`s из `buffer` для отправки.
+    /// Данная функция будет ждать до тех пор, пока все пакеты
+    /// из `buffer` не будут отправлены полностью.
     fn tx_batch_busy_wait(&mut self, queue_id: u16, buffer: &mut VecDeque<Packet>) {
+        // В цикле пытаемся отправить буфер пакетов до тех пор,
+        // пока пакеты еще есть в очереди.
         while !buffer.is_empty() {
             self.tx_batch(queue_id, buffer);
         }
     }
 }
 
-/// Holds network card stats about sent and received packets.
+////////////////////////////////////////////////////////////////////////////////////////////////
+
+/// Структура, содержащая статы сетевой карты про отправленные и полученные пакеты.
 #[derive(Default, Copy, Clone)]
 pub struct DeviceStats {
     pub rx_pkts: u64,
@@ -146,31 +159,48 @@ pub struct DeviceStats {
 }
 
 impl DeviceStats {
-    ///  Prints the stats differences between `stats_old` and `self`.
+    /// Печатает разницу между статами `stats_old` и `self`.
     pub fn print_stats_diff(&self, dev: &dyn IxyDevice, stats_old: &DeviceStats, nanos: u64) {
+        // Получаем у устройства его PCI адрес
         let pci_addr = dev.get_pci_addr();
-        let mbits = self.diff_mbit(
-            self.rx_bytes,
-            stats_old.rx_bytes,
-            self.rx_pkts,
-            stats_old.rx_pkts,
-            nanos,
-        );
-        let mpps = self.diff_mpps(self.rx_pkts, stats_old.rx_pkts, nanos);
-        println!("[{}] RX: {:.2} Mbit/s {:.2} Mpps", pci_addr, mbits, mpps);
 
-        let mbits = self.diff_mbit(
-            self.tx_bytes,
-            stats_old.tx_bytes,
-            self.tx_pkts,
-            stats_old.tx_pkts,
-            nanos,
-        );
-        let mpps = self.diff_mpps(self.tx_pkts, stats_old.tx_pkts, nanos);
-        println!("[{}] TX: {:.2} Mbit/s {:.2} Mpps", pci_addr, mbits, mpps);
+        {
+            // Расчитываем разницу в мегабитах
+            // между прошлым количеством пакетов и текущим.
+            // А так в количестве миллисекунд.
+            let mbits = self.diff_mbit(
+                self.rx_bytes,
+                stats_old.rx_bytes,
+                self.rx_pkts,
+                stats_old.rx_pkts,
+                nanos,
+            );
+            // Делаем так же еще расчет разницы в количестве пакетов
+            let mpps = self.diff_mpps(self.rx_pkts, stats_old.rx_pkts, nanos);
+
+            // Выводим непосредственно статы в виде мегабит и мега-пакетов для адреса
+            println!("[{}] RX: {:.2} Mbit/s {:.2} Mpps", pci_addr, mbits, mpps);
+        }
+
+        {
+            // Делаем аналогичные расчеты в мегабитах
+            let mbits = self.diff_mbit(
+                self.tx_bytes,
+                stats_old.tx_bytes,
+                self.tx_pkts,
+                stats_old.tx_pkts,
+                nanos,
+            );
+
+            // Пакеты
+            let mpps = self.diff_mpps(self.tx_pkts, stats_old.tx_pkts, nanos);
+
+            // Выводим непосредственно статы в виде мегабит и мега-пакетов для адреса
+            println!("[{}] TX: {:.2} Mbit/s {:.2} Mpps", pci_addr, mbits, mpps);
+        }
     }
 
-    /// Returns Mbit/s between two points in time.
+    /// Возвращаем разницу в мегабитах между двумя точками во времени
     fn diff_mbit(
         &self,
         bytes_new: u64,
@@ -190,20 +220,24 @@ impl DeviceStats {
     }
 }
 
-/// Initializes the network card at `pci_addr`.
+////////////////////////////////////////////////////////////////////////////////////////////////
+
+/// Инициализируем сетевую карту в `pci_addr`.
 ///
-/// `rx_queues` and `tx_queues` specify the number of queues that will be initialized and used
-/// while `interrupt_timeout` enables interrupts if greater or less than zero.
+/// `rx_queues` и `tx_queues` указывают количество очередей, которые будут инициализированы
+/// и использованы пока `interrupt_timeout` включает прерывания больше или меньше, чем 0
 pub fn ixy_init(
     pci_addr: &str,
     rx_queues: u16,
     tx_queues: u16,
     interrupt_timeout: i16,
 ) -> Result<Box<dyn IxyDevice>, Box<dyn Error>> {
+    // Открываем PCI файлики в режиме чтения
     let mut vendor_file = pci_open_resource_ro(pci_addr, "vendor").expect("wrong pci address");
     let mut device_file = pci_open_resource_ro(pci_addr, "device").expect("wrong pci address");
     let mut config_file = pci_open_resource_ro(pci_addr, "config").expect("wrong pci address");
 
+    // 
     let vendor_id = read_hex(&mut vendor_file)?;
     let device_id = read_hex(&mut device_file)?;
     let class_id = read_io32(&mut config_file, 8)? >> 24;
