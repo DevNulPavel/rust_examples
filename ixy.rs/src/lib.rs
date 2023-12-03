@@ -240,7 +240,7 @@ pub fn ixy_init(
     // Читаем шестнадцатеричное число из файликов производителя и устройства
     let vendor_id = read_hex(&mut vendor_file)?;
     let device_id = read_hex(&mut device_file)?;
-    
+
     // Читаем идентификато класса на нужном смещении и смещаем значение на 24 бита
     let class_id = read_io32(&mut config_file, 8)? >> 24;
 
@@ -260,8 +260,10 @@ pub fn ixy_init(
         if interrupt_timeout != 0 {
             warn!("interrupts requested but virtio does not support interrupts yet");
         }
+        
         // Создаем теперь `VirtioDevice` на данном адресе
         let device = VirtioDevice::init(pci_addr)?;
+
         // Отдаем девайс
         Ok(Box::new(device))
     }
@@ -273,6 +275,7 @@ pub fn ixy_init(
         if interrupt_timeout != 0 {
             warn!("interrupts requested but ixgbevf does not support interrupts yet");
         }
+        
         // Создаем устройство с нужным количеством очередей
         let device = IxgbeVFDevice::init(pci_addr, rx_queues, tx_queues)?;
 

@@ -1,42 +1,62 @@
-use std::collections::VecDeque;
-use std::error::Error;
-use std::fs::File;
-use std::num::Wrapping;
-use std::ops::{Deref, DerefMut, Index, IndexMut};
-use std::os::unix::io::RawFd;
-use std::rc::Rc;
-use std::sync::atomic::{self, Ordering};
-use std::time::Duration;
-use std::{io, mem, slice, thread};
-use log::{error, info, warn, debug};
+use crate::{
+    memory::{self, Dma, Packet, PACKET_HEADROOM},
+    pci::{self, read_io16, read_io32, read_io8, write_io16, write_io32, write_io8},
+    virtio_constants::*,
+    DeviceStats, IxyDevice, Mempool,
+};
+use log::{debug, info, warn};
+use std::{
+    collections::VecDeque,
+    error::Error,
+    fs::File,
+    io, mem,
+    num::Wrapping,
+    ops::{Deref, DerefMut, Index, IndexMut},
+    os::unix::io::RawFd,
+    rc::Rc,
+    slice,
+    sync::atomic::{self, Ordering},
+    thread,
+    time::Duration,
+};
 
-use crate::memory;
-use crate::memory::{Dma, Packet, PACKET_HEADROOM};
-use crate::pci::{self, read_io16, read_io32, read_io8, write_io16, write_io32, write_io8};
-use crate::virtio_constants::*;
-use crate::{DeviceStats, IxyDevice, Mempool};
+////////////////////////////////////////////////////////////////////////////////////////////////
 
-// we're currently only supporting legacy Virtio via PCI so this is fixed (4.1.5.1.3.1)
+// Мы сейчас лишь поддерживаем legacy Virtio через PCI, так что это исправлено
 const QUEUE_ALIGNMENT: usize = 4096;
 
-static NET_HEADER: virtio_net_hdr = virtio_net_hdr {
+////////////////////////////////////////////////////////////////////////////////////////////////
+
+// Описываем заголовок
+static NET_HEADER: VirtioNetHdr = VirtioNetHdr {
+    // Флагов нету
     flags: 0,
+    // Тип
     gso_type: VIRTIO_NET_HDR_GSO_NONE,
+    // Размер заголовка
     hdr_len: 14 + 20 + 8,
-    // ignored fields
+    // Игнорированные поля, так что там у нас нули
     csum_offset: 0,
     csum_start: 0,
     gso_size: 0,
 };
 
-// NOTE: Currently we only support the legacy interface (device id == 0x1000)
-// NOTE: We currently don't keep track of a "driver ring wrap counter" following upstream ixy
+////////////////////////////////////////////////////////////////////////////////////////////////
+
+/// Заметка: сейчас мы поддерживаем только legacy интерфейс (device id == 0x1000)
+///
+/// Заметка: мы сейчас не отслеживаем "driver ring wrap counter" following upstream ixy
 pub struct VirtioDevice {
+    /// Адрес PCI устройства (файлик unix)
     pci_addr: String,
+    /// Непосредственно сам файлик
     bar0: File,
 
+    /// Очередь непосредственно получения данных
     rx_queue: Virtqueue,
+    /// Очередь непосредственно отправки данных
     tx_queue: Virtqueue,
+    /// Отдельная специальная очередь управления
     ctrl_queue: Virtqueue,
 
     rx_mempool: Rc<Mempool>,
@@ -118,7 +138,7 @@ impl IxyDevice for VirtioDevice {
 
             let mut buf = self.rx_inflight.pop_front().unwrap();
             // adjust buffer length to actual packet size
-            buf.len = used.len as usize - mem::size_of::<virtio_net_hdr>();
+            buf.len = used.len as usize - mem::size_of::<VirtioNetHdr>();
 
             self.rx_bytes += buf.len as u64;
             self.rx_pkts += 1;
@@ -140,8 +160,8 @@ impl IxyDevice for VirtioDevice {
             .expect("rx memory pool exhausted");
 
             *desc = VirtqDesc {
-                len: buf.len as u32 + mem::size_of::<virtio_net_hdr>() as u32,
-                addr: buf.get_phys_addr() - mem::size_of::<virtio_net_hdr>(),
+                len: buf.len as u32 + mem::size_of::<VirtioNetHdr>() as u32,
+                addr: buf.get_phys_addr() - mem::size_of::<VirtioNetHdr>(),
                 flags: VIRTQ_DESC_F_WRITE,
                 next: 0,
             };
