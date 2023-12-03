@@ -59,51 +59,72 @@ pub struct VirtioDevice {
     /// Отдельная специальная очередь управления
     ctrl_queue: Virtqueue,
 
+    /// Специальный пул памяти для буферов получения данных
     rx_mempool: Rc<Mempool>,
-    // tx buffers are managed by user
+    /// Специальный пул памяти, управляемый пользователем
     ctrl_mempool: Rc<Mempool>,
 
+    /// Буфер пакетов, которые как раз сейчас на отправке
     tx_inflight: VecDeque<Packet>,
+    /// Буфер пакетов, которые сейчас как раз на получении
     rx_inflight: VecDeque<Packet>,
 
-    // statistics
+    // Переменные для статистики
     rx_pkts: u64,
     tx_pkts: u64,
     rx_bytes: u64,
     tx_bytes: u64,
 }
 
+////////////////////////////////////////////////////////////////////////////////////////////////
+
+// Непосредственно реализация устройства
 impl IxyDevice for VirtioDevice {
+    /// Отдаем имя устройства
     fn get_driver_name(&self) -> &str {
         "ixy-virtio"
     }
 
+    /// Совместимости нету здесь
     fn is_card_iommu_capable(&self) -> bool {
         false
     }
 
+    /// Контейнер в виде файлика?
     fn get_vfio_container(&self) -> Option<RawFd> {
         None
     }
 
+    /// Получаем непосредственно PCI адрес
     fn get_pci_addr(&self) -> &str {
-        &self.pci_addr
+        self.pci_addr.as_str()
     }
 
+    /// Получаем MAC адрес для текущего устройства
     fn get_mac_addr(&self) -> [u8; 6] {
+        // Клонируем файлик, который мы держим
         let mut bar0 = self.bar0.try_clone().unwrap();
+        // Буфер на стеке
         let mut mac = [0; 6];
+        // Итерируемся по целевым байтам
         for (i, byte) in mac.iter_mut().enumerate() {
+            // Из файлика вычитываем на определенном смещении mac адреса
             *byte = read_io8(&mut bar0, (20 + i) as u64).unwrap();
         }
+        // Возвращаем MAC
         mac
     }
 
+    /// Установка конкретного MAC адреса
     fn set_mac_addr(&self, mac: [u8; 6]) {
-        // since we're using the legacy interface we can update the MAC address without having
-        // negotiated `VIRTIO_NET_F_CTRL_MAC_ADDR` during initialization
+        // Так как мы используем legacy интерфейс, то мы можем обновить MAC адрес
+        // без переговоров `VIRTIO_NET_F_CTRL_MAC_ADDR` во время инициализации.
+        // 
+        // Клонируем файлик
         let mut bar0 = self.bar0.try_clone().unwrap();
+        // Итерируемся по байтам мак-адреса
         for (i, byte) in mac.iter().enumerate() {
+            // Записываем в файлик эти самые значения с определенным смещением
             write_io8(&mut bar0, *byte, (20 + i) as u64).unwrap();
         }
     }
