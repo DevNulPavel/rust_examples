@@ -38,16 +38,16 @@ pub trait IxyDevice {
     /// Возвращает наличие совместимости с iommu картами
     fn is_card_iommu_capable(&self) -> bool;
 
-    /// Returns VFIO container file descriptor or [`None`] if IOMMU is not available.
+    /// Возвращает VFIO контейнер файлогово дескриптора или [`None`], если IOMMU недоступен
     fn get_vfio_container(&self) -> Option<RawFd>;
 
-    /// Returns the pci address of this device.
+    /// Возвращает PCI адрес данного устройства
     fn get_pci_addr(&self) -> &str;
 
-    /// Returns the layer 2 address of this device.
+    /// Возвращает адрес уровня 2 данного девайса
     fn get_mac_addr(&self) -> [u8; 6];
 
-    /// Sets the layer 2 address of this device.
+    /// Устанавливаем адрес уровеня 2 данного девайса
     fn set_mac_addr(&self, mac: [u8; 6]);
 
     /// Pushes up to `num_packets` `Packet`s onto `buffer` depending on the amount of
