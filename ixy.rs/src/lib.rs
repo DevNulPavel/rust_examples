@@ -233,45 +233,62 @@ pub fn ixy_init(
     interrupt_timeout: i16,
 ) -> Result<Box<dyn IxyDevice>, Box<dyn Error>> {
     // Открываем PCI файлики в режиме чтения
-    let mut vendor_file = pci_open_resource_ro(pci_addr, "vendor").expect("wrong pci address");
-    let mut device_file = pci_open_resource_ro(pci_addr, "device").expect("wrong pci address");
-    let mut config_file = pci_open_resource_ro(pci_addr, "config").expect("wrong pci address");
+    let mut vendor_file = pci_open_resource_ro(pci_addr, "vendor")?;
+    let mut device_file = pci_open_resource_ro(pci_addr, "device")?;
+    let mut config_file = pci_open_resource_ro(pci_addr, "config")?;
 
-    // 
+    // Читаем шестнадцатеричное число из файликов производителя и устройства
     let vendor_id = read_hex(&mut vendor_file)?;
     let device_id = read_hex(&mut device_file)?;
+    
+    // Читаем идентификато класса на нужном смещении и смещаем значение на 24 бита
     let class_id = read_io32(&mut config_file, 8)? >> 24;
 
+    // Определяем идентификатор устройства
+    // Должен быть именно 2
     if class_id != 2 {
         return Err(format!("device {} is not a network card", pci_addr).into());
     }
 
+    // Определяем производителя и идентификатор устройства
     if vendor_id == 0x1af4 && device_id == 0x1000 {
-        // `device_id == 0x1041` would be for non-transitional devices which we don't support atm
+        // `device_id == 0x1041` который мы не будем поддерживать
+        // Количество очередей больше 1-го здесь не поддерживается
         if rx_queues > 1 || tx_queues > 1 {
             warn!("cannot configure multiple rx/tx queues: we don't support multiqueue (VIRTIO_NET_F_MQ)");
         }
         if interrupt_timeout != 0 {
             warn!("interrupts requested but virtio does not support interrupts yet");
         }
+        // Создаем теперь `VirtioDevice` на данном адресе
         let device = VirtioDevice::init(pci_addr)?;
+        // Отдаем девайс
         Ok(Box::new(device))
-    } else if vendor_id == 0x8086
+    }
+    // Другой производитель и идентификатор
+    else if vendor_id == 0x8086
         && (device_id == 0x10ed || device_id == 0x1515 || device_id == 0x1565)
     {
-        // looks like a virtual function
+        // Неподдерживается здесь таймаут прерывания
         if interrupt_timeout != 0 {
             warn!("interrupts requested but ixgbevf does not support interrupts yet");
         }
+        // Создаем устройство с нужным количеством очередей
         let device = IxgbeVFDevice::init(pci_addr, rx_queues, tx_queues)?;
+
+        // Отдаем девайс
         Ok(Box::new(device))
     } else {
-        // let's give it a try with ixgbe
+        // Попробуем создать устройство просто как есть
         let device = IxgbeDevice::init(pci_addr, rx_queues, tx_queues, interrupt_timeout)?;
+
         Ok(Box::new(device))
     }
 }
 
+////////////////////////////////////////////////////////////////////////////////////////////////
+
+// Реализуем явно девайс для девайса в Box
 impl IxyDevice for Box<dyn IxyDevice> {
     fn get_driver_name(&self) -> &str {
         (**self).get_driver_name()

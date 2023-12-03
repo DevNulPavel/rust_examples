@@ -75,7 +75,7 @@ pub fn pci_open_resource(pci_addr: &str, resource: &str) -> Result<File, Box<dyn
 pub fn pci_open_resource_ro(pci_addr: &str, resource: &str) -> Result<File, Box<dyn Error>> {
     // Форматируем строку с указанием пути
     let path = format!("/sys/bus/pci/devices/{}/{}", pci_addr, resource);
-    
+
     // Открываем файлик в режиме только чтения
     Ok(OpenOptions::new().read(true).write(false).open(path)?)
 }
@@ -92,9 +92,11 @@ pub fn read_io16(file: &mut File, offset: u64) -> Result<u16, io::Error> {
     file.read_u16::<NativeEndian>()
 }
 
-/// Reads and returns an u32 at `offset` in `file`.
+/// Читаем и возвращаем u32 число на определенном смещении.
 pub fn read_io32(file: &mut File, offset: u64) -> Result<u32, io::Error> {
+    // Смещаемся на определенное смещение в файлике.
     file.seek(SeekFrom::Start(offset))?;
+    // Читаем u32 в нативном режиме ending
     file.read_u32::<NativeEndian>()
 }
 
@@ -116,13 +118,16 @@ pub fn write_io32(file: &mut File, value: u32, offset: u64) -> Result<(), io::Er
     file.write_u32::<NativeEndian>(value)
 }
 
-/// Reads a hex string from `file` and returns it as `u64`.
+/// Читаем шестнадцатиричную строчку из файлика и возвращаем
+/// как `u64`
 pub fn read_hex(file: &mut File) -> Result<u64, Box<dyn Error>> {
-    let mut buffer = String::new();
+    // Создаем буфер нужного размера
+    let mut buffer = String::with_capacity(4);
     file.read_to_string(&mut buffer)?;
 
-    Ok(u64::from_str_radix(
-        &buffer.trim().trim_start_matches("0x"),
-        16,
-    )?)
+    // Сначала обрезаем пробелы строки с двух сторон.
+    // После чего отбрасываем еще в самом начале символы.
+    let str_val = buffer.trim().trim_start_matches("0x");
+
+    Ok(u64::from_str_radix(str_val, 16)?)
 }
