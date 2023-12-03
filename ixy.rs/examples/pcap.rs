@@ -62,21 +62,33 @@ pub fn main() -> Result<(), io::Error> {
     // Создаем буфер для пакетов сразу нужного размера
     let mut buffer: VecDeque<Packet> = VecDeque::with_capacity(BATCH_SIZE);
 
-    while n_packets != Some(0) {
-        dev.rx_batch(0, &mut buffer, BATCH_SIZE);
-        let time = SystemTime::now();
-        let time = time.duration_since(UNIX_EPOCH).unwrap();
+    // Читаем и записываем лишь нужное количество пакетов.
+    // Либо вычитываем бесконечно, если лимита пакетов нету.
+    while n_packets != Some(0) || n_packets.is_none() {
+        // Делаем вычитывание пакетов
+        let _read_count = dev.rx_batch(0, &mut buffer, BATCH_SIZE);
 
-        for packet in buffer.drain(..) {
-            // pcap record header
+        // Timestamp время
+        let time = {
+            let time = SystemTime::now();
+            time.duration_since(UNIX_EPOCH).unwrap()
+        };
+
+        // Разгребаем теперь
+        for packet in buffer.drain(std::ops::RangeFull) {
+            // Записываем в файлик pcap заголовок
             pcap.write_u32::<LE>(time.as_secs() as u32)?; // ts_sec
             pcap.write_u32::<LE>(time.subsec_millis())?; // ts_usec
             pcap.write_u32::<LE>(packet.len() as u32)?; // incl_len
             pcap.write_u32::<LE>(packet.len() as u32)?; // orig_len
 
-            pcap.write_all(&packet)?;
+            // Запишем теперь сам пакет туда
+            pcap.write_all(packet.as_ref())?;
 
+            // Отнимаем количество пакетов, если есть такое ограничение у нас
             n_packets = n_packets.map(|n| n - 1);
+
+            // Если мы во внутреннем цикле дошли до нуля - прерыавем его тоже
             if n_packets == Some(0) {
                 break;
             }
