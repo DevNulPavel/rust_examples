@@ -172,25 +172,40 @@ impl IxyDevice for VirtioDevice {
             // Устанавливаем адрес снова в 0
             desc.addr = 0;
 
-            фывфв
+            // Извлекаем из циклического буфера активных пакетов
+            // какой-то пакет
             let mut buf = self.rx_inflight.pop_front().unwrap();
 
-            // adjust buffer length to actual packet size
-            buf.len = used.len as usize - mem::size_of::<VirtioNetHdr>();
+            // Устанавливаем у этого пакеты размер, равный
+            // размеру текущего используемого пакета, минус размер
+            // заголовка у данного устройства
+            buf.len = (used.len as usize) - mem::size_of::<VirtioNetHdr>();
 
+            // Увеличиваем статы на нужное количество байт и количество пакетов
             self.rx_bytes += buf.len as u64;
             self.rx_pkts += 1;
+
+            // Сохраняем новый полученный пакет во входной массив
             buffer.push_back(buf);
         }
 
-        // add new descriptors to the available ring so the device can fill those up
+        // Добавляем новые дескрипторы в доступное кольцо, так что
+        // девайс может заполнить их
+
+        // Счетчик сколько уже заполнили пакетов
         let mut queued = 0;
+
+        // Перебираем всю очередь получения пакетов
         for idx in 0..self.rx_queue.size {
+            // Получаем дескриптор в очереди получения по нужному индексу
             let desc = &mut self.rx_queue.descriptors_mut()[idx as usize];
+
+            // Если адрес здесь у нас нулевой, тогда пропускаем
             if desc.addr != 0 {
                 continue;
             }
 
+            // Выполняем аллокацию пакета нужного размера из пула
             let buf = memory::alloc_pkt(
                 &self.rx_mempool,
                 self.rx_mempool.entry_size() - PACKET_HEADROOM,
@@ -562,7 +577,6 @@ impl VirtioDevice {
 
 ////////////////////////////////////////////////////////////////////////////////////////////////
 
-
 #[derive(Debug, Clone, Copy)]
 enum VirtqueueType {
     Receive,
@@ -592,7 +606,7 @@ pub struct Virtqueue {
     /// Указатель на структуру описания
     desc: *mut VirtqDesc,
 
-    /// Доступные
+    /// Доступные кольцевые буфферы
     available: RingWrapper<VirtqAvail>,
     used: RingWrapper<VirtqUsed>,
     last_used_idx: Wrapping<u16>,
@@ -688,6 +702,7 @@ impl<T: Ring> IndexMut<u16> for RingWrapper<T> {
     }
 }
 
+/// Deref просто отдает текущую позицию в кольце
 impl<T: Ring> Deref for RingWrapper<T> {
     type Target = T;
     fn deref(&self) -> &T {
@@ -695,6 +710,7 @@ impl<T: Ring> Deref for RingWrapper<T> {
     }
 }
 
+/// Deref просто отдает текущую позицию в кольце
 impl<T: Ring> DerefMut for RingWrapper<T> {
     fn deref_mut(&mut self) -> &mut T {
         unsafe { &mut *self.ptr }
@@ -702,7 +718,6 @@ impl<T: Ring> DerefMut for RingWrapper<T> {
 }
 
 ////////////////////////////////////////////////////////////////////////////////////////////////
-
 
 // Вызываем синхронизацию атомарных значений и памяти в кешах и памяти
 fn mfence() {

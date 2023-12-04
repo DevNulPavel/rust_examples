@@ -1,3 +1,4 @@
+use log::{debug, error, info, warn};
 use std::cell::RefCell;
 use std::collections::{HashMap, VecDeque};
 use std::error::Error;
@@ -9,7 +10,6 @@ use std::rc::Rc;
 use std::sync::atomic::{AtomicUsize, Ordering};
 use std::sync::Mutex;
 use std::{fs, mem, process, ptr, slice};
-use log::{error, info, warn, debug};
 
 use crate::vfio::vfio_map_dma;
 
@@ -335,30 +335,46 @@ pub enum Prefetch {
     NonTemporal,
 }
 
+////////////////////////////////////////////////////////////////////////////////////////////////
+
+/// Пул пакетов
 pub struct Mempool {
     base_addr: *mut u8,
+
+    /// Cколько элементов в пуле
     num_entries: usize,
+
+    /// Размер отдельного элемента в пуле
     entry_size: usize,
+
+    // TODO: ???
     phys_addresses: Vec<usize>,
+
+    // TODO: ???
     pub(crate) free_stack: RefCell<Vec<usize>>,
 }
 
 impl Mempool {
-    /// Allocates a new `Mempool`.
-    ///
+    /// # Info
+    /// Аллоцируем новый `Mempool`.
+    /// 
     /// # Panics
-    ///
-    /// Panics if `size` is not a divisor of the page size.
+    /// Паникует если `size` не делится на размер страницы [`HUGE_PAGE_SIZE`].
     pub fn allocate(entries: usize, size: usize) -> Result<Rc<Mempool>, Box<dyn Error>> {
+        // Если размер передан нулевой, тогда размер отдельной
+        // записи будет у нас 2048
         let entry_size = match size {
             0 => 2048,
             x => x,
         };
 
-        if (get_vfio_container() == -1) && HUGE_PAGE_SIZE % entry_size != 0 {
+        // Проверяем файловый дескриптор контейнера + размер HUGE PAGE.
+        // Размер страницы должен быть кратен размеру `HUGE_PAGE_SIZE`.
+        if (get_vfio_container() == -1) && ((HUGE_PAGE_SIZE % entry_size) != 0) {
             panic!("entry size must be a divisor of the page size");
         }
 
+        aaaaaa
         let dma: Dma<u8> = Dma::allocate(entries * entry_size, false)?;
         let mut phys_addresses = Vec::with_capacity(entries);
 
@@ -438,13 +454,17 @@ pub fn alloc_pkt_batch(
     allocated
 }
 
-/// Returns a free packet from the `pool`, or [`None`] if the requested packet size exceeds the
-/// maximum size for that pool or if the pool is empty.
+////////////////////////////////////////////////////////////////////////////////////////////////
+
+/// Возвращает свободный пакет из `pool` или [`None`], если запрошенный размер пакета
+/// превышает максимальный размер для этого пула, либо если пул сейчас пустой.
 pub fn alloc_pkt(pool: &Rc<Mempool>, size: usize) -> Option<Packet> {
-    if size > pool.entry_size - PACKET_HEADROOM {
+    // Проверяем размер отдельного пакета в пуле
+    if size > (pool.entry_size - PACKET_HEADROOM) {
         return None;
     }
 
+    фывф
     pool.alloc_buf().map(|id| unsafe {
         Packet::new(
             pool.get_virt_addr(id).add(PACKET_HEADROOM),
