@@ -18,8 +18,10 @@ use lazy_static::lazy_static;
 // from https://www.kernel.org/doc/Documentation/x86/x86_64/mm.txt
 const X86_VA_WIDTH: u8 = 47;
 
+// Размерность HUGE PAGE страниц
 const HUGE_PAGE_BITS: u32 = 21;
-const HUGE_PAGE_SIZE: usize = 1 << HUGE_PAGE_BITS;
+const HUGE_PAGE_SIZE: usize = 1 << HUGE_PAGE_BITS; // 2Mb
+const MAP_HUGE_2MB: i32 = 0x5400_0000; // 21 << 26
 
 pub const IOVA_WIDTH: u8 = X86_VA_WIDTH;
 
@@ -39,33 +41,60 @@ lazy_static! {
         Mutex::new(HashMap::new());
 }
 
+////////////////////////////////////////////////////////////////////////////////
+
 pub struct Dma<T> {
+    /// Указатель на тип данных
     pub virt: *mut T,
+
+    /// Размер этих самых данных
     pub phys: usize,
 }
 
-const MAP_HUGE_2MB: i32 = 0x5400_0000; // 21 << 26
 
 impl<T> Dma<T> {
-    /// Allocates dma memory on a huge page.
+    /// Аллоцируем DMA память в пределах HUGE PAGE
     pub fn allocate(size: usize, require_contiguous: bool) -> Result<Dma<T>, Box<dyn Error>> {
+        // Проверяем, что желаемый размер у нас
+        // кратен размеру HUGE PAGE = 2Mb.
+        // Если размер не кратен, тогда берем ближайшее большее значение, кратное
+        // размер большой странички.
         let size = if size % HUGE_PAGE_SIZE != 0 {
             ((size >> HUGE_PAGE_BITS) + 1) << HUGE_PAGE_BITS
         } else {
             size
         };
 
+        // Проверяем файловый дескриптор VFIO,
+        // если там есть файлик, тогда аллоцируем память с его помощью
         if get_vfio_container() != -1 {
             debug!("allocating dma memory via VFIO");
 
+            // TODO: ???
             let ptr = if IOVA_WIDTH < X86_VA_WIDTH {
-                // To support IOMMUs capable of 39 bit wide IOVAs only, we use
-                // 32 bit addresses. Since mmap() ignores libc::MAP_32BIT when
-                // using libc::MAP_HUGETLB, we create a 32 bit address with the
-                // right alignment (huge page size, e.g. 2 MB) on our own.
-
-                // first allocate memory of size (needed size + 1 huge page) to
-                // get a mapping containing the huge page size aligned address
+                // Для поддержки IOMMUs поддерживающих лишь 39-битные, мы используем 
+                // 32 битные адреса.
+                // Так как mmap() игнорирует libc::MAP_32BIT когда
+                // мы используем libc::MAP_HUGETLB, мы создаем 32-х битный
+                // адрес с правильным выравниванием самостоянтельно (2Mb).
+                // Сначала аллоцируем память нужного размера - нужный размер + 1 huge page,
+                // чтобы получить маппинг, состоящий выравненный huge page адрес.
+                //
+                // https://manned.org/mmap.2
+                //
+                // libc::PROT_READ | libc::PROT_WRITE говорит, что память может быть
+                // как записана, так и прочитана. 
+                //
+                // Анонимное отображение (libc::MAP_ANONYMOUS) нужно для отображения памяти процесса.
+                // Где-то это схоже с функцией malloc. В этом режиме первый аргумент, содержащий файловый 
+                // дескриптор - игнорируется, поэтому он там -1.
+                //
+                // Приватное отображение (libc::MAP_PRIVATE) нужно для того, чтобы модификации
+                // замапленной памяти не были видны другим процессам, но имеет ли это смысл в анонимном режиме -
+                // не совсем понятно. При записи происходит COPY_ON_WRITE сегментов.
+                //
+                // libc::MAP_32BIT говорит, что адреса надо размещать в перввых 2Gb адресного
+                // пространства, чтобы адреса были 32 бита.
                 let addr = unsafe {
                     libc::mmap(
                         ptr::null_mut(),
@@ -77,21 +106,31 @@ impl<T> Dma<T> {
                     )
                 };
 
-                // calculate the huge page size aligned address by rounding up
+                // Вычисляем выравненный адрес с помощью округлений
                 let aligned_addr = ((addr as isize + HUGE_PAGE_SIZE as isize - 1)
                     & -(HUGE_PAGE_SIZE as isize))
                     as *mut libc::c_void;
 
+                // Вычисляем разницу между выровненным и невыровненным размером
                 let free_chunk_size = aligned_addr as usize - addr as usize;
 
-                // free unneeded pages (i.e. all chunks of the additionally mapped huge page)
+                // Размапливаем определенные сегменты памяти, в замапленном адресе
                 unsafe {
                     libc::munmap(addr, free_chunk_size);
                     libc::munmap(aligned_addr.add(size), HUGE_PAGE_SIZE - free_chunk_size);
                 }
 
-                // finally map huge pages at the huge page size aligned 32 bit address
+                // В конце - мапим huge pages в выровненный 32х битный адресс
                 unsafe {
+                    // Флаг libc::MAP_SHARED говорит, что изменения в этой памяти будут
+                    // видны другим процессам тоже.
+                    //
+                    // libc::MAP_HUGETLB говорит, что мапим здесь мы с помощью
+                    // страниц большого размера
+                    //
+                    // MAP_HUGE_2MB говорит, что страница будет размером в 2Mb
+                    // 
+                    // MAP_FIXED говорит, что нужно мапить именно в этот конкретный переданный адрес,
                     libc::mmap(
                         aligned_addr as *mut libc::c_void,
                         size,
@@ -106,6 +145,8 @@ impl<T> Dma<T> {
                     )
                 }
             } else {
+                // Здесь же мы просто вызываем обычный анонимный mmap нужного 
+                // размера + HUGE PAGES размером 2Mb
                 unsafe {
                     libc::mmap(
                         ptr::null_mut(),
@@ -117,6 +158,8 @@ impl<T> Dma<T> {
                     )
                 }
             };
+
+            
 
             // This is the main IOMMU work: IOMMU DMA MAP the memory...
             if ptr == libc::MAP_FAILED {
@@ -375,7 +418,9 @@ impl Mempool {
         }
 
         aaaaaa
+        // 
         let dma: Dma<u8> = Dma::allocate(entries * entry_size, false)?;
+
         let mut phys_addresses = Vec::with_capacity(entries);
 
         for i in 0..entries {
