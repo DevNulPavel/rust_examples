@@ -51,7 +51,6 @@ pub struct Dma<T> {
     pub phys: usize,
 }
 
-
 impl<T> Dma<T> {
     /// Аллоцируем DMA память в пределах HUGE PAGE
     pub fn allocate(size: usize, require_contiguous: bool) -> Result<Dma<T>, Box<dyn Error>> {
@@ -72,7 +71,7 @@ impl<T> Dma<T> {
 
             // TODO: ???
             let ptr = if IOVA_WIDTH < X86_VA_WIDTH {
-                // Для поддержки IOMMUs поддерживающих лишь 39-битные, мы используем 
+                // Для поддержки IOMMUs поддерживающих лишь 39-битные, мы используем
                 // 32 битные адреса.
                 // Так как mmap() игнорирует libc::MAP_32BIT когда
                 // мы используем libc::MAP_HUGETLB, мы создаем 32-х битный
@@ -83,10 +82,10 @@ impl<T> Dma<T> {
                 // https://manned.org/mmap.2
                 //
                 // libc::PROT_READ | libc::PROT_WRITE говорит, что память может быть
-                // как записана, так и прочитана. 
+                // как записана, так и прочитана.
                 //
                 // Анонимное отображение (libc::MAP_ANONYMOUS) нужно для отображения памяти процесса.
-                // Где-то это схоже с функцией malloc. В этом режиме первый аргумент, содержащий файловый 
+                // Где-то это схоже с функцией malloc. В этом режиме первый аргумент, содержащий файловый
                 // дескриптор - игнорируется, поэтому он там -1.
                 //
                 // Приватное отображение (libc::MAP_PRIVATE) нужно для того, чтобы модификации
@@ -129,7 +128,7 @@ impl<T> Dma<T> {
                     // страниц большого размера
                     //
                     // MAP_HUGE_2MB говорит, что страница будет размером в 2Mb
-                    // 
+                    //
                     // MAP_FIXED говорит, что нужно мапить именно в этот конкретный переданный адрес,
                     libc::mmap(
                         aligned_addr as *mut libc::c_void,
@@ -145,7 +144,7 @@ impl<T> Dma<T> {
                     )
                 }
             } else {
-                // Здесь же мы просто вызываем обычный анонимный mmap нужного 
+                // Здесь же мы просто вызываем обычный анонимный mmap нужного
                 // размера + HUGE PAGES размером 2Mb
                 unsafe {
                     libc::mmap(
@@ -158,8 +157,6 @@ impl<T> Dma<T> {
                     )
                 }
             };
-
-            
 
             // This is the main IOMMU work: IOMMU DMA MAP the memory...
             if ptr == libc::MAP_FAILED {
@@ -188,6 +185,7 @@ impl<T> Dma<T> {
             let id = HUGEPAGE_ID.fetch_add(1, Ordering::SeqCst);
             let path = format!("/mnt/huge/ixy-{}-{}", process::id(), id);
 
+            // Открываем страничку как системный файлик
             match fs::OpenOptions::new()
                 .read(true)
                 .write(true)
@@ -206,6 +204,7 @@ impl<T> Dma<T> {
                         )
                     };
 
+                    // Блокируем определенный участок памяти по полученному указателю
                     if ptr == libc::MAP_FAILED {
                         Err("failed to memory map huge page - huge pages enabled and free?".into())
                     } else if unsafe { libc::mlock(ptr as *mut libc::c_void, size) } == 0 {
@@ -231,6 +230,8 @@ impl<T> Dma<T> {
         }
     }
 }
+
+////////////////////////////////////////////////////////////////////////////////
 
 pub struct Packet {
     pub(crate) addr_virt: *mut u8,
@@ -400,7 +401,7 @@ pub struct Mempool {
 impl Mempool {
     /// # Info
     /// Аллоцируем новый `Mempool`.
-    /// 
+    ///
     /// # Panics
     /// Паникует если `size` не делится на размер страницы [`HUGE_PAGE_SIZE`].
     pub fn allocate(entries: usize, size: usize) -> Result<Rc<Mempool>, Box<dyn Error>> {
@@ -417,12 +418,12 @@ impl Mempool {
             panic!("entry size must be a divisor of the page size");
         }
 
-        aaaaaa
-        // 
+        // Аллоцируем память с прямым доступом и huge page
         let dma: Dma<u8> = Dma::allocate(entries * entry_size, false)?;
 
         let mut phys_addresses = Vec::with_capacity(entries);
 
+        // Сохраняем адреса
         for i in 0..entries {
             if get_vfio_container() != -1 {
                 phys_addresses.push(dma.phys + (i * entry_size));
@@ -432,6 +433,7 @@ impl Mempool {
             }
         }
 
+        // Формируем пул, который содержит нужные нам адреса из выделенной памяти
         let pool = Mempool {
             base_addr: dma.virt,
             num_entries: entries,
@@ -440,9 +442,12 @@ impl Mempool {
             free_stack: RefCell::new(Vec::with_capacity(entries)),
         };
 
+        // Обнуляем память
         unsafe { memset(pool.base_addr, pool.num_entries * pool.entry_size, 0x00) }
 
         let pool = Rc::new(pool);
+
+        // Также заполняем стек адресами
         pool.free_stack.borrow_mut().extend(0..entries);
 
         Ok(pool)
@@ -509,7 +514,7 @@ pub fn alloc_pkt(pool: &Rc<Mempool>, size: usize) -> Option<Packet> {
         return None;
     }
 
-    фывф
+    // Получаем из пула идентификатор свободного элемента
     pool.alloc_buf().map(|id| unsafe {
         Packet::new(
             pool.get_virt_addr(id).add(PACKET_HEADROOM),
@@ -520,6 +525,8 @@ pub fn alloc_pkt(pool: &Rc<Mempool>, size: usize) -> Option<Packet> {
         )
     })
 }
+
+////////////////////////////////////////////////////////////////////////////////////////////////
 
 /// Initializes `len` fields of type `T` at `addr` with `value`.
 pub(crate) unsafe fn memset<T: Copy>(addr: *mut T, len: usize, value: T) {

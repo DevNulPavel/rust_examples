@@ -340,6 +340,7 @@ pub fn vfio_map_region(fd: RawFd, index: u32) -> Result<(*mut u8, usize), Box<dy
 }
 
 pub fn vfio_map_dma(ptr: usize, size: usize) -> Result<usize, Box<dyn Error>> {
+    // Структура с описанием
     let mut iommu_dma_map: vfio_iommu_type1_dma_map = vfio_iommu_type1_dma_map {
         argsz: mem::size_of::<vfio_iommu_type1_dma_map>() as u32,
         vaddr: ptr as *mut u8,
@@ -348,6 +349,7 @@ pub fn vfio_map_dma(ptr: usize, size: usize) -> Result<usize, Box<dyn Error>> {
         flags: VFIO_DMA_MAP_FLAG_READ | VFIO_DMA_MAP_FLAG_WRITE,
     };
 
+    // Мапим память
     let ioctl_result =
         unsafe { libc::ioctl(get_vfio_container(), VFIO_IOMMU_MAP_DMA, &mut iommu_dma_map) };
     if ioctl_result != -1 {
