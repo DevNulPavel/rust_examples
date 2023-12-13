@@ -1,0 +1,301 @@
+name: CI
+
+on:
+  pull_request:
+    branches:
+      - master
+  push:
+    branches:
+      - master
+
+env:
+  RUSTFLAGS: -Dwarnings
+  RUST_BACKTRACE: 1
+
+jobs:
+  rustfmt:
+    name: rustfmt
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v2
+      - name: Install Rust
+        run: rustup update stable && rustup default stable
+      - name: Check formatting
+        run: cargo fmt --all -- --check
+
+  clippy:
+    name: clippy
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v2
+        with:
+          submodules: 'recursive'
+      - name: Install Rust
+        run: rustup update stable && rustup default stable
+      - name: Get rust version
+        id: rust-version
+        run: echo "::set-output name=version::$(rustc --version)"
+      - name: Cache cargo index
+        uses: actions/cache@v1
+        with:
+          path: ~/.cargo/registry/index
+          key: index-${{ runner.os }}-${{ github.run_number }}
+          restore-keys: |
+            index-${{ runner.os }}-
+      - name: Create lockfile
+        run: cargo generate-lockfile
+      - name: Cache cargo registry
+        uses: actions/cache@v1
+        with:
+          path: ~/.cargo/registry/cache
+          key: registry-${{ runner.os }}-${{ steps.rust-version.outputs.version }}-${{ hashFiles('Cargo.lock') }}
+      - name: Fetch dependencies
+        run: cargo fetch
+      - name: Cache target directory
+        uses: actions/cache@v1
+        with:
+          path: target
+          key: clippy-target-${{ runner.os }}-${{ steps.rust-version.outputs.version }}-${{ hashFiles('Cargo.lock') }}
+      - name: Run clippy
+        run: cargo clippy --all --all-targets
+  test:
+    name: Test
+    runs-on: ${{ matrix.os }}
+    strategy:
+      matrix:
+        thing:
+        - stable
+        - macos-x86_64
+        - arm-android
+        - arm64-android
+        - i686-android
+        - x86_64-android
+        - aarch64-ios
+        - aarch64-ios-sim
+        - x86_64-ios
+        - i686-linux
+        - arm-linux
+        - aarch64-linux
+        - x86_64-musl
+        - x86_64-mingw
+        - i686-msvc
+        - x86_64-msvc
+        include:
+        - thing: stable
+          target: x86_64-unknown-linux-gnu
+          rust: stable
+          os: ubuntu-latest
+        - thing: macos-x86_64
+          target: x86_64-apple-darwin
+          rust: stable
+          os: macos-latest
+        - thing: arm-android
+          target: arm-linux-androideabi
+          rust: stable
+          os: ubuntu-latest
+        - thing: arm64-android
+          target: aarch64-linux-android
+          rust: stable
+          os: ubuntu-latest
+        - thing: i686-android
+          target: i686-linux-android
+          rust: stable
+          os: ubuntu-latest
+        - thing: x86_64-android
+          target: x86_64-linux-android
+          rust: stable
+          os: ubuntu-latest
+        - thing: aarch64-ios
+          target: aarch64-apple-ios
+          os: macos-latest
+        - thing: aarch64-ios-sim
+          target: aarch64-apple-ios-sim
+          os: macos-latest
+        - thing: x86_64-ios
+          target: x86_64-apple-ios
+          os: macos-latest
+        - thing: i686-linux
+          target: i686-unknown-linux-gnu
+          rust: stable
+          os: ubuntu-latest
+        - thing: arm-linux
+          target: arm-unknown-linux-gnueabi
+          rust: stable
+          os: ubuntu-latest
+        - thing: aarch64-linux
+          target: aarch64-unknown-linux-gnu
+          rust: stable
+          os: ubuntu-latest
+        - thing: x86_64-musl
+          target: x86_64-unknown-linux-musl
+          rust: stable
+          os: ubuntu-latest
+        - thing: x86_64-mingw
+          target: x86_64-pc-windows-gnu
+          rust: stable
+          os: ubuntu-latest
+        - thing: i686-msvc
+          target: i686-pc-windows-msvc
+          rust: stable-x86_64-msvc
+          os: windows-latest
+        - thing: x86_64-msvc
+          target: x86_64-pc-windows-msvc
+          rust: stable-x86_64-msvc
+          os: windows-latest
+
+    steps:
+    - uses: actions/checkout@v2
+      with:
+        submodules: 'recursive'
+    - name: Install Rust (rustup)
+      run: rustup update ${{ matrix.rust }} --no-self-update && rustup default ${{ matrix.rust }}
+      shell: bash
+    - run: rustup target add ${{ matrix.target }}
+    - name: Install nasm
+      if: startsWith(matrix.os, 'windows')
+      run: choco install nasm
+      shell: cmd
+    - name: Install LLVM and Clang
+      if: startsWith(matrix.os, 'windows')
+      uses: KyleMayes/install-llvm-action@v1
+      with:
+        version: "11.0"
+        directory: ${{ runner.temp }}/llvm
+    - name: Set LIBCLANG_PATH
+      if: startsWith(matrix.os, 'windows')
+      run: echo "LIBCLANG_PATH=$((gcm clang).source -replace "clang.exe")" >> $env:GITHUB_ENV
+    - if: "startsWith(matrix.os, 'windows') && !contains(matrix.target, 'ios')"
+      # CI's Windows doesn't have require root certs
+      run: cargo test --workspace --exclude tokio-boring --exclude hyper-boring
+      name: Run tests (Windows)
+    - if: "!startsWith(matrix.os, 'windows') && !contains(matrix.target, 'ios')"
+      run: cargo test
+      name: Run tests (not Windows)
+    - if: "contains(matrix.target, 'ios')"
+      # It's... theoretically possible to run tests on iPhone Simulator,
+      # but for now, make sure that BoringSSL only builds.
+      run: cargo check --target ${{ matrix.target }} --all-targets
+      name: Check tests (iOS)
+    - name: Test boring-sys cargo publish
+      # Running `cargo publish --dry-run` tests two things:
+      #
+      # 1. That `boring-sys` can build BoringSSL with just the files included
+      #    in the crates.io package (as determined by the `include` field in
+      #    the `Cargo.toml`).
+      # 2. That the final `boring-sys` package size, including the BoringSSL
+      #    submodules, is not too large to be published to `crates.io`.
+      #
+      # Both of these may no longer be the case after updating the BoringSSL
+      # submodules to a new revision, so it's important to test this on CI.
+      run: cargo publish --dry-run -p boring-sys
+
+  test-fips:
+    name: Test FIPS integration
+    runs-on: ubuntu-20.04
+    steps:
+    - uses: actions/checkout@v2
+      with:
+        submodules: 'recursive'
+    - name: Install Rust (rustup)
+      run: rustup update stable --no-self-update && rustup default stable
+      shell: bash
+    - name: Install Clang-12
+      uses: KyleMayes/install-llvm-action@v1
+      with:
+        version: "12.0.0"
+        directory: ${{ runner.temp }}/llvm
+    - name: Add clang++-12 link
+      working-directory: ${{ runner.temp }}/llvm/bin
+      run: ln -s clang clang++-12
+    - name: Run tests
+      run: cargo test --features fips
+    - name: Test boring-sys cargo publish (FIPS)
+      # Running `cargo publish --dry-run` tests two things:
+      #
+      # 1. That `boring-sys` can build BoringSSL with just the files included
+      #    in the crates.io package (as determined by the `include` field in
+      #    the `Cargo.toml`).
+      # 2. That the final `boring-sys` package size, including the BoringSSL
+      #    submodules, is not too large to be published to `crates.io`.
+      #
+      # Both of these may no longer be the case after updating the BoringSSL
+      # submodules to a new revision, so it's important to test this on CI.
+      run: cargo publish --dry-run -p boring-sys --features fips
+
+  cross-build:
+    name: Cross build from macOS to Linux
+    runs-on: macos-latest
+    strategy:
+      matrix:
+        include:
+          - target: x86_64-unknown-linux-gnu
+    steps:
+    - uses: actions/checkout@v2
+      with:
+        submodules: 'recursive'
+    - name: Install Rust (rustup)
+      run: rustup update stable --no-self-update && rustup default stable && rustup target add ${{ matrix.target }}
+      shell: bash
+    - name: Install ${{ matrix.target }} toolchain
+      run: brew tap messense/macos-cross-toolchains && brew install ${{ matrix.target }}
+    - name: Set BORING_BSSL_SYSROOT
+      run: echo "BORING_BSSL_SYSROOT=$(brew --prefix ${{ matrix.target }})/toolchain/${{ matrix.target }}/sysroot" >> $GITHUB_ENV
+      shell: bash
+    - name: Set CARGO_TARGET_X86_64_UNKNOWN_LINUX_GNU_LINKER
+      run: echo "CARGO_TARGET_X86_64_UNKNOWN_LINUX_GNU_LINKER=${{ matrix.target }}-gcc" >> $GITHUB_ENV
+    - name: Build for ${{ matrix.target }}
+      run: cargo build --target ${{ matrix.target }} --all-targets
+
+  cross-build-fips:
+    name: Cross build from macOS to Linux (FIPS)
+    runs-on: macos-latest
+    strategy:
+      matrix:
+        include:
+          - target: x86_64-unknown-linux-gnu
+    steps:
+    - uses: actions/checkout@v2
+      with:
+        submodules: 'recursive'
+    - name: Install Rust (rustup)
+      run: rustup update stable --no-self-update && rustup default stable && rustup target add ${{ matrix.target }}
+      shell: bash
+    - name: Install Clang-12
+      uses: KyleMayes/install-llvm-action@v1
+      with:
+        version: "12.0.0"
+        directory: ${{ runner.temp }}/llvm
+    - name: Add clang++-12 link
+      working-directory: ${{ runner.temp }}/llvm/bin
+      run: ln -s clang clang++-12
+    - name: Install ${{ matrix.target }} toolchain
+      run: brew tap messense/macos-cross-toolchains && brew install ${{ matrix.target }}
+    - name: Set BORING_BSSL_FIPS_COMPILER_EXTERNAL_TOOLCHAIN
+      run: echo "BORING_BSSL_FIPS_COMPILER_EXTERNAL_TOOLCHAIN=$(brew --prefix ${{ matrix.target }})/toolchain" >> $GITHUB_ENV
+      shell: bash
+    - name: Set BORING_BSSL_FIPS_SYSROOT
+      run: echo "BORING_BSSL_FIPS_SYSROOT=$BORING_BSSL_FIPS_COMPILER_EXTERNAL_TOOLCHAIN/${{ matrix.target }}/sysroot" >> $GITHUB_ENV
+      shell: bash
+    - name: Set CARGO_TARGET_X86_64_UNKNOWN_LINUX_GNU_LINKER
+      run: echo "CARGO_TARGET_X86_64_UNKNOWN_LINUX_GNU_LINKER=${{ matrix.target }}-gcc" >> $GITHUB_ENV
+    - name: Build for ${{ matrix.target }}
+      run: cargo build --target ${{ matrix.target }} --all-targets --features fips
+
+  test-features:
+    name: Test features
+    runs-on: ubuntu-20.04
+    steps:
+    - uses: actions/checkout@v2
+      with:
+        submodules: 'recursive'
+    - name: Install Rust (rustup)
+      run: rustup update stable --no-self-update && rustup default stable
+      shell: bash
+    - run: cargo test --features rpk
+      name: Run `rpk` tests
+    - run: cargo test --features pq-experimental
+      name: Run `pq-experimental` tests
+    - run: cargo test --features pq-experimental,rpk
+      name: Run `pq-experimental,rpk` tests
+    - run: cargo test --features kx-safe-default,pq-experimental
+      name: Run `kx-safe-default` tests

@@ -1,0 +1,45 @@
+[package]
+name = "hyper-boring"
+version = { workspace = true }
+authors = ["Steven Fackler <sfackler@gmail.com>", "Ivan Nikulin <ifaaan@gmail.com>"]
+edition = { workspace = true }
+description = "Hyper TLS support via BoringSSL"
+license = "MIT/Apache-2.0"
+repository = { workspace = true }
+documentation = "https://docs.rs/hyper-boring"
+readme = "README.md"
+exclude = ["test/*"]
+
+[package.metadata.docs.rs]
+features = ["rpk", "pq-experimental"]
+rustdoc-args = ["--cfg", "docsrs"]
+
+[features]
+default = ["runtime"]
+
+runtime = ["hyper/runtime"]
+
+# Use a FIPS-validated version of boringssl.
+fips = ["tokio-boring/fips"]
+
+# Link with precompiled FIPS-validated `bcm.o` module.
+fips-link-precompiled = ["tokio-boring/fips-link-precompiled"]
+
+# Enables experimental post-quantum crypto (https://blog.cloudflare.com/post-quantum-for-all/)
+pq-experimental = ["tokio-boring/pq-experimental"]
+
+[dependencies]
+antidote = { workspace = true }
+http = { workspace = true }
+hyper = { workspace = true, features = ["client"] }
+linked_hash_set = { workspace = true }
+once_cell = { workspace = true }
+boring = { workspace = true }
+tokio = { workspace = true }
+tokio-boring = { workspace = true }
+tower-layer = { workspace = true }
+
+[dev-dependencies]
+hyper = { workspace = true, features = [ "full" ] }
+tokio = { workspace = true, features = [ "full" ] }
+futures = { workspace = true }
