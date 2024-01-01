@@ -13,12 +13,12 @@ static GLOBAL: tikv_jemallocator::Jemalloc = tikv_jemallocator::Jemalloc;
 ///
 /// Параметры:
 /// - `prof:true` включает поддержку профилирования
-/// - `prof_active:false` не активирует само профилирование сразу же со старта
+/// - `prof_active:true` не активирует само профилирование сразу же со старта
 /// - `lg_prof_sample:19` говорит, что период семплирования аллокаций 2^19 байт = 512KiB
 #[cfg(target_os = "linux")]
 #[allow(non_upper_case_globals)]
 #[export_name = "malloc_conf"]
-pub static malloc_conf: &[u8] = b"prof:true,prof_active:false,lg_prof_sample:19\0";
+pub static malloc_conf: &[u8] = b"prof:true,prof_active:true,lg_prof_sample:19\0";
 
 fn main() {
     // Создаем вектор без аллокаций
@@ -26,8 +26,8 @@ fn main() {
 
     // Включаем профилирование в нужный момент.
     // Можно так же это делать через инстанс контроллера.
-    #[cfg(target_os = "linux")]
-    jemalloc_pprof::activate_jemalloc_profiling();
+    // #[cfg(target_os = "linux")]
+    // jemalloc_pprof::activate_jemalloc_profiling().await;
 
     // Заполняем этот самый буффер разной всякой фигней
     for i in 0..(1024 * 10) {
