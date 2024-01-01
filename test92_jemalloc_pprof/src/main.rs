@@ -1,5 +1,5 @@
 /// Сначала устанавливаем непосредственно сам наш аллокатор
-#[cfg(not(target_env = "msvc"))]
+#[cfg(target_os = "linux")]
 #[global_allocator]
 static GLOBAL: tikv_jemallocator::Jemalloc = tikv_jemallocator::Jemalloc;
 
@@ -15,7 +15,7 @@ static GLOBAL: tikv_jemallocator::Jemalloc = tikv_jemallocator::Jemalloc;
 /// - `prof:true` включает поддержку профилирования
 /// - `prof_active:false` не активирует само профилирование сразу же со старта
 /// - `lg_prof_sample:19` говорит, что период семплирования аллокаций 2^19 байт = 512KiB
-#[cfg(not(target_env = "msvc"))]
+#[cfg(target_os = "linux")]
 #[allow(non_upper_case_globals)]
 #[export_name = "malloc_conf"]
 pub static malloc_conf: &[u8] = b"prof:true,prof_active:false,lg_prof_sample:19\0";
@@ -26,6 +26,7 @@ fn main() {
 
     // Включаем профилирование в нужный момент.
     // Можно так же это делать через инстанс контроллера.
+    #[cfg(target_os = "linux")]
     jemalloc_pprof::activate_jemalloc_profiling();
 
     // Заполняем этот самый буффер разной всякой фигней
@@ -33,6 +34,7 @@ fn main() {
         buffer.push(i);
     }
 
+    #[cfg(target_os = "linux")]
     {
         // Получаем из глобального инстанса контроллера профилирования
         // непосредственно блокировку.
@@ -57,5 +59,6 @@ fn main() {
 
     // Выключаем профилирование в нужный момент.
     // Можно так же это делать через инстанс контроллера.
+    #[cfg(target_os = "linux")]
     jemalloc_pprof::deactivate_jemalloc_profiling();
 }

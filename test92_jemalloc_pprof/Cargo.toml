@@ -21,7 +21,7 @@ debug = "full"
 [dependencies]
 
 
-[target.'cfg(not(target_env = "msvc"))'.dependencies]
+[target.'cfg(target_os = "linux")'.dependencies]
 tikv-jemallocator = { version = "^0.5.4", default-features = false, features = [
     # Включается поддержка фоновых потоков
     "background_threads_runtime_support",
