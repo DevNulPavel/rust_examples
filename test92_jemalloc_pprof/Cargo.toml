@@ -7,16 +7,15 @@ edition = "2021"
 
 # Полная симфольная информация для получения имен функций
 [profile.dev]
-debug = "full"
 # TODO: Может быть хватит только имен функций?
-# debug = "line-tables-only"
+debug = "line-tables-only"
+# debug = "full"
 
 # Полная симфольная информация для получения имен функций
 [profile.release]
-debug = "full"
 # TODO: Может быть хватит только имен функций?
-# debug = "line-tables-only"
-
+debug = "line-tables-only"
+# debug = "full"
 
 [dependencies]
 

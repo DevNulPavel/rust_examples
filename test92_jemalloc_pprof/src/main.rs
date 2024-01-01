@@ -1,3 +1,5 @@
+use std::fmt::Write;
+
 /// Сначала устанавливаем непосредственно сам наш аллокатор
 #[cfg(target_os = "linux")]
 #[global_allocator]
@@ -20,19 +22,47 @@ static GLOBAL: tikv_jemallocator::Jemalloc = tikv_jemallocator::Jemalloc;
 #[export_name = "malloc_conf"]
 pub static malloc_conf: &[u8] = b"prof:true,prof_active:true,lg_prof_sample:19\0";
 
-fn main() {
+fn test_alloc_1() -> Vec<u64> {
     // Создаем вектор без аллокаций
     let mut buffer = Vec::<u64>::new();
+
+    // Заполняем этот самый буффер разной всякой фигней
+    for i in 0..(1024 * 1024 * 10) {
+        buffer.push(i);
+    }
+
+    buffer
+}
+
+fn test_alloc_2() -> String {
+    let mut buffer = String::with_capacity(1024 * 1024 * 4);
+
+    // Заполняем этот самый буффер разной всякой фигней
+    for _ in 0..(1024 * 1024 * 40) {
+        buffer.write_str("test").unwrap();
+    }
+
+    buffer
+}
+
+fn main() {
+    #[cfg(target_os = "linux")]
+    {
+        // Получаем из глобального инстанса контроллера профилирования
+        // непосредственно блокировку.
+        let mut prof = jemalloc_pprof::PROF_CTL.as_ref().unwrap().blocking_lock();
+
+        prof.activate().unwrap();
+    }
 
     // Включаем профилирование в нужный момент.
     // Можно так же это делать через инстанс контроллера.
     // #[cfg(target_os = "linux")]
     // jemalloc_pprof::activate_jemalloc_profiling().await;
 
-    // Заполняем этот самый буффер разной всякой фигней
-    for i in 0..(1024 * 10) {
-        buffer.push(i);
-    }
+    let _v1 = test_alloc_1();
+
+    let _v2 = test_alloc_2();
 
     #[cfg(target_os = "linux")]
     {
@@ -59,6 +89,6 @@ fn main() {
 
     // Выключаем профилирование в нужный момент.
     // Можно так же это делать через инстанс контроллера.
-    #[cfg(target_os = "linux")]
-    jemalloc_pprof::deactivate_jemalloc_profiling();
+    // #[cfg(target_os = "linux")]
+    // jemalloc_pprof::deactivate_jemalloc_profiling();
 }

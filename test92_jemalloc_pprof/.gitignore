@@ -1,3 +1,5 @@
 .DS_Store
 target/
 heap.pb.gz
+profile*.svg
+flamegraph.svg
