@@ -1,0 +1,17 @@
+[package]
+name = "test92_jemalloc_pprof"
+version = "0.1.0"
+authors = ["Pavel Ershov <devnulpavel@gmail.com>"]
+edition = "2021"
+
+[dependencies]
+
+[target.'cfg(not(target_env = "msvc"))'.dependencies]
+tikv-jemallocator = { version = "^0.5.4", default-features = false, features = [
+    "background_threads_runtime_support",
+    "unprefixed_malloc_on_supported_platforms",
+    "profiling",
+    "stats",
+    # "debug"
+] }
+tikv-jemalloc-ctl = "^0.5.4"
