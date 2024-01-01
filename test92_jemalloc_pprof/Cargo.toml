@@ -4,14 +4,38 @@ version = "0.1.0"
 authors = ["Pavel Ershov <devnulpavel@gmail.com>"]
 edition = "2021"
 
+
+# Полная симфольная информация для получения имен функций
+[profile.dev]
+debug = "full"
+# TODO: Может быть хватит только имен функций?
+# debug = "line-tables-only"
+
+# Полная симфольная информация для получения имен функций
+[profile.release]
+debug = "full"
+# TODO: Может быть хватит только имен функций?
+# debug = "line-tables-only"
+
+
 [dependencies]
+
 
 [target.'cfg(not(target_env = "msvc"))'.dependencies]
 tikv-jemallocator = { version = "^0.5.4", default-features = false, features = [
+    # Включается поддержка фоновых потоков
     "background_threads_runtime_support",
+    # Включение данной фичи убирает префиксы у вызовов
+    # malloc, что приводит к тому, что все слинкованные C/С++ библиотеки
+    # начинают использовать общий вызов аллокатора
     "unprefixed_malloc_on_supported_platforms",
+    # Включаем поддержку профилирования непосредственно
     "profiling",
+    # Включаем возможность получения статистики по аллокациям
     "stats",
+    # Включение возможности отладки
     # "debug"
 ] }
 tikv-jemalloc-ctl = "^0.5.4"
+tikv-jemalloc-sys = "^0.5.4"
+jemalloc_pprof = "^0.1.0"

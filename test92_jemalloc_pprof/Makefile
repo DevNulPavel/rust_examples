@@ -3,15 +3,12 @@
 
 ####################################################################################
 
-PPROF:
-	
-
-RUN_TEST:
+RUN:
 	export RUST_BACKTRACE=1 && \
 	cargo clippy \
-		--release \
 		--all \
 		--all-targets && \
-	cargo build \
-		--release && \
-	./target/release/test92_jemalloc_pprof
+	cargo build && \
+	./target/debug/test92_jemalloc_pprof
+
+PPROF_WEB:
