@@ -12,3 +12,6 @@ RUN:
 	./target/debug/test92_jemalloc_pprof
 
 PPROF_WEB:
+	pprof \
+		-http=:8080 \
+		heap.pb.gz
