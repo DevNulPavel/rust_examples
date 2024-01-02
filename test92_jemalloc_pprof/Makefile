@@ -19,6 +19,15 @@ RUN:
 	rm -rf ./output/heap.pb.gz && \
 	./target/debug/test92_jemalloc_pprof
 
+
+# Там есть и flamegraph, и много всего прочего
+PPROF_WEB:
+	~/go/bin/pprof \
+		-http=:8080 \
+		-no_browser \
+		./target/debug/test92_jemalloc_pprof \
+		./output/heap.pb.gz
+
 PPROF_FLAMEGRAPH:
 	~/go/bin/pprof \
 		-raw \
@@ -62,12 +71,6 @@ PPROF_TOP:
 PPROF_TREE:
 	~/go/bin/pprof \
 		-tree \
-		./target/debug/test92_jemalloc_pprof \
-		./output/heap.pb.gz
-
-PPROF_WEB:
-	~/go/bin/pprof \
-		-http=:8080 \
 		./target/debug/test92_jemalloc_pprof \
 		./output/heap.pb.gz
 
