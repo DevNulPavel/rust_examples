@@ -1,26 +1,32 @@
 use std::fmt::Write;
 
+////////////////////////////////////////////////////////////////////////////////////////////////
+
 /// Сначала устанавливаем непосредственно сам наш аллокатор
 #[cfg(target_os = "linux")]
 #[global_allocator]
 static GLOBAL: tikv_jemallocator::Jemalloc = tikv_jemallocator::Jemalloc;
+
+////////////////////////////////////////////////////////////////////////////////////////////////
 
 /// Через специальную переменную мы можем указать конфиг для jemalloc.
 ///
 /// Без флага сборки `unprefixed_malloc_on_supported_platforms`
 /// переменная должна называться `_rjem_malloc_conf`.
 ///
-/// Ссылки разные:
+/// Ссылки разные на конфиг:
 /// -
 ///
 /// Параметры:
 /// - `prof:true` включает поддержку профилирования
-/// - `prof_active:true` не активирует само профилирование сразу же со старта
+/// - `prof_active:false` не активирует само профилирование сразу же со старта
 /// - `lg_prof_sample:19` говорит, что период семплирования аллокаций 2^19 байт = 512KiB
 #[cfg(target_os = "linux")]
 #[allow(non_upper_case_globals)]
 #[export_name = "malloc_conf"]
-pub static malloc_conf: &[u8] = b"prof:true,prof_active:true,lg_prof_sample:19\0";
+pub static malloc_conf: &[u8] = b"prof:true,prof_active:false,lg_prof_sample:19\0";
+
+////////////////////////////////////////////////////////////////////////////////////////////////
 
 fn test_alloc_1() -> Vec<u64> {
     // Создаем вектор без аллокаций
@@ -45,13 +51,16 @@ fn test_alloc_2() -> String {
     buffer
 }
 
-fn main() {
+////////////////////////////////////////////////////////////////////////////////////////////////
+
+fn enable_pprof() {
     #[cfg(target_os = "linux")]
     {
         // Получаем из глобального инстанса контроллера профилирования
         // непосредственно блокировку.
         let mut prof = jemalloc_pprof::PROF_CTL.as_ref().unwrap().blocking_lock();
 
+        // Вызываем активацию
         prof.activate().unwrap();
     }
 
@@ -59,13 +68,25 @@ fn main() {
     // Можно так же это делать через инстанс контроллера.
     // #[cfg(target_os = "linux")]
     // jemalloc_pprof::activate_jemalloc_profiling().await;
+}
 
-    // Аллокации
-    let _v1 = test_alloc_1();
+fn disable_pprof() {
+    #[cfg(target_os = "linux")]
+    {
+        // Получаем из глобального инстанса контроллера профилирования
+        // непосредственно блокировку.
+        let mut prof = jemalloc_pprof::PROF_CTL.as_ref().unwrap().blocking_lock();
 
-    // Аллокации
-    let _v2 = test_alloc_2();
+        prof.deactivate().unwrap();
+    }
 
+    // Выключаем профилирование в нужный момент.
+    // Можно так же это делать через инстанс контроллера.
+    // #[cfg(target_os = "linux")]
+    // jemalloc_pprof::deactivate_jemalloc_profiling();
+}
+
+fn profile() {
     #[cfg(target_os = "linux")]
     {
         // Получаем из глобального инстанса контроллера профилирования
@@ -90,9 +111,20 @@ fn main() {
 
         println!("Memory profile info has written");
     }
+}
 
-    // Выключаем профилирование в нужный момент.
-    // Можно так же это делать через инстанс контроллера.
-    // #[cfg(target_os = "linux")]
-    // jemalloc_pprof::deactivate_jemalloc_profiling();
+////////////////////////////////////////////////////////////////////////////////////////////////
+
+fn main() {
+    enable_pprof();
+
+    // Аллокации
+    let _v1 = test_alloc_1();
+
+    // Аллокации
+    let _v2 = test_alloc_2();
+
+    profile();
+
+    disable_pprof();
 }
