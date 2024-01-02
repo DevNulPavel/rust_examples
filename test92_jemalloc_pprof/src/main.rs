@@ -60,8 +60,10 @@ fn main() {
     // #[cfg(target_os = "linux")]
     // jemalloc_pprof::activate_jemalloc_profiling().await;
 
+    // Аллокации
     let _v1 = test_alloc_1();
 
+    // Аллокации
     let _v2 = test_alloc_2();
 
     #[cfg(target_os = "linux")]
@@ -84,7 +86,9 @@ fn main() {
         let pprof_data = prof.dump_pprof().unwrap();
 
         // Теперь можно уже записать эти данные в файлик нужный
-        std::fs::write("heap.pb.gz", pprof_data).unwrap();
+        std::fs::write("./output/heap.pb.gz", pprof_data).unwrap();
+
+        println!("Memory profile info has written");
     }
 
     // Выключаем профилирование в нужный момент.

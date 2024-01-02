@@ -16,52 +16,64 @@ RUN:
 		--all \
 		--all-targets && \
 	cargo build && \
-	rm -rf ./heap.pb.gz && \
+	rm -rf ./output/heap.pb.gz && \
 	./target/debug/test92_jemalloc_pprof
 
 PPROF_FLAMEGRAPH:
 	~/go/bin/pprof \
 		-raw \
 		./target/debug/test92_jemalloc_pprof \
-		./heap.pb.gz | \
+		./output/heap.pb.gz | \
 	stackcollapse-go.pl | \
-	flamegraph.pl > flamegraph.svg
+	flamegraph.pl \
+		--hash > ./output/flamegraph.svg
 	
+PPROF_FLAMECHART:
+	~/go/bin/pprof \
+		-raw \
+		./target/debug/test92_jemalloc_pprof \
+		./output/heap.pb.gz | \
+	stackcollapse-go.pl | \
+	flamegraph.pl \
+		--flamechart \
+		--hash > ./output/flamechart.svg
+
 # Прочие варианты
 
 PPROF_TRACES:
 	~/go/bin/pprof \
 		-traces \
 		./target/debug/test92_jemalloc_pprof \
-		./heap.pb.gz
+		./output/heap.pb.gz
 
 PPROF_TEXT:
 	~/go/bin/pprof \
 		-text \
 		-call_tree \
 		./target/debug/test92_jemalloc_pprof \
-		./heap.pb.gz
+		./output/heap.pb.gz
 
 PPROF_TOP:
 	~/go/bin/pprof \
 		-top \
 		./target/debug/test92_jemalloc_pprof \
-		./heap.pb.gz
+		./output/heap.pb.gz
 
 PPROF_TREE:
 	~/go/bin/pprof \
 		-tree \
 		./target/debug/test92_jemalloc_pprof \
-		./heap.pb.gz
+		./output/heap.pb.gz
 
 PPROF_WEB:
 	~/go/bin/pprof \
 		-http=:8080 \
 		./target/debug/test92_jemalloc_pprof \
-		heap.pb.gz
+		./output/heap.pb.gz
 
 PPROF_SVG:
 	~/go/bin/pprof \
 		-svg \
+		-output ./output/pprof.svg \
 		./target/debug/test92_jemalloc_pprof \
-		heap.pb.gz
+		./output/heap.pb.gz
