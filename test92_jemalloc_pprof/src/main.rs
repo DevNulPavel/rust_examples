@@ -15,7 +15,10 @@ static GLOBAL: tikv_jemallocator::Jemalloc = tikv_jemallocator::Jemalloc;
 /// переменная должна называться `_rjem_malloc_conf`.
 ///
 /// Ссылки разные на конфиг:
-/// -
+/// - https://docs.rs/tikv-jemalloc-sys/0.5.4+5.3.0-patched/tikv_jemalloc_sys/static.malloc_conf.html
+/// - https://github.com/jemalloc/jemalloc/blob/dev/INSTALL.md
+/// - https://github.com/jemalloc/jemalloc/blob/dev/TUNING.md
+/// - https://jemalloc.net/jemalloc.3.html#tuning
 ///
 /// Параметры:
 /// - `prof:true` включает поддержку профилирования
@@ -24,7 +27,7 @@ static GLOBAL: tikv_jemallocator::Jemalloc = tikv_jemallocator::Jemalloc;
 #[cfg(target_os = "linux")]
 #[allow(non_upper_case_globals)]
 #[export_name = "malloc_conf"]
-pub static malloc_conf: &[u8] = b"prof:true,prof_active:false,lg_prof_sample:19\0";
+pub static malloc_conf: &[u8] = b"prof:true,prof_active:false,lg_prof_sample:19,prof_leak:false\0";
 
 ////////////////////////////////////////////////////////////////////////////////////////////////
 
