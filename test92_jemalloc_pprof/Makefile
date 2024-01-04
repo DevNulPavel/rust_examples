@@ -21,6 +21,7 @@ RUN:
 
 
 # Там есть и flamegraph, и много всего прочего
+# Есть еще веб-версии визуализации: https://flamegraph.com/
 PPROF_WEB:
 	~/go/bin/pprof \
 		-http=:8080 \
