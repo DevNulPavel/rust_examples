@@ -1,0 +1,189 @@
+########################################################################
+
+[private]
+default:
+    @just --list
+
+########################################################################
+
+# Проверки разные по коду и форматирование
+# Так можно делать таргеты закрытыми с помощью аттрибутов: 
+# - https://just.systems/man/en/chapter_32.html
+[private]
+fmt_check_clippy:
+    # С помощью символа "-" мы игнорируем ошибки при вызове, 
+    # иначе по-умолчанию прекразается работа дальше
+    # -cat foo
+    #
+    # С помощью символа "@" мы можем не выводить саму команду при запуске
+    @cargo fmt \
+        --all
+    @cargo check \
+        --all-targets
+    @cargo clippy \
+        --all-targets
+
+########################################################################
+
+# Бенчмаркаем xbogus
+bench_xbogus $RUST_BACKTRACE="1": fmt_check_clippy
+    @echo "Bench xbogus"
+    @export RUST_BACKTRACE=1
+    cargo bench \
+        --bench xbogus
+
+# Бенчмаркаем HTML парсинг
+bench_html_parsing $RUST_BACKTRACE="1": fmt_check_clippy
+    # @export RUST_BACKTRACE=1
+    @echo "Bench xbogus"
+    cargo bench \
+        --bench html_parsing
+
+########################################################################
+
+# Создаем временную директорию так и сохраняем путь в переменную
+# tmpdir := `mktemp -d`
+# Просто строковая переменная
+# version := "0.2.7"
+# Так мы можем склеивать вместе строки и директории
+# tardir := tmpdir / "awesomesauce-" + version
+# Еще пример склеивания
+# tarball := tardir + ".tar.gz"
+
+# Пример использования переменных в коде
+# publish_example:
+#     rm -f {{tarball}}
+#     mkdir {{tardir}}
+#     cp README.md *.c {{tardir}}
+#     tar zcvf {{tarball}} {{tardir}}
+#     scp {{tarball}} me@server.com:release/
+#     rm -rf {{tarball}} {{tardir}}
+
+########################################################################
+
+# alias xbogus := becnh_xbogus
+
+# Дока со списком разных настроек:
+# - https://just.systems/man/en/chapter_26.html
+# Пример:
+# set shell := ["zsh", "-cu"]
+
+########################################################################
+
+# Примеры различных встроеных удобных функций:
+# - https://just.systems/man/en/chapter_31.html
+
+# Так можно получить переменную окружения в переменную
+# home_dir := env_var('HOME')
+
+# Директория в которой происходит вызов:
+# invocation_directory()
+# Можно вызывать даже при форматировании:
+# {{invocation_directory()}}
+
+# Сам файлик:
+# justfile()
+
+# Директория самого файлика: 
+# justfile_directory()
+
+# Прочее:
+# - just_executable()
+# - just_pid()
+
+# Разные функции работы со строками:
+# - https://just.systems/man/en/chapter_31.html#string-manipulation
+# - https://just.systems/man/en/chapter_31.html#case-conversion
+
+# Работа с путями и директориями:
+# - https://just.systems/man/en/chapter_31.html#path-manipulation
+# - https://just.systems/man/en/chapter_31.html#infallible
+# - https://just.systems/man/en/chapter_31.html#filesystem-access
+# - https://just.systems/man/en/chapter_31.html#xdg-directories1230
+
+# Генераци идентификаторов:
+# - https://just.systems/man/en/chapter_31.html#uuid-and-hash-generation
+
+########################################################################
+
+# Еще у нас есть возможность использовать разные условные выражения + регулярки там
+# - https://just.systems/man/en/chapter_34.html
+
+# foo := if "hello" =~ 'hel+o' { "match" } else { "mismatch" }
+
+# foo := if "hello" == "goodbye" {
+#   "xyz"
+# } else if "a" == "b" {
+#   "abc"
+# } else { 
+#   error("123")
+# }
+
+# Можно делать ручное прерывание работы с помощью вызова функции error:
+# error("123")
+
+# bar:
+#   @echo {{foo}}
+
+########################################################################
+
+# Поддерживаются разные варианты установки переменных скрипта снаружи:
+# - https://just.systems/man/en/chapter_36.html
+
+# os := "linux"
+
+# build:
+#   ./build {{os}}
+
+# Синтаксис установки переменной:
+# just os=plan9
+# just --set os bsd
+
+########################################################################
+
+# Пример работы с переменными окружения:
+# - https://just.systems/man/en/chapter_37.html
+
+# Для всего скрипта
+# export RUST_BACKTRACE := "1"
+
+# В виде переменной окружения при конкретном вызове, 
+# это помечается вызовом $
+# test $RUST_BACKTRACE="1":
+#   # will print a stack trace if it crashes
+#   cargo test
+
+########################################################################
+
+# Параметры для вызовов скриптов:
+# - https://just.systems/man/en/chapter_38.html
+
+# Параметр можно указывать просто после нашей цели сборки, после этого параметр можно
+# использовать в параметрых, которые мы вызываем
+# build target:
+#   @echo 'Building {{target}}…'
+#   cd {{target}} && make
+
+# Если нам требуется передаывать параметры в заисимости то можно делать это
+# с помощью скобок 
+# build: (_build target)
+# build target:
+#   @echo "Building {{target}}…"
+# push target: (build target)
+#   @echo 'Pushing {{target}}…'
+
+# Параметрам также можно задавать определенные стандартные значения.
+# test target tests=default:
+
+# Стандартные параметры еще могут вычисляться непосредственно при попытке вызова
+# arch := "wasm"
+# test triple=(arch + "-unknown-unknown") input=(arch / "input.dat"):
+#   ./test {{triple}}
+
+# Поддерживаются дополнительно переменное число параметров
+# backup +FILES:
+#     scp {{FILES}} me@server.com:
+# commit MESSAGE *FLAGS:
+#   git commit {{FLAGS}} -m "{{MESSAGE}}"
+# test +FLAGS='-q':
+#   cargo test {{FLAGS}}    
