@@ -16,6 +16,19 @@ use syn::{
     TypeParamBound,
 };
 
+////////////////////////////////////////////////////////////////////////////////////////////////
+
+// Описание:
+// - https://doc.rust-lang.org/reference/procedural-macros.html#derive-macros
+
+// Можно генерировать поток токенов даже из строки
+// #[proc_macro]
+// pub fn make_answer(_item: TokenStream) -> TokenStream {
+//     "fn answer() -> u32 { 42 }".parse().unwrap()
+// }
+
+////////////////////////////////////////////////////////////////////////////////////////////////
+
 /// Добавляем для всех дочерних Generic параметрв ограничение в T: HeapSize
 fn add_trait_bounds(mut generics: Generics, bound: TypeParamBound) -> Generics {
     // Мутабельно обходим все generic параметры нашей структуры со ссылками на объект
