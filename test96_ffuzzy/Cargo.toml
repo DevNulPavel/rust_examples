@@ -1,0 +1,10 @@
+[package]
+name = "test96_ffuzzy"
+version = "0.1.0"
+authors = ["Pavel Ershov <devnulpavel@gmail.com>"]
+edition = "2021"
+
+##############################################################################################################
+
+[dependencies]
+ffuzzy = "^0.3.4"
