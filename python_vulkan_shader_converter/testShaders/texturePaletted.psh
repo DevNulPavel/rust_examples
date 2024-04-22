@@ -1,0 +1,20 @@
+varying vec2 v_texcoord;
+
+#if defined BUILD_IOS
+uniform highp sampler2D u_texture;
+#else
+uniform sampler2D u_texture;
+#endif
+
+uniform sampler2D u_texture8;
+uniform vec4 u_color;
+uniform float u_brightness;
+uniform float u_time;
+
+void main(void)
+{
+	vec2 index = vec2(texture2D(u_texture, v_texcoord).r, 0.0);
+    vec4 color = texture2D(u_texture8, index);
+    color.rgb = u_color.rgb * clamp(color.rgb * u_brightness, 0.0, 1.0);
+	gl_FragColor = color;
+}

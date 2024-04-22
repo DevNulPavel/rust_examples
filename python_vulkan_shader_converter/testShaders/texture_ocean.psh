@@ -1,0 +1,15 @@
+varying PRECISION_HIGH vec2 v_texcoord;
+varying PRECISION_HIGH float v_timesin;
+
+uniform sampler2D u_texture;
+uniform sampler2D u_texture2;
+uniform PRECISION_HIGH float u_time;
+
+void main(void)
+{
+    PRECISION_HIGH vec4 flow = texture2D(u_texture2, v_texcoord);
+    PRECISION_HIGH float str = 1.0 / (flow.w * 255.0) * v_timesin / 3.0;
+    flow.xy = (flow.xy * 2.0 - 1.0) * str;
+
+    gl_FragColor = texture2D(u_texture, v_texcoord + flow.xy);
+}

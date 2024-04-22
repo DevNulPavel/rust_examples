@@ -1,0 +1,26 @@
+{
+    "title": "PumpkinDB",
+    "plugins": ["theme-api", "fontsettings", "github-buttons", "expandable-chapters", "ga", "include"],
+    "pluginsConfig": {
+      "theme-api": {
+         "split": true,
+         "theme": "dark"
+      },
+      "fontsettings": {
+        "theme": "white",
+        "family": "serif",
+        "size": 3
+      },
+      "github-buttons": {
+        "repo": "PumpkinDB/PumpkinDB",
+        "types": [
+          "star",
+          "watch"
+        ],
+        "size": "large"
+      },
+      "ga": {
+        "token": "UA-92644407-1"
+      }
+    }
+}
