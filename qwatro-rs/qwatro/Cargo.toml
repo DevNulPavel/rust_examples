@@ -1,0 +1,16 @@
+[package]
+name = "qwatro"
+version = "0.1.0"
+edition = "2021"
+
+# See more keys and their definitions at https://doc.rust-lang.org/cargo/reference/manifest.html
+
+[dependencies]
+clap = { version = "4.1.8", features = ["derive"] }
+env_logger = "0.10.0"
+futures = "0.3.27"
+log = "0.4.17"
+qwatro-port-scanner = { path = "../qwatro-port-scanner"}
+qwatro-proxy = { path = "../qwatro-proxy"}
+tokio = { version = "1.26.0", features = ["rt-multi-thread", "signal"] }
+tokio-util = "0.7.7"

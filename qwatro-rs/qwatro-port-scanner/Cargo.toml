@@ -1,0 +1,15 @@
+[package]
+name = "qwatro-port-scanner"
+version = "0.1.0"
+edition = "2021"
+
+# See more keys and their definitions at https://doc.rust-lang.org/cargo/reference/manifest.html
+
+[dependencies]
+async-trait = "0.1.66"
+futures = "0.3.27"
+log = "0.4.17"
+thiserror = "1.0.39"
+tokio = { version = "1.26.0", features = ["sync", "net", "macros", "rt-multi-thread"] }
+tokio-stream = "0.1.12"
+tokio-util = "0.7.7"
