@@ -40,6 +40,14 @@ impl Executor {
         }
     }
 
+    pub(crate) fn task_thread_pool(&self) -> &ThreadPool {
+        &self.task_tp
+    }
+
+    pub(crate) fn blocking_task_thread_pool(&self) -> &ThreadPool {
+        &self.blocking_tp
+    }
+
     /// Запускаем корневую футуру на которой будет заблокирован исполнитель.
     ///
     /// Поддерживается лишь одна такая футура за раз.
@@ -58,15 +66,15 @@ impl Executor {
             if lock.is_none() {
                 // Записываем ту
                 *lock = Some(thread::current());
-            }else {
+            } else {
                 // Иначе вернем ошибку
-                return Err(BlockOnError::AlreadyBlocked)
+                return Err(BlockOnError::AlreadyBlocked);
             }
         }
 
         // Создаем задачу и join
         let (task, mut jh) = Task::<T, BlockedOnTaskWaker>::new(fut);
-        
+
         task.clone().wake();
 
         let main_waker = Arc::clone(&task).into();
@@ -114,7 +122,7 @@ impl Executor {
         JoinHandle::new(rx)
     }
 
-    fn unpark_blocked_thread(&self) {
+    pub(super) fn unpark_blocked_thread(&self) {
         self.block_on_thr
             .lock()
             .take()
