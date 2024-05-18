@@ -1,4 +1,4 @@
-use super::{handle::JoinHandle, Executor};
+use super::{handle::JoinHandle, this::Executor};
 use futures::{channel::oneshot, FutureExt};
 use parking_lot::Mutex;
 use std::{

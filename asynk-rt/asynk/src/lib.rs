@@ -1,5 +1,7 @@
 pub mod net;
 
+////////////////////////////////////////////////////////////////////////////////
+
 mod builder;
 mod executor;
 mod reactor;
@@ -20,31 +22,34 @@ pub use {
 
 ////////////////////////////////////////////////////////////////////////////////
 
-/// Runtime builder
+/// Билдер для рантайма
 pub fn builder() -> AsynkBuilder {
     AsynkBuilder::new()
 }
 
-/// Block current thread on the provided asynchronous task
+/// Блокируем текущий поток до момента завершнеия асинхронной задачи
 pub fn block_on<T>(fut: impl Future<Output = T> + Send + 'static) -> Result<T, BlockOnError>
 where
     T: Send + 'static,
 {
+    // Получам глобальный исполнитель и запускаем задачу
     Executor::get().block_on(fut)
 }
 
-/// Spawn new asynchronous task
+/// Запускаем новую асинхронную задачу
 pub fn spawn<T>(fut: impl Future<Output = T> + Send + 'static) -> JoinHandle<T>
 where
     T: Send + 'static,
 {
+    // Получам глобальный исполнитель и запускаем задачу
     Executor::get().spawn(fut)
 }
 
-/// Spawn synchronous task on dedicated thread pool
+/// Запускаем блокирующую задачу на пуле потоков + получаем возможность асинхронно дождаться результатов
 pub fn spawn_blocking<T>(f: impl Fn() -> T + Send + 'static) -> JoinHandle<T>
 where
     T: Send + 'static,
 {
+    // Получам глобальный исполнитель и запускаем задачу
     Executor::get().spawn_blocking(f)
 }
