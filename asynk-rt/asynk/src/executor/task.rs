@@ -6,7 +6,7 @@ use std::{
     marker::PhantomData,
     pin::Pin,
     sync::Arc,
-    task::{Context, Poll, Wake},
+    task::{Context, Poll, Wake, Waker},
 };
 
 ////////////////////////////////////////////////////////////////////////////////
@@ -64,23 +64,54 @@ impl<T, W> Task<T, W> {
 
 ////////////////////////////////////////////////////////////////////////////////
 
-CONTUNUE HERE
+/// Waker для запущенной фоновой задачи
 pub(super) struct SpawnedTaskWaker;
 
+////////////////////////////////////////////////////////////////////////////////
+
+pub(super) struct BlockedOnTaskWaker;
+
+////////////////////////////////////////////////////////////////////////////////
+
+/// Реализуем стандартный интерфейс для пробуждения задач
 impl<T> Wake for Task<T, SpawnedTaskWaker>
 where
     T: Send + 'static,
 {
-
+    /// Реализация пробуждения
     fn wake(self: Arc<Self>) {
-        get_global_executor().task_thread_pool().spawn(move || {
-            let waker = self.clone().into();
+        // Получаем тредпул для обычных задач из глобального исполнителя
+        let tp = get_global_executor().task_thread_pool();
+
+        // Запускаем задачу на пуле потоков
+        tp.spawn(move || {
+            // Создаем клон текущего waker + превращаем его в стандартный тип
+            // Что интересно, здесь не происходит никаких аллокаций больше,
+            // тип Arc<dyn Wake> конвертируется в Waker внутри
+            let waker: Waker = self.clone().into();
+
+            // Создаем дополнительно контекст-обертку еще из waker
             let mut cx = Context::from_waker(&waker);
+
+            // Блокируемся на Mutex футуры
             let mut lock = self.fut.lock();
+
+            // TODO: Цикл ожидания пробуждения?
+
+            // Пробуем получить футуру из Mutex, оставив там None
             if let Some(mut fut) = lock.take() {
+                // Если у нас есть все еще футура - полим ее
                 match fut.poll_unpin(&mut cx) {
-                    Poll::Ready(output) => self.ready(output),
-                    Poll::Pending => *lock = Some(fut),
+                    // Если завершилось успешно - оповещаем о завершении
+                    Poll::Ready(output) => {
+                        // Оповещаем о завершении
+                        self.ready(output)
+                    }
+                    // Если задача еще не готова
+                    Poll::Pending => {
+                        // Тогда вернем футуру назад
+                        *lock = Some(fut)
+                    }
                 };
             }
         });
@@ -88,8 +119,6 @@ where
 }
 
 ////////////////////////////////////////////////////////////////////////////////
-
-pub(super) struct BlockedOnTaskWaker;
 
 impl<T> Wake for Task<T, BlockedOnTaskWaker>
 where
