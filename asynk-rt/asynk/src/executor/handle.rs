@@ -5,10 +5,15 @@ use std::{
     task::{Context, Poll},
 };
 
+////////////////////////////////////////////////////////////////////////////////
+
 #[derive(Debug, thiserror::Error)]
 #[error("join fail: result channel dropped")]
 pub struct JoinError;
 
+////////////////////////////////////////////////////////////////////////////////
+
+CONTINUE HERE
 pub struct JoinHandle<T>(oneshot::Receiver<T>);
 
 impl<T> JoinHandle<T>

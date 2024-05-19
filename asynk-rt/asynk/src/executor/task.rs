@@ -7,6 +7,7 @@ use std::{
     pin::Pin,
     sync::Arc,
     task::{Context, Poll, Wake, Waker},
+    thread::{self, Thread},
 };
 
 ////////////////////////////////////////////////////////////////////////////////
@@ -25,12 +26,15 @@ pub(super) struct Task<T, W> {
     out_tx: Mutex<Option<oneshot::Sender<T>>>,
 
     /// PhantomData чисто для сохранения типа Waker
-    _waker: PhantomData<W>,
+    waker: W,
 }
 
 impl<T, W> Task<T, W> {
     /// Создание новой задачи, вернет Arc + Join для ожидания
-    pub(super) fn new(fut: impl Future<Output = T> + Send + 'static) -> (Arc<Self>, JoinHandle<T>)
+    pub(super) fn new(
+        fut: impl Future<Output = T> + Send + 'static,
+        waker: W,
+    ) -> (Arc<Self>, JoinHandle<T>)
     where
         T: Send + 'static,
     {
@@ -47,7 +51,7 @@ impl<T, W> Task<T, W> {
             // Канал
             out_tx: Mutex::new(Some(tx)),
             // Сохраняем тип Waker
-            _waker: PhantomData,
+            waker,
         });
 
         (task, JoinHandle::new(rx))
@@ -69,7 +73,13 @@ pub(super) struct SpawnedTaskWaker;
 
 ////////////////////////////////////////////////////////////////////////////////
 
-pub(super) struct BlockedOnTaskWaker;
+pub(super) struct BlockedOnTaskWaker(Mutex<Option<Thread>>);
+
+impl BlockedOnTaskWaker {
+    pub(super) fn new_current_thread() -> BlockedOnTaskWaker {
+        BlockedOnTaskWaker(Mutex::new(Some(thread::current())))
+    }
+}
 
 ////////////////////////////////////////////////////////////////////////////////
 
@@ -128,7 +138,7 @@ where
         let exec = get_global_executor();
         let tp = exec.task_thread_pool();
 
-        // Запусаем задачу на пуле потоков
+        // Запусаем задачу на пуле потоков, текущее пробуждение не будем блокиовать.
         tp.spawn(move || {
             // Создаем клон текущего waker + превращаем его в стандартный тип
             // Что интересно, здесь не происходит никаких аллокаций больше,
@@ -153,7 +163,9 @@ where
 
                         // Здесь мы дополнительно при пробуждении еще
                         // разблокируем заблокированный поток исполнителя
-                        exec.unpark_blocked_thread();
+                        if let Some(thread) = self.waker.0.lock().take() {
+                            thread.unpark();
+                        }
                     }
                     // Если задача еще не готова
                     Poll::Pending => {

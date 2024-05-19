@@ -2,7 +2,6 @@
 
 use super::{
     error::BlockOnError,
-    handle::JoinError,
     task::{BlockedOnTaskWaker, SpawnedTaskWaker, Task},
 };
 use crate::{tp::ThreadPool, JoinHandle};
@@ -21,7 +20,7 @@ use std::{
 /// Исполнитель кода
 pub(crate) struct Executor {
     /// Поток, который сейчас задействован в работе над block_on
-    block_on_thr: Mutex<Option<Thread>>,
+    // block_on_thr: Mutex<Option<Thread>>,
 
     /// Пул потоков для задач обычных асинхронных
     task_tp: ThreadPool,
@@ -36,19 +35,25 @@ impl Executor {
         Self {
             task_tp,
             blocking_tp,
-            block_on_thr: Mutex::new(None),
+            // block_on_thr: Mutex::new(None),
         }
     }
+
+    ////////////////////////////////////////////////////////////////////////////////
 
     // Получаем пул потоков для задач
     pub(crate) fn task_thread_pool(&self) -> &ThreadPool {
         &self.task_tp
     }
 
+    ////////////////////////////////////////////////////////////////////////////////
+
     // Получаем пул потоков для блокирующих задач
     pub(crate) fn blocking_task_thread_pool(&self) -> &ThreadPool {
         &self.blocking_tp
     }
+
+    ////////////////////////////////////////////////////////////////////////////////
 
     /// Запускаем корневую футуру на которой будет заблокирован исполнитель.
     ///
@@ -60,25 +65,11 @@ impl Executor {
     where
         T: Send + 'static,
     {
-        // Пробуем взять блокировку, если кто-то другой уже испольует - вернем ошибку.
-        {
-            let mut lock = self.block_on_thr.lock();
-
-            // Если никто у нас сейчас другой не испольует блокировку - установим ее
-            if lock.is_none() {
-                // Записываем ту
-                *lock = Some(thread::current());
-            } else {
-                // Иначе вернем ошибку
-                return Err(BlockOnError::AlreadyBlocked);
-            }
-        }
-
         // Создаем задачу и join
-        let (task, mut jh) = Task::<T, BlockedOnTaskWaker>::new(fut);
+        let (task, mut jh) = Task::<T, BlockedOnTaskWaker>::new(fut, BlockedOnTaskWaker::new_current_thread());
 
         // Один раз вызываем wake для Arc задачи, может быть она сразу же окажется завершена +
-        // тем самым мы запускаем полинг (TODO: ???)
+        // тем самым мы запускаем полинг
         task.clone().wake();
 
         // Конвертируем без аллокаций наш Arc задачи в стандартный Waker тип.
@@ -95,17 +86,22 @@ impl Executor {
         loop {
             // Периодически проверяем, не завершилась ли еще задача, проверяя канал на завершение и получение результата
             match jh.as_mut().poll(&mut cx) {
+                // Готова задача
                 Poll::Ready(res) => {
                     return Ok(res?);
                 }
                 Poll::Pending => {
-                    // Спим, пока в канале что-то не появится в канале
+                    // Спим, пока в канале что-то не появится в канале.
+                    // Пробуждение будет внутри BlockedOnTaskWaker.
                     thread::park();
                 }
             }
         }
     }
 
+    ////////////////////////////////////////////////////////////////////////////////
+
+    CONTINUE HERE
     pub(crate) fn spawn<T>(&self, fut: impl Future<Output = T> + Send + 'static) -> JoinHandle<T>
     where
         T: Send + 'static,
