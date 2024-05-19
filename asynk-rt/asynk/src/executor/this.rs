@@ -87,7 +87,7 @@ impl Executor {
             // Периодически проверяем, не завершилась ли еще задача, проверяя канал на завершение и получение результата
             match jh.as_mut().poll(&mut cx) {
                 // Готова задача
-                Poll::Ready(res) => {
+                Poll::Ready(res) => {asd
                     return Ok(res?);
                 }
                 Poll::Pending => {
