@@ -96,8 +96,6 @@ where
             // Блокируемся на Mutex футуры
             let mut lock = self.fut.lock();
 
-            // TODO: Цикл ожидания пробуждения?
-
             // Пробуем получить футуру из Mutex, оставив там None
             if let Some(mut fut) = lock.take() {
                 // Если у нас есть все еще футура - полим ее
@@ -120,24 +118,48 @@ where
 
 ////////////////////////////////////////////////////////////////////////////////
 
+/// Реализуем стандартный интерфейс для пробуждения задач
 impl<T> Wake for Task<T, BlockedOnTaskWaker>
 where
     T: Send + 'static,
 {
     fn wake(self: Arc<Self>) {
+        // Получаем тредпул для обычных задач из глобального исполнителя
         let exec = get_global_executor();
+        let tp = exec.task_thread_pool();
 
-        exec.task_thread_pool().spawn(move || {
+        // Запусаем задачу на пуле потоков
+        tp.spawn(move || {
+            // Создаем клон текущего waker + превращаем его в стандартный тип
+            // Что интересно, здесь не происходит никаких аллокаций больше,
+            // тип Arc<dyn Wake> конвертируется в Waker внутри
             let waker = self.clone().into();
+
+            // Создаем дополнительно контекст-обертку еще из waker
             let mut cx = Context::from_waker(&waker);
+
+            // Блокируемся на Mutex футуры
             let mut lock = self.fut.lock();
+
+            // Пробуем получить футуру из Mutex, оставив там None
             if let Some(mut fut) = lock.take() {
+                // Если у нас есть все еще футура - полим ее.
+                // Следующий вызов полинга будет регистрироваться там где-то внутри.
                 match fut.poll_unpin(&mut cx) {
+                    // Если завершилось успешно - оповещаем о завершении
                     Poll::Ready(output) => {
+                        // Оповещаем о завершении
                         self.ready(output);
+
+                        // Здесь мы дополнительно при пробуждении еще
+                        // разблокируем заблокированный поток исполнителя
                         exec.unpark_blocked_thread();
                     }
-                    Poll::Pending => *lock = Some(fut),
+                    // Если задача еще не готова
+                    Poll::Pending => {
+                        // Тогда вернем футуру назад
+                        *lock = Some(fut)
+                    }
                 };
             }
         });

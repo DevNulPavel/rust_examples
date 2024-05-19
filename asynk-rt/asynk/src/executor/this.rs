@@ -12,7 +12,7 @@ use std::{
     future::Future,
     pin::Pin,
     sync::Arc,
-    task::{Context, Poll, Wake},
+    task::{Context, Poll, Wake, Waker},
     thread::{self, Thread},
 };
 
@@ -40,10 +40,12 @@ impl Executor {
         }
     }
 
+    // Получаем пул потоков для задач
     pub(crate) fn task_thread_pool(&self) -> &ThreadPool {
         &self.task_tp
     }
 
+    // Получаем пул потоков для блокирующих задач
     pub(crate) fn blocking_task_thread_pool(&self) -> &ThreadPool {
         &self.blocking_tp
     }
@@ -75,22 +77,32 @@ impl Executor {
         // Создаем задачу и join
         let (task, mut jh) = Task::<T, BlockedOnTaskWaker>::new(fut);
 
+        // Один раз вызываем wake для Arc задачи, может быть она сразу же окажется завершена +
+        // тем самым мы запускаем полинг (TODO: ???)
         task.clone().wake();
 
-        let main_waker = Arc::clone(&task).into();
+        // Конвертируем без аллокаций наш Arc задачи в стандартный Waker тип.
+        // Так можно делать благодаря реализации `Arc<dyn Wake>`.
+        let main_waker: Waker = Arc::clone(&task).into();
 
+        // Создаем контекст из нашего Waker
         let mut cx = Context::from_waker(&main_waker);
 
+        // Дополнитеьно пинируем на стеке Join
         let mut jh = Pin::new(&mut jh);
 
+        // Выполняем главный цикл работы ожидания завершения
         loop {
-            // Check if main task is ready
-            if let Poll::Ready(res) = jh.as_mut().poll(&mut cx) {
-                return Ok(res?);
+            // Периодически проверяем, не завершилась ли еще задача, проверяя канал на завершение и получение результата
+            match jh.as_mut().poll(&mut cx) {
+                Poll::Ready(res) => {
+                    return Ok(res?);
+                }
+                Poll::Pending => {
+                    // Спим, пока в канале что-то не появится в канале
+                    thread::park();
+                }
             }
-
-            // Park this thread until main task become ready
-            thread::park();
         }
     }
 
