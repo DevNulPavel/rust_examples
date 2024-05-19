@@ -4,31 +4,29 @@ use std::{
     pin::Pin,
     task::{Context, Poll},
 };
+use super::JoinError;
 
 ////////////////////////////////////////////////////////////////////////////////
 
-#[derive(Debug, thiserror::Error)]
-#[error("join fail: result channel dropped")]
-pub struct JoinError;
-
-////////////////////////////////////////////////////////////////////////////////
-
-CONTINUE HERE
+/// Поддержка ожидания завершения работы
 pub struct JoinHandle<T>(oneshot::Receiver<T>);
 
 impl<T> JoinHandle<T>
 where
     T: Send + 'static,
 {
-    pub(crate) fn new(rx: oneshot::Receiver<T>) -> Self {
+    // Создание нового ожидателя
+    pub(super) fn new(rx: oneshot::Receiver<T>) -> Self {
         Self(rx)
     }
 }
 
+/// Join у нас будет работать как футура тоже
 impl<T> Future for JoinHandle<T> {
     type Output = Result<T, JoinError>;
 
     fn poll(mut self: Pin<&mut Self>, cx: &mut Context<'_>) -> Poll<Self::Output> {
+        // Здесь мы просто пробрасываем полинг в дочерний канал
         self.0.poll_unpin(cx).map_err(|_| JoinError)
     }
 }

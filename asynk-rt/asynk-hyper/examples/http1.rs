@@ -7,7 +7,7 @@ use std::convert::Infallible;
 const SERVER_SOCK_ADDR: &str = "127.0.0.1:8040";
 
 fn main() {
-    asynk::builder().build().unwrap();
+    asynk::builder().build_and_set_global().unwrap();
     asynk::block_on(server()).unwrap();
 }
 

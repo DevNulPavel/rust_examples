@@ -29,7 +29,7 @@ impl Inner {
     }
 
     /// Enqueue job
-    pub fn spawn(&self, job: impl Fn() + Send + 'static) {
+    pub fn spawn(&self, job: impl FnOnce() + Send + 'static) {
         self.job_queue.add(Box::new(job));
     }
 

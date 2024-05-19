@@ -17,7 +17,7 @@ Content-Length: 23
 ";
 
 fn main() {
-    asynk::builder().build().unwrap();
+    asynk::builder().build_and_set_global().unwrap();
 
     asynk::block_on(async {
         let server = asynk::spawn(server());

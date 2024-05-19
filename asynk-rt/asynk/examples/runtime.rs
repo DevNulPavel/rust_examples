@@ -9,7 +9,7 @@ use std::{
 };
 
 fn main() {
-    asynk::builder().build().unwrap();
+    asynk::builder().build_and_set_global().unwrap();
     asynk::block_on(main_future()).unwrap();
 }
 

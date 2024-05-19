@@ -3,9 +3,13 @@ use std::io;
 
 ////////////////////////////////////////////////////////////////////////////////
 
+/// Билдер нашего рантайма
 #[derive(Default)]
 pub struct AsynkBuilder {
+    /// Количество потоков
     task_threads: Option<usize>,
+
+    /// Количество блокирующих потоков
     blocking_threads: Option<usize>,
 }
 
@@ -14,6 +18,7 @@ impl AsynkBuilder {
         Default::default()
     }
 
+    /// Количество потоков задач
     pub fn task_threads(mut self, val: usize) -> Self {
         let val = if val == 0 {
             Self::default_thread_count()
@@ -25,6 +30,7 @@ impl AsynkBuilder {
         self
     }
 
+    /// Количество блокирующих потоков
     pub fn blocking_threads(mut self, val: usize) -> Self {
         let val = if val == 0 {
             Self::default_thread_count()
@@ -36,7 +42,8 @@ impl AsynkBuilder {
         self
     }
 
-    pub fn build(self) -> io::Result<()> {
+    /// Создаем рантайм и устанавливаем его как глобальный
+    pub fn build_and_set_global(self) -> io::Result<()> {
         let task_threads = self.task_threads.unwrap_or_else(Self::default_thread_count);
         let task_tp = ThreadPool::new("task-worker".into(), task_threads);
 
@@ -49,7 +56,7 @@ impl AsynkBuilder {
         Executor::new(task_tp, blocking_tp).set_global();
 
         Reactor::new()?.set_global();
-        
+
         Ok(())
     }
 

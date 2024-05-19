@@ -8,7 +8,7 @@ use std::sync::Arc;
 mod tests;
 
 /// Job for worker
-pub type Job = Box<dyn Fn() + Send>;
+pub type Job = Box<dyn FnOnce() + Send>;
 
 #[derive(Clone)]
 pub struct ThreadPool(Arc<Inner>);
@@ -18,7 +18,7 @@ impl ThreadPool {
         Self(Inner::new(name, thread_count))
     }
 
-    pub fn spawn(&self, job: impl Fn() + Send + 'static) {
+    pub fn spawn(&self, job: impl FnOnce() + Send + 'static) {
         self.0.spawn(job)
     }
 

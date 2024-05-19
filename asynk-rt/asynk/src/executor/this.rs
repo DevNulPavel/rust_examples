@@ -6,13 +6,12 @@ use super::{
 };
 use crate::{tp::ThreadPool, JoinHandle};
 use futures::channel::oneshot;
-use parking_lot::Mutex;
 use std::{
     future::Future,
     pin::Pin,
     sync::Arc,
     task::{Context, Poll, Wake, Waker},
-    thread::{self, Thread},
+    thread,
 };
 
 ////////////////////////////////////////////////////////////////////////////////
@@ -66,7 +65,8 @@ impl Executor {
         T: Send + 'static,
     {
         // Создаем задачу и join
-        let (task, mut jh) = Task::<T, BlockedOnTaskWaker>::new(fut, BlockedOnTaskWaker::new_current_thread());
+        let (task, mut jh) =
+            Task::<T, BlockedOnTaskWaker>::new(fut, BlockedOnTaskWaker::new_current_thread());
 
         // Один раз вызываем wake для Arc задачи, может быть она сразу же окажется завершена +
         // тем самым мы запускаем полинг
@@ -101,40 +101,39 @@ impl Executor {
 
     ////////////////////////////////////////////////////////////////////////////////
 
-    CONTINUE HERE
+    /// Запуска футуры фоновой
     pub(crate) fn spawn<T>(&self, fut: impl Future<Output = T> + Send + 'static) -> JoinHandle<T>
     where
         T: Send + 'static,
     {
-        let (task, jh) = Task::<T, SpawnedTaskWaker>::new(fut);
+        // Создадим задачу
+        let (task, jh) = Task::<T, SpawnedTaskWaker>::new(fut, SpawnedTaskWaker);
 
-        // Wake the task so that it starts trying to complete
+        // Первичный запуск задачи, который триггерит полинг футуры
         task.wake();
+
+        // Канал для ожидания завершения
         jh
     }
 
+    ////////////////////////////////////////////////////////////////////////////////
+
+    /// Запуск какой-то блокирующей задачи на пуле потоков
     pub(crate) fn spawn_blocking<T>(&self, f: impl Fn() -> T + Send + 'static) -> JoinHandle<T>
     where
         T: Send + 'static,
     {
+        // Канал ожидания завершения задачи
         let (tx, rx) = oneshot::channel();
 
-        let tx = Mutex::new(Some(tx));
+        // Запускаем на пуле потоков работу
         self.blocking_tp.spawn(move || {
             let out = f();
-            if let Some(tx) = tx.lock().take() {
-                tx.send(out).ok();
-            };
+
+            // Отправляем результат если кто-то его еще ждет
+            tx.send(out).ok();
         });
 
         JoinHandle::new(rx)
-    }
-
-    pub(super) fn unpark_blocked_thread(&self) {
-        self.block_on_thr
-            .lock()
-            .take()
-            .expect("block on thread is not set")
-            .unpark();
     }
 }
