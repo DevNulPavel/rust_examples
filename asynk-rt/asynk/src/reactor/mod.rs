@@ -1,11 +1,11 @@
-pub(crate) mod io_handle;
+mod io_handle;
 
 ////////////////////////////////////////////////////////////////////////////////
 
 use mio::{event::Source, Events, Interest, Poll, Registry, Token};
 use sharded_slab::Slab;
 use std::{
-    io::{self, Error, Result},
+    io::{self, Error},
     sync::{Arc, OnceLock},
     task::Waker,
     thread::{self},
@@ -13,42 +13,60 @@ use std::{
 
 ////////////////////////////////////////////////////////////////////////////////
 
-CONTINUE HERE!!!!!
+/// Глобальный синглтон реактора
+static REACTOR: OnceLock<Reactor> = OnceLock::new();
+
+pub(crate) fn get_global_reactor() -> &'static Reactor {
+    REACTOR.get().expect("reactor is not set")
+}
+
+pub(crate) fn set_global_reactor(r: Reactor) -> Result<(), Reactor> {
+    REACTOR.set(r)
+}
+
+////////////////////////////////////////////////////////////////////////////////
+
 /// Реактор нужен для того, чтобы отслеживать события от `mio` библиотеки и вызывать
 /// waker в соответствии с этими событиями
-pub struct Reactor {
+pub(crate) struct Reactor {
+    /// Список разных вейкеров из slab аллокатора для скорости
     wakers: Arc<Slab<Waker>>,
+
+    /// TODO: !!!
     registry: Registry,
 }
 
-static REACTOR: OnceLock<Reactor> = OnceLock::new();
-
 impl Reactor {
-    pub fn new() -> Result<Self> {
+    /// Создаем новый реактор
+    pub(crate) fn new() -> Result<Self, std::io::Error> {
+        // Создаем новый полер
         let poll = Poll::new()?;
+
+        // Получаем регистри
         let registry = poll.registry().try_clone()?;
 
+        // Создаем слаб-аллокатор дя наших waker объектов
         let wakers = Arc::new(Slab::new());
 
-        // Spawn poll events thread
+        // Стартуем отдельный поток обработки полинга событий
         thread::Builder::new().name("reactor".into()).spawn({
+            // Для этого потока шарим Arc вейкера
             let wakers = Arc::clone(&wakers);
-            move || Self::poll_events_routine(wakers, poll)
+
+            move || {
+                // отдельным потоком полим события из сети
+                poll_events_routine(wakers, poll)
+            }
         })?;
 
         Ok(Self { registry, wakers })
     }
 
-    pub fn get() -> &'static Reactor {
-        REACTOR.get().expect("reactor is not set")
-    }
+    ////////////////////////////////////////////////////////////////////////////////
 
-    pub fn set_global(self) {
-        REACTOR.set(self).ok();
-    }
-
-    /// Register interested events for the given source
-    pub fn register<S>(
+    /// Регистрируем интересующие нас событи для конкретного источнка.
+    /// Передаем в виде параметра нужный waker, который будет будить футуру.
+    pub(crate) fn register<S>(
         &self,
         source: &mut S,
         interests: Interest,
@@ -57,19 +75,24 @@ impl Reactor {
     where
         S: Source,
     {
+        // Сохраняем waker в slab, в ответ получаем ключ по которому можно будет ссылаться.
         let token = self
             .wakers
             .insert(waker)
             .ok_or(Error::other("slab queue is full"))?;
 
+        // В качестве mio токена как раз у нас будет выступать этот самый ключ
         let token = Token(token);
 
+        // Теперь регистрируем для данного истоника этот токен и его желаемые интереные события
         self.registry.register(source, token, interests)?;
 
         Ok(token)
     }
 
-    pub fn reregister<S>(
+    ////////////////////////////////////////////////////////////////////////////////
+
+    pub(crate) fn reregister<S>(
         &self,
         token: Token,
         source: &mut S,
@@ -92,28 +115,32 @@ impl Reactor {
         Ok(new_token)
     }
 
-    pub fn poll_events_routine(wakers: Arc<Slab<Waker>>, mut poll: Poll) {
-        let mut events = Events::with_capacity(1024);
-
-        loop {
-            poll.poll(&mut events, None).unwrap();
-
-            for event in events.into_iter() {
-                if let Some(waker) = wakers.get(event.token().into()) {
-                    // Call waker interested by this event
-                    waker.wake_by_ref();
-                }
-            }
-        }
-    }
+    ////////////////////////////////////////////////////////////////////////////////
 
     /// Remove the interests for the given source
-    pub fn deregister<S>(&self, token: Token, source: &mut S) -> io::Result<()>
+    pub(crate) fn deregister<S>(&self, token: Token, source: &mut S) -> io::Result<()>
     where
         S: Source,
     {
         self.registry.deregister(source)?;
         self.wakers.get(token.0);
         Ok(())
+    }
+}
+
+////////////////////////////////////////////////////////////////////////////////
+
+fn poll_events_routine(wakers: Arc<Slab<Waker>>, mut poll: Poll) {
+    let mut events = Events::with_capacity(1024);
+
+    loop {
+        poll.poll(&mut events, None).unwrap();
+
+        for event in events.into_iter() {
+            if let Some(waker) = wakers.get(event.token().into()) {
+                // Call waker interested by this event
+                waker.wake_by_ref();
+            }
+        }
     }
 }
