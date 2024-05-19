@@ -1,4 +1,6 @@
-pub mod io_handle;
+pub(crate) mod io_handle;
+
+////////////////////////////////////////////////////////////////////////////////
 
 use mio::{event::Source, Events, Interest, Poll, Registry, Token};
 use sharded_slab::Slab;
@@ -9,8 +11,11 @@ use std::{
     thread::{self},
 };
 
-/// Reactor polls events from mio and calls wakers interested
-/// by these events
+////////////////////////////////////////////////////////////////////////////////
+
+CONTINUE HERE!!!!!
+/// Реактор нужен для того, чтобы отслеживать события от `mio` библиотеки и вызывать
+/// waker в соответствии с этими событиями
 pub struct Reactor {
     wakers: Arc<Slab<Waker>>,
     registry: Registry,
