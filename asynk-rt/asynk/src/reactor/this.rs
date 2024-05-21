@@ -1,10 +1,8 @@
-////////////////////////////////////////////////////////////////////////////////
-
 use mio::{event::Source, Events, Interest, Poll, Registry, Token};
 use sharded_slab::Slab;
 use std::{
     io::{self, Error},
-    sync::{Arc, OnceLock},
+    sync::Arc,
     task::Waker,
     thread::{self},
 };
@@ -17,7 +15,7 @@ pub(crate) struct Reactor {
     /// Список разных вейкеров из slab аллокатора для скорости
     wakers: Arc<Slab<Waker>>,
 
-    /// TODO: !!!
+    /// Регистратор через который мы можем подписыаться на какие-то события в сокетах÷
     registry: Registry,
 }
 
@@ -77,6 +75,7 @@ impl Reactor {
 
     ////////////////////////////////////////////////////////////////////////////////
 
+    /// Повторно регистрируем существующий какой-то источник, который уже был зарегистрирован ранее
     pub(crate) fn reregister<S>(
         &self,
         token: Token,
@@ -87,14 +86,18 @@ impl Reactor {
     where
         S: Source,
     {
+        // Из текущего slab мы удаляем токен
         self.wakers.remove(token.into());
 
+        // Затем мы заново добавляем waker для пробуждения в slab
+        // и получаем новый токен для работы
         let new_token = Token(
             self.wakers
                 .insert(waker)
                 .ok_or(Error::other("slab queue is full"))?,
         );
 
+        // Перерегистрируем теперь уже с новым токеном этот источник и его события
         self.registry.reregister(source, new_token, interests)?;
 
         Ok(new_token)
@@ -102,12 +105,14 @@ impl Reactor {
 
     ////////////////////////////////////////////////////////////////////////////////
 
-    /// Remove the interests for the given source
+    /// Снимаем регистрацию для указанного источника и его токена
     pub(crate) fn deregister<S>(&self, token: Token, source: &mut S) -> io::Result<()>
     where
         S: Source,
     {
+        // Снимаем с регистрации ожидание событий на данном токене
         self.registry.deregister(source)?;
+        // Убираем из slab данный токен
         self.wakers.get(token.0);
         Ok(())
     }
