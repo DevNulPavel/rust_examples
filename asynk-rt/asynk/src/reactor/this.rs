@@ -120,17 +120,26 @@ impl Reactor {
 
 ////////////////////////////////////////////////////////////////////////////////
 
+/// Главная функция полинга новых событий для сокетов, работающая в отдельном потоке
 fn poll_events_routine(wakers: Arc<Slab<Waker>>, mut poll: Poll) {
+    // Накопитель для событий сразу с емкостью
     let mut events = Events::with_capacity(1024);
 
     loop {
+        // Полим разные зарегистрированные события
         poll.poll(&mut events, None).unwrap();
 
-        for event in events.into_iter() {
+        // Перебираем новые события на сокетах
+        for event in events.iter() {
+            // Находим интересующий нас waker по ключу из события, который мы передали при регистрации
             if let Some(waker) = wakers.get(event.token().into()) {
-                // Call waker interested by this event
+                // Вызываем пробуждение для данной футуры,
+                // чтобы она полилась еще раз
                 waker.wake_by_ref();
             }
         }
+
+        // Очитска происходит при каждом полинге, можно не вызывать
+        // events.clear();
     }
 }
