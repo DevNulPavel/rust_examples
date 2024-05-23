@@ -2,9 +2,9 @@
 
 use super::{
     error::BlockOnError,
-    task::{BlockedOnTaskWaker, SpawnedTaskWaker, Task},
+    task::{BlockedOnTaskWaker, SpawnedTaskWaker, Task}, JoinHandle,
 };
-use crate::{tp::ThreadPool, JoinHandle};
+use crate::tp::ThreadPool;
 use futures::channel::oneshot;
 use std::{
     future::Future,

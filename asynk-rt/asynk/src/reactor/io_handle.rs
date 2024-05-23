@@ -89,7 +89,7 @@ where
 
 ////////////////////////////////////////////////////////////////////////////////
 
-CONTINUE HERE
+/// Реализация чтения для сокета какого-то там если он реализует `Read`
 impl<S> IoHandle<S>
 where
     S: Source + Read,
@@ -99,27 +99,49 @@ where
         cx: &mut Context<'_>,
         buf: &mut [u8],
     ) -> Poll<Result<usize>> {
-        if !self.waiting_read {
-            self.register(Interest::READABLE, cx.waker().clone())?;
-            self.waiting_read = true;
-            return Poll::Pending;
-        }
+        // Мы сейчас в режиме ожидания уже?
+        if self.waiting_read {
+            // Пробуем прочитать ранные раз уже проснулись
+            match self.source.read(buf) {
+                Ok(n) => {
+                    // Данных нету - сокет закрылся?
+                    if n == 0 {
+                        // Снимаем регистрацию на события
+                        self.deregister()?;
+                        // Снимаем флаг
+                        self.waiting_read = false;
+                    }
 
-        match self.source.read(buf) {
-            Ok(n) => {
-                if n == 0 {
-                    self.deregister()?;
-                    self.waiting_read = false;
+                    // Работа закончилась - вернем результат
+                    Poll::Ready(Ok(n))
                 }
-
-                Poll::Ready(Ok(n))
+                // По идее, надо было бы заблокироваться на сокете, но у нас же
+                // неблокирующий рантайм
+                // For "reads", EWOULDBLOCK says "there isn't any data".
+                // It's saying "if this were 'normal I/O', then I'd block".
+                Err(ref e) if (e.kind() == ErrorKind::WouldBlock) => {
+                    // Так что ждем
+                    Poll::Pending
+                }
+                // Ошибка
+                Err(e) => Poll::Ready(Err(e)),
             }
-            Err(ref e) if e.kind() == ErrorKind::WouldBlock => Poll::Pending,
-            Err(e) => Poll::Ready(Err(e)),
+        } else {
+            // Регистрируем на чтение данный сокет + его waker
+            self.register(Interest::READABLE, cx.waker().clone())?;
+            // Проставляем флаг
+            self.waiting_read = true;
+            // Дальшем будем ждать просто пробуждения
+            return Poll::Pending;
         }
     }
 }
 
+////////////////////////////////////////////////////////////////////////////////
+
+TODO: CONTINUE HERE
+
+/// Реализация поддержки записи данных
 impl<S> IoHandle<S>
 where
     S: Source + Write,
@@ -129,23 +151,23 @@ where
         cx: &mut Context<'_>,
         buf: &[u8],
     ) -> Poll<Result<usize>> {
-        if !self.waiting_write {
+        if self.waiting_write {
+            match self.source.write(buf) {
+                Ok(n) => {
+                    if n == 0 {
+                        self.deregister()?;
+                        self.waiting_write = false;
+                    }
+
+                    Poll::Ready(Ok(n))
+                }
+                Err(ref e) if e.kind() == ErrorKind::WouldBlock => Poll::Pending,
+                Err(e) => Poll::Ready(Err(e)),
+            }
+        } else {
             self.register(Interest::WRITABLE, cx.waker().clone())?;
             self.waiting_write = true;
             return Poll::Pending;
-        }
-
-        match self.source.write(buf) {
-            Ok(n) => {
-                if n == 0 {
-                    self.deregister()?;
-                    self.waiting_write = false;
-                }
-
-                Poll::Ready(Ok(n))
-            }
-            Err(ref e) if e.kind() == ErrorKind::WouldBlock => Poll::Pending,
-            Err(e) => Poll::Ready(Err(e)),
         }
     }
 
