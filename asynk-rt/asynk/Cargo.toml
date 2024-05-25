@@ -10,16 +10,16 @@ edition = "2021"
 ################################################################################
 
 [dependencies]
-parking_lot = "0.12.1"
-thiserror = "1.0.58"
-futures = "0.3.30"
-num_cpus = "1.16.0"
-drop-panic = "0.1.0"
-mio = { version = "0.8.11", features = ["os-poll", "net"] }
-bitflags = "2.5.0"
-sharded-slab = "0.1.7"
+parking_lot = "^0.12.1"
+thiserror = "^1.0.58"
+futures = "^0.3.30"
+num_cpus = "^1.16.0"
+drop-panic = "^0.1.0"
+mio = { version = "^0.8.11", features = ["os-poll", "net"] }
+bitflags = "^2.5.0"
+sharded-slab = "^0.1.7"
 
 ################################################################################
 
 [dev-dependencies]
-futures-timer = "3.0.3"
+futures-timer = "^3.0.3"

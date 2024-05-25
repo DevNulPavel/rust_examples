@@ -1,4 +1,4 @@
-use crate::reactor::io_handle::IoHandle;
+use crate::reactor::IoHandle;
 use futures::{AsyncRead, AsyncWrite};
 use mio::net::TcpStream as MioTcpStream;
 use std::{
@@ -8,6 +8,9 @@ use std::{
     task::{Context, Poll},
 };
 
+////////////////////////////////////////////////////////////////////////////////
+
+/// Обертка для TCP стрима mio
 pub struct TcpStream(IoHandle<MioTcpStream>);
 
 impl TcpStream {
@@ -23,6 +26,7 @@ impl From<MioTcpStream> for TcpStream {
     }
 }
 
+/// Реализуем асинхронное чтение
 impl AsyncRead for TcpStream {
     fn poll_read(
         mut self: Pin<&mut Self>,

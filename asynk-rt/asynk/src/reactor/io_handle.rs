@@ -1,4 +1,4 @@
-use super::{global::get_global_reactor, this::Reactor};
+use super::global::get_global_reactor;
 use mio::{event::Source, Interest, Token};
 use std::{
     io::{ErrorKind, Read, Result, Write},
@@ -8,7 +8,7 @@ use std::{
 
 ////////////////////////////////////////////////////////////////////////////////
 
-pub(super) struct IoHandle<S>
+pub(crate) struct IoHandle<S>
 where
     S: Source,
 {
@@ -35,7 +35,7 @@ where
     S: Source,
 {
     /// Создаем новый
-    pub(super) fn new(source: S) -> Self {
+    pub(crate) fn new(source: S) -> Self {
         Self {
             source,
             waiting_read: false,
@@ -52,20 +52,20 @@ where
     /// Регистрируем данный сокет для отслеживания событий
     pub(super) fn register(&mut self, interest: Interest, waker: Waker) -> Result<()> {
         // Есть ли уже токен регистрации
-        match self.token {
+        let token = match self.token {
             // Токен есть
             Some(token) => {
                 // Заново регистрируем данный сокет, удаляя старую регистрацию
-                get_global_reactor().reregister(token, &mut self.source, interest, waker)?;
+                get_global_reactor().reregister(token, &mut self.source, interest, waker)?
             }
             None => {
                 // Нету текущего токена, так что регистрируем работу
-                let token = get_global_reactor().register(&mut self.source, interest, waker)?;
-
-                // Сохраним этот токен
-                self.token = Some(token);
+                get_global_reactor().register(&mut self.source, interest, waker)?
             }
         };
+
+        // Сохраним этот токен
+        self.token = Some(token);
 
         Ok(())
     }
@@ -94,7 +94,7 @@ impl<S> IoHandle<S>
 where
     S: Source + Read,
 {
-    pub(super) fn poll_read(
+    pub(crate) fn poll_read(
         mut self: Pin<&mut Self>,
         cx: &mut Context<'_>,
         buf: &mut [u8],
@@ -145,7 +145,7 @@ where
     S: Source + Write,
 {
     /// Полим возможность записи данных
-    pub(super) fn poll_write(
+    pub(crate) fn poll_write(
         mut self: Pin<&mut Self>,
         cx: &mut Context<'_>,
         buf: &[u8],
@@ -189,31 +189,47 @@ where
         }
     }
 
-    pub(super) fn poll_flush(mut self: Pin<&mut Self>, cx: &mut Context<'_>) -> Poll<Result<()>> {
-        if !self.waiting_write {
-            self.register(Interest::WRITABLE, cx.waker().clone())?;
-            self.waiting_write = true;
-            return Poll::Pending;
-        }
+    /// Полим сброс
+    pub(crate) fn poll_flush(mut self: Pin<&mut Self>, cx: &mut Context<'_>) -> Poll<Result<()>> {
+        // Мы не были в режиме записи раньше?
+        if self.waiting_write {
+            // Пробуем флашить
+            match self.source.flush() {
+                Ok(()) => {
+                    // Если успешно, то снимаем регистрацию для сокета
+                    self.deregister()?;
 
-        match self.source.flush() {
-            Ok(()) => {
-                self.deregister()?;
-                self.waiting_read = false;
-                self.waiting_write = false;
-                Poll::Ready(Ok(()))
+                    // Сбрасываем все флаги
+                    self.waiting_read = false;
+                    self.waiting_write = false;
+
+                    Poll::Ready(Ok(()))
+                }
+                // Похоже, что буфер пока что забит, поэтому мы не можем выполнить
+                // операцию без блокировки.
+                // Остается только подождать.
+                Err(ref e) if e.kind() == ErrorKind::WouldBlock => Poll::Pending,
+                // Ошибки прочие
+                Err(e) => Poll::Ready(Err(e)),
             }
-            Err(ref e) if e.kind() == ErrorKind::WouldBlock => Poll::Pending,
-            Err(e) => Poll::Ready(Err(e)),
+        } else {
+            // Регистрируем желание сброса на диск
+            self.register(Interest::WRITABLE, cx.waker().clone())?;
+            // Проставляем флаг
+            self.waiting_write = true;
+            // Ждем когда можно будет
+            return Poll::Pending;
         }
     }
 }
 
+// Обработка уничтожения преждевременного
 impl<S> Drop for IoHandle<S>
 where
     S: Source,
 {
     fn drop(&mut self) {
+        // Делаем сброс регистраций возможных
         self.deregister().unwrap()
     }
 }
