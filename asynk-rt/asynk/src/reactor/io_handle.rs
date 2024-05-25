@@ -139,34 +139,52 @@ where
 
 ////////////////////////////////////////////////////////////////////////////////
 
-TODO: CONTINUE HERE
-
 /// Реализация поддержки записи данных
 impl<S> IoHandle<S>
 where
     S: Source + Write,
 {
+    /// Полим возможность записи данных
     pub(super) fn poll_write(
         mut self: Pin<&mut Self>,
         cx: &mut Context<'_>,
         buf: &[u8],
     ) -> Poll<Result<usize>> {
+        // Мы сейчас в режиме ожидания записи данных?
         if self.waiting_write {
+            // Тогда пробуем эти данные записать в сокет
             match self.source.write(buf) {
                 Ok(n) => {
+                    // Если данные не были записаны,
+                    // значит сокет скорее всего уже просто закрыт
                     if n == 0 {
+                        // Так что можно просто смело снять регистрацию
                         self.deregister()?;
+                        // И сбросить флаг
                         self.waiting_write = false;
                     }
 
                     Poll::Ready(Ok(n))
                 }
+                // Если нам вернулся флаг, что данная операция потребует блокировки неблокирующего
+                // сокета, но нам не надо его блокировать.
+                // Вроде бы это вылезает при переполнениях буффера.
+                //
+                // For "writes", EWOULDBLOCK is saying "the first buffer hasn't been
+                // completely sent and acknowledged yet -
+                // you might want to hold off before you send anything else."
                 Err(ref e) if e.kind() == ErrorKind::WouldBlock => Poll::Pending,
+                // Прочие ошибки
                 Err(e) => Poll::Ready(Err(e)),
             }
         } else {
+            // Если еще не было ожидания записи, тогда регистрируем
+            // возможность чтения на сокете
             self.register(Interest::WRITABLE, cx.waker().clone())?;
+            // Проставим флаг
             self.waiting_write = true;
+            // Дальше ждем событий и пробуждения, может быть даже
+            // сразу же и проснется данная футура если данные там есть
             return Poll::Pending;
         }
     }
