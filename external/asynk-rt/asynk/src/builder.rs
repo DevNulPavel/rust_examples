@@ -1,5 +1,19 @@
-use crate::reactor::Reactor;
-use std::io;
+use crate::{
+    executor::{try_set_global_executor, Executor},
+    reactor::{try_set_global_reactor, Reactor},
+    tp::ThreadPool,
+};
+
+////////////////////////////////////////////////////////////////////////////////
+
+#[derive(Debug, thiserror::Error)]
+enum BuildError {
+    #[error("already initialized")]
+    AlreadyInitialized,
+
+    #[error("already initialized")]
+    IO(#[from] std::io::Error),
+}
 
 ////////////////////////////////////////////////////////////////////////////////
 
@@ -43,7 +57,7 @@ impl AsynkBuilder {
     }
 
     /// Создаем рантайм и устанавливаем его как глобальный
-    pub fn build_and_set_global(self) -> io::Result<()> {
+    pub fn build_and_set_global(self) -> Result<(), BuildError> {
         let task_threads = self.task_threads.unwrap_or_else(Self::default_thread_count);
         let task_tp = ThreadPool::new("task-worker".into(), task_threads);
 
@@ -53,9 +67,12 @@ impl AsynkBuilder {
 
         let blocking_tp = ThreadPool::new("blocking-worker".into(), blocking_threads);
 
-        Executor::new(task_tp, blocking_tp).set_global();
+        // TODO: Пока в тестовом примере игнорим просто ошибку
+        try_set_global_executor(Executor::new(task_tp, blocking_tp))
+            .map_err(|_| BuildError::AlreadyInitialized)?;
 
-        Reactor::new()?.set_global();
+        // TODO: Пока в тестовом примере игнорим просто ошибку
+        try_set_global_reactor(Reactor::new()?).map_err(|_| BuildError::AlreadyInitialized)?;
 
         Ok(())
     }

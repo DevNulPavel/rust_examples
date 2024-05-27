@@ -5,7 +5,7 @@ mod task;
 mod this;
 
 pub(crate) use self::{
-    global::{get_global_executor},
+    global::{get_global_executor, try_set_global_executor},
     this::Executor,
 };
 
