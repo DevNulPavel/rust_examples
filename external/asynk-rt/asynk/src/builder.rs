@@ -7,7 +7,7 @@ use crate::{
 ////////////////////////////////////////////////////////////////////////////////
 
 #[derive(Debug, thiserror::Error)]
-enum BuildError {
+pub enum BuildError {
     #[error("already initialized")]
     AlreadyInitialized,
 

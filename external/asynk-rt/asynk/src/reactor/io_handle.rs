@@ -45,12 +45,12 @@ where
     }
 
     /// Ссылка на Source
-    pub(super) fn source(&self) -> &S {
+    pub(crate) fn source(&self) -> &S {
         &self.source
     }
 
     /// Регистрируем данный сокет для отслеживания событий
-    pub(super) fn register(&mut self, interest: Interest, waker: Waker) -> Result<()> {
+    pub(crate) fn register(&mut self, interest: Interest, waker: Waker) -> Result<()> {
         // Есть ли уже токен регистрации
         let token = match self.token {
             // Токен есть

@@ -1,3 +1,6 @@
 [workspace]
 resolver = "2"
-members = ["asynk", "asynk-hyper"]
+members = [
+    "asynk",
+    # "asynk-hyper"
+]

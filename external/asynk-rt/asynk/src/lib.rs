@@ -11,7 +11,8 @@ mod tp;
 ////////////////////////////////////////////////////////////////////////////////
 
 pub use self::{
+    builder::{AsynkBuilder, BuildError},
     executor::{BlockOnError, JoinError, JoinHandle},
     func::{block_on, builder, spawn, spawn_blocking},
-    net::{Accept, TcpListener, TcpStream},
+    net::{AcceptFuture, TcpListener, TcpStream},
 };

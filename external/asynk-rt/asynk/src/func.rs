@@ -1,10 +1,8 @@
-use crate::executor::get_global_executor;
-use std::future::Future;
-
-pub use super::{
+use crate::{
     builder::AsynkBuilder,
-    executor::{BlockOnError, JoinHandle},
+    executor::{get_global_executor, BlockOnError, JoinHandle},
 };
+use std::future::Future;
 
 ////////////////////////////////////////////////////////////////////////////////
 
