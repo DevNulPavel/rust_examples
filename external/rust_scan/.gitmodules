@@ -1,3 +1,0 @@
-[submodule "src/rustscan_scripting_engine"]
-	path = src/rustscan_scripting_engine
-	url = https://github.com/RustScan/rustscan_scripting_engine
