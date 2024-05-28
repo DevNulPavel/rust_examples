@@ -1,4 +1,4 @@
-use crate::reactor::IoHandle;
+use crate::reactor::IoHandleOwned;
 use futures::{AsyncRead, AsyncWrite};
 use mio::net::TcpStream as MioTcpStream;
 use std::{
@@ -11,18 +11,18 @@ use std::{
 ////////////////////////////////////////////////////////////////////////////////
 
 /// Обертка для TCP стрима mio
-pub struct TcpStream(IoHandle<MioTcpStream>);
+pub struct TcpStream(IoHandleOwned<MioTcpStream>);
 
 impl TcpStream {
     pub fn connect(addr: SocketAddr) -> Result<Self> {
         let stream = MioTcpStream::connect(addr)?;
-        Ok(Self(IoHandle::new(stream)))
+        Ok(Self(IoHandleOwned::new(stream)))
     }
 }
 
 impl From<MioTcpStream> for TcpStream {
     fn from(stream: MioTcpStream) -> Self {
-        Self(IoHandle::new(stream))
+        Self(IoHandleOwned::new(stream))
     }
 }
 

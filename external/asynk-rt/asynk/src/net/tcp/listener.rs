@@ -1,24 +1,27 @@
-use super::{accept::AcceptFuture, TcpStream};
-use crate::reactor::IoHandle;
-use futures::Stream;
-use mio::{net::TcpListener as MioTcpListener, Interest};
-use std::{
-    io::{self, Result},
-    net::SocketAddr,
-    pin::Pin,
-    task::{Context, Poll},
-};
+use super::accept::AcceptFuture;
+use crate::reactor::{IoHandle, IoHandleRef};
+use mio::net::TcpListener as MioTcpListener;
+use std::{io::Result, net::SocketAddr};
 
 ////////////////////////////////////////////////////////////////////////////////
 
-pub struct TcpListener(MioTcpListener);
+/// Отдельная структура для TCP листнера, оборачивает `MioTcpListener`
+pub struct TcpListener {
+    listener: MioTcpListener,
+}
 
 impl TcpListener {
+    /// Биндимся на определенный адрес
     pub fn bind(addr: SocketAddr) -> Result<Self> {
-        Ok(Self(MioTcpListener::bind(addr)?))
+        Ok(TcpListener {
+            listener: MioTcpListener::bind(addr)?,
+        })
     }
 
-    pub fn accept(self) -> AcceptFuture {
-        self.0.into()
+    /// Создает футуру для получения нового соединения
+    pub fn accept(&mut self) -> AcceptFuture {
+        AcceptFuture {
+            handle: IoHandle::new(&mut self.listener),
+        }
     }
 }

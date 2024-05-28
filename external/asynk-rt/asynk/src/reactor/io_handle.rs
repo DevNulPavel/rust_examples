@@ -1,16 +1,27 @@
 use super::global::get_global_reactor;
 use mio::{event::Source, Interest, Token};
 use std::{
+    borrow::BorrowMut,
     io::{ErrorKind, Read, Result, Write},
+    marker::PhantomData,
     pin::Pin,
     task::{Context, Poll, Waker},
 };
 
 ////////////////////////////////////////////////////////////////////////////////
 
-pub(crate) struct IoHandle<S>
+pub(crate) type IoHandleOwned<S> = IoHandle<S, S>;
+
+////////////////////////////////////////////////////////////////////////////////
+
+pub(crate) type IoHandleRef<'a, S> = IoHandle<&'a mut S, S>;
+
+////////////////////////////////////////////////////////////////////////////////
+
+pub(crate) struct IoHandle<S, V>
 where
-    S: Source,
+    S: BorrowMut<V>,
+    V: Source,
 {
     /// Непосредственно сокет, который мы хотели бы слушать
     source: S,
@@ -23,16 +34,25 @@ where
 
     /// Токен непосредственно в slab + зарегистрированный для пробуждения в mio
     token: Option<Token>,
+
+    /// Чисто для сохранения типа
+    _v: PhantomData<V>,
 }
 
 // TODO: Но вроде бы это и так у нас будет автоматически?
 /// Явно помечаем дополнительно, что у нас IoHandle не является запинированным если S: Source.
 /// Видимо, это нужно чтобы указать Unpin только для определенных типов S.
-impl<S> Unpin for IoHandle<S> where S: Source {}
-
-impl<S> IoHandle<S>
+impl<S, V> Unpin for IoHandle<S, V>
 where
-    S: Source,
+    S: BorrowMut<V>,
+    V: Source,
+{
+}
+
+impl<S, V> IoHandle<S, V>
+where
+    S: BorrowMut<V>,
+    V: Source,
 {
     /// Создаем новый
     pub(crate) fn new(source: S) -> Self {
@@ -41,6 +61,7 @@ where
             waiting_read: false,
             waiting_write: false,
             token: None,
+            _v: Default::default(),
         }
     }
 
@@ -56,11 +77,11 @@ where
             // Токен есть
             Some(token) => {
                 // Заново регистрируем данный сокет, удаляя старую регистрацию
-                get_global_reactor().reregister(token, &mut self.source, interest, waker)?
+                get_global_reactor().reregister(token, self.source.borrow_mut(), interest, waker)?
             }
             None => {
                 // Нету текущего токена, так что регистрируем работу
-                get_global_reactor().register(&mut self.source, interest, waker)?
+                get_global_reactor().register(self.source.borrow_mut(), interest, waker)?
             }
         };
 
@@ -75,7 +96,7 @@ where
         match self.token {
             Some(token) => {
                 // Снимаем регистрацию для текущего токена и сокета
-                get_global_reactor().deregister(token, &mut self.source)?;
+                get_global_reactor().deregister(token, self.source.borrow_mut())?;
 
                 // Сброс
                 self.token = None;
@@ -90,9 +111,10 @@ where
 ////////////////////////////////////////////////////////////////////////////////
 
 /// Реализация чтения для сокета какого-то там если он реализует `Read`
-impl<S> IoHandle<S>
+impl<S, V> IoHandle<S, V>
 where
-    S: Source + Read,
+    S: BorrowMut<V>,
+    V: Source + Read,
 {
     pub(crate) fn poll_read(
         mut self: Pin<&mut Self>,
@@ -102,7 +124,7 @@ where
         // Мы сейчас в режиме ожидания уже?
         if self.waiting_read {
             // Пробуем прочитать ранные раз уже проснулись
-            match self.source.read(buf) {
+            match self.source.borrow_mut().read(buf) {
                 Ok(n) => {
                     // Данных нету - сокет закрылся?
                     if n == 0 {
@@ -132,7 +154,7 @@ where
             // Проставляем флаг
             self.waiting_read = true;
             // Дальшем будем ждать просто пробуждения
-            return Poll::Pending;
+            Poll::Pending
         }
     }
 }
@@ -140,9 +162,10 @@ where
 ////////////////////////////////////////////////////////////////////////////////
 
 /// Реализация поддержки записи данных
-impl<S> IoHandle<S>
+impl<S, V> IoHandle<S, V>
 where
-    S: Source + Write,
+    S: BorrowMut<V>,
+    V: Source + Write,
 {
     /// Полим возможность записи данных
     pub(crate) fn poll_write(
@@ -153,7 +176,7 @@ where
         // Мы сейчас в режиме ожидания записи данных?
         if self.waiting_write {
             // Тогда пробуем эти данные записать в сокет
-            match self.source.write(buf) {
+            match self.source.borrow_mut().write(buf) {
                 Ok(n) => {
                     // Если данные не были записаны,
                     // значит сокет скорее всего уже просто закрыт
@@ -185,7 +208,7 @@ where
             self.waiting_write = true;
             // Дальше ждем событий и пробуждения, может быть даже
             // сразу же и проснется данная футура если данные там есть
-            return Poll::Pending;
+            Poll::Pending
         }
     }
 
@@ -194,7 +217,7 @@ where
         // Мы не были в режиме записи раньше?
         if self.waiting_write {
             // Пробуем флашить
-            match self.source.flush() {
+            match self.source.borrow_mut().flush() {
                 Ok(()) => {
                     // Если успешно, то снимаем регистрацию для сокета
                     self.deregister()?;
@@ -218,15 +241,16 @@ where
             // Проставляем флаг
             self.waiting_write = true;
             // Ждем когда можно будет
-            return Poll::Pending;
+            Poll::Pending
         }
     }
 }
 
 // Обработка уничтожения преждевременного
-impl<S> Drop for IoHandle<S>
+impl<S, V> Drop for IoHandle<S, V>
 where
-    S: Source,
+    S: BorrowMut<V>,
+    V: Source,
 {
     fn drop(&mut self) {
         // Делаем сброс регистраций возможных

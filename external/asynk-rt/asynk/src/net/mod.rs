@@ -1,3 +1,3 @@
 mod tcp;
 
-pub use tcp::{accept::AcceptFuture, listener::TcpListener, stream::TcpStream};
+pub use self::tcp::{AcceptFuture, TcpListener, TcpStream};
