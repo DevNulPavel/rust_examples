@@ -1,42 +1,48 @@
-use super::{queue::JobQueue, JoinError};
-use drop_panic::drop_panic;
-use parking_lot::Mutex;
+use super::{pool::JoinError, queue::JobQueue};
+use parking_lot::{Mutex, MutexGuard};
 use std::{
-    collections::HashMap,
+    collections::{hash_map::Entry, HashMap},
+    num::NonZeroUsize,
     sync::Arc,
     thread::{self, JoinHandle, ThreadId},
 };
 
 ////////////////////////////////////////////////////////////////////////////////
 
-pub(super) struct Inner {
-    /// Имя задач в пуле
-    name: String,
+type ThreadsHashmap = HashMap<ThreadId, JoinHandle<()>>;
 
+////////////////////////////////////////////////////////////////////////////////
+
+pub(super) struct Inner {
     /// Очередь задач
     job_queue: JobQueue,
+
+    /// Имя задач в пуле
+    name: String,
 
     /// Текущие запущенные потоки + возможность их ожидания.
     /// Обернуто в Mutex, так как завершать работу у нас может любой поток,
     /// этот поток пусть и будет отвечать за обработку ошибок.
-    threads: Mutex<Option<HashMap<ThreadId, JoinHandle<()>>>>,
+    threads: Mutex<Option<ThreadsHashmap>>,
 }
 
 impl Inner {
     /// Создаем внутреннюю обертку пула
-    pub(super) fn new_arc(name: String, thread_count: usize) -> Arc<Self> {
+    pub(super) fn new_arc(name: String, thread_count: NonZeroUsize) -> Arc<Inner> {
         // Сначала создаем Arc для текущего пула
         let this = Arc::new(Inner {
-            name,
             job_queue: JobQueue::new(),
-            threads: Mutex::new(None),
+            name,
+            threads: Mutex::new(Some(ThreadsHashmap::with_capacity(thread_count.get()))),
         });
 
-        // Затем создаем нужное количество потоков, которые будут шарить данный Arc
-        for _ in 0..thread_count {
-            let this_clone = Arc::clone(&this);
+        {
+            // Блокируемся на пуле потоков для добавления нового потока
+            let mut lock = this.threads.lock();
 
-            this_clone.create_worker();
+            for _ in 0..thread_count.get() {
+                create_worker(&this, &mut lock);
+            }
         }
 
         this
@@ -56,10 +62,10 @@ impl Inner {
     }
 
     /// Дожидаемся завершения работы вообще всех задач в пуле.
-    pub(super) fn join(self) -> Result<(), JoinError> {
+    pub(super) fn join(&self) -> Result<(), JoinError> {
         // Берем блокировку на все время ожидания,
         // сейчас мы не знаем, будем ли именно мы текущим потоком завершать работу.
-        let threads_lock = self.threads.lock();
+        let mut threads_lock = self.threads.lock();
 
         // Так как вызываться завершение может совершенно в ином потоке,
         // так что проверяем, не завершил ли кто-то еще?
@@ -86,58 +92,98 @@ impl Inner {
             Err(JoinError(panicked))
         }
     }
+}
 
-    /// Создать поток для выполнения задач
-    fn create_worker(self: Arc<Self>) {
-        let this = Arc::clone(&self);
+////////////////////////////////////////////////////////////////////////////////
 
-        let jh = thread::Builder::new()
-            .name(self.name.clone())
-            .spawn(move || {
-                // In case of thread panic that object will call the recovery function
-                drop_panic! {
-                    Arc::clone(&this).panic_handler()
-                };
+fn create_worker<'a: 'b, 'b>(
+    inner_arc: &'a Arc<Inner>,
+    threads_lock: &'b mut MutexGuard<'a, Option<ThreadsHashmap>>,
+) {
+    // Создаем билдер для потоков
+    let jh = thread::Builder::new()
+        // Прописываем там нужное имя потока
+        .name(inner_arc.name.clone())
+        // Запускаем в работу поток
+        .spawn({
+            // Шарим Arc обработчика для потока
+            let inner_for_thread = Arc::clone(inner_arc);
 
-                // Start working cycle
-                Arc::clone(&this).worker_routine()
-            })
-            .expect("spawn worker thread");
+            move || {
+                // Если данный поток у нас запаникует, тогда у нас вызовется обработчик данный.
+                // drop_panic! {};
+                let _guard = drop_panic::guard({
+                    let inner_for_thread_panic = Arc::clone(&inner_for_thread);
+                    move || {
+                        panic_handler(&inner_for_thread_panic);
+                    }
+                });
 
-        let id = jh.thread().id();
+                // Запускаем задачу
+                worker_routine(&inner_for_thread);
+            }
+        })
+        .expect("spawn worker thread");
 
-        let mut lock = self.threads.lock();
-        match *lock {
-            Some(ref mut threads) => match threads.get_mut(&id) {
-                Some(_) => panic!("thread with id {:?} already created", id),
-                None => {
-                    threads.insert(id, jh);
+    // Получаем идентификатор потока
+    let id = jh.thread().id();
+
+    // Смотрим на текущие блокировки
+    match threads_lock.as_mut() {
+        // У нас уже есть хранилище потоков?
+        Some(threads) => {
+            // Проверяем наличие такого потока в пуле потоков
+            match threads.entry(id) {
+                // Такого элемента у нас нету
+                Entry::Vacant(location) => {
+                    location.insert(jh);
                 }
-            },
-            None => *lock = Some(HashMap::from([(id, jh)])),
+                // Элемент у нас есть почему-то уже такой
+                Entry::Occupied(_) => {
+                    // Паникуем, какая-то фундаментальная проблема системная
+                    panic!("thread with id {:?} already created", id)
+                }
+            }
+        }
+        // По какой-то причине нету хешмапы?
+        None => {
+            // Создадим тогда
+            **threads_lock = Some(ThreadsHashmap::from([(id, jh)]));
         }
     }
+}
 
-    /// Working thread panic handling
-    fn panic_handler(self: Arc<Self>) {
-        let id = thread::current().id();
+////////////////////////////////////////////////////////////////////////////////
 
-        if let Some(threads) = self.threads.lock().as_mut() {
-            threads.remove(&id);
+/// Обработчик паники одного из потоков
+fn panic_handler(inner: &Arc<Inner>) {
+    // У нас есть еще куда добавлять потоки?
+    let mut lock = inner.threads.lock();
+
+    // У нас есть еще куда добавлять потоки?
+    let Some(threads) = lock.as_mut() else {
+        return;
+    };
+
+    // Получаем идентификатор запаниковавшего потока
+    let id = thread::current().id();
+
+    // Удаляем старый join
+    threads.remove(&id);
+
+    // Создаем заново новый поток взамен одного утраченного
+    create_worker(inner, &mut lock);
+}
+
+////////////////////////////////////////////////////////////////////////////////
+
+/// Цикл обработки задач
+fn worker_routine(inner: &Inner) {
+    loop {
+        let Some(job) = inner.job_queue.get_blocked() else {
+            return;
         };
 
-        // Recreate the worker thread
-        self.create_worker();
-    }
-
-    /// Thread working cycle
-    fn worker_routine(&self) {
-        loop {
-            let Some(job) = self.job_queue.get_blocked() else {
-                return;
-            };
-
-            job();
-        }
+        job();
     }
 }
