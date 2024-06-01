@@ -7,46 +7,79 @@ use std::{
     thread::{self, JoinHandle, ThreadId},
 };
 
+////////////////////////////////////////////////////////////////////////////////
+
 pub(super) struct Inner {
+    /// Имя задач в пуле
     name: String,
+
+    /// Очередь задач
     job_queue: JobQueue,
+
+    /// Текущие запущенные потоки + возможность их ожидания.
+    /// Обернуто в Mutex, так как завершать работу у нас может любой поток,
+    /// этот поток пусть и будет отвечать за обработку ошибок.
     threads: Mutex<Option<HashMap<ThreadId, JoinHandle<()>>>>,
 }
 
 impl Inner {
-    pub fn new(name: String, thread_count: usize) -> Arc<Self> {
-        let this = Arc::new(Self {
+    /// Создаем внутреннюю обертку пула
+    pub(super) fn new_arc(name: String, thread_count: usize) -> Arc<Self> {
+        // Сначала создаем Arc для текущего пула
+        let this = Arc::new(Inner {
             name,
             job_queue: JobQueue::new(),
             threads: Mutex::new(None),
         });
 
+        // Затем создаем нужное количество потоков, которые будут шарить данный Arc
         for _ in 0..thread_count {
-            Arc::clone(&this).create_worker();
+            let this_clone = Arc::clone(&this);
+
+            this_clone.create_worker();
         }
 
         this
     }
 
-    /// Enqueue job
-    pub fn spawn(&self, job: impl FnOnce() + Send + 'static) {
+    /// Новая задача у пуле задач
+    pub(super) fn spawn<J>(&self, job: J)
+    where
+        // Функция разового запуска, которую можем перемещать
+        // из одного потока в другой и выполнять.
+        // Этот функтор может содержать лишь статические ссылки.
+        J: FnOnce() + Send + 'static,
+    {
+        // Данную задачу оборачиваем в Box, так как задачи
+        // бывают у нас совершенно разного размера на стеке
         self.job_queue.add(Box::new(job));
     }
 
-    pub fn join(&self) -> Result<(), JoinError> {
-        // Notify queue about finish and ask it to wake sleeping threads
-        self.job_queue.finish_ntf();
+    /// Дожидаемся завершения работы вообще всех задач в пуле.
+    pub(super) fn join(self) -> Result<(), JoinError> {
+        // Берем блокировку на все время ожидания,
+        // сейчас мы не знаем, будем ли именно мы текущим потоком завершать работу.
+        let threads_lock = self.threads.lock();
 
-        let mut panicked = 0;
-
-        let Some(threads) = self.threads.lock().take() else {
+        // Так как вызываться завершение может совершенно в ином потоке,
+        // так что проверяем, не завершил ли кто-то еще?
+        let Some(threads) = threads_lock.take() else {
             return Ok(());
         };
 
+        // Оповещаем очередь о желании завершения, будим все спящие потоки
+        // для завершения.
+        self.job_queue.finish_ntf();
+
+        // Сколько задач запаниковало?
+        let mut panicked = 0;
+
+        // Ждем завершения каждого потока, отслеживаем сколько запаниковало
         threads.into_values().for_each(|jh| {
             jh.join().inspect_err(|_| panicked += 1).ok();
         });
 
+        // Если здесь хоть один запаниковал, значит ошибка
         if panicked == 0 {
             Ok(())
         } else {
