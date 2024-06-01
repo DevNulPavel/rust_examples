@@ -1,4 +1,4 @@
-use super::{pool::JoinError, queue::JobQueue};
+use super::queue::JobQueue;
 use parking_lot::{Mutex, MutexGuard};
 use std::{
     collections::{hash_map::Entry, HashMap},
@@ -61,7 +61,7 @@ impl Inner {
         self.job_queue.add(Box::new(job));
     }
 
-    /// Дожидаемся завершения работы вообще всех задач в пуле.
+    /* /// Дожидаемся завершения работы вообще всех задач в пуле.
     pub(super) fn join(&self) -> Result<(), JoinError> {
         // Берем блокировку на все время ожидания,
         // сейчас мы не знаем, будем ли именно мы текущим потоком завершать работу.
@@ -91,7 +91,7 @@ impl Inner {
         } else {
             Err(JoinError(panicked))
         }
-    }
+    } */
 }
 
 ////////////////////////////////////////////////////////////////////////////////

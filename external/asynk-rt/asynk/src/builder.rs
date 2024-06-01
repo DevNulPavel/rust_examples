@@ -1,3 +1,5 @@
+use std::num::NonZeroUsize;
+
 use crate::{
     executor::{try_set_global_executor, Executor},
     reactor::{try_set_global_reactor, Reactor},
@@ -21,10 +23,10 @@ pub enum BuildError {
 #[derive(Default)]
 pub struct AsynkBuilder {
     /// Количество потоков
-    task_threads: Option<usize>,
+    task_threads: Option<NonZeroUsize>,
 
     /// Количество блокирующих потоков
-    blocking_threads: Option<usize>,
+    blocking_threads: Option<NonZeroUsize>,
 }
 
 impl AsynkBuilder {
@@ -33,37 +35,34 @@ impl AsynkBuilder {
     }
 
     /// Количество потоков задач
-    pub fn task_threads(mut self, val: usize) -> Self {
-        let val = if val == 0 {
-            Self::default_thread_count()
-        } else {
-            val
-        };
-
+    pub fn task_threads(mut self, val: NonZeroUsize) -> Self {
         self.task_threads = Some(val);
+
         self
     }
 
     /// Количество блокирующих потоков
-    pub fn blocking_threads(mut self, val: usize) -> Self {
-        let val = if val == 0 {
-            Self::default_thread_count()
-        } else {
-            val
-        };
-
+    pub fn blocking_threads(mut self, val: NonZeroUsize) -> Self {
         self.blocking_threads = Some(val);
+
         self
     }
 
     /// Создаем рантайм и устанавливаем его как глобальный
     pub fn build_and_set_global(self) -> Result<(), BuildError> {
-        let task_threads = self.task_threads.unwrap_or_else(Self::default_thread_count);
+        // От безысходности пусть хотя бы один поток будет
+        let task_threads = self
+            .task_threads
+            .or_else(|| NonZeroUsize::new(num_cpus::get()))
+            .unwrap_or_else(|| unsafe { NonZeroUsize::new_unchecked(1) });
+
         let task_tp = ThreadPool::new("task-worker".into(), task_threads);
 
+        // От безысходности пусть хотя бы один поток будет
         let blocking_threads = self
             .blocking_threads
-            .unwrap_or_else(Self::default_thread_count);
+            .or_else(|| NonZeroUsize::new(num_cpus::get()))
+            .unwrap_or_else(|| unsafe { NonZeroUsize::new_unchecked(1) });
 
         let blocking_tp = ThreadPool::new("blocking-worker".into(), blocking_threads);
 
@@ -75,9 +74,5 @@ impl AsynkBuilder {
         try_set_global_reactor(Reactor::new()?).map_err(|_| BuildError::AlreadyInitialized)?;
 
         Ok(())
-    }
-
-    fn default_thread_count() -> usize {
-        num_cpus::get()
     }
 }

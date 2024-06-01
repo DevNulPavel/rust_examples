@@ -1,11 +1,13 @@
 use crate::tp::ThreadPool;
-use std::{sync::mpsc, thread, time::Duration};
+use std::{num::NonZeroUsize, sync::mpsc, thread, time::Duration};
+
+////////////////////////////////////////////////////////////////////////////////
 
 #[test]
 fn test_thread_pool() {
     let thread_count = 4;
 
-    let tp = ThreadPool::new("test".into(), thread_count);
+    let tp = ThreadPool::new("test".into(), unsafe { NonZeroUsize::new_unchecked(4) });
 
     let (tx, rx) = mpsc::channel();
 
@@ -21,7 +23,7 @@ fn test_thread_pool() {
 
 #[test]
 fn test_thread_pool_panic() {
-    let tp = ThreadPool::new("test".into(), 4);
+    let tp = ThreadPool::new("test".into(), unsafe { NonZeroUsize::new_unchecked(4) });
 
     tp.spawn(|| {
         thread::sleep(Duration::from_secs(1));

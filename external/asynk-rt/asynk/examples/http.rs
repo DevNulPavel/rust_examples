@@ -32,7 +32,7 @@ fn main() {
 async fn server() -> io::Result<()> {
     let addr = SERVER_SOCK_ADDR.parse().map_err(Error::other)?;
 
-    let listener = TcpListener::bind(addr)?;
+    let mut listener = TcpListener::bind(addr)?;
     let mut accept = listener.accept();
 
     let is_double_crnl = |window: &[u8]| {
