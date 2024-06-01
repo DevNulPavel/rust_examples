@@ -1,5 +1,5 @@
 use super::accept::AcceptFuture;
-use crate::reactor::{IoHandle, IoHandleRef};
+use crate::reactor::IoHandle;
 use mio::net::TcpListener as MioTcpListener;
 use std::{io::Result, net::SocketAddr};
 

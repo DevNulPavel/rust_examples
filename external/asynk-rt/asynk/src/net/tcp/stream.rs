@@ -14,8 +14,12 @@ use std::{
 pub struct TcpStream(IoHandleOwned<MioTcpStream>);
 
 impl TcpStream {
+    // Создаем новый стрим для адреса
     pub fn connect(addr: SocketAddr) -> Result<Self> {
+        // Создаем стрим
         let stream = MioTcpStream::connect(addr)?;
+
+        // Оборачиваем его в хендл
         Ok(Self(IoHandleOwned::new(stream)))
     }
 }
@@ -33,6 +37,8 @@ impl AsyncRead for TcpStream {
         cx: &mut Context<'_>,
         buf: &mut [u8],
     ) -> Poll<Result<usize>> {
+        // Так как IoHandleOwned реализует Unpin, то можно вполне
+        // просто создать новый Pin без unsafe
         Pin::new(&mut self.0).poll_read(cx, buf)
     }
 }
