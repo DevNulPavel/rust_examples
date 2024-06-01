@@ -3,11 +3,6 @@ use std::{num::NonZeroUsize, sync::Arc};
 
 ////////////////////////////////////////////////////////////////////////////////
 
-/// Job for worker
-pub type Job = Box<dyn FnOnce() + Send>;
-
-////////////////////////////////////////////////////////////////////////////////
-
 /// Ошибка ожидания задачи
 #[derive(Debug, thiserror::Error)]
 #[error("detected panicked threads while join: {0}")]

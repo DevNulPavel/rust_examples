@@ -1,63 +1,93 @@
-use super::Job;
+use super::job::Job;
 use parking_lot::{Condvar, Mutex};
 use std::{
     collections::VecDeque,
     sync::atomic::{AtomicBool, Ordering},
 };
 
+////////////////////////////////////////////////////////////////////////////////
+
+/// Очередь задач многопоточная
 #[derive(Default)]
-pub struct JobQueue {
+pub(super) struct JobQueue {
+    /// Очередь под блокировкой
     queue: Mutex<VecDeque<Job>>,
+
+    /// Condvar для блокировки выше
     not_empty: Condvar,
+
+    /// Флаг завершения работы.
     finished: AtomicBool,
 }
 
 impl JobQueue {
-    pub fn new() -> Self {
+    pub(super) fn new() -> Self {
         Self {
             ..Default::default()
         }
     }
 
-    /// Enqueue job and notify sleeping thread
-    pub fn add(&self, job: Job) {
+    /// Добавляем новую задачу, будим потоки
+    pub(super) fn add(&self, job: Job) {
+        // Если был проставлен флаг завершения - выходим
         if self.finished.load(Ordering::Acquire) {
             return;
         }
 
+        // Блокируемся и пушим задачу в очередь
         self.queue.lock().push_back(job);
+
+        // Оповещаем кого-то, что прилетела новая задача.
+        // Здесь атомарность у нас не нужна, так как атомарно надо снимать блокировку
+        // и переходить в ожидание, чтобы не потерять уведомление.
         self.not_empty.notify_one();
     }
 
-    /// Set finish flag and wake up sleeping threads
-    pub fn finish_ntf(&self) {
+    /// Говорим, что нужно завершать работу всех обработчиков задач
+    pub(super) fn finish_ntf(&self) {
+        // Проставляем флаг завершения
         self.finished.store(true, Ordering::Release);
+
+        // Уведомляем всех проснуться
         self.not_empty.notify_all();
     }
 
-    /// Get next task from the queue. If the queue is empty, then thread sleeps until
-    /// adding new elements.
+    /// Извлекаем очередную задачу из очереди задач. Если очередь у нас пустая, тогда
+    /// поток у нас будет спать до тех пор, пока задача не прилетит.
     ///
-    /// Return `None` if the queue will not give out elements no more.
-    pub fn get_blocked(&self) -> Option<Job> {
+    /// Если очередь закрыта, тогда возвращается None.
+    ///
+    pub(super) fn get_blocked(&self) -> Option<Job> {
+        // Работа завершена?
+        // Проверим до блокировки
         if self.finished.load(Ordering::Acquire) {
             return None;
         }
 
+        // Берем блокировку
         let mut lock = self.queue.lock();
 
-        while lock.is_empty() {
-            // If there are no elements, then thread is going to sleep
-            self.not_empty.wait(&mut lock);
-            // Probably, the thread woken up because it's time to return
-            if self.finished.load(Ordering::Acquire) {
-                return None;
+        loop {
+            // Пробуем извлечь шапку
+            match lock.pop_front() {
+                // Есть значение
+                Some(val) => {
+                    // Результат
+                    return Some(val);
+                }
+                // Нет значения пока
+                None => {
+                    // Мы атомарно снимаем блокировку и ждем уведомлений.
+                    // За счет атомарности мы не пропустим точно флаг пробуждения
+                    // после снятия блокировки, но до постановки в режим ожидания.
+                    self.not_empty.wait(&mut lock);
+
+                    // Если поток был пробужден из-за завершения? Завершаемся тогда
+                    if self.finished.load(Ordering::Acquire) {
+                        return None;
+                    }
+                }
             }
         }
-
-        // Now we can assert that there are definitely elements in the queue
-        assert!(!lock.is_empty());
-
-        Some(lock.pop_front().expect("there must be prepared job(s)"))
     }
 }
