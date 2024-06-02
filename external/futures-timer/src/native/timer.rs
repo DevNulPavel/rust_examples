@@ -1,15 +1,15 @@
-use std::fmt;
-use std::pin::Pin;
-use std::sync::atomic::Ordering::SeqCst;
-use std::sync::atomic::{AtomicPtr, AtomicUsize};
-use std::sync::{Arc, Mutex, Weak};
-use std::task::{Context, Poll};
-use std::time::Instant;
-
-use std::future::Future;
-
-use super::AtomicWaker;
-use super::{global, ArcList, Heap, HeapTimer, Node, Slot};
+use super::{global, ArcList, AtomicWaker, Heap, HeapTimer, Node, Slot};
+use std::{
+    fmt,
+    future::Future,
+    pin::Pin,
+    sync::{
+        atomic::{AtomicPtr, AtomicUsize, Ordering::SeqCst},
+        Arc, Mutex, Weak,
+    },
+    task::{Context, Poll},
+    time::Instant,
+};
 
 /// A "timer heap" used to power separately owned instances of `Delay`.
 ///
