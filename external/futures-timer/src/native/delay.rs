@@ -74,8 +74,7 @@ impl Delay {
         Delay { state: Some(state) }
     }
 
-    /// Resets this timeout to an new timeout which will fire at the time
-    /// specified by `at`.
+    /// Сбрасываем данный таймаут к новому таймауту, который указан
     #[inline]
     pub fn reset(&mut self, dur: Duration) {
         if self._reset(dur).is_err() {
@@ -83,28 +82,48 @@ impl Delay {
         }
     }
 
+    /// Непосредственно сброс
     fn _reset(&mut self, dur: Duration) -> Result<(), ()> {
+        // Текущее состояние должно быть, иначе это ошибка
         let state = match self.state {
             Some(ref state) => state,
             None => return Err(()),
         };
+
+        // Пробуем проапгрейдить хендлы таймаутов
         if let Some(timeouts) = state.inner.upgrade() {
+            // Получаем битовую маску текущего состояния
             let mut bits = state.state.load(SeqCst);
             loop {
-                // If we've been invalidated, cancel this reset
+                // Если проставлен флаг инвалидации, тогда вернем ошибку
                 if bits & 0b10 != 0 {
                     return Err(());
                 }
+
+                // Это у нас новый таймер?
                 let new = bits.wrapping_add(0b100) & !0b11;
+
+                // Пробуем проставить значение атомарно для нового флага,
+                // если кто-то другой изменил, тогда идем на новую итерацию
                 match state.state.compare_exchange(bits, new, SeqCst, SeqCst) {
                     Ok(_) => break,
-                    Err(s) => bits = s,
+                    Err(s) => {
+                        // Если вмена не удалась, тогда устанавливаем значение флагов новое
+                        // для повторной итерации
+                        bits = s
+                    }
                 }
             }
+            // Если успешно проставили флаг таймера, тогда надо
+            // сохранить дополнительно время пробуждения еще
             *state.at.lock().unwrap() = Some(Instant::now() + dur);
+
             // If we fail to push our node then we've become an inert timer, so
             // we'll want to clear our `state` field accordingly
+            // Если нам не удастся сохранить таймер
             timeouts.list.push(state)?;
+
+            // Уведомляем про необходимость разового пробуждения футуры на старте
             timeouts.waker.wake();
         }
 
@@ -118,20 +137,26 @@ impl Future for Delay {
     type Output = ();
 
     fn poll(self: Pin<&mut Self>, cx: &mut Context<'_>) -> Poll<Self::Output> {
+        // Есть ли у футуры состояние еще?
+        // Если нету, то это явно проблема, так как был вызван drop уже.
         let state = match self.state {
             Some(ref state) => state,
             None => panic!("timer has gone away"),
         };
 
+        // Проверяем флаг, не сработала ли уже футура?
         if state.state.load(SeqCst) & 1 != 0 {
             return Poll::Ready(());
         }
 
+        // Если таймер еще не сработал, значит регистрируем waker
+        // для очередного пробуждения.
         state.waker.register(cx.waker());
 
         // Now that we've registered, do the full check of our own internal
         // state. If we've fired the first bit is set, and if we've been
         // invalidated the second bit is set.
+        // TODO: ???
         match state.state.load(SeqCst) {
             n if n & 0b01 != 0 => Poll::Ready(()),
             n if n & 0b10 != 0 => panic!("timer has gone away"),
@@ -140,15 +165,23 @@ impl Future for Delay {
     }
 }
 
+/// Реализация уничтоженияя
 impl Drop for Delay {
     fn drop(&mut self) {
+        // Есть ли еще состояние?
         let state = match self.state {
             Some(ref s) => s,
             None => return,
         };
+
+        // Есть ли что сбрасывать?
         if let Some(timeouts) = state.inner.upgrade() {
+            // Сбрасываем время срабатывания теперь
             *state.at.lock().unwrap() = None;
+
+            // Список таймаутов добавляем новое состояние
             if timeouts.list.push(state).is_ok() {
+                // Прописываем возможность пробуждения
                 timeouts.waker.wake();
             }
         }
