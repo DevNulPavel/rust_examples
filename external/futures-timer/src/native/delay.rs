@@ -1,67 +1,76 @@
-//! Support for creating futures that represent timeouts.
+//! Поддержка для создания футур, которые представляют таймауты.
 //!
-//! This module contains the `Delay` type which is a future that will resolve
-//! at a particular point in the future.
+//! Данный модуль содержит объект `Delay`, который является футурой, которая резолвится в определенный момент времени.
 
-use std::fmt;
-use std::future::Future;
-use std::pin::Pin;
-use std::sync::atomic::AtomicUsize;
-use std::sync::atomic::Ordering::SeqCst;
-use std::sync::{Arc, Mutex};
-use std::task::{Context, Poll};
-use std::time::{Duration, Instant};
+////////////////////////////////////////////////////////////////////////////////
 
-use super::arc_list::Node;
-use super::AtomicWaker;
-use super::{ScheduledTimer, TimerHandle};
+use super::{arc_list::Node, AtomicWaker, ScheduledTimer, TimerHandle};
+use std::{
+    fmt,
+    future::Future,
+    pin::Pin,
+    sync::{
+        atomic::{AtomicUsize, Ordering::SeqCst},
+        Arc, Mutex,
+    },
+    task::{Context, Poll},
+    time::{Duration, Instant},
+};
 
-/// A future representing the notification that an elapsed duration has
-/// occurred.
+////////////////////////////////////////////////////////////////////////////////
+
+/// Данная футура представляет собой уведомление, что определенная длительность была завершена.
 ///
-/// This is created through the `Delay::new` method indicating when the future should fire.
-/// Note that these futures are not intended for high resolution timers, but rather they will
-/// likely fire some granularity after the exact instant that they're otherwise indicated to fire
-/// at.
+/// Не обеспечивает идеальную точность времени исполнения.
 pub struct Delay {
+    /// Текущее состояние
     state: Option<Arc<Node<ScheduledTimer>>>,
 }
 
 impl Delay {
-    /// Creates a new future which will fire at `dur` time into the future.
-    ///
-    /// The returned object will be bound to the default timer for this thread.
-    /// The default timer will be spun up in a helper thread on first use.
+    /// Возвращаемый объект будет привязан к стандартному таймеру для данного потока.
+    /// Таймер будет запущен во вспомогательном потоке при первом использовании.
     #[inline]
     pub fn new(dur: Duration) -> Delay {
         Delay::new_handle(Instant::now() + dur, Default::default())
     }
 
-    /// Creates a new future which will fire at the time specified by `at`.
+    /// Создаем футуру, которая будет исполнена в какой-то момент времени.
     ///
-    /// The returned instance of `Delay` will be bound to the timer specified by
-    /// the `handle` argument.
+    /// Возвращаемый инстанс будет привязан к таймеру, указанному в виде handle аргумента.
     pub(crate) fn new_handle(at: Instant, handle: TimerHandle) -> Delay {
+        // Пробуем получить реальнй хендл
         let inner = match handle.inner.upgrade() {
             Some(i) => i,
             None => return Delay { state: None },
         };
+
+        // Создаем новый таймер
         let state = Arc::new(Node::new(ScheduledTimer {
+            // Время запуска
             at: Mutex::new(Some(at)),
+            // Текущее состояние
             state: AtomicUsize::new(0),
+            // Пробуждалка атомарная
             waker: AtomicWaker::new(),
+            // Сохраняем weak ссылку
             inner: handle.inner,
+            // Слот
             slot: Mutex::new(None),
         }));
 
         // If we fail to actually push our node then we've become an inert
         // timer, meaning that we'll want to immediately return an error from
         // `poll`.
+        //
+        // Пробуем сохранить теперь этот элемент в ArcList
         if inner.list.push(&state).is_err() {
             return Delay { state: None };
         }
 
+        // Помечаем внутренний waker для пробуждения сразу же
         inner.waker.wake();
+
         Delay { state: Some(state) }
     }
 
@@ -102,6 +111,8 @@ impl Delay {
         Ok(())
     }
 }
+
+////////////////////////////////////////////////////////////////////////////////
 
 impl Future for Delay {
     type Output = ();

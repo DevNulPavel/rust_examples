@@ -16,12 +16,18 @@
 #![deny(missing_docs)]
 #![warn(missing_debug_implementations)]
 
+////////////////////////////////////////////////////////////////////////////////
+
 #[cfg(not(all(target_arch = "wasm32", feature = "wasm-bindgen")))]
 mod native;
+
 #[cfg(all(target_arch = "wasm32", feature = "wasm-bindgen"))]
 mod wasm;
 
+////////////////////////////////////////////////////////////////////////////////
+
 #[cfg(not(all(target_arch = "wasm32", feature = "wasm-bindgen")))]
 pub use self::native::Delay;
+
 #[cfg(all(target_arch = "wasm32", feature = "wasm-bindgen"))]
 pub use self::wasm::Delay;
