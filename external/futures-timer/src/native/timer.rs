@@ -11,61 +11,32 @@ use std::{
     time::Instant,
 };
 
-/// A "timer heap" used to power separately owned instances of `Delay`.
+////////////////////////////////////////////////////////////////////////////////
+
+/// Данный "timer heap" используется для того, чтобы обрабатывать отдельные инстансы `Delay`.
 ///
-/// This timer is implemented as a priority queued-based heap. Each `Timer`
-/// contains a few primary methods which which to drive it:
+/// Реализовано с помощью кучи.
 ///
-/// * `next_wake` indicates how long the ambient system needs to sleep until it
-///   invokes further processing on a `Timer`
-/// * `advance_to` is what actually fires timers on the `Timer`, and should be
-///   called essentially every iteration of the event loop, or when the time
-///   specified by `next_wake` has elapsed.
-/// * The `Future` implementation for `Timer` is used to process incoming timer
-///   updates and requests. This is used to schedule new timeouts, update
-///   existing ones, or delete existing timeouts. The `Future` implementation
-///   will never resolve, but it'll schedule notifications of when to wake up
-///   and process more messages.
+/// Каждый таймер представлен несколькими методами, которые позволяют управлять таймером.
 ///
-/// Note that if you're using this crate you probably don't need to use a
-/// `Timer` as there is a global one already available for you run on a helper
-/// thread. If this isn't desirable, though, then the
-/// `TimerHandle::set_fallback` method can be used instead!
+/// - `next_wake` указывает как долго среда должна спать, до момента пока нам нужно будет отрабать таймер
+///
+/// - `advance_to` метод является тем, что действительно вызывает таймеры. И должен
+/// в целом вызываться каждую итерацию цикла, либо когда пройдет время `next_wake`.
+///
+/// - реализация `Future` для таймера используется для обработки прилетающий обновлений и запросов таймера.
+/// Используется для того, чтобы запланировать новые таймауты, обновлять существующие, либо удалять существующие
+/// таймауты. Реализация `Future` никогда не резолвится, но она ставит в очередь уведомления для пробуждения в рантаймер.
+///
+/// Важно, что если используется данный крейт, то возможно, что не надо использовать данный `Timer`, так как
+/// уже и так есть какой-то, который может работать на вспомогательном потоке. Если это
+/// не является желательным, то надо использовать `TimerHandle::set_fallback`.
 pub struct Timer {
+    /// Инстанс, который мы шарим
     inner: Arc<Inner>,
+
+    /// Двоичная куча, которая отсортирована
     timer_heap: Heap<HeapTimer>,
-}
-
-/// A handle to a `Timer` which is used to create instances of a `Delay`.
-#[derive(Clone)]
-pub struct TimerHandle {
-    pub(crate) inner: Weak<Inner>,
-}
-
-pub(crate) struct Inner {
-    /// List of updates the `Timer` needs to process
-    pub(crate) list: ArcList<ScheduledTimer>,
-
-    /// The blocked `Timer` task to receive notifications to the `list` above.
-    pub(crate) waker: AtomicWaker,
-}
-
-/// Shared state between the `Timer` and a `Delay`.
-pub(crate) struct ScheduledTimer {
-    pub(crate) waker: AtomicWaker,
-
-    // The lowest bit here is whether the timer has fired or not, the second
-    // lowest bit is whether the timer has been invalidated, and all the other
-    // bits are the "generation" of the timer which is reset during the `reset`
-    // function. Only timers for a matching generation are fired.
-    pub(crate) state: AtomicUsize,
-
-    pub(crate) inner: Weak<Inner>,
-    pub(crate) at: Mutex<Option<Instant>>,
-
-    // TODO: this is only accessed by the timer thread, should have a more
-    // lightweight protection than a `Mutex`
-    pub(crate) slot: Mutex<Option<Slot>>,
 }
 
 impl Timer {
@@ -214,6 +185,50 @@ impl Default for Timer {
         Self::new()
     }
 }
+
+////////////////////////////////////////////////////////////////////////////////
+
+/// Обертка для создания футуры `Delay`.
+#[derive(Clone)]
+pub struct TimerHandle {
+    /// Слабая ссылка на `Inner`
+    pub(crate) inner: Weak<Inner>,
+}
+
+////////////////////////////////////////////////////////////////////////////////
+
+pub(crate) struct Inner {
+    /// Список таймеров, которых надо обрабатывать.
+    pub(crate) list: ArcList<ScheduledTimer>,
+
+    /// Заблокированная задача таймера для получения уведомлений от списка выше
+    pub(crate) waker: AtomicWaker,
+}
+
+////////////////////////////////////////////////////////////////////////////////
+
+/// Общее состояние между `Timer` и футурой `Delay`
+pub(crate) struct ScheduledTimer {
+    /// Пробуждалка для футуры
+    pub(crate) waker: AtomicWaker,
+
+    continue here
+    // The lowest bit here is whether the timer has fired or not, the second
+    // lowest bit is whether the timer has been invalidated, and all the other
+    // bits are the "generation" of the timer which is reset during the `reset`
+    // function. Only timers for a matching generation are fired.
+    pub(crate) state: AtomicUsize,
+
+    pub(crate) inner: Weak<Inner>,
+
+    pub(crate) at: Mutex<Option<Instant>>,
+
+    // TODO: this is only accessed by the timer thread, should have a more
+    // lightweight protection than a `Mutex`
+    pub(crate) slot: Mutex<Option<Slot>>,
+}
+
+////////////////////////////////////////////////////////////////////////////////
 
 static HANDLE_FALLBACK: AtomicPtr<Inner> = AtomicPtr::new(EMPTY_HANDLE);
 const EMPTY_HANDLE: *mut Inner = std::ptr::null_mut();
