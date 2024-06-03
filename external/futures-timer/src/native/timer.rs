@@ -40,7 +40,7 @@ pub struct Timer {
 }
 
 impl Timer {
-    /// Creates a new timer heap ready to create new timers.
+    /// Создаем новый таймер.
     pub fn new() -> Timer {
         Timer {
             inner: Arc::new(Inner {
@@ -51,19 +51,19 @@ impl Timer {
         }
     }
 
-    /// Returns a handle to this timer heap, used to create new timeouts.
+    /// Возвращаем хендл на данный таймер, используется для создания таймаутов.
     pub fn handle(&self) -> TimerHandle {
         TimerHandle {
             inner: Arc::downgrade(&self.inner),
         }
     }
 
-    /// Returns the time at which this timer next needs to be invoked with
-    /// `advance_to`.
-    ///
-    /// Event loops or threads typically want to sleep until the specified
-    /// instant.
+    /// Возвращаем время, когда данный таймер должен быть вызван с помощью вызова `advance_to`.
+    /// 
+    /// Ивент-луп или потоки обычно должны спать до указанного момента времени.
     pub fn next_event(&self) -> Option<Instant> {
+        // Берем из двоичной кучи самый первый элемент, получаем время оттуда.
+        // Сам элемент не извлекаем
         self.timer_heap.peek().map(|t| t.at)
     }
 
@@ -71,6 +71,8 @@ impl Timer {
     /// instant.
     ///
     /// This method is equivalent to `self.advance_to(Instant::now())`.
+    /// 
+    /// 
     pub fn advance(&mut self) {
         self.advance_to(Instant::now())
     }
@@ -197,6 +199,14 @@ pub struct TimerHandle {
 
 ////////////////////////////////////////////////////////////////////////////////
 
+static HANDLE_FALLBACK: AtomicPtr<Inner> = AtomicPtr::new(EMPTY_HANDLE);
+
+////////////////////////////////////////////////////////////////////////////////
+
+const EMPTY_HANDLE: *mut Inner = std::ptr::null_mut();
+
+////////////////////////////////////////////////////////////////////////////////
+
 pub(crate) struct Inner {
     /// Список таймеров, которых надо обрабатывать.
     pub(crate) list: ArcList<ScheduledTimer>,
@@ -204,38 +214,6 @@ pub(crate) struct Inner {
     /// Заблокированная задача таймера для получения уведомлений от списка выше
     pub(crate) waker: AtomicWaker,
 }
-
-////////////////////////////////////////////////////////////////////////////////
-
-/// Общее состояние между `Timer` и футурой `Delay`
-pub(crate) struct ScheduledTimer {
-    /// Пробуждалка для футуры
-    pub(crate) waker: AtomicWaker,
-
-    continue here
-    // The lowest bit here is whether the timer has fired or not, the second
-    // lowest bit is whether the timer has been invalidated, and all the other
-    // bits are the "generation" of the timer which is reset during the `reset`
-    // function. Only timers for a matching generation are fired.
-    pub(crate) state: AtomicUsize,
-
-    pub(crate) inner: Weak<Inner>,
-
-    pub(crate) at: Mutex<Option<Instant>>,
-
-    // TODO: this is only accessed by the timer thread, should have a more
-    // lightweight protection than a `Mutex`
-    pub(crate) slot: Mutex<Option<Slot>>,
-}
-
-////////////////////////////////////////////////////////////////////////////////
-
-static HANDLE_FALLBACK: AtomicPtr<Inner> = AtomicPtr::new(EMPTY_HANDLE);
-const EMPTY_HANDLE: *mut Inner = std::ptr::null_mut();
-
-/// Error returned from `TimerHandle::set_fallback`.
-#[derive(Clone, Debug)]
-struct SetDefaultError(());
 
 impl TimerHandle {
     /// Configures this timer handle to be the one returned by
@@ -333,3 +311,33 @@ impl fmt::Debug for TimerHandle {
             .finish()
     }
 }
+
+////////////////////////////////////////////////////////////////////////////////
+
+/// Общее состояние между `Timer` и футурой `Delay`
+pub(crate) struct ScheduledTimer {
+    /// Пробуждалка для футуры
+    pub(crate) waker: AtomicWaker,
+
+    /// - Младший бит здесь указывает, что таймер сработал или нет.
+    /// - Второй бит указывает на инвалидацию.
+    /// - Остальные биты представляют собой поколение таймера при вызове сброса.
+    /// - Вызываются лишь таймеры, для соответствующего поколения.
+    pub(crate) state: AtomicUsize,
+
+    /// Слабая ссылка на Inner
+    pub(crate) inner: Weak<Inner>,
+
+    /// Время пробуждения таймера.
+    pub(crate) at: Mutex<Option<Instant>>,
+
+    // TODO: this is only accessed by the timer thread, should have a more
+    // lightweight protection than a `Mutex`
+    pub(crate) slot: Mutex<Option<Slot>>,
+}
+
+////////////////////////////////////////////////////////////////////////////////
+
+/// Error returned from `TimerHandle::set_fallback`.
+#[derive(Clone, Debug)]
+struct SetDefaultError(());
