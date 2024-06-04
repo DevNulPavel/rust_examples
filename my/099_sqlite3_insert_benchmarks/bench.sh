@@ -11,9 +11,9 @@ export TZ=":Europe/Moscow"
 # /usr/bin/time ./target/release/basic_no_tr
 
 # # Бенчмарк периодического открытия и закрытия транзакции SQLite
-# cargo build --release --quiet --bin basic_raw_tr
-# echo "$(date)" "[RUST] basic_raw_tr.rs (1_000_000) inserts"
-# /usr/bin/time ./target/release/basic_raw_tr
+cargo build --release --quiet --bin basic_raw_tr
+echo "$(date)" "[RUST] basic_raw_tr.rs (300_000_000) inserts"
+/usr/bin/time ./target/release/basic_raw_tr
 
 # # Просто запросы в пределах транзакции
 # cargo build --release --quiet --bin basic
@@ -91,9 +91,9 @@ export TZ=":Europe/Moscow"
 # /usr/bin/time ./target/release/basic_async
 
 # Референс для хешмапы
-cargo build --release --quiet --bin hash_map
-echo "$(date)" "[RUST] hash_map.rs (1_000_000) inserts"
-/usr/bin/time ./target/release/hash_map
+# cargo build --release --quiet --bin hash_map
+# echo "$(date)" "[RUST] hash_map.rs (1_000_000) inserts"
+# /usr/bin/time ./target/release/hash_map
 
 # Postgres ASYNC insert transaction
 # cargo build --release --quiet --bin postgres_async_tr
