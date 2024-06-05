@@ -1,0 +1,13 @@
+[package]
+name = "test112_slab"
+version = "0.1.0"
+authors = ["Pavel Ershov <devnulpavel@gmail.com>"]
+edition = "2021"
+
+##############################################################################################################
+
+[dependencies]
+slab = "^0.4.9"
+sharded-slab = "^0.1.7"
+parking_lot = "^0.12.3"
+# ctrlc = "^3.4.4"
