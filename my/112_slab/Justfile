@@ -31,9 +31,9 @@ default:
 
 ########################################################################
 
-@RUN: _FMT_CHECK_CLIPPY
-	cargo build
-	{{justfile_directory()}}/target/debug/test95_bincode
+@RUN: _FMT_CHECK_CLIPPY_RELEASE
+	cargo build --release
+	{{justfile_directory()}}/target/release/test112_slab
 
 ########################################################################
 

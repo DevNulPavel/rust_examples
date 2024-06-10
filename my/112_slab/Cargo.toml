@@ -8,6 +8,6 @@ edition = "2021"
 
 [dependencies]
 slab = "^0.4.9"
-sharded-slab = "^0.1.7"
 parking_lot = "^0.12.3"
+# sharded-slab = "^0.1.7"
 # ctrlc = "^3.4.4"

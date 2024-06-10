@@ -3,7 +3,7 @@ use std::{hint::black_box, time::Duration};
 
 ////////////////////////////////////////////////////////////////////////////////
 
-type TestData = [u8; 144];
+// type TestData = [u8; 144];
 
 ////////////////////////////////////////////////////////////////////////////////
 
@@ -40,8 +40,9 @@ fn main() {
             println!("Read duration: {}msec", read_elapsed.as_millis());
         }
 
-        println!("Sleep");
-        std::thread::sleep(Duration::from_secs(5));
+        println!("Sleep begin");
+        std::thread::sleep(Duration::from_secs(30));
+        println!("Sleep end");
     }
 
     {
@@ -109,11 +110,12 @@ fn main() {
             println!("Read duration: {}msec", read_elapsed.as_millis());
         }
 
-        println!("Sleep");
-        std::thread::sleep(Duration::from_secs(5));
+        println!("Sleep begin");
+        std::thread::sleep(Duration::from_secs(30));
+        println!("Sleep end");
     }
 
-    {
+    /* {
         let mut slab = sharded_slab::Slab::new();
 
         {
@@ -146,5 +148,5 @@ fn main() {
 
         println!("Sleep");
         std::thread::sleep(Duration::from_secs(5));
-    }
+    } */
 }
