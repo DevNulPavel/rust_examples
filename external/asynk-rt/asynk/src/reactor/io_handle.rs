@@ -139,6 +139,7 @@ where
                 }
                 // По идее, надо было бы заблокироваться на сокете, но у нас же
                 // неблокирующий рантайм
+                // Такая проверка защищает от случайных пробуждений.
                 // For "reads", EWOULDBLOCK says "there isn't any data".
                 // It's saying "if this were 'normal I/O', then I'd block".
                 Err(ref e) if (e.kind() == ErrorKind::WouldBlock) => {
