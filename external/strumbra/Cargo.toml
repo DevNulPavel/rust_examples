@@ -1,0 +1,30 @@
+[package]
+name = "strumbra"
+version = "0.4.1"
+edition = "2021"
+
+description = "An implementation for Umbra-style strings (also known as German strings)"
+categories = ["data-structures"]
+keywords = ["german-string", "umbra-string", "string"]
+
+repository = "https://gitlab.com/ltungv/strumbra"
+license = "MIT"
+
+[[bench]]
+name = "benches"
+harness = false
+
+[dev-dependencies]
+criterion = "0.5.1"
+quickcheck = "1.0.3"
+quickcheck_macros = "1.0.0"
+rand = "0.8.5"
+serde = { version = "1.0.209", default-features = false, features = ["derive"] }
+serde_json = { version = "1.0.128", default-features = false }
+
+[dependencies]
+serde = { version = "1.0.209", optional = true, default-features = false }
+
+[features]
+default = []
+serde = ["dep:serde"]
