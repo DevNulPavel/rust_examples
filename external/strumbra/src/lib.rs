@@ -1,6 +1,8 @@
-//! An implementation for the string data structure described in [Umbra: A Disk-Based System with In-Memory Performance].
+//! Реализация для строковой структуры данных, описанной в статье [Umbra: A Disk-Based System with In-Memory Performance].
 //!
 //! [Umbra: A Disk-Based System with In-Memory Performance]: https://www.cidrdb.org/cidr2020/papers/p29-neumann-cidr20.pdf
+
+////////////////////////////////////////////////////////////
 
 #![warn(
     rustdoc::all,
@@ -11,84 +13,117 @@
 )]
 #![deny(clippy::all, missing_docs, rust_2018_idioms, rust_2021_compatibility)]
 
+////////////////////////////////////////////////////////////
+
 #[cfg(feature = "serde")]
 pub mod serde;
 
+////////////////////////////////////////////////////////////
+
 mod heap;
 
-use std::{borrow::Borrow, cmp, mem::ManuallyDrop};
+////////////////////////////////////////////////////////////
 
 use heap::{ArcDynBytes, BoxDynBytes, RcDynBytes, ThinAsBytes, ThinClone, ThinDrop};
+use std::{borrow::Borrow, cmp, mem::ManuallyDrop};
+
+////////////////////////////////////////////////////////////
 
 const INLINED_LENGTH: usize = 12;
 const PREFIX_LENGTH: usize = 4;
 const SUFFIX_LENGTH: usize = 8;
 
-/// A type for all possible errors that can occur when using [`UmbraString`].
+////////////////////////////////////////////////////////////
+
+/// Тип для всех возможных ошибок, которые могут возникнуть при использовании [`UmbraString`].
 #[derive(Debug)]
 pub enum Error {
-    /// An error occurs when converting from a string whose length exceeds the maximum value of a
-    /// 32-bit unsigned integer.
+    /// Ошибка возникает при конвертации из строки, чья длина превышает максимальное значение
+    /// 32-х битного беззнакоаого значения.
     TooLong,
 }
 
 impl std::error::Error for Error {}
+
 impl std::fmt::Display for Error {
     fn fmt(&self, f: &mut std::fmt::Formatter<'_>) -> std::fmt::Result {
         match self {
-            Self::TooLong => write!(f, "String is too long"),
+            Self::TooLong => write!(f, "string is too long"),
         }
     }
 }
 
+////////////////////////////////////////////////////////////
+
+/// Реальный юнион для представления в в памяти либо данных на стеке,
+/// либо указателя, который будет вручную уничтожаться
 #[repr(C)]
 union Trailing<B> {
+    /// Буфер данных на стеке
     buf: [u8; SUFFIX_LENGTH],
+
+    /// Либо указатель для уничтожения данных вручную
     ptr: ManuallyDrop<B>,
 }
 
 /// # Safety:
 ///
-/// + The inlined content is always copied.
-/// + The heap-allocated content is `Send`.
+/// - Встраиваемый контент на стеке всегда копируется
+/// - Аллоцированные в куче данные у нас реализуют `Send` если данные `Send` + `Sync`
 unsafe impl<B> Send for Trailing<B> where B: Send + Sync {}
 
 /// # Safety:
 ///
-/// + The inlined content is immutable.
-/// + The heap-allocated content is `Sync`.
+/// - Встраиваемый контент у нас является неизменяемым из-за `Sync` (?)
+/// - Аллоцированные в куче данные у нас реализуют `Sync` если данные `Send` + `Sync`
 unsafe impl<B> Sync for Trailing<B> where B: Send + Sync {}
 
-/// An Umbra-style string that owns its underlying bytes and does not share the bytes among
-/// different instances.
+////////////////////////////////////////////////////////////
+
+/// Umbra-style строка, которая владеет принадлежащими
+/// ей байтами и не шарит данные среди разных инстансов.
 pub type BoxString = UmbraString<BoxDynBytes>;
 
-/// An Umbra-style string that shares its underlying bytes and keeps track of the number of
-/// references using an atomic counter.
+/// Umbra-style строка, которая шарит управляемые данные между потоками и
+/// отслеживает количество атомарных ссылок
+/// на эту самую строку.
 pub type ArcString = UmbraString<ArcDynBytes>;
 
-/// An Umbra-style string that shares its underlying bytes and keeps track of the number of
-/// references using a counter.
+/// Umbra-style строка, которая шарит управляемые данные между владельцами в пределах
+/// одного потока и отслеживает количество ссылок
+/// на эту самую строку.
 pub type RcString = UmbraString<RcDynBytes>;
 
-/// An Umbra-style string that owns its underlying bytes and does not share the bytes among
-/// different instances.
+/// Umbra-style строка, которая владеет принадлежащими
+/// ей байтами и не шарит данные среди разных инстансов.
 #[deprecated(since = "0.5.0", note = "please use `BoxString` instead")]
 pub type UniqueString = BoxString;
 
-/// An Umbra-style string that shares its underlying bytes and keeps track of the number of
-/// references using an atomic counter.
+/// Umbra-style строка, которая шарит управляемые данные между потоками и
+/// отслеживает количество атомарных ссылок
+/// на эту самую строку.
 #[deprecated(since = "0.5.0", note = "please use `ArcString` instead")]
 pub type SharedString = ArcString;
 
-/// A string data structure optimized for analytical processing workload. Unlike [`String`], which
-/// uses 24 bytes on the stack, this data structure uses only 16 bytes and is immutable.
+////////////////////////////////////////////////////////////
+
+/// Строковая структура данных, оптимизированная для аналитической обработки.
+///
+/// В отличие от обычной [`String`], которая использует 24 байта на стеке, данная структура данных
+/// хранит на стеке лишь только 16 байт и является неизменяемой.
 #[repr(C)]
 pub struct UmbraString<B: ThinDrop> {
+    /// Размер строки, 4 байта
     len: u32,
+
+    /// Данные на стеке для префикса, 4 байта
     prefix: [u8; PREFIX_LENGTH],
+
+    /// Конец данных, 8 байт
     trailing: Trailing<B>,
 }
+
+
 
 /// # Safety:
 ///
