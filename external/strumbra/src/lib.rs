@@ -123,29 +123,33 @@ pub struct UmbraString<B: ThinDrop> {
     trailing: Trailing<B>,
 }
 
-continue here
-
 /// # Safety:
 ///
-/// + `len` is always copied.
-/// + The heap-allocated bytes are `Send`.
+/// - `len` переменная всегда копируется, так как она на стеке у нас
+/// - Аллоцированные в куче данные у нас являются `Send` и могут прыгать между потоками.
 unsafe impl<B> Send for UmbraString<B> where B: ThinDrop + Send + Sync {}
 
 /// # Safety:
 ///
-/// + `len` is immutable.
-/// + The heap-allocated bytes are `Sync`.
+/// - `len` переменная является неизменяемой и лежит на стеке
+/// - Данные, которые у нас аллоцированы в куче являются `Sync` и позволяют доступ по ссылке
+///   из разных потоков.
 unsafe impl<B> Sync for UmbraString<B> where B: ThinDrop + Send + Sync {}
 
+/// Кастомная реализация уничтожения строки для типов, которые реализуют у нас
+/// специально трейт `ThinDrop`
 impl<B> Drop for UmbraString<B>
 where
     B: ThinDrop,
 {
     fn drop(&mut self) {
+        // Проверяем размер данных, если они у нас в куче, тогда
+        // нам надо применять уничтожение
         if self.len() > INLINED_LENGTH {
             // Safety:
-            // + We know that the string is heap-allocated because len > INLINED_LENGTH.
-            // + We never modify `len`, thus it always equals to the number of allocated bytes.
+            // - Мы знаем, что строка у нас аллоцирована в куче здесь из-за условия выше
+            // - Мы никогда не модифицируем длину,
+            //   так что она всегда отражает размер именно данных реальных аллоцированных
             unsafe {
                 self.trailing.ptr.thin_drop(self.len());
             }
@@ -153,14 +157,17 @@ where
     }
 }
 
+/// Кастомная реализация клонирования строки если у нас внутренний тип реализует
+/// `ThinDrop` и `ThinClone` трейты одновременно
 impl<B> Clone for UmbraString<B>
 where
     B: ThinDrop + ThinClone,
 {
     fn clone(&self) -> Self {
+        // Проверяем, что у нас размер меньше или равен данным, которые у нас на стеке точно лежат
         let trailing = if self.len() <= INLINED_LENGTH {
             // Safety:
-            // + We know that the string is inlined because len <= INLINED_LENGTH.
+            // - Мы знаем, что строка встроена из-за проверки выше
             unsafe {
                 Trailing {
                     buf: self.trailing.buf,
@@ -168,13 +175,18 @@ where
             }
         } else {
             // Safety:
-            // + We know that the string is heap-allocated because len > INLINED_LENGTH.
+            // - Мы знаем, что строка у нас в куче из-за проверки выше
             unsafe {
+                // Выполняем
+                let cloned_heap = self.trailing.ptr.thin_clone(self.len());
+
+                // Создаем здесь обертку для ручной деаллокации
                 Trailing {
-                    ptr: ManuallyDrop::new(self.trailing.ptr.thin_clone(self.len())),
+                    ptr: ManuallyDrop::new(cloned_heap),
                 }
             }
         };
+
         Self {
             len: self.len,
             prefix: self.prefix,
