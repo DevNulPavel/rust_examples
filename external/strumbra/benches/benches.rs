@@ -1,4 +1,4 @@
-use strumbra::{SharedString, UniqueString};
+use strumbra::{ArcString, BoxString};
 
 use criterion::{criterion_group, criterion_main, BenchmarkId, Criterion};
 use rand::Rng as _;
@@ -15,24 +15,24 @@ fn cmp_random(c: &mut Criterion) {
                 criterion::BatchSize::SmallInput,
             )
         });
-        group.bench_with_input(BenchmarkId::new("SharedString", len), &len, |b, &len| {
+        group.bench_with_input(BenchmarkId::new("ArcString", len), &len, |b, &len| {
             b.iter_batched_ref(
                 || {
                     (
-                        SharedString::try_from(random_string(len).as_str()).unwrap(),
-                        SharedString::try_from(random_string(len).as_str()).unwrap(),
+                        ArcString::try_from(random_string(len).as_str()).unwrap(),
+                        ArcString::try_from(random_string(len).as_str()).unwrap(),
                     )
                 },
                 |(a, b)| a.cmp(&b),
                 criterion::BatchSize::SmallInput,
             )
         });
-        group.bench_with_input(BenchmarkId::new("UniqueString", len), &len, |b, &len| {
+        group.bench_with_input(BenchmarkId::new("BoxString", len), &len, |b, &len| {
             b.iter_batched_ref(
                 || {
                     (
-                        UniqueString::try_from(random_string(len)).unwrap(),
-                        UniqueString::try_from(random_string(len)).unwrap(),
+                        BoxString::try_from(random_string(len)).unwrap(),
+                        BoxString::try_from(random_string(len)).unwrap(),
                     )
                 },
                 |(a, b)| a.cmp(&b),
@@ -55,26 +55,26 @@ fn cmp_same(c: &mut Criterion) {
                 criterion::BatchSize::SmallInput,
             )
         });
-        group.bench_with_input(BenchmarkId::new("SharedString", len), &len, |b, &len| {
+        group.bench_with_input(BenchmarkId::new("ArcString", len), &len, |b, &len| {
             b.iter_batched_ref(
                 || {
                     let s = random_string(len);
                     (
-                        SharedString::try_from(s.as_str()).unwrap(),
-                        SharedString::try_from(s.as_str()).unwrap(),
+                        ArcString::try_from(s.as_str()).unwrap(),
+                        ArcString::try_from(s.as_str()).unwrap(),
                     )
                 },
                 |(a, b)| a.cmp(&b),
                 criterion::BatchSize::SmallInput,
             )
         });
-        group.bench_with_input(BenchmarkId::new("UniqueString", len), &len, |b, &len| {
+        group.bench_with_input(BenchmarkId::new("BoxString", len), &len, |b, &len| {
             b.iter_batched_ref(
                 || {
                     let s = random_string(len);
                     (
-                        UniqueString::try_from(s.as_str()).unwrap(),
-                        UniqueString::try_from(s.as_str()).unwrap(),
+                        BoxString::try_from(s.as_str()).unwrap(),
+                        BoxString::try_from(s.as_str()).unwrap(),
                     )
                 },
                 |(a, b)| a.cmp(&b),
@@ -94,24 +94,24 @@ fn eq_random(c: &mut Criterion) {
                 criterion::BatchSize::SmallInput,
             )
         });
-        group.bench_with_input(BenchmarkId::new("SharedString", len), &len, |b, &len| {
+        group.bench_with_input(BenchmarkId::new("ArcString", len), &len, |b, &len| {
             b.iter_batched_ref(
                 || {
                     (
-                        SharedString::try_from(random_string(len).as_str()).unwrap(),
-                        SharedString::try_from(random_string(len).as_str()).unwrap(),
+                        ArcString::try_from(random_string(len).as_str()).unwrap(),
+                        ArcString::try_from(random_string(len).as_str()).unwrap(),
                     )
                 },
                 |(a, b)| a.eq(&b),
                 criterion::BatchSize::SmallInput,
             )
         });
-        group.bench_with_input(BenchmarkId::new("UniqueString", len), &len, |b, &len| {
+        group.bench_with_input(BenchmarkId::new("BoxString", len), &len, |b, &len| {
             b.iter_batched_ref(
                 || {
                     (
-                        UniqueString::try_from(random_string(len)).unwrap(),
-                        UniqueString::try_from(random_string(len)).unwrap(),
+                        BoxString::try_from(random_string(len)).unwrap(),
+                        BoxString::try_from(random_string(len)).unwrap(),
                     )
                 },
                 |(a, b)| a.eq(&b),
@@ -134,26 +134,26 @@ fn eq_same(c: &mut Criterion) {
                 criterion::BatchSize::SmallInput,
             )
         });
-        group.bench_with_input(BenchmarkId::new("SharedString", len), &len, |b, &len| {
+        group.bench_with_input(BenchmarkId::new("ArcString", len), &len, |b, &len| {
             b.iter_batched_ref(
                 || {
                     let s = random_string(len);
                     (
-                        SharedString::try_from(s.as_str()).unwrap(),
-                        SharedString::try_from(s.as_str()).unwrap(),
+                        ArcString::try_from(s.as_str()).unwrap(),
+                        ArcString::try_from(s.as_str()).unwrap(),
                     )
                 },
                 |(a, b)| a.eq(&b),
                 criterion::BatchSize::SmallInput,
             )
         });
-        group.bench_with_input(BenchmarkId::new("UniqueString", len), &len, |b, &len| {
+        group.bench_with_input(BenchmarkId::new("BoxString", len), &len, |b, &len| {
             b.iter_batched_ref(
                 || {
                     let s = random_string(len);
                     (
-                        UniqueString::try_from(s.as_str()).unwrap(),
-                        UniqueString::try_from(s.as_str()).unwrap(),
+                        BoxString::try_from(s.as_str()).unwrap(),
+                        BoxString::try_from(s.as_str()).unwrap(),
                     )
                 },
                 |(a, b)| a.eq(&b),
@@ -173,11 +173,11 @@ fn cmp_random_mixed_types(c: &mut Criterion) {
                 criterion::BatchSize::SmallInput,
             )
         });
-        group.bench_with_input(BenchmarkId::new("SharedString", len), &len, |b, &len| {
+        group.bench_with_input(BenchmarkId::new("ArcString", len), &len, |b, &len| {
             b.iter_batched_ref(
                 || {
                     (
-                        SharedString::try_from(random_string(len).as_str()).unwrap(),
+                        ArcString::try_from(random_string(len).as_str()).unwrap(),
                         random_string(len),
                     )
                 },
@@ -185,11 +185,11 @@ fn cmp_random_mixed_types(c: &mut Criterion) {
                 criterion::BatchSize::SmallInput,
             )
         });
-        group.bench_with_input(BenchmarkId::new("UniqueString", len), &len, |b, &len| {
+        group.bench_with_input(BenchmarkId::new("BoxString", len), &len, |b, &len| {
             b.iter_batched_ref(
                 || {
                     (
-                        UniqueString::try_from(random_string(len)).unwrap(),
+                        BoxString::try_from(random_string(len)).unwrap(),
                         random_string(len),
                     )
                 },
@@ -213,21 +213,21 @@ fn cmp_same_mixed_types(c: &mut Criterion) {
                 criterion::BatchSize::SmallInput,
             )
         });
-        group.bench_with_input(BenchmarkId::new("SharedString", len), &len, |b, &len| {
+        group.bench_with_input(BenchmarkId::new("ArcString", len), &len, |b, &len| {
             b.iter_batched_ref(
                 || {
                     let s = random_string(len);
-                    (SharedString::try_from(s.as_str()).unwrap(), s)
+                    (ArcString::try_from(s.as_str()).unwrap(), s)
                 },
                 |(a, b)| PartialOrd::partial_cmp(a, b),
                 criterion::BatchSize::SmallInput,
             )
         });
-        group.bench_with_input(BenchmarkId::new("UniqueString", len), &len, |b, &len| {
+        group.bench_with_input(BenchmarkId::new("BoxString", len), &len, |b, &len| {
             b.iter_batched_ref(
                 || {
                     let s = random_string(len);
-                    (UniqueString::try_from(s.as_str()).unwrap(), s)
+                    (BoxString::try_from(s.as_str()).unwrap(), s)
                 },
                 |(a, b)| PartialOrd::partial_cmp(a, b),
                 criterion::BatchSize::SmallInput,
@@ -246,11 +246,11 @@ fn eq_random_mixed_types(c: &mut Criterion) {
                 criterion::BatchSize::SmallInput,
             )
         });
-        group.bench_with_input(BenchmarkId::new("SharedString", len), &len, |b, &len| {
+        group.bench_with_input(BenchmarkId::new("ArcString", len), &len, |b, &len| {
             b.iter_batched_ref(
                 || {
                     (
-                        SharedString::try_from(random_string(len).as_str()).unwrap(),
+                        ArcString::try_from(random_string(len).as_str()).unwrap(),
                         random_string(len),
                     )
                 },
@@ -258,11 +258,11 @@ fn eq_random_mixed_types(c: &mut Criterion) {
                 criterion::BatchSize::SmallInput,
             )
         });
-        group.bench_with_input(BenchmarkId::new("UniqueString", len), &len, |b, &len| {
+        group.bench_with_input(BenchmarkId::new("BoxString", len), &len, |b, &len| {
             b.iter_batched_ref(
                 || {
                     (
-                        UniqueString::try_from(random_string(len)).unwrap(),
+                        BoxString::try_from(random_string(len)).unwrap(),
                         random_string(len),
                     )
                 },
@@ -286,21 +286,21 @@ fn eq_same_mixed_types(c: &mut Criterion) {
                 criterion::BatchSize::SmallInput,
             )
         });
-        group.bench_with_input(BenchmarkId::new("SharedString", len), &len, |b, &len| {
+        group.bench_with_input(BenchmarkId::new("ArcString", len), &len, |b, &len| {
             b.iter_batched_ref(
                 || {
                     let s = random_string(len);
-                    (SharedString::try_from(s.as_str()).unwrap(), s)
+                    (ArcString::try_from(s.as_str()).unwrap(), s)
                 },
                 |(a, b)| PartialEq::eq(a, b),
                 criterion::BatchSize::SmallInput,
             )
         });
-        group.bench_with_input(BenchmarkId::new("UniqueString", len), &len, |b, &len| {
+        group.bench_with_input(BenchmarkId::new("BoxString", len), &len, |b, &len| {
             b.iter_batched_ref(
                 || {
                     let s = random_string(len);
-                    (UniqueString::try_from(s.as_str()).unwrap(), s)
+                    (BoxString::try_from(s.as_str()).unwrap(), s)
                 },
                 |(a, b)| PartialEq::eq(a, b),
                 criterion::BatchSize::SmallInput,
@@ -311,31 +311,31 @@ fn eq_same_mixed_types(c: &mut Criterion) {
 
 fn construct_empty(c: &mut Criterion) {
     let mut group = c.benchmark_group("construct-empty");
-    group.bench_function(BenchmarkId::new("SharedString", "copy"), |b| {
+    group.bench_function(BenchmarkId::new("ArcString", "copy"), |b| {
         b.iter_batched(
             String::new,
-            |s| SharedString::try_from(s.as_str()),
+            |s| ArcString::try_from(s.as_str()),
             criterion::BatchSize::SmallInput,
         )
     });
-    group.bench_function(BenchmarkId::new("SharedString", "move"), |b| {
+    group.bench_function(BenchmarkId::new("ArcString", "move"), |b| {
         b.iter_batched(
             String::new,
-            SharedString::try_from,
+            ArcString::try_from,
             criterion::BatchSize::SmallInput,
         )
     });
-    group.bench_function(BenchmarkId::new("UniqueString", "copy"), |b| {
+    group.bench_function(BenchmarkId::new("BoxString", "copy"), |b| {
         b.iter_batched(
             String::new,
-            |s| UniqueString::try_from(s.as_str()),
+            |s| BoxString::try_from(s.as_str()),
             criterion::BatchSize::SmallInput,
         )
     });
-    group.bench_function(BenchmarkId::new("UniqueString", "move"), |b| {
+    group.bench_function(BenchmarkId::new("BoxString", "move"), |b| {
         b.iter_batched(
             String::new,
-            UniqueString::try_from,
+            BoxString::try_from,
             criterion::BatchSize::SmallInput,
         )
     });
@@ -344,50 +344,34 @@ fn construct_empty(c: &mut Criterion) {
 fn construct_non_empty(c: &mut Criterion) {
     let mut group = c.benchmark_group("construct-non-empty");
     for len in INPUT_LENGTHS {
-        group.bench_with_input(
-            BenchmarkId::new("SharedStringCopy", len),
-            &len,
-            |b, &len| {
-                b.iter_batched(
-                    || random_string(len),
-                    |s| SharedString::try_from(s.as_str()),
-                    criterion::BatchSize::SmallInput,
-                )
-            },
-        );
-        group.bench_with_input(
-            BenchmarkId::new("SharedStringMove", len),
-            &len,
-            |b, &len| {
-                b.iter_batched(
-                    || random_string(len),
-                    SharedString::try_from,
-                    criterion::BatchSize::SmallInput,
-                )
-            },
-        );
-        group.bench_with_input(
-            BenchmarkId::new("UniqueStringCopy", len),
-            &len,
-            |b, &len| {
-                b.iter_batched(
-                    || random_string(len),
-                    |s| UniqueString::try_from(s.as_str()),
-                    criterion::BatchSize::SmallInput,
-                )
-            },
-        );
-        group.bench_with_input(
-            BenchmarkId::new("UniqueStringMove", len),
-            &len,
-            |b, &len| {
-                b.iter_batched(
-                    || random_string(len),
-                    UniqueString::try_from,
-                    criterion::BatchSize::SmallInput,
-                )
-            },
-        );
+        group.bench_with_input(BenchmarkId::new("ArcStringCopy", len), &len, |b, &len| {
+            b.iter_batched(
+                || random_string(len),
+                |s| ArcString::try_from(s.as_str()),
+                criterion::BatchSize::SmallInput,
+            )
+        });
+        group.bench_with_input(BenchmarkId::new("ArcStringMove", len), &len, |b, &len| {
+            b.iter_batched(
+                || random_string(len),
+                ArcString::try_from,
+                criterion::BatchSize::SmallInput,
+            )
+        });
+        group.bench_with_input(BenchmarkId::new("BoxStringCopy", len), &len, |b, &len| {
+            b.iter_batched(
+                || random_string(len),
+                |s| BoxString::try_from(s.as_str()),
+                criterion::BatchSize::SmallInput,
+            )
+        });
+        group.bench_with_input(BenchmarkId::new("BoxStringMove", len), &len, |b, &len| {
+            b.iter_batched(
+                || random_string(len),
+                BoxString::try_from,
+                criterion::BatchSize::SmallInput,
+            )
+        });
     }
 }
 

@@ -177,7 +177,8 @@ where
             // Safety:
             // - Мы знаем, что строка у нас в куче из-за проверки выше
             unsafe {
-                // Выполняем
+                // Выполняем клонирование данных в куче через трейт.
+                // Размер клонируемых данных передаем как параметр.
                 let cloned_heap = self.trailing.ptr.thin_clone(self.len());
 
                 // Создаем здесь обертку для ручной деаллокации
@@ -187,6 +188,7 @@ where
             }
         };
 
+        // Создаем новый объект-клон
         Self {
             len: self.len,
             prefix: self.prefix,
@@ -195,6 +197,9 @@ where
     }
 }
 
+/// Поддержка конвертации из обычной строки для типов, которые
+/// поддерживают `ThinDrop` + умеют создаваться из слайса байт с помощью
+/// реализации `for<'a> From<&'a [u8]>`
 impl<B> TryFrom<&str> for UmbraString<B>
 where
     B: ThinDrop + for<'a> From<&'a [u8]>,
@@ -207,6 +212,9 @@ where
     }
 }
 
+/// Поддержка конвертации из аллоцированной строки для типов, которые
+/// поддерживают `ThinDrop` + умеют создаваться из слайса байт с помощью
+/// реализации `for<'a> From<&'a [u8]>`
 impl<B> TryFrom<&String> for UmbraString<B>
 where
     B: ThinDrop + for<'a> From<&'a [u8]>,
@@ -219,6 +227,9 @@ where
     }
 }
 
+/// Поддержка конвертации из аллоцированной строки для типов, которые
+/// поддерживают `ThinDrop` + умеют создаваться из байт в куче с помощью
+/// реализации `From<Vec<u8>>`
 impl<B> TryFrom<String> for UmbraString<B>
 where
     B: ThinDrop + From<Vec<u8>>,
@@ -231,6 +242,8 @@ where
     }
 }
 
+/// Реализуем `Deref` для строки, но при условии,
+/// что мы можемпредставить внутренний тип как байты
 impl<B> std::ops::Deref for UmbraString<B>
 where
     B: ThinDrop + ThinAsBytes,
@@ -243,6 +256,8 @@ where
     }
 }
 
+/// Реализуем `AsRef<str>` для строки, но при условии,
+/// что мы можемпредставить внутренний тип как байты
 impl<B> AsRef<str> for UmbraString<B>
 where
     B: ThinDrop + ThinAsBytes,
@@ -253,6 +268,8 @@ where
     }
 }
 
+/// Реализуем `Borrow<str>` для строки, но при условии,
+/// что мы можемпредставить внутренний тип как байты
 impl<B> Borrow<str> for UmbraString<B>
 where
     B: ThinDrop + ThinAsBytes,
@@ -263,6 +280,8 @@ where
     }
 }
 
+/// Поддержка хеширования для строки, но при условии,
+/// что мы можемпредставить внутренний тип как байты
 impl<B> std::hash::Hash for UmbraString<B>
 where
     B: ThinDrop + ThinAsBytes,
@@ -275,6 +294,8 @@ where
         self.as_str().hash(hasher);
     }
 }
+
+continue here
 
 impl<B> Eq for UmbraString<B> where B: ThinDrop + ThinAsBytes {}
 impl<B1, B2> PartialEq<UmbraString<B2>> for UmbraString<B1>
