@@ -281,7 +281,7 @@ where
 }
 
 /// Поддержка хеширования для строки, но при условии,
-/// что мы можемпредставить внутренний тип как байты
+/// что мы можем представить внутренний тип как байты
 impl<B> std::hash::Hash for UmbraString<B>
 where
     B: ThinDrop + ThinAsBytes,
@@ -295,35 +295,59 @@ where
     }
 }
 
-continue here
-
+/// Реализация равенсnва для строки, где внутренний тип у нас реализует
+/// `ThinDrop` + `ThinAsBytes`
 impl<B> Eq for UmbraString<B> where B: ThinDrop + ThinAsBytes {}
+
+/// Реализация частичного равенства двух типов, которые реализуют
+/// возможность `ThinDrop` + `ThinAsBytes` для представления
+/// как байты
 impl<B1, B2> PartialEq<UmbraString<B2>> for UmbraString<B1>
 where
     B1: ThinDrop + ThinAsBytes,
     B2: ThinDrop + ThinAsBytes,
 {
     fn eq(&self, other: &UmbraString<B2>) -> bool {
+        // Получаем указатели на текущее значение и на
+        // другое сравниваемое значение.
+        //
+        // После чего конвертируем эти самые указатели просто в указатель на 8 байт первых
+        // у структуры.
         let lhs_first_qword = std::ptr::from_ref(self).cast::<u64>();
         let rhs_first_qword = std::ptr::from_ref(other).cast::<u64>();
+
         // Safety:
-        // + The pointers are obtained from the given references and guaranteed to be non-null and
-        // properly aligned.
-        // + The first QWORD contains the string length and prefix based on the layout, guaranteed
-        // by `#[repr(C)]`.
-        // + The referenced objects are immutable and are not changed concurrently.
+        // - Указатели, полученные из данных ссылок точно не нулевые + выровнены правильно, так как
+        //   вся работа была в обычном безопасном коде до этого.
+        // - Первые 4 байта содержат размер строки и префикс, они точно у нас представлены
+        //   в памяти именно так за счет указания `#[repr(C)]` для строки. Поэтому там не
+        //   происходит никакого перемешивания порядка полей.
+        // - Ссылки являются иммутабельными и никто их не изменяет в безопасном коде из потоков других
+        //
+        // Здесь мы просто сравниваем первые 8 байт и вторые 8 байт.
+        // Если они не равны - значит точно не совпадают значения.
         if unsafe { *lhs_first_qword != *rhs_first_qword } {
             return false;
         }
+
+        // На всякий случай дальше сверяем размер, что он меньше или равен тому,
+        // что влезает у нас на стек
         if self.len() <= INLINED_LENGTH {
             // Safety:
-            // + We know that the string is inlined because len <= INLINED_LENGTH.
+            // - Строка точно на стеке, проверка была выше
+            //
+            // Сравниваем здесь стековые буфферы тогда уже
             return unsafe { self.trailing.buf == other.trailing.buf };
         }
+
+        // TODO: Проверить
+        // Если мы в куче - тогда сравниваем уже данные в куче
         self.suffix() == other.suffix()
     }
 }
 
+/// Частичное сравнение просто со строкой,
+/// но если текущий тип у нас реализует представление в виде байт.
 impl<B> PartialEq<str> for UmbraString<B>
 where
     B: ThinDrop + ThinAsBytes,
@@ -334,6 +358,7 @@ where
     }
 }
 
+/// Сравнение локальной строки и слайса на строку, то есть в обратную сторону
 impl<B> PartialEq<UmbraString<B>> for str
 where
     B: ThinDrop + ThinAsBytes,
@@ -344,6 +369,7 @@ where
     }
 }
 
+/// Сравнение со строкой в куче
 impl<B> PartialEq<String> for UmbraString<B>
 where
     B: ThinDrop + ThinAsBytes,
@@ -354,6 +380,7 @@ where
     }
 }
 
+/// Сравнение со строкой в куче обратное
 impl<B> PartialEq<UmbraString<B>> for String
 where
     B: ThinDrop + ThinAsBytes,
@@ -364,6 +391,7 @@ where
     }
 }
 
+/// Реализация сортировки
 impl<B> Ord for UmbraString<B>
 where
     B: ThinDrop + ThinAsBytes,
@@ -374,6 +402,7 @@ where
     }
 }
 
+/// Реализация сортировки
 impl<B1, B2> PartialOrd<UmbraString<B2>> for UmbraString<B1>
 where
     B1: ThinDrop + ThinAsBytes,
@@ -385,6 +414,7 @@ where
     }
 }
 
+/// Реализация сортировки
 impl<B> PartialOrd<str> for UmbraString<B>
 where
     B: ThinDrop + ThinAsBytes,
@@ -395,6 +425,7 @@ where
     }
 }
 
+/// Реализация сортировки
 impl<B> PartialOrd<UmbraString<B>> for str
 where
     B: ThinDrop + ThinAsBytes,
@@ -405,6 +436,7 @@ where
     }
 }
 
+/// Реализация сортировки
 impl<B> PartialOrd<String> for UmbraString<B>
 where
     B: ThinDrop + ThinAsBytes,
@@ -415,6 +447,7 @@ where
     }
 }
 
+/// Реализация сортировки
 impl<B> PartialOrd<UmbraString<B>> for String
 where
     B: ThinDrop + ThinAsBytes,
@@ -425,6 +458,7 @@ where
     }
 }
 
+/// Форматирование
 impl<B> std::fmt::Display for UmbraString<B>
 where
     B: ThinDrop + ThinAsBytes,
@@ -435,6 +469,7 @@ where
     }
 }
 
+/// Отладочный вывод
 impl<B> std::fmt::Debug for UmbraString<B>
 where
     B: ThinDrop + ThinAsBytes,
@@ -445,10 +480,14 @@ where
     }
 }
 
+/// Непосредственно реализация нашего типа уже
 impl<B> UmbraString<B>
 where
     B: ThinDrop,
 {
+    contunue here
+
+
     /// Returns the length of `self`.
     ///
     /// This length is in bytes, not [`char`]s or graphemes. In other words,
