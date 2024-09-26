@@ -145,13 +145,13 @@ where
     fn drop(&mut self) {
         // Проверяем размер данных, если они у нас в куче, тогда
         // нам надо применять уничтожение
-        if self.len() > INLINED_LENGTH {
+        if self.len_in_bytes_usize() > INLINED_LENGTH {
             // Safety:
             // - Мы знаем, что строка у нас аллоцирована в куче здесь из-за условия выше
             // - Мы никогда не модифицируем длину,
             //   так что она всегда отражает размер именно данных реальных аллоцированных
             unsafe {
-                self.trailing.ptr.thin_drop(self.len());
+                self.trailing.ptr.thin_drop(self.len_in_bytes_usize());
             }
         }
     }
@@ -165,7 +165,7 @@ where
 {
     fn clone(&self) -> Self {
         // Проверяем, что у нас размер меньше или равен данным, которые у нас на стеке точно лежат
-        let trailing = if self.len() <= INLINED_LENGTH {
+        let trailing = if self.len_in_bytes_usize() <= INLINED_LENGTH {
             // Safety:
             // - Мы знаем, что строка встроена из-за проверки выше
             unsafe {
@@ -179,7 +179,7 @@ where
             unsafe {
                 // Выполняем клонирование данных в куче через трейт.
                 // Размер клонируемых данных передаем как параметр.
-                let cloned_heap = self.trailing.ptr.thin_clone(self.len());
+                let cloned_heap = self.trailing.ptr.thin_clone(self.len_in_bytes_usize());
 
                 // Создаем здесь обертку для ручной деаллокации
                 Trailing {
@@ -332,7 +332,7 @@ where
 
         // На всякий случай дальше сверяем размер, что он меньше или равен тому,
         // что влезает у нас на стек
-        if self.len() <= INLINED_LENGTH {
+        if self.len_in_bytes_usize() <= INLINED_LENGTH {
             // Safety:
             // - Строка точно на стеке, проверка была выше
             //
@@ -485,66 +485,108 @@ impl<B> UmbraString<B>
 where
     B: ThinDrop,
 {
-    contunue here
-
-
-    /// Returns the length of `self`.
-    ///
-    /// This length is in bytes, not [`char`]s or graphemes. In other words,
-    /// it might not be what a human considers the length of the string.
-    #[inline]
-    pub const fn len(&self) -> usize {
-        self.len as usize
-    }
-
-    /// Returns `true` if `self` has a length of zero bytes.
-    #[inline]
-    pub const fn is_empty(&self) -> bool {
-        self.len == 0
-    }
-
+    /// Создание новой строки с помощью определенногоа аллокатора, который
     fn new<S, A>(s: S, alloc: A) -> Result<Self, Error>
     where
         S: AsRef<str>,
         A: FnOnce(S) -> B,
     {
+        // Байты исходной строки
         let bytes = s.as_ref().as_bytes();
+
+        // Размер в байтах у исходной строки
         let len = bytes.len();
+
+        // Поддерживаются строки размером не более 32-х бит
         if len > u32::MAX as usize {
             return Err(Error::TooLong);
         }
+
+        // Формируем на стеке префикс сначала
         let mut prefix = [0u8; PREFIX_LENGTH];
+
+        // Формируем буфер для непосредственно байт
+        // У нас буфер влезает на стек?
         let trailing = if len <= INLINED_LENGTH {
+            // Раз буффер влезает на стек, то формируем буффер-суффикс
             let mut buf = [0u8; SUFFIX_LENGTH];
+
+            // Если размер исходных данных меньше, чем размерность префикса даже
             if len <= PREFIX_LENGTH {
+                // То мы можем просто в префикс скопировать входящие данные
                 prefix[..len].copy_from_slice(&bytes[..len]);
             } else {
+                // Раз у нас не влезает в префикс, тогда в префикс мы копируем начало данных
                 prefix.copy_from_slice(&bytes[..PREFIX_LENGTH]);
+                // После чего мы в буффер записываем оставшуюся часть данных.
+                //
+                // Таким образом, у нас исходные данные пусть и разделены на 2 части, но все еще
+                // идут подряд одна за другой.
                 buf[..len - PREFIX_LENGTH].copy_from_slice(&bytes[PREFIX_LENGTH..]);
             }
+
+            // Результат
             Trailing { buf }
         } else {
+            // Здесь нам ничего не остается как уже скопировать сначала данные в префикс сколько влезает
             prefix.copy_from_slice(&bytes[..PREFIX_LENGTH]);
+
+            // TODO: Проверить
+            // После чего уже аллоцируем оставшуюся часть в куче?
             Trailing {
                 ptr: ManuallyDrop::new(alloc(s)),
             }
         };
+
         #[allow(clippy::cast_possible_truncation)]
         Ok(Self {
+            // Здесь безопасно кастить размерность буффера,
+            // так как проверки были выше
             len: len as u32,
             prefix,
             trailing,
         })
     }
+
+    /// Выдает размерность текущего `self`.
+    ///
+    /// Данный размер выдается в количестве байт, не в количестве символов или графем.
+    ///
+    /// Другими словами, это побайтовая длина, а не длина самой строки, поэтому может возвращаться размер
+    /// больше, чем количество символов строки.
+    #[inline]
+    pub const fn len_in_bytes_usize(&self) -> usize {
+        self.len as usize
+    }
+
+    /// Выдает размерность текущего `self`.
+    ///
+    /// Данный размер выдается в количестве байт, не в количестве символов или графем.
+    ///
+    /// Другими словами, это побайтовая длина, а не длина самой строки, поэтому может возвращаться размер
+    /// больше, чем количество символов строки.
+    #[inline]
+    pub const fn len_in_bytes_u32(&self) -> u32 {
+        self.len
+    }
+
+    /// Пустая ли данная строка?
+    #[inline]
+    pub const fn is_empty(&self) -> bool {
+        self.len == 0
+    }
 }
+
 impl<B> UmbraString<B>
 where
     B: ThinDrop + ThinAsBytes,
 {
-    /// Converts `self` to a byte slice.
+    continue
+
+    /// Представляем данную строку как слайс байт.
     #[inline]
     pub fn as_bytes(&self) -> &[u8] {
-        if self.len() <= INLINED_LENGTH {
+        if self.len_in_bytes_usize() <= INLINED_LENGTH {
             // Note: If we cast from a reference to a pointer, we can only access memory that was
             // within the bounds of the reference. This is done to satisfied miri when we create a
             // slice starting from the pointer of self.prefix to access data beyond it.
@@ -554,13 +596,16 @@ where
             // + We can create a slice starting from the pointer to self.prefix with a length of at
             // most PREFIX_LENGTH because we have an inlined suffix of 8 bytes after the prefix.
             unsafe {
-                std::slice::from_raw_parts(std::ptr::addr_of!((*ptr).prefix).cast(), self.len())
+                std::slice::from_raw_parts(
+                    std::ptr::addr_of!((*ptr).prefix).cast(),
+                    self.len_in_bytes_usize(),
+                )
             }
         } else {
             // Safety:
             // + We know that the string is heap-allocated because len > INLINED_LENGTH.
             // + We never modify `len`, thus it always equals to the number of allocated bytes.
-            unsafe { self.trailing.ptr.thin_as_bytes(self.len()) }
+            unsafe { self.trailing.ptr.thin_as_bytes(self.len_in_bytes_usize()) }
         }
     }
 
@@ -574,10 +619,10 @@ where
 
     #[inline]
     fn suffix(&self) -> &[u8] {
-        if self.len() <= INLINED_LENGTH {
+        if self.len_in_bytes_usize() <= INLINED_LENGTH {
             // Safety:
             // + We know that the string is inlined because len <= INLINED_LENGTH.
-            let suffix_len = self.len().saturating_sub(PREFIX_LENGTH);
+            let suffix_len = self.len_in_bytes_usize().saturating_sub(PREFIX_LENGTH);
             unsafe { self.trailing.buf.get_unchecked(..suffix_len) }
         } else {
             // Safety:
@@ -587,7 +632,7 @@ where
             unsafe {
                 self.trailing
                     .ptr
-                    .thin_as_bytes(self.len())
+                    .thin_as_bytes(self.len_in_bytes_usize())
                     .get_unchecked(PREFIX_LENGTH..)
             }
         }
@@ -601,10 +646,11 @@ where
         if prefix_ordering != cmp::Ordering::Equal {
             return prefix_ordering;
         }
-        if lhs.len() <= PREFIX_LENGTH && rhs.len() <= PREFIX_LENGTH {
+        if lhs.len_in_bytes_usize() <= PREFIX_LENGTH && rhs.len_in_bytes_usize() <= PREFIX_LENGTH {
             return Ord::cmp(&lhs.len, &rhs.len);
         }
-        if lhs.len() <= INLINED_LENGTH && rhs.len() <= INLINED_LENGTH {
+        if lhs.len_in_bytes_usize() <= INLINED_LENGTH && rhs.len_in_bytes_usize() <= INLINED_LENGTH
+        {
             // Safety:
             // + We know that the string is inlined because len <= INLINED_LENGTH.
             let suffix_ordering = unsafe { Ord::cmp(&lhs.trailing.buf, &rhs.trailing.buf) };
