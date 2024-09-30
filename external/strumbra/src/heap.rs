@@ -6,24 +6,28 @@ use std::{
     sync::atomic::{self, AtomicUsize},
 };
 
+////////////////////////////////////////////////////////////
+
 /// Trait for thin pointer to an array that can be dropped using a user-provided length.
+/// Трейт для тощего указателя на массив, который может быть уничтожен
+/// с помощью дополнительного указания размера этого самого массива данных
 ///
 /// # Safety
 ///
-/// Types that implement this trait must correctly use the user-provided length.
+/// Типы, которые реализуют данный трейт должны корректно обрабатывать размер.
 pub unsafe trait ThinDrop {
-    /// Drop the underlying buffer through a thin pointer.
+    /// Уничтожение буффера через тонкий указатель с использованием переданного размера этого буффера
     ///
     /// # Safety
     ///
-    /// + The caller must ensure that `len` equals the number of allocated bytes.
-    /// + The caller must ensure that the object will never be accessed once this method is called.
-    ///   Accessing the object after calling this method may result in an undefined behavior.
-    /// + The caller must ensure the this method is called exactly once through out the lifetime of
-    ///   the program. Not calling this method will result in a memory leak. Calling this method
-    ///   more than once may result in an undefined behavior.
+    /// - Вызывающий должен обеспечить, что длина равна правильному размер аллоцированных байт.
+    /// - Вызывающий должен обеспечить, что объект после вызова деаллокации не будет никак использован.
+    /// - Вызываться метод должен один раз за время работы приложения.
+    ///   Отсутствие вызова приведет к утечке памяти.
     unsafe fn thin_drop(&self, len: usize);
 }
+
+////////////////////////////////////////////////////////////
 
 /// Trait for thin pointer to an array that can be cloned using a user-provided length.
 ///

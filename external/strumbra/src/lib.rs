@@ -581,20 +581,22 @@ impl<B> UmbraString<B>
 where
     B: ThinDrop + ThinAsBytes,
 {
-    continue
-
     /// Представляем данную строку как слайс байт.
     #[inline]
     pub fn as_bytes(&self) -> &[u8] {
+        // Проверяем первым делом где у нас находятся данные - на стеке или в куче
         if self.len_in_bytes_usize() <= INLINED_LENGTH {
             // Note: If we cast from a reference to a pointer, we can only access memory that was
             // within the bounds of the reference. This is done to satisfied miri when we create a
             // slice starting from the pointer of self.prefix to access data beyond it.
+            //
+            // Если мы кастимся из ссылки на указатель, то мы можем лишь получить доступ лишь
+            // к данным по указанной ссылке.
             let ptr = std::ptr::from_ref(self);
             // Safety:
-            // + We know that the string is inlined because len <= INLINED_LENGTH.
-            // + We can create a slice starting from the pointer to self.prefix with a length of at
-            // most PREFIX_LENGTH because we have an inlined suffix of 8 bytes after the prefix.
+            // - Строка у нас точно на стеке, так как проверка размера была выше
+            // - Можем создать слайс начиная с указателься на self.prefix + длины
+            //   в байтах данных
             unsafe {
                 std::slice::from_raw_parts(
                     std::ptr::addr_of!((*ptr).prefix).cast(),
@@ -603,32 +605,37 @@ where
             }
         } else {
             // Safety:
-            // + We know that the string is heap-allocated because len > INLINED_LENGTH.
-            // + We never modify `len`, thus it always equals to the number of allocated bytes.
+            // - Данные у нас точно в куче, так как проверка была выше
+            // - Размер у нас не не модифицируется, так что можно брать размер в байтах
             unsafe { self.trailing.ptr.thin_as_bytes(self.len_in_bytes_usize()) }
         }
     }
 
-    /// Extracts a string slice containing the entire [`UmbraString`].
+    /// Извлекаем слайс строковый, который полностью содержит в себе строку
     #[inline]
     pub fn as_str(&self) -> &str {
         // Safety:
-        // + We always construct the string using valid UTF-8 bytes.
+        // - Мы точно знаем, что у нас валидная utf-8 строка
         unsafe { std::str::from_utf8_unchecked(self.as_bytes()) }
     }
 
+    /// Внутренний метод получения слайса на суффикс
     #[inline]
     fn suffix(&self) -> &[u8] {
+        // Проверяем где у нас лежат данные, на стеке или нет
         if self.len_in_bytes_usize() <= INLINED_LENGTH {
             // Safety:
-            // + We know that the string is inlined because len <= INLINED_LENGTH.
+            // - Знаем точно, что суффикс у нас заинлайнен из-за проверки выше
+            //
+            // Вычисляем размер суффикса
             let suffix_len = self.len_in_bytes_usize().saturating_sub(PREFIX_LENGTH);
+            // Получаем указатель на данные суффикса
             unsafe { self.trailing.buf.get_unchecked(..suffix_len) }
         } else {
             // Safety:
-            // + We know that the string is heap-allocated because len > INLINED_LENGTH.
-            // + We never modify `len`, thus it always equals to the number of allocated bytes.
-            // + We can slice into the bytes without bound checks because len > PREFIX_LENGTH.
+            // - Точно знаем, что строка у нас в куче
+            // - Размер у нас точно отражает размер данных в кучу
+            // - По указателю мы можем получить данные суффикса
             unsafe {
                 self.trailing
                     .ptr
@@ -638,27 +645,44 @@ where
         }
     }
 
+    // TODO: Разобраться подробнее
+    //
+    /// Сравнение типов
     fn cmp<BB>(lhs: &Self, rhs: &UmbraString<BB>) -> cmp::Ordering
     where
         BB: ThinDrop + ThinAsBytes,
     {
+        // Первым делом просто проверим префикс
         let prefix_ordering = Ord::cmp(&lhs.prefix, &rhs.prefix);
         if prefix_ordering != cmp::Ordering::Equal {
             return prefix_ordering;
         }
+
+        // TODO: Хотя вроде бы логичнее было бы сначала
+        // проверить совпадение размеров вообще на стеке
+        //
+        // Если данные у нас на стеке оба и меньше размера префикса даже, то сравниваем размеры еще дополнительно
         if lhs.len_in_bytes_usize() <= PREFIX_LENGTH && rhs.len_in_bytes_usize() <= PREFIX_LENGTH {
             return Ord::cmp(&lhs.len, &rhs.len);
         }
+
+        // Размер в байтах у нас именно просто на стеке, но не влезает в префикс
         if lhs.len_in_bytes_usize() <= INLINED_LENGTH && rhs.len_in_bytes_usize() <= INLINED_LENGTH
         {
             // Safety:
-            // + We know that the string is inlined because len <= INLINED_LENGTH.
+            // - Строка у нас точно заинлайнена и находится на стеке
+            //
+            // Сравниваем здесь просто буффер на стеке уже
             let suffix_ordering = unsafe { Ord::cmp(&lhs.trailing.buf, &rhs.trailing.buf) };
             if suffix_ordering != cmp::Ordering::Equal {
                 return suffix_ordering;
             }
+
+            // Дальше снова сравниваем размеры
             return Ord::cmp(&lhs.len, &rhs.len);
         }
+
+        // Раз все в куче, тогда остается побайтово сравнить данные в куче
         Ord::cmp(lhs.suffix(), rhs.suffix())
     }
 }
