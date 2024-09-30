@@ -1,0 +1,15 @@
+[package]
+name = "tokio-tcpstream-with-busy-estab"
+version = "0.1.0"
+edition = "2021"
+
+[dependencies]
+pyo3 = { version = "0.20.2", features = ["extension-module"] }
+pyo3-asyncio = { version = "0.20", features = ["attributes", "tokio-runtime"] }
+tokio = { version = "1",  features = ["full","tracing"] }
+tracing = "0.1.40"
+tracing-subscriber = { version = "0.3.18", features = ["env-filter"] }
+
+[patch.crates-io]
+# Patch tokio for more detailed logs
+tokio = { path = "./tokio/tokio", package = "tokio" }
