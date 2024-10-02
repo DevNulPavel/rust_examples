@@ -29,38 +29,48 @@ pub unsafe trait ThinDrop {
 
 ////////////////////////////////////////////////////////////
 
-/// Trait for thin pointer to an array that can be cloned using a user-provided length.
+/// Трейт специальный для клонирования данных с указанием конкретной длины данных.
 ///
 /// # Safety
-///
-/// Types that implement this trait must correctly use the user-provided length.
+/// - Типы, которые реализуют данный трейт должны корректно использовать передаваемую длину
 pub unsafe trait ThinClone {
-    /// Clone the underlying buffer through a thin pointer.
+    /// Клонируем нижележащий буфер через "тощий" указатель.
     ///
     /// # Safety
-    ///
-    /// + The caller must ensure that `len` equals the number of allocated bytes.
+    /// - Вызывающий должен обеспечить, что длина должна быть равна количеству аллоцированных байт.
     unsafe fn thin_clone(&self, len: usize) -> Self;
 }
 
-/// Trait for thin pointer to an array that can be referenced using a user-provided length.
+////////////////////////////////////////////////////////////
+
+/// Трейт для тонкого указателя на данные, которые могут быть представлены как байты с
+/// использованием переданного на вход размера этих самых данных.
 ///
 /// # Safety
-///
-/// Types that implement this trait must correctly use the user-provided length.
+/// - Типы, которые реализуют данный трейт должны корректно использовать перреданную длину.
 pub unsafe trait ThinAsBytes {
-    /// Slice into the underlying buffer through a thin pointer.
+    /// Слайс байт, получаемый с помощью дочернего буфера при помощи указания длины данных.
     ///
     /// # Safety
-    ///
-    /// + The caller must ensure that `len` equals the number of allocated bytes.
+    /// - Вызывающий должен обеспечить, что длина должна быть равна количеству аллоцированных байт.
     unsafe fn thin_as_bytes(&self, len: usize) -> &[u8];
 }
 
+////////////////////////////////////////////////////////////
+
+/// Указатель на аллоцированные в куче данные
+/// вида `u8*`.
 #[repr(C)]
 #[allow(missing_debug_implementations)]
 pub struct BoxDynBytes {
+    /// Указатель на данные в куче, указатель имеет тип `u8*`.
     ptr: NonNull<u8>,
+
+    /// Дополнительный фантомный тип данных, чтобы указать, что мы владеем
+    /// здесь слайсом данных, но без указания конкретного размера -
+    /// что нам как раз и нужно.
+    ///
+    /// Для указания размера использовался бы fat-reference вида `&[u8]`.
     phantom: PhantomData<[u8]>,
 }
 
