@@ -1,0 +1,138 @@
+name: Release
+
+on:
+  push:
+    tags:
+      - 'v*.*.*'  # Trigger on version tags
+
+jobs:
+  build:
+    runs-on: ubuntu-latest
+    steps:
+      - name: Checkout code
+        uses: actions/checkout@v4
+
+      - name: Install dependencies
+        run: |
+          sudo apt-get update
+          sudo apt-get install -y pkg-config libssl-dev protobuf-compiler
+
+      - name: Set up Rust
+        uses: actions-rs/toolchain@v1
+        with:
+          profile: minimal
+          toolchain: stable
+          target: x86_64-unknown-linux-gnu
+
+      - name: Build
+        run: cargo build --release --target x86_64-unknown-linux-gnu
+
+      - name: Upload Linux binaries
+        uses: actions/upload-artifact@v4
+        with:
+          name: danube-binaries-linux
+          path: |
+            target/x86_64-unknown-linux-gnu/release/danube-broker
+            target/x86_64-unknown-linux-gnu/release/danube-admin
+            target/x86_64-unknown-linux-gnu/release/danube-pubsub
+
+  docker:
+    needs: build
+    runs-on: ubuntu-latest
+    permissions:
+      contents: read
+      packages: write
+      attestations: write
+      id-token: write
+    steps:
+      - name: Checkout code
+        uses: actions/checkout@v2
+
+      - name: Log in to GitHub Container Registry
+        uses: docker/login-action@v2
+        with:
+          registry: ghcr.io
+          username: ${{ github.actor }}
+          password: ${{ secrets.GITHUB_TOKEN }}
+
+      - name: Build Docker image
+        run: |
+          IMAGE_TAG=${{ github.ref_name }} 
+          docker build -t ghcr.io/${{ github.repository_owner }}/danube-broker:${IMAGE_TAG} .
+
+      - name: Push Docker image
+        run: |
+          IMAGE_TAG=${{ github.ref_name }} 
+          docker push ghcr.io/${{ github.repository_owner }}/danube-broker:${IMAGE_TAG}
+      
+      - name: Tag Docker image as latest and push
+        run: |
+          IMAGE_TAG=${{ github.ref_name }} 
+          docker tag ghcr.io/${{ github.repository_owner }}/danube-broker:${IMAGE_TAG} ghcr.io/${{ github.repository_owner }}/danube-broker:latest
+          docker push ghcr.io/${{ github.repository_owner }}/danube-broker:latest
+
+  release:
+    needs: [build, docker]
+    runs-on: ubuntu-latest
+    permissions:
+      contents: write
+      packages: read
+      deployments: read
+      issues: read
+    steps:
+      - name: Download Linux binary
+        uses: actions/download-artifact@v4
+        with:
+          name: danube-binaries-linux
+          path: artifacts/linux/
+
+      - name: Create Release
+        id: create_release
+        uses: actions/create-release@v1
+        env:
+          GITHUB_TOKEN: ${{ secrets.GITHUB_TOKEN }}
+        with:
+          tag_name: ${{ github.ref_name }}
+          release_name: Release ${{ github.ref_name }}
+          draft: false
+          prerelease: false
+          body: |
+            ## Release Notes
+
+            Binaries:
+            - **Danube Broker**: [Download danube-broker](https://github.com/${{ github.repository }}/releases/download/${{ github.ref_name }}/danube-broker)
+            - **Danube Admin**: [Download danube-admin](https://github.com/${{ github.repository }}/releases/download/${{ github.ref_name }}/danube-admin)
+            - **Danube Pub/Sub cli**: [Download danube-pubsub](https://github.com/${{ github.repository }}/releases/download/${{ github.ref_name }}/danube-pubsub)
+            
+            Docker Image:
+            - **Docker Image**: ghcr.io/${{ github.repository_owner }}/danube-broker:${{ github.ref_name }}
+
+      - name: Upload danube-broker
+        uses: actions/upload-release-asset@v1
+        env:
+          GITHUB_TOKEN: ${{ secrets.GITHUB_TOKEN }}
+        with:
+          upload_url: ${{ steps.create_release.outputs.upload_url }}
+          asset_path: artifacts/linux/danube-broker
+          asset_name: danube-broker
+          asset_content_type: application/octet-stream
+          
+      - name: Upload danube-admin
+        uses: actions/upload-release-asset@v1
+        env:
+          GITHUB_TOKEN: ${{ secrets.GITHUB_TOKEN }}
+        with:
+          upload_url: ${{ steps.create_release.outputs.upload_url }}
+          asset_path: artifacts/linux/danube-admin
+          asset_name: danube-admin
+          asset_content_type: application/octet-stream
+          
+      - name: Upload danube-pubsub
+        uses: actions/upload-release-asset@v1
+        env:
+          GITHUB_TOKEN: ${{ secrets.GITHUB_TOKEN }}
+        with:
+          upload_url: ${{ steps.create_release.outputs.upload_url }}
+          asset_path: artifacts/linux/danube-pubsub
+          asset_name: danube-pubsub
+          asset_content_type: application/octet-stream

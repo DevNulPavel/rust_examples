@@ -1,0 +1,219 @@
+syntax = "proto3";
+
+package danube;
+
+service ProducerService {
+    // Creates a new Producer on a topic
+    rpc CreateProducer(ProducerRequest) returns (ProducerResponse);
+
+    // Sends a message from the Producer
+    rpc SendMessage(MessageRequest) returns (MessageResponse);
+}
+
+enum ProducerAccessMode {
+    Shared = 0; // multiple producers can publish on a topic
+    Exclusive = 1; // exclusive access for producer
+}
+
+// Create Producer request
+message ProducerRequest { 
+    uint64 request_id = 1;
+    string producer_name = 3;
+    string topic_name = 4;
+    Schema schema = 5;
+    ProducerAccessMode producer_access_mode = 6;
+}
+
+// Create Producer response
+message ProducerResponse {
+    uint64 request_id = 1 ;
+    uint64 producer_id = 2;
+    string producer_name = 3;
+} 
+
+// Producer send the message
+message MessageRequest {
+    // Unique ID for tracking the message request
+    uint64 request_id =1;
+    // Identifies the producer, associated with a unique topic
+    uint64 producer_id = 2;
+    // The actual payload of the message
+    bytes payload = 3;
+    // Optional metadata for additional context
+    MessageMetadata metadata = 4;
+}
+
+message MessageMetadata {
+    // Optional, identifies the producer’s name
+    string producer_name = 1;
+    // Optional, useful for maintaining order and deduplication 
+    uint64 sequence_id = 2;
+    // Optional, timestamp for when the message was published
+    uint64 publish_time = 3;
+    // Optional, user-defined properties/attributes
+    map<string, string> attributes = 4;
+}
+
+// Producer receive acknowledge for the sent message
+message MessageResponse {
+    uint64 request_id = 1;
+    uint64 sequence_id = 2;
+}
+
+// ============================================================================================
+
+service ConsumerService {
+    // Creates a new Subscriber
+    rpc Subscribe(ConsumerRequest) returns (ConsumerResponse);
+
+    // Streaming messages to the Subscriber
+    rpc ReceiveMessages(ReceiveRequest) returns (stream StreamMessage);
+
+    // Acknowledges receipt of a message from the Consumer
+    rpc Ack(AckRequest) returns (AckResponse);
+}
+
+// Create Consumer request
+message ConsumerRequest {
+    enum SubscriptionType {
+        Exclusive = 0; // Only one consumer can subscribe to the topic at a time.
+        Shared = 1 ; // Multiple consumers can subscribe to the topic concurrently.
+        Failover = 2; // Only one consumer (the active consumer) receives messages at any given time.
+    }
+    uint64 request_id = 1;
+    string topic_name = 2;
+    string consumer_name = 3;
+    string subscription = 4;
+    SubscriptionType subscription_type = 5;
+}
+
+// Create Consumer response
+message ConsumerResponse {
+    uint64 request_id =1;
+    uint64 consumer_id = 2;
+    string consumer_name = 3;
+}
+
+message ReceiveRequest {
+    uint64 request_id =1;
+    uint64 consumer_id = 2;
+}
+
+message StreamMessage {
+    // Unique ID for tracking the message request
+    uint64 request_id = 1;
+    // The actual payload of the message
+    bytes payload = 2;
+    // Optional metadata for additional context
+    MessageMetadata metadata = 3; 
+}
+
+message AckRequest {
+    uint64 request_id =1; 
+}
+
+message AckResponse {
+    uint64 request_id =1;
+}
+
+// ============================================================================================
+
+service Discovery {
+    // Query the Danube broker for information about a specific topic.
+    // returns metadata about the topic, including the broker(s) responsible for it.
+    rpc TopicLookup(TopicLookupRequest) returns (TopicLookupResponse);
+    // Query the Danube broker for information about topic partitions.
+    // returns an array with the topic partitions names
+    rpc TopicPartitions(TopicLookupRequest) returns (TopicPartitionsResponse);
+    // Get the schema associated with the topic
+    rpc GetSchema(SchemaRequest) returns (SchemaResponse);
+}
+
+message TopicLookupRequest {
+    uint64 request_id = 1;
+    string topic = 2;
+}
+
+message TopicLookupResponse {
+    enum LookupType {
+        Redirect = 0;
+        Connect  = 1;
+        Failed   = 2;
+    }
+    uint64 request_id = 3;
+    LookupType response_type = 4;
+    string brokerServiceUrl = 5;
+}
+
+message TopicPartitionsResponse {
+    uint64 request_id = 1;
+    repeated string partitions = 2;
+
+}
+
+message SchemaRequest {
+    uint64 request_id = 1;
+    string topic = 2;
+}
+
+message SchemaResponse {
+    uint64 request_id = 1;
+    Schema schema = 2;
+}
+
+message Schema {
+    enum TypeSchema {
+        Bytes = 0;
+        String = 1;
+        Int64 = 2;
+        JSON = 3;
+    }
+
+    string name = 1;
+    bytes schema_data = 3;
+    TypeSchema type_schema = 4;
+}
+
+// ============================================================================================
+
+service HealthCheck {
+    rpc HealthCheck(HealthCheckRequest) returns (HealthCheckResponse);
+}
+
+message HealthCheckRequest {
+    enum ClientType {
+        Producer = 0;
+        Consumer = 1;
+    }
+    uint64 request_id = 1;
+    ClientType client = 2;
+    uint64 id = 3;
+}
+
+message HealthCheckResponse {
+    enum ClientStatus {
+        OK = 0;
+        CLOSE = 1;
+    }
+    ClientStatus status = 1;
+}
+
+// ============================================================================================
+// Define the possible error types
+
+enum ErrorType {
+    UNKNOWN_ERROR = 0;
+    INVALID_TOPIC_NAME = 1; // The topic name is not valid
+    TOPIC_NOT_FOUND = 2; // Topic not found
+    SERVICE_NOT_READY = 3; // Any error that requires client retry operation with a fresh lookup
+    PRODUCER_ALREADY_EXISTS = 4;
+    SUBSCRIBE_PERMISSION_DENIED = 5;
+    SUBSCRIPTION_NOT_FOUND = 6; // Subscription not found
+}
+
+// A message that encapsulate the error details
+message ErrorMessage {
+    ErrorType error_type = 1;
+    string error_message = 2;
+    string redirect_to = 3; // Optional: for redirection information
+}

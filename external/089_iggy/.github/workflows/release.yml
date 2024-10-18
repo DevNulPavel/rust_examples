@@ -1,0 +1,339 @@
+name: release
+on:
+  push:
+    branches:
+      - master
+env:
+  DOCKERHUB_REGISTRY_NAME: iggyrs/iggy
+  CRATE_NAME: iggy
+  GITHUB_TOKEN: ${{ github.token }}
+  RUST_BACKTRACE: 1
+  CARGO_TERM_COLOR: always
+  IGGY_CI_BUILD: true
+
+jobs:
+  tag:
+    runs-on: ubuntu-latest
+    steps:
+      - name: Checkout code
+        uses: actions/checkout@v4
+        with:
+          fetch-depth: 0
+
+      - name: Check if Cargo.toml and Cargo.lock are changed
+        uses: tj-actions/changed-files@v45
+        id: all_changed_files
+        with:
+          files: |
+            Cargo.lock
+            server/Cargo.toml
+
+      - name: Extract iggy-server version from Cargo.toml
+        if: ${{ steps.all_changed_files.outputs.all_changed_files == 'Cargo.lock server/Cargo.toml' }}
+        id: extract_version
+        run: |
+          version=$(cargo pkgid -p server | cut -d# -f2 | cut -d: -f2)
+          echo "server_version=$version" >> "$GITHUB_OUTPUT"
+          echo "::notice ::Version from Cargo.toml $version"
+
+      - name: Check if version is a Git tag
+        uses: mukunku/tag-exists-action@v1.6.0
+        if: ${{ steps.all_changed_files.outputs.all_changed_files == 'Cargo.lock server/Cargo.toml' }}
+        id: check_git_tag
+        with:
+          tag: "server-${{ steps.extract_version.outputs.server_version }}"
+
+      - name: Print message
+        if: ${{ steps.check_git_tag.outputs.exists == 'true' }}
+        run: |
+          echo "::notice ::Tag server-${{ steps.extract_version.outputs.server_version }} exists, skipping tag creation"
+
+      - name: Create tag
+        if: ${{ steps.check_git_tag.outputs.exists == 'false' }}
+        id: tagging
+        run: |
+          git config user.name "${{ github.actor }}"
+          git config user.email "${{ github.actor }}@users.noreply.github.com"
+          git tag -a server-${{ steps.extract_version.outputs.server_version }} -m "server-${{ steps.extract_version.outputs.server_version }}"
+          git push origin server-${{ steps.extract_version.outputs.server_version }}
+          echo "::notice ::Created server-${{ steps.extract_version.outputs.server_version }} tag"
+          echo "tag_created=true" >> "$GITHUB_OUTPUT"
+
+    outputs:
+      server_version: ${{ steps.extract_version.outputs.server_version }}
+      tag_created: ${{ steps.tagging.outputs.tag_created }}
+
+  release_and_publish:
+    name: build release ${{ matrix.platform.os_name }}
+    needs: tag
+    runs-on: ${{ matrix.platform.os }}
+    strategy:
+      matrix:
+        platform:
+          - os_name: Linux-x86_64-musl
+            os: ubuntu-latest
+            target: x86_64-unknown-linux-musl
+            bin:
+              - iggy-server
+              - iggy
+            name: iggy-Linux-x86_64-musl.tar.gz
+            cargo_command: cargo
+            docker_arch: linux/amd64
+            cross: false
+
+          - os_name: Linux-aarch64-musl
+            os: ubuntu-latest
+            target: aarch64-unknown-linux-musl
+            bin:
+              - iggy-server
+              - iggy
+            name: iggy-Linux-aarch64-musl.tar.gz
+            docker_arch: linux/arm64/v8
+            cross: true
+
+        toolchain:
+          - stable
+
+    steps:
+      - name: Checkout code
+        uses: actions/checkout@v4
+
+      - name: Cache cargo & target directories
+        uses: Swatinem/rust-cache@v2
+        with:
+          key: "v2"
+
+      - name: Install musl-tools on Linux
+        run: sudo apt-get update --yes && sudo apt-get install --yes musl-tools
+        if: contains(matrix.platform.name, 'musl')
+
+      - name: Build iggy-server release binary
+        uses: houseabsolute/actions-rust-cross@v0
+        with:
+          command: "build"
+          target: ${{ matrix.platform.target }}
+          toolchain: ${{ matrix.toolchain }}
+          args: "--verbose --release --bin iggy-server"
+        if: ${{ matrix.toolchain }} == 'stable'
+
+      - name: Build iggy-cli release binary
+        uses: houseabsolute/actions-rust-cross@v0
+        with:
+          command: "build"
+          target: ${{ matrix.platform.target }}
+          toolchain: ${{ matrix.toolchain }}
+          args: "--verbose --release --no-default-features --bin iggy"
+        if: ${{ matrix.toolchain }} == 'stable'
+
+      - name: Prepare artifacts
+        run: |
+          mkdir -p release_artifacts/
+          cp target/${{ matrix.platform.target }}/release/iggy-server release_artifacts/
+          cp target/${{ matrix.platform.target }}/release/iggy release_artifacts/
+
+      - name: Print message
+        run: echo "::notice ::Published ${{ needs.tag.outputs.server_version }} release artifacts on GitHub"
+
+      - name: Set up QEMU
+        uses: docker/setup-qemu-action@v3
+        with:
+          platforms: "arm64,arm"
+        if: ${{ matrix.platform.cross }}
+
+      - name: Set up Docker
+        uses: crazy-max/ghaction-setup-docker@v3
+
+      - name: Set up Docker Buildx
+        uses: docker/setup-buildx-action@v3
+
+      - name: Login to Docker Hub
+        uses: docker/login-action@v3
+        with:
+          username: ${{ secrets.DOCKER_USERNAME }}
+          password: ${{ secrets.DOCKER_PASSWORD }}
+
+      - name: Docker meta
+        id: meta
+        uses: docker/metadata-action@v5
+        with:
+          images: ${{ env.DOCKERHUB_REGISTRY_NAME }}
+
+      - name: Build and push by digest
+        id: build
+        uses: docker/build-push-action@v6
+        with:
+          context: ./
+          file: ./Dockerfile.ci
+          platforms: ${{ matrix.platform.docker_arch }}
+          labels: ${{ steps.meta.outputs.labels }}
+          outputs: type=image,name=${{ env.DOCKERHUB_REGISTRY_NAME }},push-by-digest=true,name-canonical=true,push=true
+          build-args: |
+            IGGY_CMD_PATH=target/${{ matrix.platform.target }}/release/iggy
+            IGGY_SERVER_PATH=target/${{ matrix.platform.target }}/release/iggy-server
+
+      - name: Export digest
+        run: |
+          mkdir -p /tmp/digests
+          digest="${{ steps.build.outputs.digest }}"
+          touch "/tmp/digests/${digest#sha256:}"
+
+      - name: Upload digest
+        uses: actions/upload-artifact@v4
+        with:
+          name: digests-${{ matrix.platform.os_name }}
+          path: /tmp/digests/*
+          if-no-files-found: error
+          retention-days: 1
+
+  merge_docker_manifest:
+    runs-on: ubuntu-latest
+    needs:
+      - release_and_publish
+      - tag
+    steps:
+      - name: Download digests
+        uses: actions/download-artifact@65a9edc5881444af0b9093a5e628f2fe47ea3b2e
+        with:
+          pattern: 'digests-*'
+          merge-multiple: true
+          path: /tmp/digests
+
+      - name: Login to Docker Hub
+        uses: docker/login-action@v3
+        with:
+          username: ${{ secrets.DOCKER_USERNAME }}
+          password: ${{ secrets.DOCKER_PASSWORD }}
+
+      - name: Set up Docker Buildx
+        uses: docker/setup-buildx-action@v3
+
+      - name: Docker meta (tag was created)
+        if: ${{ needs.tag.outputs.tag_created == 'true' }}
+        uses: docker/metadata-action@v5
+        with:
+          images: ${{ env.DOCKERHUB_REGISTRY_NAME }}
+          tags: |
+            ${{ needs.tag.outputs.server_version }}
+            latest
+
+      - name: Docker meta (tag was not created)
+        if: ${{ needs.tag.outputs.tag_created == '' }}
+        uses: docker/metadata-action@v5
+        with:
+          images: ${{ env.DOCKERHUB_REGISTRY_NAME }}
+          tags: |
+            latest
+
+      - name: Create manifest list and push
+        working-directory: /tmp/digests
+        run: |
+          docker buildx imagetools create $(jq -cr '.tags | map("-t " + .) | join(" ")' <<< "$DOCKER_METADATA_OUTPUT_JSON") \
+            $(printf '${{ env.DOCKERHUB_REGISTRY_NAME }}@sha256:%s ' *)
+
+      - name: Inspect image
+        run: |
+          docker buildx imagetools inspect ${{ env.DOCKERHUB_REGISTRY_NAME }}:latest
+
+  create_github_release:
+    runs-on: ubuntu-latest
+    if: ${{ needs.tag.outputs.tag_created == 'true' }}
+    needs:
+      - tag
+    steps:
+      - name: Checkout code
+        uses: actions/checkout@v4
+
+      - name: Cache cargo & target directories
+        uses: Swatinem/rust-cache@v2
+        with:
+          key: "v2"
+
+      - name: Install musl-tools on Linux
+        run: sudo apt-get update --yes && sudo apt-get install --yes musl-tools
+
+      - name: Build iggy-server release binary for Linux-x86_64
+        uses: houseabsolute/actions-rust-cross@v0
+        with:
+          command: "build"
+          target: x86_64-unknown-linux-musl
+          toolchain: stable
+          args: "--verbose --release --bin iggy-server"
+
+      - name: Build iggy-cli release binary for Linux-x86_64
+        uses: houseabsolute/actions-rust-cross@v0
+        with:
+          command: "build"
+          target: x86_64-unknown-linux-musl
+          toolchain: stable
+          args: "--verbose --release --no-default-features --bin iggy"
+
+      - name: Prepare Linux-x86_64 artifacts
+        run: |
+          mkdir -p all_artifacts/Linux-x86_64
+          cp target/x86_64-unknown-linux-musl/release/iggy-server all_artifacts/Linux-x86_64/
+          cp target/x86_64-unknown-linux-musl/release/iggy all_artifacts/Linux-x86_64/
+
+      - name: Build iggy-server release binary for Linux-aarch64
+        uses: houseabsolute/actions-rust-cross@v0
+        with:
+          command: "build"
+          target: aarch64-unknown-linux-musl
+          toolchain: stable
+          args: "--verbose --release --bin iggy-server"
+
+      - name: Build iggy-cli release binary for Linux-aarch64
+        uses: houseabsolute/actions-rust-cross@v0
+        with:
+          command: "build"
+          target: aarch64-unknown-linux-musl
+          toolchain: stable
+          args: "--verbose --release --no-default-features --bin iggy"
+
+      - name: Prepare Linux-aarch64 artifacts
+        run: |
+          mkdir -p all_artifacts/Linux-aarch64
+          cp target/aarch64-unknown-linux-musl/release/iggy-server all_artifacts/Linux-aarch64/
+          cp target/aarch64-unknown-linux-musl/release/iggy all_artifacts/Linux-aarch64/
+
+      - name: Zip artifacts for each platform
+        run: |
+          mkdir zipped_artifacts
+          for dir in all_artifacts/*; do
+            if [ -d "$dir" ]; then
+              zip -r "zipped_artifacts/$(basename $dir).zip" "$dir"
+            fi
+          done
+
+      - name: Create GitHub Release
+        uses: softprops/action-gh-release@v2
+        with:
+          files: zipped_artifacts/*
+          tag_name: server-${{ needs.tag.outputs.server_version }}
+          draft: false
+          prerelease: false
+        env:
+          GITHUB_TOKEN: ${{ secrets.GITHUB_TOKEN }}
+
+  finalize_release:
+    runs-on: ubuntu-latest
+    needs:
+      - release_and_publish
+      - merge_docker_manifest
+      - create_github_release
+    if: always()
+    steps:
+      - name: Checkout code
+        uses: actions/checkout@v4
+
+      - name: Everything is fine
+        if: ${{ !(contains(needs.*.result, 'failure')) }}
+        run: exit 0
+
+      - name: Something went wrong
+        if: ${{ contains(needs.*.result, 'failure') && github.event_name != 'workflow_dispatch' }}
+        uses: JasonEtco/create-an-issue@v2.9.2
+        env:
+          GITHUB_TOKEN: ${{ secrets.GITHUB_TOKEN }}
+          GITHUB_BOT_CONTEXT_STRING: "build and release to dockerhub"
+        with:
+          filename: .github/BOT_ISSUE_TEMPLATE.md
