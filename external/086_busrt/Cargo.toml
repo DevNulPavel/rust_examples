@@ -1,0 +1,128 @@
+[package]
+name = "busrt"
+version = "0.4.12"
+edition = "2021"
+authors = ["Serhij S. <div@altertech.com>"]
+license = "Apache-2.0"
+repository = "https://github.com/alttch/busrt"
+description = "Local and network IPC bus"
+readme = "README.md"
+keywords = ["bus", "rt", "ipc", "pubsub"]
+autoexamples = false
+
+[package.metadata.docs.rs]
+features = ["broker", "ipc", "rpc", "cursors"]
+rustdoc-args = ["--cfg", "docsrs"]
+
+[package.metadata.playground]
+features = ["broker", "ipc", "rpc", "cursors"]
+
+[dependencies]
+tokio = { version = "1.20.1", features = ["full"] }
+async-channel = "1.7.1"
+log = { version = "0.4.14", optional = true }
+syslog = { version = "5.0.0", optional = true }
+chrono = { version = "0.4.19", optional = true }
+colored = { version = "2", optional = true }
+clap = { version = "3.0.7", features = ["derive"], optional = true }
+submap = { version = "0.2.8", optional = true, features = ["native-digest"] }
+lazy_static = { version = "1.4.0", optional = true }
+jemallocator = { version = "0.5.0", optional = true }
+fork = { version = "0.1.18", optional = true }
+rmp-serde = { version = "1.1.0", optional = true }
+serde = { version = "1.0.143", features = ["derive"], optional = true }
+async-trait = { version = "0.1.57", optional = true }
+unix-named-pipe = { version = "0.2.0", optional = true }
+serde_json = { version = "1.0.83", optional = true }
+bma-benchmark = { version = "0.0.20", optional = true }
+prettytable-rs = { version = "0.10", optional = true }
+env_logger = { version = "0.9.0", optional = true }
+hostname = { version = "0.3.1", optional = true }
+hex = { version = "0.4.3", optional = true }
+num-format = { version = "0.4.0", optional = true }
+serde-value = { version = "0.7.0", optional = true }
+atty = { version = "0.2", optional = true }
+nix = { version = "0.25.0", optional = true }
+ipnetwork = { version = "0.20.0", optional = true }
+triggered = { version = "0.1.2", optional = true }
+async-io = "1.8.0"
+parking_lot = { version = "0.12.1", optional = true }
+console-subscriber = { version = "0.1.7", optional = true }
+uuid = { version = "1.3.0", features = ["serde", "v4"], optional = true }
+sqlx = { version = "0.6.2", features = ["postgres", "runtime-tokio-rustls"], optional = true }
+futures = { version = "0.3.26", optional = true }
+regex = { version = "1.8.1", optional = true }
+tokio-task-pool = { version = "0.1.3", optional = true }
+parking_lot_rt = { version = "0.12.1", optional = true }
+
+[features]
+server = ["log", "syslog", "chrono", "colored", "clap", "lazy_static", "jemallocator", "fork", "broker"]
+broker = ["log", "submap", "async-trait", "unix-named-pipe", "nix", "ipnetwork", "triggered", "parking_lot"]
+ipc = ["log", "async-trait"]
+rpc = ["log", "serde", "rmp-serde", "async-trait", "serde-value", "parking_lot", "regex", "tokio-task-pool"]
+cli = ["ipc", "rpc", "colored", "clap", "env_logger", "bma-benchmark", "prettytable-rs", "hostname", "hex", "num-format", "jemallocator", "serde_json", "atty"]
+openssl-vendored = ["submap/openssl-vendored"]
+full = ["rpc", "ipc", "broker"]
+cursors = ["rpc", "uuid"]
+std-alloc = []
+tracing = ["tokio/tracing", "console-subscriber"]
+rt = ["parking_lot_rt"]
+#default = ["full"]
+
+[lib]
+name = "busrt"
+path = "src/lib.rs"
+
+[[bin]]
+name = "busrtd"
+path = "src/server.rs"
+required-features = ["server"]
+
+[[bin]]
+name = "busrt"
+path = "src/cli.rs"
+required-features = ["cli"]
+
+[[example]]
+name = "inter_thread"
+required-features = ["broker", "rpc"]
+
+[[example]]
+name = "broker_custom_rpc"
+required-features = ["broker", "rpc"]
+
+[[example]]
+name = "broker_aaa"
+required-features = ["broker", "rpc"]
+
+[[example]]
+name = "client_rpc_handler"
+required-features = ["ipc", "rpc"]
+
+[[example]]
+name = "client_rpc"
+required-features = ["ipc", "rpc"]
+
+[[example]]
+name = "client_listener"
+required-features = ["ipc"]
+
+[[example]]
+name = "client_sender"
+required-features = ["ipc"]
+
+[[example]]
+name = "server_cursor"
+required-features = ["broker", "ipc", "rpc", "cursors", "sqlx", "futures"]
+
+[[example]]
+name = "client_cursor"
+required-features = ["ipc", "rpc", "cursors"]
+
+[profile.dev]
+overflow-checks = false
+
+[profile.release]
+strip = true
+lto = true
+codegen-units = 1
