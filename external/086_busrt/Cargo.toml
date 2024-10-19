@@ -10,12 +10,16 @@ readme = "README.md"
 keywords = ["bus", "rt", "ipc", "pubsub"]
 autoexamples = false
 
+# Параметры разные для документаций
 [package.metadata.docs.rs]
 features = ["broker", "ipc", "rpc", "cursors"]
 rustdoc-args = ["--cfg", "docsrs"]
 
+# Разные параметры для playground если там кто-то будет подключать
 [package.metadata.playground]
 features = ["broker", "ipc", "rpc", "cursors"]
+
+################################################################################
 
 [dependencies]
 tokio = { version = "1.20.1", features = ["full"] }
@@ -49,18 +53,65 @@ async-io = "1.8.0"
 parking_lot = { version = "0.12.1", optional = true }
 console-subscriber = { version = "0.1.7", optional = true }
 uuid = { version = "1.3.0", features = ["serde", "v4"], optional = true }
-sqlx = { version = "0.6.2", features = ["postgres", "runtime-tokio-rustls"], optional = true }
+sqlx = { version = "0.6.2", features = [
+    "postgres",
+    "runtime-tokio-rustls",
+], optional = true }
 futures = { version = "0.3.26", optional = true }
 regex = { version = "1.8.1", optional = true }
 tokio-task-pool = { version = "0.1.3", optional = true }
 parking_lot_rt = { version = "0.12.1", optional = true }
 
+################################################################################
+
 [features]
-server = ["log", "syslog", "chrono", "colored", "clap", "lazy_static", "jemallocator", "fork", "broker"]
-broker = ["log", "submap", "async-trait", "unix-named-pipe", "nix", "ipnetwork", "triggered", "parking_lot"]
+server = [
+    "log",
+    "syslog",
+    "chrono",
+    "colored",
+    "clap",
+    "lazy_static",
+    "jemallocator",
+    "fork",
+    "broker",
+]
+broker = [
+    "log",
+    "submap",
+    "async-trait",
+    "unix-named-pipe",
+    "nix",
+    "ipnetwork",
+    "triggered",
+    "parking_lot",
+]
 ipc = ["log", "async-trait"]
-rpc = ["log", "serde", "rmp-serde", "async-trait", "serde-value", "parking_lot", "regex", "tokio-task-pool"]
-cli = ["ipc", "rpc", "colored", "clap", "env_logger", "bma-benchmark", "prettytable-rs", "hostname", "hex", "num-format", "jemallocator", "serde_json", "atty"]
+rpc = [
+    "log",
+    "serde",
+    "rmp-serde",
+    "async-trait",
+    "serde-value",
+    "parking_lot",
+    "regex",
+    "tokio-task-pool",
+]
+cli = [
+    "ipc",
+    "rpc",
+    "colored",
+    "clap",
+    "env_logger",
+    "bma-benchmark",
+    "prettytable-rs",
+    "hostname",
+    "hex",
+    "num-format",
+    "jemallocator",
+    "serde_json",
+    "atty",
+]
 openssl-vendored = ["submap/openssl-vendored"]
 full = ["rpc", "ipc", "broker"]
 cursors = ["rpc", "uuid"]
@@ -69,9 +120,13 @@ tracing = ["tokio/tracing", "console-subscriber"]
 rt = ["parking_lot_rt"]
 #default = ["full"]
 
+################################################################################
+
 [lib]
 name = "busrt"
 path = "src/lib.rs"
+
+################################################################################
 
 [[bin]]
 name = "busrtd"
@@ -118,6 +173,8 @@ required-features = ["broker", "ipc", "rpc", "cursors", "sqlx", "futures"]
 [[example]]
 name = "client_cursor"
 required-features = ["ipc", "rpc", "cursors"]
+
+################################################################################
 
 [profile.dev]
 overflow-checks = false

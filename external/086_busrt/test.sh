@@ -2,8 +2,10 @@
 
 CMD=$1
 
+# Смещаем аргументы на 1 аргумент
 shift
 
+# Аналог match в bash
 case ${CMD} in
   server)
     cargo run --release --features server,rpc --bin busrtd -- -B /tmp/busrt.sock \
