@@ -28,7 +28,7 @@ log = { version = "0.4.14", optional = true }
 syslog = { version = "5.0.0", optional = true }
 chrono = { version = "0.4.19", optional = true }
 colored = { version = "2", optional = true }
-clap = { version = "3.0.7", features = ["derive"], optional = true }
+clap = { version = "^4.5.20", features = ["derive"], optional = true }
 submap = { version = "0.2.8", optional = true, features = ["native-digest"] }
 lazy_static = { version = "1.4.0", optional = true }
 jemallocator = { version = "0.5.0", optional = true }
@@ -130,49 +130,49 @@ path = "src/lib.rs"
 
 [[bin]]
 name = "busrtd"
-path = "src/server.rs"
+path = "src/bin/server.rs"
 required-features = ["server"]
 
-[[bin]]
-name = "busrt"
-path = "src/cli.rs"
-required-features = ["cli"]
+# [[bin]]
+# name = "busrt"
+# path = "src/cli.rs"
+# required-features = ["cli"]
 
-[[example]]
-name = "inter_thread"
-required-features = ["broker", "rpc"]
+# [[example]]
+# name = "inter_thread"
+# required-features = ["broker", "rpc"]
 
-[[example]]
-name = "broker_custom_rpc"
-required-features = ["broker", "rpc"]
+# [[example]]
+# name = "broker_custom_rpc"
+# required-features = ["broker", "rpc"]
 
-[[example]]
-name = "broker_aaa"
-required-features = ["broker", "rpc"]
+# [[example]]
+# name = "broker_aaa"
+# required-features = ["broker", "rpc"]
 
-[[example]]
-name = "client_rpc_handler"
-required-features = ["ipc", "rpc"]
+# [[example]]
+# name = "client_rpc_handler"
+# required-features = ["ipc", "rpc"]
 
-[[example]]
-name = "client_rpc"
-required-features = ["ipc", "rpc"]
+# [[example]]
+# name = "client_rpc"
+# required-features = ["ipc", "rpc"]
 
-[[example]]
-name = "client_listener"
-required-features = ["ipc"]
+# [[example]]
+# name = "client_listener"
+# required-features = ["ipc"]
 
-[[example]]
-name = "client_sender"
-required-features = ["ipc"]
+# [[example]]
+# name = "client_sender"
+# required-features = ["ipc"]
 
-[[example]]
-name = "server_cursor"
-required-features = ["broker", "ipc", "rpc", "cursors", "sqlx", "futures"]
+# [[example]]
+# name = "server_cursor"
+# required-features = ["broker", "ipc", "rpc", "cursors", "sqlx", "futures"]
 
-[[example]]
-name = "client_cursor"
-required-features = ["ipc", "rpc", "cursors"]
+# [[example]]
+# name = "client_cursor"
+# required-features = ["ipc", "rpc", "cursors"]
 
 ################################################################################
 

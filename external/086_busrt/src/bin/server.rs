@@ -1,36 +1,105 @@
+#[cfg(feature = "rpc")]
+use busrt::broker::BrokerEvent;
+use busrt::broker::{Broker, Options, ServerConfig};
+use chrono::prelude::*;
+use clap::Parser;
+use colored::Colorize;
+use log::{error, info, trace, Level, LevelFilter};
+use std::{sync::atomic, time::Duration};
+use tokio::{
+    signal::unix::{signal, SignalKind},
+    sync::Mutex,
+    time::sleep,
+};
+
 #[macro_use]
 extern crate lazy_static;
 
+////////////////////////////////////////////////////////////////////////////////
+
+/// Включаем какой-то кастомный аллокатор если требуется
 #[cfg(not(feature = "std-alloc"))]
 #[global_allocator]
 static ALLOC: jemallocator::Jemalloc = jemallocator::Jemalloc;
 
-use chrono::prelude::*;
-use clap::Parser;
-use colored::Colorize;
-use log::{error, info, trace};
-use log::{Level, LevelFilter};
-use std::sync::atomic;
-use std::time::Duration;
-use tokio::signal::unix::{signal, SignalKind};
-use tokio::sync::Mutex;
-use tokio::time::sleep;
-
-#[cfg(feature = "rpc")]
-use busrt::broker::BrokerEvent;
-
-use busrt::broker::{Broker, Options, ServerConfig};
+////////////////////////////////////////////////////////////////////////////////
 
 static SERVER_ACTIVE: atomic::AtomicBool = atomic::AtomicBool::new(true);
 
 lazy_static! {
+    /// Файлик с идентификатором процесса
     static ref PID_FILE: Mutex<Option<String>> = Mutex::new(None);
+
+    /// Файлики сокетов
     static ref SOCK_FILES: Mutex<Vec<String>> = Mutex::new(Vec::new());
     static ref BROKER: Mutex<Option<Broker>> = Mutex::new(None);
 }
 
+////////////////////////////////////////////////////////////////////////////////
+
+#[allow(clippy::struct_excessive_bools)]
+#[derive(Parser)]
+struct Opts {
+    #[clap(
+        short = 'B',
+        long = "bind",
+        required = true,
+        help = "Unix socket path, IP:PORT or fifo:path, can be specified multiple times"
+    )]
+    path: Vec<String>,
+
+    #[clap(short = 'P', long = "pid-file")]
+    pid_file: Option<String>,
+
+    #[clap(long = "verbose", help = "Verbose logging")]
+    verbose: bool,
+
+    #[clap(short = 'D')]
+    daemonize: bool,
+
+    #[clap(long = "log-syslog", help = "Force log to syslog")]
+    log_syslog: bool,
+
+    #[clap(
+        long = "force-register",
+        help = "Force register new clients with duplicate names"
+    )]
+    force_register: bool,
+
+    #[clap(short = 'w', default_value = "4")]
+    workers: usize,
+
+    #[clap(short = 't', default_value = "5", help = "timeout (seconds)")]
+    timeout: f64,
+
+    #[clap(
+        long = "buf-size",
+        default_value = "16384",
+        help = "I/O buffer size, per client"
+    )]
+    buf_size: usize,
+
+    #[clap(
+        long = "buf-ttl",
+        default_value = "10",
+        help = "Write buffer TTL (microseconds)"
+    )]
+    buf_ttl: u64,
+
+    #[clap(
+        long = "queue-size",
+        default_value = "8192",
+        help = "frame queue size, per client"
+    )]
+    queue_size: usize,
+}
+
+////////////////////////////////////////////////////////////////////////////////
+
+// Какой-то логгер наш кастомный простой
 struct SimpleLogger;
 
+/// Реализация системы логировани для логгера
 impl log::Log for SimpleLogger {
     fn enabled(&self, _metadata: &log::Metadata) -> bool {
         true
@@ -38,11 +107,14 @@ impl log::Log for SimpleLogger {
 
     fn log(&self, record: &log::Record) {
         if self.enabled(record.metadata()) {
-            let s = format!(
+            // Создаем аргументы для форматирования строки логгера
+            let s = format_args!(
                 "{}  {}",
                 Local::now().to_rfc3339_opts(SecondsFormat::Secs, false),
                 record.args()
             );
+
+            // Делаем вывод непосредственно теперь
             println!(
                 "{}",
                 match record.level() {
@@ -59,75 +131,42 @@ impl log::Log for SimpleLogger {
     fn flush(&self) {}
 }
 
+////////////////////////////////////////////////////////////////////////////////
+
+/// Статически созданный логгер
 static LOGGER: SimpleLogger = SimpleLogger;
 
+/// Настройки теперь уровня подробности логирования
 fn set_verbose_logger(filter: LevelFilter) {
     log::set_logger(&LOGGER)
         .map(|()| log::set_max_level(filter))
         .unwrap();
 }
 
-#[allow(clippy::struct_excessive_bools)]
-#[derive(Parser)]
-struct Opts {
-    #[clap(
-        short = 'B',
-        long = "bind",
-        required = true,
-        help = "Unix socket path, IP:PORT or fifo:path, can be specified multiple times"
-    )]
-    path: Vec<String>,
-    #[clap(short = 'P', long = "pid-file")]
-    pid_file: Option<String>,
-    #[clap(long = "verbose", help = "Verbose logging")]
-    verbose: bool,
-    #[clap(short = 'D')]
-    daemonize: bool,
-    #[clap(long = "log-syslog", help = "Force log to syslog")]
-    log_syslog: bool,
-    #[clap(
-        long = "force-register",
-        help = "Force register new clients with duplicate names"
-    )]
-    force_register: bool,
-    #[clap(short = 'w', default_value = "4")]
-    workers: usize,
-    #[clap(short = 't', default_value = "5", help = "timeout (seconds)")]
-    timeout: f64,
-    #[clap(
-        long = "buf-size",
-        default_value = "16384",
-        help = "I/O buffer size, per client"
-    )]
-    buf_size: usize,
-    #[clap(
-        long = "buf-ttl",
-        default_value = "10",
-        help = "Write buffer TTL (microseconds)"
-    )]
-    buf_ttl: u64,
-    #[clap(
-        long = "queue-size",
-        default_value = "8192",
-        help = "frame queue size, per client"
-    )]
-    queue_size: usize,
-}
+////////////////////////////////////////////////////////////////////////////////
 
+/// Обработка завершения работы, выполнение всяких служебных дел по завершению
 async fn terminate(allow_log: bool) {
+    // Смотрим на наличие PID-файлика
     if let Some(f) = PID_FILE.lock().await.as_ref() {
-        // do not log anything on C-ref() {
+        // Надо ли логировать здесь?
         if allow_log {
             trace!("removing pid file {}", f);
         }
+        // Удаляем этот самый файлик
         let _r = std::fs::remove_file(f);
     }
+
+    // Перебираем теперь файлики сокетов для удаления
     for f in SOCK_FILES.lock().await.iter() {
+        // Если нам надо, то запишем логи
         if allow_log {
             trace!("removing sock file {}", f);
         }
+        // Удаляем файлики сокетов если такие есть у нас
         let _r = std::fs::remove_file(f);
     }
+
     if allow_log {
         info!("terminating");
     }

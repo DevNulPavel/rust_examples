@@ -319,6 +319,7 @@ impl IntoBusRtResult for u8 {
 
 ////////////////////////////////////////////////////////////////////////////////
 
+/// Тип операции
 #[derive(Debug, Eq, PartialEq, Copy, Clone)]
 #[repr(u8)]
 pub enum FrameOp {
@@ -351,6 +352,9 @@ impl TryFrom<u8> for FrameOp {
     }
 }
 
+////////////////////////////////////////////////////////////////////////////////
+
+/// Приоритетность (QualityOfService)
 #[derive(Debug, Copy, Clone)]
 #[repr(u8)]
 pub enum QoS {
@@ -384,6 +388,9 @@ impl TryFrom<u8> for QoS {
     }
 }
 
+////////////////////////////////////////////////////////////////////////////////
+
+/// Тип фрейма
 #[derive(Debug, Eq, PartialEq, Copy, Clone)]
 #[repr(u8)]
 pub enum FrameKind {
@@ -409,6 +416,9 @@ impl TryFrom<u8> for FrameKind {
     }
 }
 
+////////////////////////////////////////////////////////////////////////////////
+
+/// Данные фрейма
 #[derive(Debug)]
 pub struct FrameData {
     kind: FrameKind,
@@ -441,6 +451,7 @@ impl FrameData {
             realtime,
         }
     }
+
     #[inline]
     pub fn new_nop() -> Self {
         Self {
@@ -453,10 +464,12 @@ impl FrameData {
             realtime: false,
         }
     }
+
     #[inline]
     pub fn kind(&self) -> FrameKind {
         self.kind
     }
+
     /// # Panics
     ///
     /// Will panic if called for a prepared frame
@@ -464,42 +477,54 @@ impl FrameData {
     pub fn sender(&self) -> &str {
         self.sender.as_ref().unwrap()
     }
+
     /// # Panics
     ///
     /// Will panic if called for a prepared frame
     #[inline]
     pub fn primary_sender(&self) -> &str {
         let primary_sender = self.sender.as_ref().unwrap();
+
         if let Some(pos) = primary_sender.find(SECONDARY_SEP) {
             &primary_sender[..pos]
         } else {
             primary_sender
         }
     }
+
     /// Filled for pub/sub communications
     #[inline]
     pub fn topic(&self) -> Option<&str> {
         self.topic.as_deref()
     }
-    /// To keep zero-copy model, frames contain the full incoming buffer + actual payload position.
-    /// Use this method to get the actual call payload.
+
+    /// Для сохранения zero-copy модели, кадры содержащат полный входящий буфер +
+    /// текущую позицию данных.
+    ///
+    /// Для получения текущих данных вызывать этот метод.
     #[inline]
     pub fn payload(&self) -> &[u8] {
         &self.buf[self.payload_pos..]
     }
-    /// The header can be used by certain implementations (e.g. the default RPC layer) to
-    /// keep zero-copy model. The header is None for IPC communications, but filled for
-    /// inter-thread ones. A custom layer should use/parse the header to avoid unnecessary payload
-    /// copy
+
+    /// Заголовок может быть использовать определенными реализациями (например, стандартный RPC layer)
+    /// для сохранения zero-copy модели.
+    ///
+    /// Заголовок здесь `None` для IPC коммуникаций, но будет для работы с тредами. Кастомный
+    /// слой должен использовать или парсить заголовое для избежания бесполезных
+    /// копирований payload
     #[inline]
     pub fn header(&self) -> Option<&[u8]> {
         self.header.as_deref()
     }
+
     #[inline]
     pub fn is_realtime(&self) -> bool {
         self.realtime
     }
 }
+
+////////////////////////////////////////////////////////////////////////////////
 
 pub mod borrow;
 pub mod common;
