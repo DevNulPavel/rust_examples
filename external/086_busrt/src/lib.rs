@@ -7,6 +7,8 @@ use std::time::Duration;
 #[cfg(feature = "rpc")]
 pub use async_trait::async_trait;
 
+////////////////////////////////////////////////////////////////////////////////
+
 pub const OP_NOP: u8 = 0x00;
 pub const OP_PUBLISH: u8 = 0x01;
 pub const OP_SUBSCRIBE: u8 = 0x02;
@@ -23,6 +25,7 @@ pub const RESPONSE_OK: u8 = 0x01;
 
 pub const PING_FRAME: &[u8] = &[0, 0, 0, 0, 0, 0, 0, 0, 0];
 
+// Контанты для ошибок в виде конкретных значений
 pub const ERR_CLIENT_NOT_REGISTERED: u8 = 0x71;
 pub const ERR_DATA: u8 = 0x72;
 pub const ERR_IO: u8 = 0x73;
@@ -47,10 +50,12 @@ pub const DEFAULT_QUEUE_SIZE: usize = 8192;
 
 pub const SECONDARY_SEP: &str = "%%";
 
-/// When a frame is sent, methods do not wait for the result, but they return OpConfirm type to let
-/// the sender get the result if required.
+////////////////////////////////////////////////////////////////////////////////
+
+/// Когда фрейм отправлен, то методы не ждут результатов, но они возвращают
+/// тип `OpConfirm` для возможности отправителю получить нужный результат.
 ///
-/// When the frame is sent with QoS "processed", the Option contains Receiver<Result>
+/// Когда кадр отправлен с QoS "processed", то `Option` содержит `Receiver<Result>`.
 ///
 /// Example:
 ///
@@ -66,9 +71,14 @@ pub const SECONDARY_SEP: &str = "%%";
 /// }
 /// ```
 pub type OpConfirm = Option<tokio::sync::oneshot::Receiver<Result<(), Error>>>;
+
 pub type Frame = Arc<FrameData>;
+
 pub type EventChannel = async_channel::Receiver<Frame>;
 
+////////////////////////////////////////////////////////////////////////////////
+
+/// Непосредственно тип возникшей ошибки
 #[derive(Debug, Eq, PartialEq, Copy, Clone)]
 #[repr(u8)]
 pub enum ErrorKind {
@@ -120,6 +130,8 @@ impl fmt::Display for ErrorKind {
     }
 }
 
+////////////////////////////////////////////////////////////////////////////////
+
 #[derive(Debug)]
 pub struct Error {
     kind: ErrorKind,
@@ -146,6 +158,7 @@ impl Error {
             message: message.map(|m| m.to_string()),
         }
     }
+
     #[inline]
     pub fn io(e: impl fmt::Display) -> Self {
         Self {
@@ -153,6 +166,7 @@ impl Error {
             message: Some(e.to_string()),
         }
     }
+
     #[inline]
     pub fn data(e: impl fmt::Display) -> Self {
         Self {
@@ -160,6 +174,7 @@ impl Error {
             message: Some(e.to_string()),
         }
     }
+
     #[inline]
     pub fn access(e: impl fmt::Display) -> Self {
         Self {
@@ -167,6 +182,7 @@ impl Error {
             message: Some(e.to_string()),
         }
     }
+
     #[inline]
     pub fn not_supported(e: impl fmt::Display) -> Self {
         Self {
@@ -174,6 +190,7 @@ impl Error {
             message: Some(e.to_string()),
         }
     }
+
     #[inline]
     pub fn not_registered() -> Self {
         Self {
@@ -181,6 +198,7 @@ impl Error {
             message: None,
         }
     }
+
     #[inline]
     pub fn not_delivered() -> Self {
         Self {
@@ -188,6 +206,7 @@ impl Error {
             message: None,
         }
     }
+
     #[inline]
     pub fn timeout() -> Self {
         Self {
@@ -195,6 +214,7 @@ impl Error {
             message: None,
         }
     }
+
     #[inline]
     pub fn busy(e: impl fmt::Display) -> Self {
         Self {
@@ -202,27 +222,10 @@ impl Error {
             message: Some(e.to_string()),
         }
     }
+
     #[inline]
     pub fn kind(&self) -> ErrorKind {
         self.kind
-    }
-}
-
-pub trait IntoBusRtResult {
-    fn to_busrt_result(self) -> Result<(), Error>;
-}
-
-impl IntoBusRtResult for u8 {
-    #[inline]
-    fn to_busrt_result(self) -> Result<(), Error> {
-        if self == RESPONSE_OK {
-            Ok(())
-        } else {
-            Err(Error {
-                kind: self.into(),
-                message: None,
-            })
-        }
     }
 }
 
@@ -293,6 +296,28 @@ impl From<tokio::sync::oneshot::error::RecvError> for Error {
         }
     }
 }
+
+////////////////////////////////////////////////////////////////////////////////
+
+pub trait IntoBusRtResult {
+    fn to_busrt_result(self) -> Result<(), Error>;
+}
+
+impl IntoBusRtResult for u8 {
+    #[inline]
+    fn to_busrt_result(self) -> Result<(), Error> {
+        if self == RESPONSE_OK {
+            Ok(())
+        } else {
+            Err(Error {
+                kind: self.into(),
+                message: None,
+            })
+        }
+    }
+}
+
+////////////////////////////////////////////////////////////////////////////////
 
 #[derive(Debug, Eq, PartialEq, Copy, Clone)]
 #[repr(u8)]
