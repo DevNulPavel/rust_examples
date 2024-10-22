@@ -1,0 +1,15 @@
+[ADC_RMS_httpd]
+wifi_ssid = "Your_WiFi_SSID"
+wifi_psk = "Your_WiFi_PSK"
+
+max_measured_freq = 100 # Hz
+min_measured_freq = 25 # Hz
+rms_half_periods = 12
+sps_freq = 20000 # Hz
+voltage_channel = 0
+zero_voltage = 2490 # raw
+reference_voltage =  238.0 # V
+reference_voltage_raw = 680.0
+zero_current = 2848 # raw
+reference_current = 7.4 # A
+reference_current_raw = 522.0 # raw

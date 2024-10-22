@@ -1,0 +1,40 @@
+<label class="capsule" for="hidcheck" id="capsule-id">
+  <div class="circle"></div><div class="text-signs"><span id="on"></span></div></label></div>
+<div id="content"><div id="status"></div>
+<table><tr style="text-align:center"><td>Параметр</td><td style="text-align:right">Значение</td><td></td></tr>
+<tr><td>Напряжение сети:</td><td><div id="v" style="text-align:right;width:100px;"></div></td><td>В</td></tr>
+<tr><td>Частота в сети:</td><td><div id="f" style="text-align:right;width:100px;"></div></td><td>Гц</td></tr>
+<tr><td>Температура:</td><td><div id="t" style="text-align:right;width:100px;"></div></td><td>°C</td></tr>
+<tr><td>Потребляемый ток:</td><td><div id="c" style="text-align:right;width:100px;"></div></td><td>А</td></tr>
+<tr><td>Потребляемая мощность:</td><td><div id="p" style="text-align:right;width:100px;"></div></td><td>Вт</td></tr>
+<script>
+  refresh();
+  function refresh() {
+    change_status();
+    setTimeout(refresh, 3000);
+  }
+  async function change_status() {
+    if ( document.getElementById("hidcheck").checked == true ) {
+      document.getElementById("status").innerText="Включено";
+      sp_url="smart_plug_on";
+    } else {
+      document.getElementById("status").innerText="Выключено";
+      sp_url="smart_plug_off";
+    }
+    try {
+      const response = await fetch(sp_url);
+      if (!response.ok) {
+        document.getElementById("status").innerText="Запрос не удался: ${response.status}";
+      } else {
+        const obj = await response.json();
+        document.getElementById("v").innerText=obj.v;
+        document.getElementById("f").innerText=obj.f;
+        document.getElementById("t").innerText=obj.t;
+        document.getElementById("c").innerText=obj.c;
+        document.getElementById("p").innerText=obj.p;
+      }
+    } catch (error) {
+      document.getElementById("status").innerText="Запрос не удался: ${error.message}";
+    }
+  }
+</script></div></body></html>

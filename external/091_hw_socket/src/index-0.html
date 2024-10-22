@@ -1,0 +1,94 @@
+<!DOCTYPE html>
+<html><meta charset="UTF-8">
+<head><style>
+  label.capsule{
+    display:block;
+    margin-left:100px;
+    width:100px;
+    border:3px solid rgb(200,200,200);
+    line-height:30px;
+    border-radius:25px;
+    background-color:#EF9A9A;
+  }
+  .circle {
+    margin-top:5px;
+    margin-left:5px;
+    position:absolute;
+    height:20px;
+    width:20px;
+    border-radius:24px;
+    border:1px solid black;
+    background-color:rgb(219,218,218);
+    box-shadow:2px 1px 1px 0px rgb(109,105,105);
+  }
+  .text-signs{
+    text-align:center;
+ }
+  .text-signs span{user-select:none;-webkit-user-select:none;color: rgb(93,81,81);}
+  #hidcheck:checked ~ .capsule .text-signs #on {
+    margin-left:-12px;
+    animation-name:toggle-on;
+    animation-duration:400ms;
+    animation-fill-mode:forwards;
+    animation-timing-function:ease-out;
+  }
+  #hidcheck:checked ~ .capsule .text-signs
+  #on:before {
+    content: "Вкл"
+  }
+  #hidcheck:not(:checked) ~ .capsule .text-signs #on {
+    margin-left:12px;
+    animation-name:toggle-off;
+    animation-duration:400ms;
+    animation-fill-mode:forwards;
+    animation-timing-function:ease-out;
+  }
+  #hidcheck:not(:checked) ~ .capsule .text-signs
+  #on:after {
+    content: "Выкл"
+  }
+  #hidcheck:checked ~ .capsule {
+    background-color: #8BC34A;
+  }
+  #hidcheck:checked ~ .capsule .circle {
+    animation-name:toggle;
+    animation-duration:400ms;
+    animation-fill-mode:forwards;
+    animation-timing-function:ease-out;
+  }
+  #hidcheck:not(:checked) ~ .capsule .circle {
+    animation-name:toggle-back;
+    animation-duration:400ms;
+    animation-fill-mode:forwards;
+    animation-timing-function:ease-in-out;
+    animation-direction:reverse;
+  }
+  @keyframes toggle-back {
+    0% {
+      margin-left:2px;
+      box-shadow:2px 1px 1px 0px rgb(109,105,105);
+    }
+    100% {
+      margin-left:76px;
+      width:20px;
+      height:20px;
+      box-shadow:-2px 1px 1px 0px rgb(109,105,105);
+    }
+  }
+  @keyframes toggle {
+    0% {
+      margin-left:2px;
+      box-shadow:2px 1px 1px 0px rgb(109,105,105);
+    }
+    100% {
+      margin-left:76px;
+      width:20px;
+      height:20px;
+      box-shadow:-2px 1px 1px 0px rgb(109,105,105);
+    }
+}
+</style></head>
+<body>
+<div class="q-container"><div class="main">
+  <h1>Умная розетка на ESP32-C3 + Rust</h1>
+  <input type="checkbox" id="hidcheck" hidden onclick="change_status()"
