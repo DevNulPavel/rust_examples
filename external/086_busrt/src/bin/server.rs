@@ -197,6 +197,9 @@ async fn terminate(allow_log: bool) {
 /// Отдельный макрос для обработки сигнала
 macro_rules! handle_term_signal {
     ($kind: expr, $allow_log: expr) => {
+        // TODO: Взаимоблокировка сигналов разных, если какой-то
+        // один уже начал работать
+
         // Запускаем футуру отдельную
         tokio::spawn(async move {
             trace!("starting handler for {:?}", $kind);
@@ -310,17 +313,27 @@ fn main() {
     rt.block_on(async move {
         // Надо ли нам как-то сохранять pid процесса в файлик?
         if let Some(pid_file) = opts.pid_file {
+            // Получаем идентификатор текущего процесса
             let pid = std::process::id().to_string();
+
+            // Делаем для чего-то именно асинхронную запись в файлик
             tokio::fs::write(&pid_file, pid)
                 .await
                 .expect("Unable to write pid file");
+
             info!("created pid file {}", pid_file);
+
+            // Дополнительно сохраняем для удаления будущего путь этого самого
+            // файлика для удаления
             PID_FILE.lock().await.replace(pid_file);
         }
 
+        // Назначаем обработку сигналов для завершения работы приложения
         handle_term_signal!(SignalKind::interrupt(), false);
         handle_term_signal!(SignalKind::terminate(), true);
+
         let mut broker = Broker::create(&Options::default().force_register(opts.force_register));
+
         #[cfg(feature = "rpc")]
         broker.init_default_core_rpc().await.unwrap();
         broker.set_queue_size(opts.queue_size);
