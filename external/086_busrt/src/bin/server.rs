@@ -32,6 +32,8 @@ lazy_static! {
 
     /// Файлики сокетов
     static ref SOCK_FILES: Mutex<Vec<String>> = Mutex::new(Vec::new());
+
+    /// Брокер какой-то
     static ref BROKER: Mutex<Option<Broker>> = Mutex::new(None);
 }
 
@@ -96,6 +98,11 @@ struct Opts {
 
 ////////////////////////////////////////////////////////////////////////////////
 
+/// Статически созданный логгер
+static LOGGER: SimpleLogger = SimpleLogger;
+
+////////////////////////////////////////////////////////////////////////////////
+
 // Какой-то логгер наш кастомный простой
 struct SimpleLogger;
 
@@ -133,9 +140,6 @@ impl log::Log for SimpleLogger {
 
 ////////////////////////////////////////////////////////////////////////////////
 
-/// Статически созданный логгер
-static LOGGER: SimpleLogger = SimpleLogger;
-
 /// Настройки теперь уровня подробности логирования
 fn set_verbose_logger(filter: LevelFilter) {
     log::set_logger(&LOGGER)
@@ -167,25 +171,39 @@ async fn terminate(allow_log: bool) {
         let _r = std::fs::remove_file(f);
     }
 
+    // Сообщение в лог про завершение работы
     if allow_log {
         info!("terminating");
     }
+
+    // Если есть брокер, то его завершаем тоже
     #[cfg(feature = "rpc")]
     if let Some(broker) = BROKER.lock().await.as_ref() {
         if let Err(e) = broker.announce(BrokerEvent::shutdown()).await {
             error!("{}", e);
         }
     }
+
+    // Сохраняем флаг завершения работы
     SERVER_ACTIVE.store(false, atomic::Ordering::Relaxed);
+
+    // Чуть подождем, если у нас rpc режим + брокер есть какой-то
     #[cfg(feature = "rpc")]
     sleep(Duration::from_secs(1)).await;
 }
 
+////////////////////////////////////////////////////////////////////////////////
+
+/// Отдельный макрос для обработки сигнала
 macro_rules! handle_term_signal {
     ($kind: expr, $allow_log: expr) => {
+        // Запускаем футуру отдельную
         tokio::spawn(async move {
             trace!("starting handler for {:?}", $kind);
+
+            // Запускаем обработку в цикле
             loop {
+                // Ждем сигнал какой-то определенного типа в этой футуре
                 match signal($kind) {
                     Ok(mut v) => {
                         v.recv().await;
@@ -195,65 +213,102 @@ macro_rules! handle_term_signal {
                         break;
                     }
                 }
+
                 // do not log anything on C-c
                 if $allow_log {
                     trace!("got termination signal");
                 }
+
+                // Вызываем завершение работы теперь
                 terminate($allow_log).await
             }
         });
     };
 }
 
+////////////////////////////////////////////////////////////////////////////////
+
 #[allow(clippy::too_many_lines)]
 fn main() {
     #[cfg(feature = "tracing")]
     console_subscriber::init();
+
+    // Парсим параметры приложения
     let opts: Opts = Opts::parse();
+
+    // Подробный вывод логов?
     if opts.verbose {
         set_verbose_logger(LevelFilter::Trace);
-    } else if (!opts.daemonize
-        || std::env::var("DISABLE_SYSLOG").unwrap_or_else(|_| "0".to_owned()) == "1")
+    }
+    // Не фоновый запуск + не отключен syslog
+    else if (!opts.daemonize || std::env::var("DISABLE_SYSLOG").as_deref() == Ok("1"))
         && !opts.log_syslog
     {
         set_verbose_logger(LevelFilter::Info);
-    } else {
+    }
+    // Остальное все по логированию
+    else {
+        // Создаем форматирование для syslog
         let formatter = syslog::Formatter3164 {
             facility: syslog::Facility::LOG_USER,
             hostname: None,
             process: "busrtd".into(),
             pid: 0,
         };
+
+        // Запускаем syslog
         match syslog::unix(formatter) {
+            // Создалось успешно
             Ok(logger) => {
+                // Устанавливаем теперь успешно созданный логгер
+                // в крейт log
                 log::set_boxed_logger(Box::new(syslog::BasicLogger::new(logger)))
                     .map(|()| log::set_max_level(LevelFilter::Info))
                     .unwrap();
             }
+            // Ошибка
             Err(_) => {
+                // TODO: Здесь лучше бы вывести что-то
+                //
                 set_verbose_logger(LevelFilter::Info);
             }
         }
     }
+
+    // Параметр таймаута в секундах
     let timeout = Duration::from_secs_f64(opts.timeout);
+
+    // TTL в микросекундах
     let buf_ttl = Duration::from_micros(opts.buf_ttl);
+
+    // Подробная информация теперь
     info!("starting BUS/RT server");
     info!("workers: {}", opts.workers);
     info!("buf size: {}", opts.buf_size);
     info!("buf ttl: {:?}", buf_ttl);
     info!("queue size: {}", opts.queue_size);
     info!("timeout: {:?}", timeout);
+
+    // Надо ли нам делать процесс фоновым через форк?
     if opts.daemonize {
+        // Запускаем переход в форк,
         if let Ok(fork::Fork::Child) = fork::daemon(true, false) {
+            // Вроде как получается, если мы в родителе, а запустился чилд
+            // у нас, то можем вайти теперь из текущего процесса
             std::process::exit(0);
         }
     }
+
+    // Запускаем теперь рантайм tokio
     let rt = tokio::runtime::Builder::new_multi_thread()
         .worker_threads(opts.workers)
         .enable_all()
         .build()
         .unwrap();
+
+    // В рантайме запускаем асинхронную уже задачу основную
     rt.block_on(async move {
+        // Надо ли нам как-то сохранять pid процесса в файлик?
         if let Some(pid_file) = opts.pid_file {
             let pid = std::process::id().to_string();
             tokio::fs::write(&pid_file, pid)
@@ -262,6 +317,7 @@ fn main() {
             info!("created pid file {}", pid_file);
             PID_FILE.lock().await.replace(pid_file);
         }
+
         handle_term_signal!(SignalKind::interrupt(), false);
         handle_term_signal!(SignalKind::terminate(), true);
         let mut broker = Broker::create(&Options::default().force_register(opts.force_register));
