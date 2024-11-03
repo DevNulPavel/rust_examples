@@ -1,0 +1,10 @@
+{
+    // Dry start check
+    "rust-analyzer.cargo.features": [
+        "server"
+    ],
+    "rust-analyzer.check.features": [
+        "server"
+    ],
+    // "rust-analyzer.cargo.features": "all"
+}

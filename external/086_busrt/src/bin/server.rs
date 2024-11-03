@@ -119,7 +119,8 @@ impl log::Log for SimpleLogger {
                 "{}  {}",
                 Local::now().to_rfc3339_opts(SecondsFormat::Secs, false),
                 record.args()
-            );
+            )
+            .to_string();
 
             // Делаем вывод непосредственно теперь
             println!(
