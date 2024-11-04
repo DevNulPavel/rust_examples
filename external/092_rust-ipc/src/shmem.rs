@@ -1,15 +1,19 @@
-use crate::{get_payload, ExecutionResult, KB};
-use raw_sync::events::{BusyEvent, EventImpl, EventInit, EventState};
-use raw_sync::Timeout;
+use crate::{
+    constants::KB,
+    helpers::{get_payload, ExecutionResult},
+};
+use raw_sync::{
+    events::{BusyEvent, EventImpl, EventInit, EventState},
+    Timeout,
+};
 use shared_memory::{Shmem, ShmemConf};
-use std::process::{Child, Command};
-use std::thread::sleep;
-use std::time::{Duration, Instant};
+use std::{
+    process::{Child, Command},
+    thread::sleep,
+    time::{Duration, Instant},
+};
 
-fn shmem_conf(data_size: usize) -> ShmemConf {
-    let shmem = ShmemConf::new().size(data_size);
-    shmem
-}
+////////////////////////////////////////////////////////////////////////////////
 
 pub struct ShmemWrapper {
     pub shmem: Shmem,
@@ -21,22 +25,38 @@ pub struct ShmemWrapper {
 }
 
 impl ShmemWrapper {
+    /// Создаем
     pub fn new(handle: Option<String>, data_size: usize) -> ShmemWrapper {
+        // Размер данных + 4 байта для мета-информации
         let data_size = data_size + 4;
-        let owner = handle.is_none();
-        // If we've been given a memory handle, attach it, if not, create one
-        let mut shmem = match handle {
-            None => shmem_conf(data_size).create().unwrap(),
-            Some(h) => shmem_conf(data_size)
-                .os_id(&h)
-                .open()
-                .expect(&format!("Unable to open the shared memory at {}", h)),
+
+        // Если нам передан внешний хендл для общей памяти, то мы присоединяемся
+        // к нему, а если нет - то просто создаем новый
+        let (is_owner, mut shmem) = match handle {
+            None => {
+                // Создаем блок общей памяти с конфигом
+                let shmem = ShmemConf::new().size(data_size).create().unwrap();
+                (true, shmem)
+            }
+            Some(h) => {
+                // Общая память
+                let shmem = ShmemConf::new()
+                    .size(data_size)
+                    .os_id(&h)
+                    .open()
+                    .expect(&format!("Unable to open the shared memory at {}", h));
+
+                (false, shmem)
+            }
         };
+
+        // Получаем теперь слайс на байты общей памяти
         let bytes = unsafe { shmem.as_slice_mut() };
+
         // The two events are locks - one for each side. Each side activates the lock while it's
         // writing, and then unlocks when the data can be read
         let ((our_event, lock_bytes_ours), (their_event, lock_bytes_theirs)) = unsafe {
-            if owner {
+            if is_owner {
                 (
                     BusyEvent::new(bytes.get_mut(0).unwrap(), true).unwrap(),
                     BusyEvent::new(bytes.get_mut(2).unwrap(), true).unwrap(),
@@ -52,13 +72,13 @@ impl ShmemWrapper {
         // Confirm that we've correctly indexed two bytes for each lock
         assert!(lock_bytes_ours <= 2);
         assert!(lock_bytes_theirs <= 2);
-        if owner {
+        if is_owner {
             our_event.set(EventState::Clear).unwrap();
             their_event.set(EventState::Clear).unwrap();
         }
         ShmemWrapper {
             shmem,
-            owner,
+            owner: is_owner,
             our_event,
             their_event,
             data_start: 4,
