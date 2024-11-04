@@ -333,51 +333,68 @@ fn main() {
         handle_term_signal!(SignalKind::interrupt(), false);
         handle_term_signal!(SignalKind::terminate(), true);
 
+        // Теперь уже можем создать брокер с параметрами
         let mut broker = Broker::create(&Options::default().force_register(opts.force_register));
 
+        // Настройки для rpc
         #[cfg(feature = "rpc")]
         broker.init_default_core_rpc().await.unwrap();
+
+        // Устанавливаем размер очереди брокера
         broker.set_queue_size(opts.queue_size);
-        let mut sock_files = SOCK_FILES.lock().await;
-        for path in opts.path {
-            info!("binding at {}", path);
-            #[allow(clippy::case_sensitive_file_extension_comparisons)]
-            if let Some(_fifo) = path.strip_prefix("fifo:") {
-                #[cfg(feature = "rpc")]
-                {
-                    broker
-                        .spawn_fifo(_fifo, opts.buf_size)
-                        .await
-                        .expect("unable to start fifo server");
-                    sock_files.push(_fifo.to_owned());
-                }
-            } else {
-                let server_config = ServerConfig::new()
-                    .buf_size(opts.buf_size)
-                    .buf_ttl(buf_ttl)
-                    .timeout(timeout);
-                if path.ends_with(".sock")
-                    || path.ends_with(".socket")
-                    || path.ends_with(".ipc")
-                    || path.starts_with('/')
-                {
-                    broker
-                        .spawn_unix_server(&path, server_config)
-                        .await
-                        .expect("Unable to start unix server");
-                    sock_files.push(path);
+
+        {
+            // Теперь берем блокировку на сокетах глобальных
+            let mut sock_files = SOCK_FILES.lock().await;
+
+            // Перебираем путь из параметров
+            for path in opts.path {
+                info!("binding at {}", path);
+
+                #[allow(clippy::case_sensitive_file_extension_comparisons)]
+                if let Some(_fifo) = path.strip_prefix("fifo:") {
+                    #[cfg(feature = "rpc")]
+                    {
+                        broker
+                            .spawn_fifo(_fifo, opts.buf_size)
+                            .await
+                            .expect("unable to start fifo server");
+                        sock_files.push(_fifo.to_owned());
+                    }
                 } else {
-                    broker
-                        .spawn_tcp_server(&path, server_config)
-                        .await
-                        .expect("Unable to start tcp server");
+                    let server_config = ServerConfig::new()
+                        .buf_size(opts.buf_size)
+                        .buf_ttl(buf_ttl)
+                        .timeout(timeout);
+
+                    if path.ends_with(".sock")
+                        || path.ends_with(".socket")
+                        || path.ends_with(".ipc")
+                        || path.starts_with('/')
+                    {
+                        broker
+                            .spawn_unix_server(&path, server_config)
+                            .await
+                            .expect("Unable to start unix server");
+                        sock_files.push(path);
+                    } else {
+                        broker
+                            .spawn_tcp_server(&path, server_config)
+                            .await
+                            .expect("Unable to start tcp server");
+                    }
                 }
             }
         }
-        drop(sock_files);
+
         BROKER.lock().await.replace(broker);
+
         info!("BUS/RT broker started");
+
+        // TODO: Здесь вообще активное ожидание? Можно было бы заменить на нормальное
+
         let sleep_step = Duration::from_millis(100);
+
         loop {
             if !SERVER_ACTIVE.load(atomic::Ordering::Relaxed) {
                 break;
