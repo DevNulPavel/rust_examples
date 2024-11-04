@@ -1,0 +1,13 @@
+[package]
+name = "iceoryx2"
+description = ""
+authors = []
+version = "0.1.0"
+edition = "2021"
+rust-version = "1.82.0"
+
+
+###########################################################################
+
+[dependencies]
+iceoryx2 = "^0.4.1"
