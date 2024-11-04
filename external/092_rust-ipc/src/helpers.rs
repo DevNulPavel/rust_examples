@@ -48,7 +48,7 @@ pub(crate) struct ExecutionResult {
 }
 
 impl ExecutionResult {
-    fn new(name: String, elapsed: Duration, cycles: usize) -> ExecutionResult {
+    pub(crate) fn new(name: String, elapsed: Duration, cycles: usize) -> ExecutionResult {
         ExecutionResult {
             name,
             elapsed,
@@ -56,7 +56,7 @@ impl ExecutionResult {
         }
     }
 
-    fn print_info(&self) {
+    pub(crate) fn print_info(&self) {
         let duration = humantime::Duration::from(self.elapsed);
         let ps = 1_000_000f32 * (self.cycles as f32) / (duration.as_micros() as f32);
         let per_op =

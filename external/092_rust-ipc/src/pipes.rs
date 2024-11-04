@@ -17,8 +17,6 @@ pub struct PipeRunner {
     response_data: Vec<u8>,
 }
 
-////////////////////////////////////////////////////////////////////////////////
-
 impl PipeRunner {
     pub fn new(data_size: usize) -> PipeRunner {
         // let output_dir = PathBuf::from(env::var("CARGO_TARGET_DIR").unwrap());
@@ -32,7 +30,7 @@ impl PipeRunner {
         let (request_data, response_data) = get_payload(data_size);
 
         // Запускаем процесс,
-        // передаем ему сгенерированные данные через пайп
+        // передаем ему размер данных через аргументы
         let pipe_proc = Command::new(exe)
             .args(&[data_size.to_string()])
             .stdin(Stdio::piped())
@@ -49,40 +47,65 @@ impl PipeRunner {
     }
 
     /// Запускаем
-    pub fn run_inner(&mut self, n: usize) {
-        if let Some(ref mut pipes_input) = self.pipe_proc.stdin {
-            if let Some(ref mut pipes_output) = self.pipe_proc.stdout {
-                let mut buf = vec![0; self.data_size];
-                for _ in 0..n {
-                    pipes_input.write(&self.request_data).unwrap();
-                    pipes_output.read_exact(&mut buf).unwrap();
+    fn inner_run(&mut self, n: usize) {
+        // Получаем ссылку на stdin на дочерний процесс
+        let Some(ref mut pipes_input) = self.pipe_proc.stdin else {
+            return;
+        };
 
-                    #[cfg(debug_assertions)]
-                    if buf.ne(&self.response_data) {
-                        panic!("Unexpected response {}", String::from_utf8_lossy(&buf))
-                    }
-                }
+        // Получаем ссылку на stdoud на дочерний процесс
+        let Some(ref mut pipes_output) = self.pipe_proc.stdout else {
+            return;
+        };
+
+        // Создаем буфер теперь для данных
+        let mut buf = vec![0; self.data_size];
+
+        // Делаем нужное количество итераций
+        for _ in 0..n {
+            // Пишем данные в пайп
+            pipes_input.write(&self.request_data).unwrap();
+
+            // Вычитываем в буфер данных теперь те же самые данные в ответ
+            pipes_output.read_exact(&mut buf).unwrap();
+
+            // Делаем дополнительную валидацию совпадения данных
+            #[cfg(debug_assertions)]
+            if buf.ne(&self.response_data) {
+                panic!("Unexpected response {}", String::from_utf8_lossy(&buf))
             }
         }
     }
 
+    /// Непосредственно запуск теста
     pub fn run(&mut self, n: usize, print: bool) {
+        // Время старта
         let instant = Instant::now();
-        self.run_inner(n);
+
+        // Запускаем тест
+        self.inner_run(n);
+
+        // Делаем подсчет времени
         let elapsed = instant.elapsed();
+
         if print {
+            // Формируем результат
             let res = ExecutionResult::new(
                 format!("Stdin/stdout - {}KB", self.data_size / KB),
                 elapsed,
                 n,
             );
-            res.print_info()
+
+            // Делаем вывод данных
+            res.print_info();
         }
     }
 }
 
+// Реализация уничтожения теста
 impl Drop for PipeRunner {
     fn drop(&mut self) {
+        // Здесь мы уничтодаем дочерний тестовый процесс
         self.pipe_proc.kill().unwrap();
     }
 }
