@@ -118,7 +118,7 @@ fn stdout(args: &Cli) {
         // Возводим в степень для получения количества байт
         let data_size = 2_usize.pow(data_size) * KB;
 
-        // Запускаем работу с пайпом для нужного размера данных
+        // Создаем тест с пайпом для нужного размера данных
         let mut pr = PipeRunner::new(data_size);
 
         // Дополнительно прицепимся к конкретному ядру в системе
@@ -128,7 +128,7 @@ fn stdout(args: &Cli) {
         // и перешли в рабочий и производительный режимы
         cpu_warmup();
 
-        // Запускаем
+        // Запускаем тест
         pr.run(args.number, true);
     }
 }
@@ -136,13 +136,22 @@ fn stdout(args: &Cli) {
 ////////////////////////////////////////////////////////////////////////////////
 
 fn shared_memory(args: &Cli) {
+    // Итерируемся в диапазоне от 1 до максимума килобайт
     for data_size in 1..=args.kb_pow_max {
-        let data_size = 2u64.pow(data_size as u32) as usize * KB;
+        // Возводим в степень для получения количества байт
+        let data_size = 2_usize.pow(data_size) * KB;
+
+        // Создаем тест для общей памяти, передаем параметр, что надо ли запускать процесс дочерний
         let mut runner = ShmemRunner::new(args.start_child, data_size);
 
+        // Дополнительно прицепимся к конкретному ядру в системе
         core_affinity::set_for_current(core_affinity::CoreId { id: 1 });
+
+        // Делаем прогрес на всякий случай для того, чтобы у нас процессор и кеши прогрелись
+        // и перешли в рабочий и производительный режимы
         cpu_warmup();
 
+        // Запускаем тест
         runner.run(args.number, true);
     }
 }
@@ -151,7 +160,7 @@ fn shared_memory(args: &Cli) {
 
 fn tcp(args: &Cli) {
     for data_size in 1..=args.kb_pow_max {
-        let data_size = 2u64.pow(data_size as u32) as usize * KB;
+        // Возводим в степень для получения количества байт
         let mut runner = TcpRunner::new(args.start_child, true, data_size);
 
         core_affinity::set_for_current(core_affinity::CoreId { id: 1 });
@@ -165,7 +174,9 @@ fn tcp(args: &Cli) {
 
 fn udp(args: &Cli) {
     for data_size in 1..=args.kb_pow_max {
-        let data_size = 2u64.pow(data_size as u32) as usize * KB;
+        // Возводим в степень для получения количества байт
+        let data_size = 2_usize.pow(data_size) * KB;
+
         let mut runner = UdpRunner::new(true, data_size);
 
         core_affinity::set_for_current(core_affinity::CoreId { id: 1 });
