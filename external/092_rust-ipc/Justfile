@@ -34,3 +34,8 @@ MMAP: _FMT_CHECK_CLIPPY_BUILD
     {{justfile_directory()}}/target/release/ipc \
         --number 1000 \
         --method mmap
+
+SHMEM: _FMT_CHECK_CLIPPY_BUILD
+    {{justfile_directory()}}/target/release/ipc \
+        --number 1000 \
+        --method shmem

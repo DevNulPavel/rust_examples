@@ -1,7 +1,6 @@
 ////////////////////////////////////////////////////////////////////////////////
 
 use rand::{rngs::StdRng, Rng, SeedableRng};
-use std::time::Instant;
 use std::{path::PathBuf, time::Duration};
 
 ////////////////////////////////////////////////////////////////////////////////
@@ -30,14 +29,14 @@ pub(crate) fn get_payload(data_size: usize) -> (Vec<u8>, Vec<u8>) {
 
 ////////////////////////////////////////////////////////////////////////////////
 
-pub(crate) fn cpu_warmup() {
-    let warmup = Instant::now();
+/* pub(crate) fn cpu_warmup() {
+    let warmup = std::time::Instant::now();
     loop {
         if warmup.elapsed() > Duration::from_millis(1000) {
             break;
         }
     }
-}
+} */
 
 ////////////////////////////////////////////////////////////////////////////////
 
@@ -78,7 +77,6 @@ pub(crate) fn executable_path(name: &str) -> PathBuf {
     let exe = name.to_owned() + ".exe";
     #[cfg(target_family = "unix")]
     let exe = name.to_owned();
-
 
     // Получаем полный путь к файлику
     #[cfg(debug_assertions)]

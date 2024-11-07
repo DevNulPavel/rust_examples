@@ -64,7 +64,7 @@ impl PipeRunner {
         // Делаем нужное количество итераций
         for _ in 0..n {
             // Пишем данные в пайп
-            pipes_input.write(&self.request_data).unwrap();
+            pipes_input.write_all(&self.request_data).unwrap();
 
             // Вычитываем в буфер данных теперь те же самые данные в ответ
             pipes_output.read_exact(&mut buf).unwrap();

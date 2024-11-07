@@ -1,10 +1,10 @@
 pub mod constants;
 pub mod helpers;
-pub mod iceoryx;
-pub mod mmap;
 pub mod pipes;
 pub mod shmem;
-pub mod tcp;
-pub mod udp;
-pub mod unix_datagram;
-pub mod unix_stream;
+// pub mod iceoryx;
+// pub mod mmap;
+// pub mod tcp;
+// pub mod udp;
+// pub mod unix_datagram;
+// pub mod unix_stream;

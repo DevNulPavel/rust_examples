@@ -56,7 +56,7 @@ impl ShmemWrapper {
                     .size(data_size)
                     .os_id(&h)
                     .open()
-                    .expect(&format!("Unable to open the shared memory at {}", h));
+                    .unwrap_or_else(|_| panic!("Unable to open the shared memory at {}", h));
 
                 (false, shmem)
             }
@@ -161,7 +161,7 @@ impl ShmemRunner {
         let wrapper = ShmemWrapper::new(None, data_size);
 
         let id = wrapper.shmem.get_os_id();
-        
+
         let exe = executable_path("shmem_consumer");
 
         let child_proc = if start_child {
