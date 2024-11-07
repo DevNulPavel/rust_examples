@@ -1,6 +1,6 @@
 use crate::{
     constants::KB,
-    helpers::{get_payload, ExecutionResult},
+    helpers::{executable_path, get_payload, ExecutionResult},
 };
 use raw_sync::{
     events::{BusyEvent, EventImpl, EventInit, EventState},
@@ -161,7 +161,9 @@ impl ShmemRunner {
         let wrapper = ShmemWrapper::new(None, data_size);
 
         let id = wrapper.shmem.get_os_id();
-        let exe = crate::executable_path("shmem_consumer");
+        
+        let exe = executable_path("shmem_consumer");
+
         let child_proc = if start_child {
             let res = Some(
                 Command::new(exe)
