@@ -95,7 +95,7 @@ impl ShmemWrapper {
 
         // Если мы являемся владельцем, тогда
         // для каждой из блокировок устанавливаем
-        // событие очистки
+        // состояние сброса
         if is_owner {
             our_event.set(EventState::Clear).unwrap();
             their_event.set(EventState::Clear).unwrap();
@@ -117,12 +117,12 @@ impl ShmemWrapper {
         }
     }
 
-    /// Устанавливаем сигнал сброса для текущей стороны
+    /// Устанавливаем сигнал взятьсти для текущей стороны
     pub fn signal_start(&mut self) {
         self.our_event.set(EventState::Clear).unwrap()
     }
 
-    /// Сбрасываем сигнал сброса для текущей стороны
+    /// Сбрасываем сигнал готовности для текущей стороны
     pub fn signal_finished(&mut self) {
         self.our_event.set(EventState::Signaled).unwrap()
     }
@@ -147,38 +147,56 @@ impl ShmemWrapper {
 
 ////////////////////////////////////////////////////////////////////////////////
 
-// #[derive(Debug)]
+/// Непосредственно запускатель тестов для общей памяти
 pub struct ShmemRunner {
+    /// Дочерний запущенный процесс
     child_proc: Option<Child>,
+
+    /// Обертка над текущей общей памятью
     wrapper: ShmemWrapper,
+
+    /// Размер тестовых передаваемых данных
     data_size: usize,
+
+    /// Данные для запроса
     request_data: Vec<u8>,
+
+    /// Данные для ответа
     response_data: Vec<u8>,
 }
 
 impl ShmemRunner {
     pub fn new(start_child: bool, data_size: usize) -> ShmemRunner {
+        // Создаем обертку над общей памятью для теста
         let wrapper = ShmemWrapper::new(None, data_size);
 
+        // Получаем идентификатор общей памяти для передачи куда-то
         let id = wrapper.shmem.get_os_id();
 
+        // Находим тестовое приложение, которое будем запускать для тестов
         let exe = executable_path("shmem_consumer");
 
+        // Запускаем или нет дочерний процесс
         let child_proc = if start_child {
+            // Запускаем дочерний процесс, туда в виде параметров
+            // передаем идентификатор общей памяти и размер данных тестовых
             let res = Some(
                 Command::new(exe)
                     .args(&[id.to_string(), data_size.to_string()])
                     .spawn()
                     .unwrap(),
             );
-            // Clumsy sleep here but it allows the child proc to spawn without it having to offer
-            // us a ready event
+
+            // Лучше подождать какое-то время пока дочерний процесс точно будет запущен
+            // вместо того, чтобы сразу кидать событие готовности данных, которое будет ждать процесс
             sleep(Duration::from_secs(2));
+
             res
         } else {
             None
         };
 
+        // Создаем тестовые данные
         let (request_data, response_data) = get_payload(data_size);
 
         ShmemRunner {
@@ -190,24 +208,44 @@ impl ShmemRunner {
         }
     }
 
+    /// Теперь выполняем непосредственно сам тест
     pub fn run(&mut self, n: usize, print: bool) {
+        // Текущее время старта
         let instant = Instant::now();
-        for _ in 0..n {
-            // Activate our lock in preparation for writing
-            self.wrapper.signal_start();
-            self.wrapper.write(&self.request_data);
-            // Unlock after writing
-            self.wrapper.signal_finished();
-            // Wait for their lock to be released so we can read
-            if self.wrapper.their_event.wait(Timeout::Infinite).is_ok() {
-                let str = self.wrapper.read();
 
-                #[cfg(debug_assertions)]
-                if str.ne(&self.response_data) {
-                    panic!("Sent request didn't get response")
-                }
+        // Итерируемся нужное количество тестов
+        for _ in 0..n {
+            // TODO: Здесь как раз можно было бы использовать guard
+            // как в mutex
+
+            // Выставляем сначала блокировку на память
+            self.wrapper.signal_start();
+
+            // Раз блокировку взяли, то можем записать значение
+            self.wrapper.write(&self.request_data);
+
+            // Разблокировка после записи успешной
+            self.wrapper.signal_finished();
+
+            // Ждем сброса ответного события снятия блокировки
+            // бесконечное количество времени
+            if self.wrapper.their_event.wait(Timeout::Infinite).is_err() {
+                panic();
+            }
+
+            // Получаем ответные данные раз они нам доступны
+            let resp = self.wrapper.read();
+
+            // Дополнительно отвалидируем результат.
+            // Валидация делается во всех тестах,
+            // так что учитывается время везде.
+            #[cfg(debug_assertions)]
+            if resp.ne(&self.response_data) {
+                panic!("Sent request didn't get response")
             }
         }
+
+        // Делаем замер прошедшего времени на тестах
         let elapsed = instant.elapsed();
 
         if print {
@@ -223,6 +261,7 @@ impl ShmemRunner {
 
 impl Drop for ShmemRunner {
     fn drop(&mut self) {
+        // При уничтожении дополнительно уничтожаем дочерний процесс
         if let Some(ref mut child) = self.child_proc {
             child.kill().expect("Unable to kill child process")
         }
