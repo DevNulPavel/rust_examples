@@ -1,0 +1,13 @@
+[package]
+name = "hand-made-rsa"
+version = "0.1.0"
+edition = "2021"
+
+# See more keys and their definitions at https://doc.rust-lang.org/cargo/reference/manifest.html
+
+[dependencies]
+hand-made-math = {path = "../hand-made-math"}
+num-bigint = "0.4.5"
+num-primes = "0.3.0"
+num-traits = "0.2.19"
+hex = "0.4.3"

@@ -1,0 +1,9 @@
+[package]
+name = "simple-replacement-ciphers"
+version = "0.1.0"
+edition = "2021"
+
+[dependencies]
+hand-made-rspt = { version = "0.1.0", path = "../hand-made-rspt" }
+regex = "1.11.0"
+serde_json = "1.0.132"

@@ -1,0 +1,11 @@
+[package]
+name = "client2"
+version = "0.1.0"
+edition = "2021"
+
+[dependencies]
+nalgebra = { version= "0.32.5" ,features = ["rand", "serde"] }
+serde = "1.0.203"
+serde_json = "1.0.117"
+rand = "0.8.5"
+server = {path = "../server"}

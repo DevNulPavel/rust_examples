@@ -1,0 +1,46 @@
+[package]
+name = "hand-made-block-encryption"
+version = "0.1.0"
+edition = "2021"
+
+[dependencies]
+
+[[example]]
+name = "magma-ecb"
+path = "examples/cipher/magma/modes/ecb.rs"
+
+[[example]]
+name = "magma-cbc"
+path = "examples/cipher/magma/modes/cbc.rs"
+
+[[example]]
+name = "magma-cfb"
+path = "examples/cipher/magma/modes/cfb.rs"
+
+[[example]]
+name = "magma-ofb"
+path = "examples/cipher/magma/modes/ofb.rs"
+
+[[example]]
+name = "magma-ctr"
+path = "examples/cipher/magma/modes/ctr.rs"
+
+[[example]]
+name = "kuznyechik-ecb"
+path = "examples/cipher/kuznyechik/modes/ecb.rs"
+
+[[example]]
+name = "kuznyechik-cbc"
+path = "examples/cipher/kuznyechik/modes/cbc.rs"
+
+[[example]]
+name = "kuznyechik-cfb"
+path = "examples/cipher/kuznyechik/modes/cfb.rs"
+
+[[example]]
+name = "kuznyechik-ofb"
+path = "examples/cipher/kuznyechik/modes/ofb.rs"
+
+[[example]]
+name = "kuznyechik-ctr"
+path = "examples/cipher/kuznyechik/modes/ctr.rs"

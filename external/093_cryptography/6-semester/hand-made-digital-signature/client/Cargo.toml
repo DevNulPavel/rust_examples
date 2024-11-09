@@ -1,0 +1,17 @@
+[package]
+name = "client"
+version = "0.1.0"
+edition = "2021"
+
+# See more keys and their definitions at https://doc.rust-lang.org/cargo/reference/manifest.html
+
+[dependencies]
+hand-made-sha = {path = "../../hand-made-sha"}
+hand-made-streebog = {path = "../../hand-made-streebog"}
+hand-made-rsa = {path = "../../hand-made-rsa"}
+pkcs7 = {path = "../pkcs7"}
+serde_json = "1.0.117"
+hand-made-el-gamal = {path = "../../hand-made-el-gamal"}
+hand-made-fiat-shamir = {path = "../../hand-made-fiat-shamir"}
+implementation = {path = "../implementation"}
+hash-function-wrapper = { version = "0.1.0", path = "../hash-function-wrapper" }
