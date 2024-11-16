@@ -1,0 +1,10 @@
+"*:80" {
+    //reverse_proxy "/api/*" "http://127.0.0.1:8080"
+    root "*" "./assets"
+    file_server
+}
+"*:443" {
+    root "*" "./assets"
+    file_server
+    tls "domain.crt" "domain.key"
+}

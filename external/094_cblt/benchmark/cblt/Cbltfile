@@ -1,0 +1,4 @@
+example.com {
+    root "*" "./assets"
+    file_server
+}
