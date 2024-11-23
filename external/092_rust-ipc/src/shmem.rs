@@ -230,7 +230,7 @@ impl ShmemRunner {
             // Ждем сброса ответного события снятия блокировки
             // бесконечное количество времени
             if self.wrapper.their_event.wait(Timeout::Infinite).is_err() {
-                panic();
+                panic!();
             }
 
             // Получаем ответные данные раз они нам доступны

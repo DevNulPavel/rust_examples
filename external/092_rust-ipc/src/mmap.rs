@@ -1,9 +1,6 @@
-use std::{
-    fs::OpenOptions,
-    path::PathBuf,
-    process::{Child, Command},
-    thread::sleep,
-    time::{Duration, Instant},
+use crate::{
+    constants::KB,
+    helpers::{executable_path, get_payload, ExecutionResult},
 };
 use memmap2::MmapMut;
 use raw_sync::{
@@ -11,7 +8,13 @@ use raw_sync::{
     Timeout,
 };
 use std::io::Write;
-use crate::{get_payload, ExecutionResult, KB};
+use std::{
+    fs::OpenOptions,
+    path::PathBuf,
+    process::{Child, Command},
+    thread::sleep,
+    time::{Duration, Instant},
+};
 
 ////////////////////////////////////////////////////////////////////////////////
 
@@ -50,6 +53,7 @@ impl MmapWrapper {
             .read(true)
             .write(true)
             .create(true)
+            .truncate(true)
             .open(&path)
             .unwrap();
 
@@ -104,36 +108,61 @@ impl MmapWrapper {
         }
     }
 
+    /// Проставляем сигнал начала записи
     pub fn signal_start(&mut self) {
         self.our_event.set(EventState::Clear).unwrap()
     }
 
+    /// Проставляем сигнал завершения записи данных
     pub fn signal_finished(&mut self) {
         self.our_event.set(EventState::Signaled).unwrap()
     }
 
+    /// Записываем данные в нужное место
     pub fn write(&mut self, data: &[u8]) {
-        (&mut self.mmap[self.data_start..]).write(data).unwrap();
+        // TODO: Правильно ошибку кидать, но это тестовый пример
+        assert!(data.len() == self.data_size);
+
+        // Пишем данные с нужным нам смещением
+        let writtend = (&mut self.mmap[self.data_start..]).write(data).unwrap();
+
+        // TODO: Тоже лучше кадать ошибку
+        assert_eq!(writtend, data.len());
     }
 
+    /// Читаем данные
     pub fn read(&self) -> &[u8] {
+        // Вычитываем буфер данных
         &self.mmap.as_ref()[self.data_start..self.data_size]
     }
 }
 
+////////////////////////////////////////////////////////////////////////////////
+
+/// Запускатель тестов
 pub struct MmapRunner {
+    /// Дочерний процесс
     child_proc: Option<Child>,
+
+    /// Тестовая обертка
     wrapper: MmapWrapper,
+
+    /// Размер тестовых данных
     data_size: usize,
+
+    /// Буфер запроса
     request_data: Vec<u8>,
+
+    /// Буфер ответа
     response_data: Vec<u8>,
 }
 
 impl MmapRunner {
+
     pub fn new(start_child: bool, data_size: usize) -> Self {
         let wrapper = MmapWrapper::new(true, data_size);
 
-        let exe = crate::executable_path("mmap_consumer");
+        let exe = executable_path("mmap_consumer");
         let child_proc = if start_child {
             let res = Some(
                 Command::new(exe)
