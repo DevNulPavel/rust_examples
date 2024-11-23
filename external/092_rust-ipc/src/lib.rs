@@ -3,7 +3,7 @@ pub mod helpers;
 pub mod pipes;
 pub mod shmem;
 pub mod mmap;
-// pub mod iceoryx;
+pub mod iceoryx;
 // pub mod tcp;
 // pub mod udp;
 // pub mod unix_datagram;

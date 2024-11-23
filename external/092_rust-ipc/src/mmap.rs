@@ -158,7 +158,6 @@ pub struct MmapRunner {
 }
 
 impl MmapRunner {
-
     pub fn new(start_child: bool, data_size: usize) -> Self {
         let wrapper = MmapWrapper::new(true, data_size);
 
