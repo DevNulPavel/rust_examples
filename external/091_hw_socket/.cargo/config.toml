@@ -1,16 +1,35 @@
+# https://doc.rust-lang.org/cargo/reference/config.html
+
+################################################################################
+
 [build]
 target = "riscv32imc-esp-espidf"
 
-[target.riscv32imc-esp-espidf]
-linker = "ldproxy"
-runner = "espflash flash --monitor" # Select this runner for espflash v3.x.x
-rustflags = [ "--cfg",  "espidf_time64"] # Extending time_t for ESP IDF 5: https://github.com/esp-rs/rust/issues/110
+################################################################################
 
+[target.riscv32imc-esp-espidf]
+# Кастомный линковщик
+linker = "ldproxy"
+# Запускаться наш исполняемый код будет с помощью специального приложения-запускателя.
+# Сам исполняемый бинарник будет передаваться параметром в указанное приложение.
+runner = "espflash flash --monitor"
+# Extending time_t for ESP IDF 5: https://github.com/esp-rs/rust/issues/110
+rustflags = ["--cfg", "espidf_time64"]
+
+################################################################################
+
+# - https://doc.rust-lang.org/cargo/reference/unstable.html
+# - https://doc.rust-lang.org/cargo/reference/unstable.html#build-std
 [unstable]
+# Говорим, что стандартная библиотека должна компилироваться как исходник со следующими флагами
 build-std = ["std", "panic_abort"]
 
-[env]
-MCU="esp32c3"
+################################################################################
 
-# Workaround for https://github.com/esp-rs/esp-idf-template/issues/174 
+# Добавляем какие-то переменные окружения для сборки
+# https://doc.rust-lang.org/cargo/reference/config.html#env
+[env]
+# TODO: ???
+MCU = "esp32c3"
+# Workaround for https://github.com/esp-rs/esp-idf-template/issues/174
 CRATE_CC_NO_DEFAULTS = "1"

@@ -1,3 +1,11 @@
+pub mod adc_ntc;
+pub mod median;
+pub mod rms;
+pub mod wifi;
+
+////////////////////////////////////////////////////////////////////////////////
+
+use crate::{adc_ntc::ntc_meashure, rms::rms_meashure, wifi::connect_wifi};
 use embedded_svc::{http::Method, io::Write};
 use esp_idf_hal::{delay::FreeRtos, gpio::*, peripheral::Peripheral, peripherals::Peripherals};
 use esp_idf_svc::{
@@ -9,14 +17,7 @@ use log::info;
 use parking_lot::Mutex;
 use std::sync::Arc;
 
-use crate::adc_ntc::ntc_meashure;
-use crate::rms::rms_meashure;
-use crate::wifi::connect_wifi;
-
-pub mod adc_ntc;
-pub mod median;
-pub mod rms;
-pub mod wifi;
+////////////////////////////////////////////////////////////////////////////////
 
 lazy_static! {
     pub static ref PERIPHERALS: Arc<Mutex<Peripherals>> =
@@ -30,44 +31,66 @@ lazy_static! {
     };
 }
 
+////////////////////////////////////////////////////////////////////////////////
+
+/// Конфиг, который мы будем парсить из toml
 #[toml_cfg::toml_config]
 pub struct Config {
     #[default("")]
     wifi_ssid: &'static str,
+
     #[default("")]
     wifi_psk: &'static str,
+
     #[default(100)]
     pub max_measured_freq: u16,
+
     #[default(25)]
     pub min_measured_freq: u16,
+
     #[default(2)]
     pub rms_half_periods: u16,
+
     #[default(40000)]
     pub sps_freq: u32,
+
     #[default(0)]
     pub voltage_channel: usize,
+
     #[default(2442)]
     pub zero_voltage: u16,
+
     #[default(220.)]
     pub reference_voltage: f32,
+
     #[default(877.0)]
     pub reference_voltage_raw: f32,
+
     #[default(2619)]
     pub zero_current: u16,
+
     #[default(2.5)]
     pub reference_current: f32,
+
     #[default(198.)]
     pub reference_current_raw: f32,
 }
+
+////////////////////////////////////////////////////////////////////////////////
 
 fn main() -> anyhow::Result<()> {
     esp_idf_svc::sys::link_patches();
     esp_idf_svc::log::EspLogger::initialize_default();
 
     let app_config = CONFIG;
+
+    // Попытка подключения к WiFi
     let _wifi = connect_wifi(app_config.wifi_ssid, app_config.wifi_psk);
+
+    // Наш HTTP сервер локальный
     let mut server = EspHttpServer::new(&Configuration::default())?;
 
+    // Обработчик корневого пути
     server.fn_handler(
         "/",
         Method::Get,
@@ -79,6 +102,7 @@ fn main() -> anyhow::Result<()> {
         },
     )?;
 
+    // Обработчик выключения
     server.fn_handler(
         "/smart_plug_off",
         Method::Get,
@@ -90,6 +114,7 @@ fn main() -> anyhow::Result<()> {
         },
     )?;
 
+    // Обрбаотчик включения
     server.fn_handler(
         "/smart_plug_on",
         Method::Get,
@@ -101,12 +126,14 @@ fn main() -> anyhow::Result<()> {
         },
     )?;
 
-    // Prevent program from exiting
+    // Не даем программе завершиться с помощью бесконечного сна
     loop {
         info!("Server awaiting connection");
         FreeRtos::delay_ms(60000);
     }
 }
+
+////////////////////////////////////////////////////////////////////////////////
 
 fn smart_plug() -> &'static str {
     let power_relay = RELAY.clone();
