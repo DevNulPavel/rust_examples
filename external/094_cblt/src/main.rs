@@ -1,111 +1,170 @@
-use crate::config::{build_config, Directive};
-use crate::error::CbltError;
-use crate::server::{server_init, Server};
+mod buffer_pool;
+mod config;
+mod directive;
+mod error;
+mod file_server;
+mod request;
+mod response;
+mod reverse_proxy;
+mod server;
+
+////////////////////////////////////////////////////////////////////////////////
+
+use crate::{
+    config::{build_config, Directive},
+    error::CbltError,
+    server::{server_init, Server},
+};
 use anyhow::Context;
 use clap::Parser;
 use kdl::KdlDocument;
 use log::{debug, error, info};
-use std::collections::HashMap;
-use std::str;
+use server::Cert;
+use std::{collections::HashMap, num::NonZeroU16, str};
 use tokio::fs;
 use tokio::runtime::Builder;
-use tracing::instrument;
-use tracing::Level;
-use tracing_subscriber::fmt::format::FmtSpan;
-use tracing_subscriber::FmtSubscriber;
+use tracing::{instrument, Level};
+use tracing_subscriber::{fmt::format::FmtSpan, FmtSubscriber};
 
-mod config;
-mod request;
-mod response;
-
-mod directive;
-
-mod error;
-
-mod file_server;
-mod reverse_proxy;
-
-mod buffer_pool;
-
-mod server;
+////////////////////////////////////////////////////////////////////////////////
 
 #[derive(Parser)]
 #[command(author, version, about, long_about = None)]
 struct Args {
-    /// Configuration file path
-    #[arg(long, default_value = "./Cbltfile")]
+    /// Путь к файлику конфигурации
+    // default_value = "./Cbltfile"
+    #[arg(long)]
     cfg: String,
 
-    /// Maximum number of connections
-    #[arg(long, default_value_t = 10000)]
+    /// Ограничение на максимум подключений
+    // default_value_t = 10000
+    #[arg(long)]
     max_connections: usize,
 }
 
+////////////////////////////////////////////////////////////////////////////////
+
 fn main() -> anyhow::Result<()> {
-    #[cfg(debug_assertions)]
-    only_in_debug();
-    #[cfg(not(debug_assertions))]
-    only_in_production();
+    // Разный код для релизной и тестовой сборки
+    {
+        #[cfg(debug_assertions)]
+        only_in_debug();
+
+        #[cfg(not(debug_assertions))]
+        only_in_production();
+    }
+
+    // Распарсим сразу аргументы
+    let args = Args::parse();
+
+    // Определяем доступную нам многопоточность
     let num_cpus = std::thread::available_parallelism()?.get();
     info!("Workers amount: {}", num_cpus);
+
+    // Создаем рантайм для tokio
     let runtime = Builder::new_multi_thread()
         .worker_threads(num_cpus)
         .enable_all()
         .build()?;
 
+    // Запускаем теперь нашу футуру с сервером непосредственно уже
+    // и ждем завершения
     runtime.block_on(async {
-        server().await?;
+        server(args).await?;
         Ok(())
     })
 }
-async fn server() -> anyhow::Result<()> {
-    let args = Args::parse();
+
+////////////////////////////////////////////////////////////////////////////////
+
+/// Непосредственно сама асинхронная часть кода
+async fn server(args: Args) -> anyhow::Result<()> {
+    // Количество коннектов
     let max_connections: usize = args.max_connections;
     info!("Max connections: {}", max_connections);
 
-    let cbltfile_content = fs::read_to_string(&args.cfg)
-        .await
-        .context("Failed to read Cbltfile")?;
-    let doc: KdlDocument = cbltfile_content.parse()?;
-    let config = build_config(&doc)?;
+    let config = {
+        // Вычитываем файлик с контентом конфига асинхронно
+        // TODO: Хотя можно было бы еще при инициализации это сделать
+        let cbltfile_content = fs::read_to_string(&args.cfg)
+            .await
+            .context("Failed to read Cbltfile")?;
 
+        // Парсим теперь конфиг
+        let doc: KdlDocument = cbltfile_content.parse()?;
+
+        // Текст конфига нам уже не нужен, так что удалим его
+        drop(cbltfile_content);
+
+        // После парсинга можем уже создать конфиг
+        build_config(&doc)?
+    };
+
+    // Маппинг портов в серверы
     let mut servers: HashMap<u16, Server> = HashMap::new(); // Port -> Server
 
-    for (host, directives) in config {
-        let mut port = 80;
-        let mut cert_path = None;
-        let mut key_path = None;
-        directives.iter().for_each(|d| {
+    // Перебираем теперь хосты и настройки из конфига
+    for (host_str, directives) in config {
+        // Просматриваем все директивы для определения
+        // необходимости TLS режима
+        let cert = directives.iter().find_map(|d| {
+            // Есть ли там директива для TLS ?
             if let Directive::Tls { cert, key } = d {
-                port = 443;
-                cert_path = Some(cert.to_string());
-                key_path = Some(key.to_string());
+                // Параметры для TLS
+                let params = Cert {
+                    cert_path: cert.to_string(),
+                    key_path: key.to_string(),
+                };
+
+                Some(params)
+            } else {
+                None
             }
         });
-        let parsed_host = ParsedHost::from_str(&host);
-        let port = parsed_host.port.unwrap_or(port);
-        debug!("Host: {}, Port: {}", host, port);
+
+        // Пробуем распарсить информацию о том, для какого это хоста у нас сделано?
+        let parsed_host = ParsedHost::from_str(&host_str);
+
+        // Определяем точный порт, который будем использовать.
+        // Используем стандартные если не было указано в конфиге.
+        let port = parsed_host.port.unwrap_or_else(|| match &cert {
+            None => 80,
+            Some(_) => 443,
+        });
+
+        // Чисто для отладки
+        debug!("Host: {}, Port: {}", host_str, port);
+
+        // Находим в хешмапе нужный элемент по комеру порта
         servers
             .entry(port)
+            // Затем делаем модификацию параметров уже имеющихся
+            // если что-то уже было
             .and_modify(|s| {
+                // Берем мутабельную ссылку на текущий список хостов
                 let hosts = &mut s.hosts;
-                hosts.insert(host.to_string(), directives.clone());
-                s.cert = cert_path.clone();
-                s.key = key_path.clone();
+
+                // TODO: Проверка дублей?
+                // TODO: Не добавлять ли сюда по host_str?
+                // Добавляем туда еще список директив на память
+                hosts.insert(parsed_host.host.clone(), directives.clone());
+
+                // Обновляем данные по сертификату
+                s.cert = cert.clone();
             })
+            // Либо создаем запись с нуля если нету такой еще
             .or_insert({
+                // Создаем мап с хостами
                 let mut hosts = HashMap::new();
-                let host = parsed_host.host;
-                hosts.insert(host, directives.clone());
-                Server {
-                    port,
-                    hosts,
-                    cert: cert_path,
-                    key: key_path,
-                }
+
+                // Делаем запись с хостом
+                hosts.insert(parsed_host.host, directives);
+
+                Server { port, hosts, cert }
             });
     }
 
+    // Выведем получившийся конфиг конечный для проверки
     debug!("{:#?}", servers);
 
     for (_, server) in servers {

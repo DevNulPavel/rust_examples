@@ -13,11 +13,16 @@ use tokio::sync::Semaphore;
 use tokio_rustls::TlsAcceptor;
 
 #[derive(Debug, Clone)]
+pub(super) struct Cert {
+    pub(super) cert_path: String,
+    pub(super) key_path: String,
+}
+
+#[derive(Debug, Clone)]
 pub struct Server {
     pub port: u16,
     pub hosts: HashMap<String, Vec<Directive>>, // Host -> Directives
-    pub cert: Option<String>,
-    pub key: Option<String>,
+    pub cert: Option<Cert>,
 }
 
 pub async fn server_init(server: &Server, max_connections: usize) -> Result<(), CbltError> {
