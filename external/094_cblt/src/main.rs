@@ -167,8 +167,12 @@ async fn server(args: Args) -> anyhow::Result<()> {
     // Выведем получившийся конфиг конечный для проверки
     debug!("{:#?}", servers);
 
+    // Перебираем теперь полученные серверы для обработки
     for (_, server) in servers {
+        // Каждый из этих серверов для обработки будем выполнять в отдельной корутине
         tokio::spawn(async move {
+            // TODO: Рестарт при ошибке?
+            // Запускаем в обработку теперь отдельный адрес
             match server_init(&server, max_connections).await {
                 Ok(_) => {}
                 Err(err) => {
@@ -178,30 +182,43 @@ async fn server(args: Args) -> anyhow::Result<()> {
         });
     }
     info!("CBLT started");
+
+    // Ждем завершения работы в главной корутине
     tokio::signal::ctrl_c().await?;
     info!("CBLT stopped");
 
     Ok(())
 }
 
-#[allow(dead_code)]
+////////////////////////////////////////////////////////////////////////////////
+
+/// Настройка в отладочной сборке
+#[cfg(debug_assertions)]
 pub fn only_in_debug() {
+    // Создаем логгер в отладочном режиме
     let _ =
         env_logger::Builder::from_env(env_logger::Env::new().default_filter_or("debug")).try_init();
+
+    // Поддержка tracing
     let subscriber = FmtSubscriber::builder()
         .with_max_level(Level::TRACE) // Set the maximum log level
         .with_span_events(FmtSpan::CLOSE)
         .finish();
+
+    // Устанавливаем обработчик
     tracing::subscriber::set_global_default(subscriber).expect("Failed to set subscriber");
 }
 
-#[allow(dead_code)]
+/// Настройка для релизной сборки
+#[cfg(not(debug_assertions))]
 fn only_in_production() {
     let _ =
         env_logger::Builder::from_env(env_logger::Env::new().default_filter_or("info")).try_init();
 }
 
-#[cfg_attr(debug_assertions, instrument(level = "trace", skip_all))]
+////////////////////////////////////////////////////////////////////////////////
+
+/* #[cfg_attr(debug_assertions, instrument(level = "trace", skip_all))]
 fn matches_pattern(pattern: &str, path: &str) -> bool {
     if pattern == "*" {
         true
@@ -211,7 +228,9 @@ fn matches_pattern(pattern: &str, path: &str) -> bool {
     } else {
         pattern == path
     }
-}
+} */
+
+////////////////////////////////////////////////////////////////////////////////
 
 pub struct ParsedHost {
     pub host: String,

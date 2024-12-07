@@ -1,16 +1,14 @@
-use crate::buffer_pool::BufferPool;
-use crate::config::Directive;
-use crate::directive::directive_process;
-use crate::error::CbltError;
-use crate::request::BUF_SIZE;
+use crate::{
+    buffer_pool::BufferPool, config::Directive, directive::directive_process, error::CbltError,
+    request::BUF_SIZE,
+};
 use log::{error, info};
-use rustls::pki_types::pem::PemObject;
-use rustls::pki_types::{CertificateDer, PrivateKeyDer};
-use std::collections::HashMap;
-use std::sync::Arc;
-use tokio::net::TcpListener;
-use tokio::sync::Semaphore;
+use rustls::pki_types::{pem::PemObject, CertificateDer, PrivateKeyDer};
+use std::{collections::HashMap, sync::Arc};
+use tokio::{net::TcpListener, sync::Semaphore};
 use tokio_rustls::TlsAcceptor;
+
+////////////////////////////////////////////////////////////////////////////////
 
 #[derive(Debug, Clone)]
 pub(super) struct Cert {
