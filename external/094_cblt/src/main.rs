@@ -3,6 +3,7 @@ mod config;
 mod directive;
 mod error;
 mod file_server;
+mod host;
 mod request;
 mod response;
 mod reverse_proxy;
@@ -17,6 +18,7 @@ use crate::{
 };
 use anyhow::Context;
 use clap::Parser;
+use host::ParsedHost;
 use kdl::KdlDocument;
 use log::{debug, error, info};
 use server::Cert;
@@ -123,7 +125,7 @@ async fn server(args: Args) -> anyhow::Result<()> {
         });
 
         // Пробуем распарсить информацию о том, для какого это хоста у нас сделано?
-        let parsed_host = ParsedHost::from_str(&host_str);
+        let parsed_host = ParsedHost::try_from_str(&host_str)?;
 
         // Определяем точный порт, который будем использовать.
         // Используем стандартные если не было указано в конфиге.
@@ -147,7 +149,7 @@ async fn server(args: Args) -> anyhow::Result<()> {
                 // TODO: Проверка дублей?
                 // TODO: Не добавлять ли сюда по host_str?
                 // Добавляем туда еще список директив на память
-                hosts.insert(parsed_host.host.clone(), directives.clone());
+                hosts.insert(parsed_host.host.to_string(), directives.clone());
 
                 // Обновляем данные по сертификату
                 s.cert = cert.clone();
@@ -158,7 +160,7 @@ async fn server(args: Args) -> anyhow::Result<()> {
                 let mut hosts = HashMap::new();
 
                 // Делаем запись с хостом
-                hosts.insert(parsed_host.host, directives);
+                hosts.insert(parsed_host.host.to_string(), directives);
 
                 Server { port, hosts, cert }
             });
@@ -229,27 +231,3 @@ fn matches_pattern(pattern: &str, path: &str) -> bool {
         pattern == path
     }
 } */
-
-////////////////////////////////////////////////////////////////////////////////
-
-pub struct ParsedHost {
-    pub host: String,
-    pub port: Option<u16>,
-}
-
-impl ParsedHost {
-    fn from_str(host_str: &str) -> Self {
-        if let Some((host_part, port_part)) = host_str.split_once(':') {
-            let port = port_part.parse().ok();
-            ParsedHost {
-                host: host_part.to_string(),
-                port,
-            }
-        } else {
-            ParsedHost {
-                host: host_str.to_string(),
-                port: None,
-            }
-        }
-    }
-}
