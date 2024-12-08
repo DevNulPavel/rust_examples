@@ -1,77 +1,153 @@
-use crate::buffer_pool::SmartVector;
-use crate::error::CbltError;
-use http::Version;
-use http::{Request, StatusCode};
+use crate::{buffer_pool::SmartVector, error::CbltError};
+use http::{Request, StatusCode, Version};
 use httparse::Status;
 use log::debug;
 use std::str;
 use tokio::io::{AsyncReadExt, AsyncWriteExt};
 use tracing::instrument;
 
-pub const BUF_SIZE: usize = 8192;
-pub const STATIC_BUF_SIZE: usize = 1024;
-pub const HEADER_BUF_SIZE: usize = 32;
+////////////////////////////////////////////////////////////////////////////////
+
+/// Размер буфера
+pub(super) const BUF_SIZE: usize = 8192;
+
+// TODO: ???
+/// Размер буфера на стеке?
+pub(super) const STATIC_BUF_SIZE: usize = 1024;
+
+/// Буфер для заголовков на стеке
+pub(super) const HEADER_BUF_SIZE: usize = 32;
+
+////////////////////////////////////////////////////////////////////////////////
+
 #[cfg_attr(debug_assertions, instrument(level = "trace", skip_all))]
-pub async fn socket_to_request<S>(
+pub(super) async fn socket_to_request<S>(
     socket: &mut S,
-    buffer: &SmartVector,
+    buffer: &mut SmartVector,
 ) -> Result<Request<Vec<u8>>, CbltError>
 where
     S: AsyncReadExt + AsyncWriteExt + Unpin,
 {
-    let mut buf = buffer.lock().await;
+    // let mut buf = buffer.lock().await;
     loop {
+        // Создаем небольшой буфер на стеке для удобства работы
         let mut temp_buf = [0; STATIC_BUF_SIZE];
+
+        // Пробуем читать данные из сокета теперь
         let bytes_read = socket.read(&mut temp_buf).await.unwrap_or(0);
+
+        // Если нам прилетело 0 данных, то это значит, что сокет уже закрыт
         if bytes_read == 0 {
-            break; // Connection closed
+            // Так что прервем работу
+            break;
         }
-        buf.extend_from_slice(&temp_buf[..bytes_read]);
 
-        // Try to parse the headers
+        // Увеличиваем размер общего буффера на размер полученных данных
+        buffer.extend_from_slice(&temp_buf[..bytes_read]);
+
+        // Больше нам не нужен тот буфер стеке
+        drop(temp_buf);
+
+        // Создаем на стеке еще буфер для парсинга заголовков будущих
         let mut headers = [httparse::EMPTY_HEADER; HEADER_BUF_SIZE];
-        let mut req = httparse::Request::new(&mut headers);
 
-        match req.parse(&buf) {
+        // Создаем прилетевший запрос со слайсом в виде буфера
+        // Теперь пробуем распарсить накопленные данные в виде запроса
+        let request_parse_result = httparse::Request::new(&mut headers).parse(&buffer);
+
+        // Смотрим на успешность парсинга
+        match request_parse_result {
+            // Завершился успешно парсинг,
+            // прилетает смещение от начала буферов где
+            // заканчиваются данные после всех заголовков
             Ok(Status::Complete(header_len)) => {
-                // Headers parsed successfully
-                let req_str = match str::from_utf8(&buf[..header_len]) {
+                let req_body_slice =
+                    buffer
+                        .get(..header_len)
+                        .ok_or_else(|| CbltError::RequestError {
+                            status_code: StatusCode::INTERNAL_SERVER_ERROR,
+                            details: "Invalid slice".to_string(),
+                        })?;
+
+                // Теперь получаем уже тело запроса без заголовков
+                let req_str = match str::from_utf8(req_body_slice) {
+                    // Успешно распарсилось
                     Ok(v) => v,
+                    // Ошибка парсинга тела, это не строка, а бинарные данные
                     Err(_) => {
                         return Err(CbltError::RequestError {
-                            details: "Bad request".to_string(),
                             status_code: StatusCode::BAD_REQUEST,
+                            details: "Bad request".to_string(),
                         });
                     }
                 };
 
-                // Parse the request headers and get Content-Length
+                // Пробуем распарсить заголовки запроса и получить `Content-Length`
+                // заголовок.
                 let (mut request, content_length) = match parse_request_headers(req_str) {
+                    // Смогли распарсить запрос и длину
                     Some((req, content_length)) => (req, content_length),
+                    // Не смогли распарсить
                     None => {
                         return Err(CbltError::RequestError {
-                            details: "Bad request".to_string(),
                             status_code: StatusCode::BAD_REQUEST,
+                            details: "Bad request".to_string(),
                         });
                     }
                 };
 
+                // Есть ли заголовок с конкретным размером контента?
                 if let Some(content_length) = content_length {
-                    let mut body = buf[header_len..].to_vec();
-                    let mut temp_buf = vec![0; content_length - body.len()];
+                    // TODO: Зачем аллоцировать вектор?
+                    // Получаем теперь тело непосредственно в виде аллоцированных данных
+                    let mut body = buffer
+                        .get(header_len..)
+                        .ok_or_else(|| CbltError::RequestError {
+                            status_code: StatusCode::INTERNAL_SERVER_ERROR,
+                            details: "Invalid slice".to_string(),
+                        })?
+                        .to_vec();
 
+                    // TODO: Какой-то временный буффер, зачем?
+                    // TODO: Поменять на статический на стеке?
+                    let mut temp_buf_inner = [0_u8; STATIC_BUF_SIZE];
+
+                    // Пока не достигли ожидаемого размера тела
+                    // продолжаем получать данные. Так может быть
+                    // если тело запроса достаточно большое, поэтому нам
+                    // надо поддгружать данные еще.
                     while body.len() < content_length {
-                        let bytes_read = socket.read(&mut temp_buf).await.unwrap_or(0);
+                        // Вычитываем продолжение данных
+                        let bytes_read = socket.read(&mut temp_buf_inner).await.unwrap_or(0);
+
+                        // Если дальше не прочитать данные, то это значит,
+                        // что сокет закрылся в процессе подгрузки
                         if bytes_read == 0 {
                             break;
                         }
-                        body.extend_from_slice(&temp_buf[..bytes_read]);
+
+                        // Получаем слайс на реальные данные подгруженные
+                        // в этот раз
+                        let read_slice =
+                            temp_buf
+                                .get(..bytes_read)
+                                .ok_or_else(|| CbltError::RequestError {
+                                    status_code: StatusCode::INTERNAL_SERVER_ERROR,
+                                    details: "Invalid slice".to_string(),
+                                })?;
+
+                        // Добавляем их в общий буфер
+                        body.extend_from_slice(read_slice);
                     }
 
+                    // Получили теперь все данные тела, так что теперь можем эти
+                    // данные сохранить у запроса.
                     *request.body_mut() = body;
                 }
+
                 #[cfg(debug_assertions)]
                 debug!("{:?}", request);
+
                 return Ok(request);
             }
             Ok(Status::Partial) => {
@@ -94,7 +170,7 @@ where
 }
 
 #[cfg_attr(debug_assertions, instrument(level = "trace", skip_all))]
-pub fn parse_request_headers(req_str: &str) -> Option<(Request<Vec<u8>>, Option<usize>)> {
+pub(super) fn parse_request_headers(req_str: &str) -> Option<(Request<Vec<u8>>, Option<usize>)> {
     let mut headers = [httparse::EMPTY_HEADER; 32];
     let mut req = httparse::Request::new(&mut headers);
 
