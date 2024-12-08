@@ -2,6 +2,7 @@ use crate::error::CbltError;
 use kdl::KdlDocument;
 use log::debug;
 use std::collections::HashMap;
+use std::path::PathBuf;
 
 #[derive(Debug, Clone)]
 pub enum Directive {
@@ -18,8 +19,8 @@ pub enum Directive {
         destination: String,
     },
     Tls {
-        cert: String,
-        key: String,
+        cert: PathBuf,
+        key: PathBuf,
     },
 }
 

@@ -1,22 +1,29 @@
-use crate::buffer_pool::SmartVector;
-use crate::config::Directive;
-use crate::error::CbltError;
-use crate::request::socket_to_request;
-use crate::response::{error_response, log_request_response, send_response};
-use crate::server::Server;
-use crate::{file_server, matches_pattern, reverse_proxy};
+use crate::{
+    buffer_pool::SmartVector,
+    config::Directive,
+    error::CbltError,
+    file_server,
+    helpers::matches_pattern,
+    request::socket_to_request,
+    response::{error_response, log_request_response, send_response},
+    reverse_proxy,
+    server::ServerConfig,
+};
 use http::{Response, StatusCode};
 use log::{debug, info};
 use reqwest::Client;
 use tokio::io::{AsyncReadExt, AsyncWriteExt};
 use tracing::instrument;
 
+////////////////////////////////////////////////////////////////////////////////
+
+// TODO: Не использовать Arc для вектора буфера
 #[cfg_attr(debug_assertions, instrument(level = "trace", skip_all))]
 pub async fn directive_process<S>(
     socket: &mut S,
-    server: &Server,
-    buffer: SmartVector,
-    client_reqwest: Client,
+    server: &ServerConfig,
+    buffer: &mut SmartVector,
+    client_reqwest: &Client,
 ) -> Result<(), CbltError>
 where
     S: AsyncReadExt + AsyncWriteExt + Unpin,

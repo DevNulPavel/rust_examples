@@ -14,7 +14,7 @@ pub const HEADER_BUF_SIZE: usize = 32;
 #[cfg_attr(debug_assertions, instrument(level = "trace", skip_all))]
 pub async fn socket_to_request<S>(
     socket: &mut S,
-    buffer: SmartVector,
+    buffer: &SmartVector,
 ) -> Result<Request<Vec<u8>>, CbltError>
 where
     S: AsyncReadExt + AsyncWriteExt + Unpin,

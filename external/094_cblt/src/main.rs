@@ -3,6 +3,7 @@ mod config;
 mod directive;
 mod error;
 mod file_server;
+mod helpers;
 mod host;
 mod request;
 mod response;
@@ -14,7 +15,7 @@ mod server;
 use crate::{
     config::{build_config, Directive},
     error::CbltError,
-    server::{server_init, Server},
+    server::{server_init, ServerConfig},
 };
 use anyhow::Context;
 use clap::Parser;
@@ -103,7 +104,7 @@ async fn server(args: Args) -> anyhow::Result<()> {
     };
 
     // Маппинг портов в серверы
-    let mut servers: HashMap<u16, Server> = HashMap::new(); // Port -> Server
+    let mut servers: HashMap<u16, ServerConfig> = HashMap::new(); // Port -> Server
 
     // Перебираем теперь хосты и настройки из конфига
     for (host_str, directives) in config {
@@ -113,9 +114,10 @@ async fn server(args: Args) -> anyhow::Result<()> {
             // Есть ли там директива для TLS ?
             if let Directive::Tls { cert, key } = d {
                 // Параметры для TLS
+                // TODO: Нужны ли клонирования?
                 let params = Cert {
-                    cert_path: cert.to_string(),
-                    key_path: key.to_string(),
+                    cert_path: cert.clone(),
+                    key_path: key.clone(),
                 };
 
                 Some(params)
@@ -162,7 +164,7 @@ async fn server(args: Args) -> anyhow::Result<()> {
                 // Делаем запись с хостом
                 hosts.insert(parsed_host.host.to_string(), directives);
 
-                Server { port, hosts, cert }
+                ServerConfig { port, hosts, cert }
             });
     }
 
@@ -175,7 +177,7 @@ async fn server(args: Args) -> anyhow::Result<()> {
         tokio::spawn(async move {
             // TODO: Рестарт при ошибке?
             // Запускаем в обработку теперь отдельный адрес
-            match server_init(&server, max_connections).await {
+            match server_init(server, max_connections).await {
                 Ok(_) => {}
                 Err(err) => {
                     error!("Error: {}", err);
@@ -217,17 +219,3 @@ fn only_in_production() {
     let _ =
         env_logger::Builder::from_env(env_logger::Env::new().default_filter_or("info")).try_init();
 }
-
-////////////////////////////////////////////////////////////////////////////////
-
-/* #[cfg_attr(debug_assertions, instrument(level = "trace", skip_all))]
-fn matches_pattern(pattern: &str, path: &str) -> bool {
-    if pattern == "*" {
-        true
-    } else if pattern.ends_with("*") {
-        let prefix = &pattern[..pattern.len() - 1];
-        path.starts_with(prefix)
-    } else {
-        pattern == path
-    }
-} */

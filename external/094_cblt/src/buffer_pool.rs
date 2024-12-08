@@ -4,7 +4,7 @@ use tokio::sync::Mutex;
 ////////////////////////////////////////////////////////////////////////////////
 
 /// Удобный дефайн для вектора данных с блокировкой
-pub(super) type SmartVector = Arc<Mutex<Vec<u8>>>;
+pub(super) type SmartVector = Vec<u8>;
 
 ////////////////////////////////////////////////////////////////////////////////
 
@@ -25,7 +25,7 @@ impl BufferPool {
             .map(|_| {
                 // Создаем теперь сразу же буфер нужного предаллоцированного
                 // размера, делаем обертку над данными
-                Arc::new(Mutex::new(Vec::with_capacity(buffer_size)))
+                Vec::with_capacity(buffer_size)
             })
             .collect();
 
@@ -49,7 +49,7 @@ impl BufferPool {
             drop(pool_lock);
 
             // Создаем тогда новый буфер
-            Arc::new(Mutex::new(Vec::with_capacity(self.buffer_size)))
+            Vec::with_capacity(self.buffer_size)
         }
     }
 
@@ -59,25 +59,25 @@ impl BufferPool {
         let mut pool_lock = self.pool.lock().await;
 
         // Берем блокировку на отдельном возвращаемом буфере
-        let buffer_lock = buffer.lock().await;
+        // let buffer_lock = buffer.lock().await;
 
         // Емкость возвращаемого буфера у нас сейчас больше,
         // чем рекомендуемый размер буфера
-        if buffer_lock.capacity() > self.buffer_size {
+        if buffer.capacity() > self.buffer_size {
             // TODO: Правильнее было бы просто урезать размер буфера, а не переаллоцировать
 
             // Уничтожаем поэтому возвращаемый буфер
-            drop(buffer_lock);
+            // drop(buffer_lock);
             drop(buffer);
 
             // Создаем новый
-            let new_buffer = Arc::new(Mutex::new(Vec::with_capacity(self.buffer_size)));
+            let new_buffer = Vec::with_capacity(self.buffer_size);
 
             // И новый буффер уже сохраняем
             pool_lock.push(new_buffer)
         } else {
             // Снимаем блокировку
-            drop(buffer_lock);
+            // drop(buffer_lock);
 
             // Созвращаем буфер просто назад в пул
             pool_lock.push(buffer)
