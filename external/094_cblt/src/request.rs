@@ -48,12 +48,14 @@ where
         // Больше нам не нужен тот буфер стеке
         drop(temp_buf);
 
-        // Создаем на стеке еще буфер для парсинга заголовков будущих
-        let mut headers = [httparse::EMPTY_HEADER; HEADER_BUF_SIZE];
-
         // Создаем прилетевший запрос со слайсом в виде буфера
-        // Теперь пробуем распарсить накопленные данные в виде запроса
-        let request_parse_result = httparse::Request::new(&mut headers).parse(&buffer);
+        let request_parse_result = {
+            // Создаем на стеке еще буфер для парсинга заголовков будущих
+            let mut headers = [httparse::EMPTY_HEADER; HEADER_BUF_SIZE];
+
+            // Теперь пробуем распарсить накопленные данные в виде запроса
+            httparse::Request::new(&mut headers).parse(&buffer)
+        };
 
         // Смотрим на успешность парсинга
         let header_len = match request_parse_result {
@@ -176,22 +178,34 @@ where
 
 ////////////////////////////////////////////////////////////////////////////////
 
-ПРОДОЛЖАЕМ ТУТ
+/// Парсим входящие заголовки
 #[cfg_attr(debug_assertions, instrument(level = "trace", skip_all))]
 pub(super) fn parse_request_headers(req_str: &str) -> Option<(Request<Vec<u8>>, Option<usize>)> {
-    let mut headers = [httparse::EMPTY_HEADER; 32];
+    // TODO: Повторное создание на стеке массива заголовков
+    // а так же парсинг
+
+    // Заголовки на стеке
+    let mut headers = [httparse::EMPTY_HEADER; HEADER_BUF_SIZE];
+
+    // Формируем запрос в котором будут результаты
     let mut req = httparse::Request::new(&mut headers);
 
     match req.parse(req_str.as_bytes()) {
         Ok(Status::Complete(_)) => {
+            // TODO: Надо ли здесь при повторной проверке проверить смещение результирующее?
+
+            // Получаем метод и путь из результатов парсинга
             let method = req.method?;
             let path = req.path?;
+
+            // Узнаем версию протокола
             let version = match req.version? {
                 0 => Version::HTTP_10,
                 1 => Version::HTTP_11,
                 _ => return None,
             };
 
+            // Создаем новый билдер запросов из reqwest
             let mut builder = Request::builder().method(method).uri(path).version(version);
 
             let mut content_length = None;
@@ -230,13 +244,15 @@ mod tests {
     fn test_simple() -> Result<(), Box<dyn Error>> {
         only_in_debug();
 
-        let request_str = "POST /submit HTTP/1.1\r\n\
-Host: example.com\r\n\
-User-Agent: curl/7.68.0\r\n\
-Accept: */*\r\n\
-Content-Type: application/json\r\n\
-Content-Length: 15\r\n\r\n\
-{\"key\":\"value\"}";
+        let request_str = "\
+            POST /submit HTTP/1.1\r\n\
+            Host: example.com\r\n\
+            User-Agent: curl/7.68.0\r\n\
+            Accept: */*\r\n\
+            Content-Type: application/json\r\n\
+            Content-Length: 15\r\n\r\n\
+            {\"key\":\"value\"}\
+        ";
 
         let req = parse_request_headers(request_str);
         println!("{:#?}", req);

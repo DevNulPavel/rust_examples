@@ -28,7 +28,10 @@ pub async fn directive_process<S>(
 where
     S: AsyncReadExt + AsyncWriteExt + Unpin,
 {
-    match socket_to_request(socket, buffer).await {
+    // Пробуем получить запрос теперь
+    let convert_res = socket_to_request(socket, buffer).await;
+
+    match convert_res {
         Err(_) => {
             let response = error_response(StatusCode::BAD_REQUEST);
             let ret = send_response(socket, response).await;
