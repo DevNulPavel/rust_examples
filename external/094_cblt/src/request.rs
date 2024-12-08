@@ -56,119 +56,127 @@ where
         let request_parse_result = httparse::Request::new(&mut headers).parse(&buffer);
 
         // Смотрим на успешность парсинга
-        match request_parse_result {
+        let header_len = match request_parse_result {
             // Завершился успешно парсинг,
             // прилетает смещение от начала буферов где
             // заканчиваются данные после всех заголовков
-            Ok(Status::Complete(header_len)) => {
-                let req_body_slice =
-                    buffer
-                        .get(..header_len)
-                        .ok_or_else(|| CbltError::RequestError {
-                            status_code: StatusCode::INTERNAL_SERVER_ERROR,
-                            details: "Invalid slice".to_string(),
-                        })?;
-
-                // Теперь получаем уже тело запроса без заголовков
-                let req_str = match str::from_utf8(req_body_slice) {
-                    // Успешно распарсилось
-                    Ok(v) => v,
-                    // Ошибка парсинга тела, это не строка, а бинарные данные
-                    Err(_) => {
-                        return Err(CbltError::RequestError {
-                            status_code: StatusCode::BAD_REQUEST,
-                            details: "Bad request".to_string(),
-                        });
-                    }
-                };
-
-                // Пробуем распарсить заголовки запроса и получить `Content-Length`
-                // заголовок.
-                let (mut request, content_length) = match parse_request_headers(req_str) {
-                    // Смогли распарсить запрос и длину
-                    Some((req, content_length)) => (req, content_length),
-                    // Не смогли распарсить
-                    None => {
-                        return Err(CbltError::RequestError {
-                            status_code: StatusCode::BAD_REQUEST,
-                            details: "Bad request".to_string(),
-                        });
-                    }
-                };
-
-                // Есть ли заголовок с конкретным размером контента?
-                if let Some(content_length) = content_length {
-                    // TODO: Зачем аллоцировать вектор?
-                    // Получаем теперь тело непосредственно в виде аллоцированных данных
-                    let mut body = buffer
-                        .get(header_len..)
-                        .ok_or_else(|| CbltError::RequestError {
-                            status_code: StatusCode::INTERNAL_SERVER_ERROR,
-                            details: "Invalid slice".to_string(),
-                        })?
-                        .to_vec();
-
-                    // TODO: Какой-то временный буффер, зачем?
-                    // TODO: Поменять на статический на стеке?
-                    let mut temp_buf_inner = [0_u8; STATIC_BUF_SIZE];
-
-                    // Пока не достигли ожидаемого размера тела
-                    // продолжаем получать данные. Так может быть
-                    // если тело запроса достаточно большое, поэтому нам
-                    // надо поддгружать данные еще.
-                    while body.len() < content_length {
-                        // Вычитываем продолжение данных
-                        let bytes_read = socket.read(&mut temp_buf_inner).await.unwrap_or(0);
-
-                        // Если дальше не прочитать данные, то это значит,
-                        // что сокет закрылся в процессе подгрузки
-                        if bytes_read == 0 {
-                            break;
-                        }
-
-                        // Получаем слайс на реальные данные подгруженные
-                        // в этот раз
-                        let read_slice =
-                            temp_buf
-                                .get(..bytes_read)
-                                .ok_or_else(|| CbltError::RequestError {
-                                    status_code: StatusCode::INTERNAL_SERVER_ERROR,
-                                    details: "Invalid slice".to_string(),
-                                })?;
-
-                        // Добавляем их в общий буфер
-                        body.extend_from_slice(read_slice);
-                    }
-
-                    // Получили теперь все данные тела, так что теперь можем эти
-                    // данные сохранить у запроса.
-                    *request.body_mut() = body;
-                }
-
-                #[cfg(debug_assertions)]
-                debug!("{:?}", request);
-
-                return Ok(request);
-            }
+            Ok(Status::Complete(header_len)) => header_len,
+            // Данных пока недостаточно, идем дальше догружать
             Ok(Status::Partial) => {
                 // Need to read more data
                 continue;
             }
+            // Вообще ошибка парсинга какая-то
             Err(_) => {
                 return Err(CbltError::RequestError {
                     details: "Bad request".to_string(),
                     status_code: StatusCode::BAD_REQUEST,
                 });
             }
+        };
+
+        // Слайс на данные
+        let req_body_slice = buffer
+            .get(..header_len)
+            .ok_or_else(|| CbltError::RequestError {
+                status_code: StatusCode::INTERNAL_SERVER_ERROR,
+                details: "Invalid slice".to_string(),
+            })?;
+
+        // Теперь получаем уже тело запроса без заголовков
+        let req_str = match str::from_utf8(req_body_slice) {
+            // Успешно распарсилось
+            Ok(v) => v,
+            // Ошибка парсинга тела, это не строка, а бинарные данные
+            Err(_) => {
+                return Err(CbltError::RequestError {
+                    status_code: StatusCode::BAD_REQUEST,
+                    details: "Bad request".to_string(),
+                });
+            }
+        };
+
+        // Пробуем распарсить заголовки запроса и получить `Content-Length`
+        // заголовок.
+        let (mut request, content_length) = match parse_request_headers(req_str) {
+            // Смогли распарсить запрос и длину
+            Some((req, content_length)) => (req, content_length),
+            // Не смогли распарсить
+            None => {
+                return Err(CbltError::RequestError {
+                    status_code: StatusCode::BAD_REQUEST,
+                    details: "Bad request".to_string(),
+                });
+            }
+        };
+
+        // Есть ли заголовок с конкретным размером контента?
+        if let Some(content_length) = content_length {
+            // TODO: Зачем аллоцировать вектор?
+            // Получаем теперь тело непосредственно в виде аллоцированных данных
+            let mut body = buffer
+                .get(header_len..)
+                .ok_or_else(|| CbltError::RequestError {
+                    status_code: StatusCode::INTERNAL_SERVER_ERROR,
+                    details: "Invalid slice".to_string(),
+                })?
+                .to_vec();
+
+            // TODO: Какой-то временный буффер, зачем?
+            // TODO: Поменять на статический на стеке?
+            let mut temp_buf_inner = [0_u8; STATIC_BUF_SIZE];
+
+            // Пока не достигли ожидаемого размера тела
+            // продолжаем получать данные. Так может быть
+            // если тело запроса достаточно большое, поэтому нам
+            // надо поддгружать данные еще.
+            while body.len() < content_length {
+                // Вычитываем продолжение данных
+                let bytes_read = socket.read(&mut temp_buf_inner).await.unwrap_or(0);
+
+                // Если дальше не прочитать данные, то это значит,
+                // что сокет закрылся в процессе подгрузки
+                if bytes_read == 0 {
+                    break;
+                }
+
+                // Получаем слайс на реальные данные подгруженные
+                // в этот раз
+                let read_slice =
+                    temp_buf
+                        .get(..bytes_read)
+                        .ok_or_else(|| CbltError::RequestError {
+                            status_code: StatusCode::INTERNAL_SERVER_ERROR,
+                            details: "Invalid slice".to_string(),
+                        })?;
+
+                // Добавляем их в общий буфер
+                body.extend_from_slice(read_slice);
+            }
+
+            // Получили теперь все данные тела, так что теперь можем эти
+            // данные сохранить у запроса.
+            *request.body_mut() = body;
         }
+
+        // Для отладочных целей выведем запрос
+        #[cfg(debug_assertions)]
+        debug!("{:?}", request);
+
+        return Ok(request);
     }
 
-    return Err(CbltError::ResponseError {
+    // Если не получилось обработать нормально в цикле -
+    // тогда кидаем ошибку
+    Err(CbltError::ResponseError {
         details: "Bad request".to_string(),
         status_code: StatusCode::BAD_REQUEST,
-    });
+    })
 }
 
+////////////////////////////////////////////////////////////////////////////////
+
+ПРОДОЛЖАЕМ ТУТ
 #[cfg_attr(debug_assertions, instrument(level = "trace", skip_all))]
 pub(super) fn parse_request_headers(req_str: &str) -> Option<(Request<Vec<u8>>, Option<usize>)> {
     let mut headers = [httparse::EMPTY_HEADER; 32];
