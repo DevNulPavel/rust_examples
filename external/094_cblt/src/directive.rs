@@ -108,16 +108,21 @@ where
     // Перебираем теперь директивы в конфиге
     for directive in host_config.iter() {
         match directive {
+            // Директива обработки корня
             Directive::Root { pattern, path } => {
                 #[cfg(debug_assertions)]
                 debug!("Root: {} -> {}", pattern, path);
+
+                // Сохраняем корневой путь теперь при соответствии
                 if matches_pattern(pattern, request.uri().path()) {
                     root_path = Some(path);
                 }
             }
+            // Директива обработки файлового сервера
             Directive::FileServer => {
                 #[cfg(debug_assertions)]
                 debug!("File server");
+                
                 let ret = file_server::file_directive(root_path, &request, socket).await;
                 match ret {
                     Ok(_) => {
