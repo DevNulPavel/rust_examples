@@ -1,0 +1,4 @@
+/target
+
+# Игнорирование OSX
+.DS_Store
