@@ -1,14 +1,11 @@
-mod error;
-mod transport;
-
 ////////////////////////////////////////////////////////////////////////////////
 
-use crate::{error::P2PError, transport::create_transport};
 use async_trait::async_trait;
 use libp2p::{
     identity, request_response::Config as RequestResponseConfig, swarm::handler::ProtocolSupport,
     PeerId, Swarm, Transport,
 };
+use libp2p_research::{error::P2PError, transport::create_transport};
 use serde::{Deserialize, Serialize};
 use std::path::Path;
 
@@ -16,35 +13,7 @@ use std::path::Path;
 
 /// Начало работы приложения
 fn main() {
-    // Генерируем пару открытых и закрытых ключей с помощью OpenSSL алгоритмом ed25519
-    let local_key = identity::Keypair::generate_ed25519();
 
-    // Создаем теперь на основании этой самой пары ключей непосредственно идентификатор текущего пира
-    let local_peer_id = {
-        // Создавать идентификатор пира будем с
-        // помощью публичного ключа из пары ключей
-        let public_key = local_key.public();
-
-        // Создаем идентификатор пира
-        PeerId::from_public_key(&public_key)
-    };
-
-    // Сразу же выведем для мониторинга идентификатор нашего пира
-    println!("Local peer id: {:?}", local_peer_id);
-
-    // Создаём транспорт
-    let transport = create_transport(&local_key);
-
-    // Настраиваем протокол обмена файлами
-    let request_response_behaviour = {
-        let protocols = std::iter::once((FileProtocolName, ProtocolSupport::Full));
-        let codec = FileCodec();
-        let cfg = RequestResponseConfig::default();
-        libp2p::request_response::Behaviour::with_codec(codec, protocols, cfg)
-    };
-
-    // Создаём Swarm
-    let mut swarm = Swarm::new(transport, request_response_behaviour, local_peer_id);
 
     // Слушаем на всех доступных интерфейсах и портах
     swarm.listen_on("/ip4/0.0.0.0/tcp/0".parse()?)?;
