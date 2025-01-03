@@ -1,10 +1,10 @@
 use async_trait::async_trait;
-use futures::{AsyncBufRead, AsyncRead, AsyncReadExt};
+use futures::{AsyncRead, AsyncReadExt};
 use libp2p::request_response::Codec;
 use serde::{Deserialize, Serialize};
 use std::{
     io::{Error as IoError, ErrorKind as IoErrorKind},
-    path::{Path, PathBuf},
+    path::PathBuf,
 };
 
 ////////////////////////////////////////////////////////////////////////////////
