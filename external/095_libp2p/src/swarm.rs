@@ -1,25 +1,28 @@
-////////////////////////////////////////////////////////////////////////////////
-
 use crate::{
     codec::{CodecProtocolName, FileCodec},
     error::P2PError,
     transport::create_transport,
 };
-use async_trait::async_trait;
 use libp2p::{
     identity,
-    multiaddr::Protocol,
-    request_response::{Codec, Config as RequestResponseConfig},
-    swarm::handler::ProtocolSupport,
-    PeerId, Swarm, Transport,
+    request_response::{Behaviour, Config as RequestResponseConfig},
+    swarm::{handler::ProtocolSupport, Config as SwarmConfig},
+    PeerId, Swarm,
 };
-use serde::{Deserialize, Serialize};
-use std::path::Path;
 
 ////////////////////////////////////////////////////////////////////////////////
 
+/// Публичный удобный тип
+pub type SwarmP2PType = Swarm<Behaviour<FileCodec>>;
+
+////////////////////////////////////////////////////////////////////////////////
+
+/// Результат создания Swarm
 pub struct SwarmCreateResult {
-    pub swarm: Swarm<()>,
+    /// Сам Swarm
+    pub swarm: SwarmP2PType,
+
+    /// С каким идентификатором пира было создано
     pub peer_id: PeerId,
 }
 
@@ -31,7 +34,7 @@ pub fn create_swarm() -> Result<SwarmCreateResult, P2PError> {
     let local_key = identity::Keypair::generate_ed25519();
 
     // Создаем теперь на основании этой самой пары ключей непосредственно идентификатор текущего пира
-    let local_peer_id = {
+    let peer_id = {
         // Создавать идентификатор пира будем с
         // помощью публичного ключа из пары ключей
         let public_key = local_key.public();
@@ -48,20 +51,29 @@ pub fn create_swarm() -> Result<SwarmCreateResult, P2PError> {
 
     // Настраиваем протокол обмена файлами
     let request_response_behaviour = {
+        // Создаем кодек для протокола нашего
         let codec = FileCodec::new();
 
-        // TODO: Можно ли как-то получать имя из типа сразу же?
+        // Пробуем получить сразу же имя протокола
         let protocol_name = codec.get_protocol_name();
 
+        // TODO: Список протоколов, правда идея не до конца понятна
         let protocols = std::iter::once((protocol_name, ProtocolSupport::Full));
 
+        // Отдельный конфиг для запросов и ответов
         let cfg = RequestResponseConfig::default();
 
-        libp2p::request_response::Behaviour::with_codec(codec, protocols, cfg)
+        // Теперь собираем все в кучу
+        Behaviour::with_codec(codec, protocols, cfg)
     };
 
+    // Будем использовать Tokio для исполнения
+    let config = SwarmConfig::with_tokio_executor();
+
     // Создаём Swarm
-    let mut swarm = Swarm::new(transport, request_response_behaviour, local_peer_id);
+    let swarm = Swarm::new(transport, request_response_behaviour, peer_id, config);
+
+    Ok(SwarmCreateResult { swarm, peer_id })
 }
 
 // ////////////////////////////////////////////////////////////////////////////////

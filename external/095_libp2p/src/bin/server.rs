@@ -1,11 +1,11 @@
-////////////////////////////////////////////////////////////////////////////////
-
 use async_trait::async_trait;
 use libp2p::{
     identity, request_response::Config as RequestResponseConfig, swarm::handler::ProtocolSupport,
     PeerId, Swarm, Transport,
 };
-use libp2p_research::{error::P2PError, transport::create_transport};
+use libp2p_research::{
+    create_swarm, error::P2PError, transport::create_transport, SwarmCreateResult,
+};
 use serde::{Deserialize, Serialize};
 use std::path::Path;
 
@@ -13,7 +13,11 @@ use std::path::Path;
 
 /// Начало работы приложения
 fn main() {
+    // Создаем Swarm
+    let SwarmCreateResult { mut swarm, peer_id } = create_swarm().expect("swarm_create");
 
+    // Сразу же выведем для мониторинга идентификатор нашего пира
+    println!("Current peer id: {:?}", peer_id);
 
     // Слушаем на всех доступных интерфейсах и портах
     swarm.listen_on("/ip4/0.0.0.0/tcp/0".parse()?)?;
@@ -35,7 +39,7 @@ fn main() {
 ////////////////////////////////////////////////////////////////////////////////
 
 /// Непосредственно наша исполняема асинхронная часть
-async fn async_loop(swarm: Swarm<_>) -> Result<(), P2PError> {
+async fn async_loop(swarm: Swarm<Behaviour<FileCodec>>) -> Result<(), P2PError> {
     // Основной цикл
     loop {
         match swarm.next().await.unwrap() {

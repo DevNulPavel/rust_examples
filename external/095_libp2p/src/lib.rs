@@ -1,6 +1,8 @@
+mod codec;
 mod error;
 mod swarm;
 mod transport;
-mod codec;
 
-pub use self::swarm::create_swarm;
+////////////////////////////////////////////////////////////////////////////////
+
+pub use self::swarm::{create_swarm, SwarmCreateResult, SwarmP2PType};
