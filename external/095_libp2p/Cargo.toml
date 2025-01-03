@@ -14,7 +14,7 @@ thiserror = { version = "^2.0.9", default-features = false, features = [] }
 
 # Async
 tokio = { version = "^1.42.0", default-features = false, features = [
-    "macros",
+    # "macros",
     "net",
 ] }
 futures = { version = "^0.3.31", default-features = false, features = [] }
@@ -33,6 +33,7 @@ libp2p = { version = "^0.54.1", default-features = false, features = [
     "tokio",
     "tcp",
     "identify",
+    "request-response",
 ] }
 
 # serde_json = { version = "^1.0.134", default-features = false, features = [

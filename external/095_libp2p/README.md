@@ -1,0 +1,1 @@
+Переработка и изучение кода из статьи: https://habr.com/ru/companies/otus/articles/868512/

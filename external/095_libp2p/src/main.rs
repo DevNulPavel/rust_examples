@@ -1,43 +1,50 @@
+mod error;
+mod transport;
+
+////////////////////////////////////////////////////////////////////////////////
+
+use crate::{error::P2PError, transport::create_transport};
 use async_trait::async_trait;
 use libp2p::{
-    core::upgrade,
-    identity, mplex, noise,
-    request_response::{
-        ProtocolName, ProtocolSupport, RequestResponse, RequestResponseCodec,
-        RequestResponseConfig, RequestResponseEvent, RequestResponseMessage,
-        RequestResponseProtocol,
-    },
-    tcp::TokioTcpConfig,
-    Multiaddr, PeerId, Swarm, Transport,
+    identity, request_response::Config as RequestResponseConfig, swarm::handler::ProtocolSupport,
+    PeerId, Swarm, Transport,
 };
 use serde::{Deserialize, Serialize};
-use std::{error::Error, path::Path};
+use std::path::Path;
 
 ////////////////////////////////////////////////////////////////////////////////
 
-#[derive(Debug, thiserror::Error)]
-enum P2PError {}
-
-////////////////////////////////////////////////////////////////////////////////
-
-#[tokio::main]
-async fn main() -> Result<(), P2PError> {
-    // Генерируем ключи и PeerId
+/// Начало работы приложения
+fn main() {
+    // Генерируем пару открытых и закрытых ключей с помощью OpenSSL алгоритмом ed25519
     let local_key = identity::Keypair::generate_ed25519();
-    let local_peer_id = PeerId::from(local_key.public());
+
+    // Создаем теперь на основании этой самой пары ключей непосредственно идентификатор текущего пира
+    let local_peer_id = {
+        // Создавать идентификатор пира будем с
+        // помощью публичного ключа из пары ключей
+        let public_key = local_key.public();
+
+        // Создаем идентификатор пира
+        PeerId::from_public_key(&public_key)
+    };
+
+    // Сразу же выведем для мониторинга идентификатор нашего пира
     println!("Local peer id: {:?}", local_peer_id);
 
     // Создаём транспорт
     let transport = create_transport(&local_key);
 
     // Настраиваем протокол обмена файлами
-    let protocols = std::iter::once((FileProtocolName, ProtocolSupport::Full));
-    let codec = FileCodec();
-    let cfg = RequestResponseConfig::default();
-    let request_response = RequestResponse::new(codec, protocols, cfg);
+    let request_response_behaviour = {
+        let protocols = std::iter::once((FileProtocolName, ProtocolSupport::Full));
+        let codec = FileCodec();
+        let cfg = RequestResponseConfig::default();
+        libp2p::request_response::Behaviour::with_codec(codec, protocols, cfg)
+    };
 
     // Создаём Swarm
-    let mut swarm = Swarm::new(transport, request_response, local_peer_id);
+    let mut swarm = Swarm::new(transport, request_response_behaviour, local_peer_id);
 
     // Слушаем на всех доступных интерфейсах и портах
     swarm.listen_on("/ip4/0.0.0.0/tcp/0".parse()?)?;
@@ -48,6 +55,18 @@ async fn main() -> Result<(), P2PError> {
     // swarm.dial(remote)?;
     // println!("Подключение к {}", remote)?;
 
+    // Создаем теперь уже асинхронный рантайм
+    // tokio::runtime::Builder::new_multi_thread()
+    //     .enable_io()
+    //     .build()
+    //     .expect("Tokio runtime build failed")
+    //     .block_on(async_main(swarm));
+}
+
+////////////////////////////////////////////////////////////////////////////////
+
+/// Непосредственно наша исполняема асинхронная часть
+async fn async_loop(swarm: Swarm<_>) -> Result<(), P2PError> {
     // Основной цикл
     loop {
         match swarm.next().await.unwrap() {
@@ -184,22 +203,4 @@ impl RequestResponseCodec for FileCodec {
         serde_json::to_writer(io, &res)
             .map_err(|e| async_std::io::Error::new(async_std::io::ErrorKind::InvalidData, e))
     }
-}
-
-////////////////////////////////////////////////////////////////////////////////
-
-fn create_transport(
-    local_key: &identity::Keypair,
-) -> impl Transport<Output = impl libp2p::swarm::ConnectionHandler, Error = impl std::error::Error> + Clone
-{
-    let noise_keys = noise::Keypair::<noise::X25519Spec>::new()
-        .into_authentic(local_key)
-        .expect("Signing libp2p-noise static DH keypair failed.");
-
-    TokioTcpConfig::new()
-        .nodelay(true)
-        .upgrade(upgrade::Version::V1)
-        .authenticate(noise::NoiseConfig::xx(noise_keys).into_authenticated())
-        .multiplex(mplex::MplexConfig::new())
-        .boxed()
 }
