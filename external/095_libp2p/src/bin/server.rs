@@ -29,11 +29,11 @@ fn main() {
     // println!("Подключение к {}", remote)?;
 
     // Создаем теперь уже асинхронный рантайм
-    // tokio::runtime::Builder::new_multi_thread()
-    //     .enable_io()
-    //     .build()
-    //     .expect("Tokio runtime build failed")
-    //     .block_on(async_main(swarm));
+    tokio::runtime::Builder::new_multi_thread()
+        .enable_io()
+        .build()
+        .expect("Tokio runtime build failed")
+        .block_on(async_main(swarm));
 }
 
 ////////////////////////////////////////////////////////////////////////////////
