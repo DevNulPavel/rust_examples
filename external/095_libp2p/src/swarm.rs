@@ -1,9 +1,16 @@
 ////////////////////////////////////////////////////////////////////////////////
 
-use crate::{error::P2PError, transport::create_transport};
+use crate::{
+    codec::{CodecProtocolName, FileCodec},
+    error::P2PError,
+    transport::create_transport,
+};
 use async_trait::async_trait;
 use libp2p::{
-    identity, request_response::Config as RequestResponseConfig, swarm::handler::ProtocolSupport,
+    identity,
+    multiaddr::Protocol,
+    request_response::{Codec, Config as RequestResponseConfig},
+    swarm::handler::ProtocolSupport,
     PeerId, Swarm, Transport,
 };
 use serde::{Deserialize, Serialize};
@@ -41,9 +48,15 @@ pub fn create_swarm() -> Result<SwarmCreateResult, P2PError> {
 
     // Настраиваем протокол обмена файлами
     let request_response_behaviour = {
-        let protocols = std::iter::once((FileProtocolName, ProtocolSupport::Full));
-        let codec = FileCodec();
+        let codec = FileCodec::new();
+
+        // TODO: Можно ли как-то получать имя из типа сразу же?
+        let protocol_name = codec.get_protocol_name();
+
+        let protocols = std::iter::once((protocol_name, ProtocolSupport::Full));
+
         let cfg = RequestResponseConfig::default();
+
         libp2p::request_response::Behaviour::with_codec(codec, protocols, cfg)
     };
 

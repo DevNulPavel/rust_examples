@@ -10,11 +10,11 @@ use std::{
 ////////////////////////////////////////////////////////////////////////////////
 
 #[derive(Debug, Clone)]
-pub struct FileProtocolName;
+pub(super) struct FileProtocolName;
 
 impl AsRef<str> for FileProtocolName {
     fn as_ref(&self) -> &str {
-        "/p2pfile/1.0.0"
+        "/p2pfile/0.1.0"
     }
 }
 
@@ -39,15 +39,44 @@ enum FileResponse {
 
 ////////////////////////////////////////////////////////////////////////////////
 
+pub(super) trait CodecProtocolName: Codec {
+    fn get_protocol_name(&self) -> &str;
+}
+
+////////////////////////////////////////////////////////////////////////////////
+
+// TODO: Стратечия уменьшения размера буфера
+
 #[derive(Clone)]
-pub struct FileCodec {
+pub(super) struct FileCodec {
     buffer: Vec<u8>,
+}
+
+impl FileCodec {
+    pub(super) fn new() -> FileCodec {
+        FileCodec {
+            buffer: Vec::with_capacity(128),
+        }
+    }
+}
+
+impl CodecProtocolName for FileCodec {
+    fn get_protocol_name(&self) -> &str {
+        // let protocol_name = <FileCodec as Codec>::Protocol::default().as_ref();
+        // TODO: Какая-то фигня
+        <Self as Codec>::Protocol::as_ref(&self)
+    }
 }
 
 #[async_trait]
 impl Codec for FileCodec {
+    /// Отдельный тип, который четко идентифицирует наш протокол и его версию
     type Protocol = FileProtocolName;
+
+    /// Тип запроса
     type Request = FileRequest;
+
+    /// Тип ответа
     type Response = FileResponse;
 
     async fn read_request<T>(
