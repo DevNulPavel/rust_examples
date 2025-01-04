@@ -11,7 +11,7 @@ use std::{
 
 /// Отдельная структура, которая будет выдывать имя конкретного протокола
 #[derive(Debug, Clone, Default)]
-pub(super) struct FileProtocolName;
+pub struct FileProtocolName;
 
 /// Возвращаем имя этого самого протокола
 impl AsRef<str> for FileProtocolName {
@@ -24,7 +24,7 @@ impl AsRef<str> for FileProtocolName {
 
 /// Какой-то запрос к нашему сервису
 #[derive(Debug, Serialize, Deserialize)]
-struct FileRequest {
+pub struct FileRequest {
     /// По какому пути читаем файлик
     file_path: PathBuf,
 }
@@ -32,7 +32,7 @@ struct FileRequest {
 /// Какой-то ответ нашего сервиса
 #[derive(Debug, Serialize, Deserialize)]
 #[serde(tag = "t", content = "c")]
-enum FileResponse {
+pub enum FileResponse {
     /// Файлик найден
     #[serde(rename = "found")]
     Found { content: Box<[u8]> },
@@ -46,7 +46,7 @@ enum FileResponse {
 
 /// Отдельный трейт для возможности получения имени протокола для кодеков
 pub(super) trait CodecProtocolName: Codec {
-    fn get_protocol_name(&self) -> &str;
+    fn get_protocol(&self) -> <Self as Codec>::Protocol;
 }
 
 ////////////////////////////////////////////////////////////////////////////////
@@ -54,7 +54,7 @@ pub(super) trait CodecProtocolName: Codec {
 // TODO: Стратечия уменьшения размера буфера
 
 #[derive(Clone)]
-pub(super) struct FileCodec {
+pub struct FileCodec {
     buffer: Vec<u8>,
     protocol_obj: <Self as Codec>::Protocol,
 }
@@ -69,13 +69,8 @@ impl FileCodec {
 }
 
 impl CodecProtocolName for FileCodec {
-    fn get_protocol_name(&self) -> &str {
-        self.protocol_obj.as_ref()
-
-        // let protocol_name = <FileCodec as Codec>::Protocol::default().as_ref();
-
-        // TODO: Какая-то фигня
-        // <Self as Codec>::Protocol::default().as_ref()
+    fn get_protocol(&self) -> <Self as Codec>::Protocol {
+        self.protocol_obj.clone()
     }
 }
 
