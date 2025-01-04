@@ -165,6 +165,7 @@ impl Codec for FileCodec {
         Ok(())
     }
 
+    /// Пишем теперь ответ
     async fn write_response<T>(
         &mut self,
         _: &Self::Protocol,
