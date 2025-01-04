@@ -1,5 +1,5 @@
 use async_trait::async_trait;
-use futures::{AsyncRead, AsyncReadExt};
+use futures::{AsyncRead, AsyncReadExt, AsyncWrite, AsyncWriteExt};
 use libp2p::request_response::Codec;
 use serde::{Deserialize, Serialize};
 use std::{
@@ -9,9 +9,11 @@ use std::{
 
 ////////////////////////////////////////////////////////////////////////////////
 
-#[derive(Debug, Clone)]
+/// Отдельная структура, которая будет выдывать имя конкретного протокола
+#[derive(Debug, Clone, Default)]
 pub(super) struct FileProtocolName;
 
+/// Возвращаем имя этого самого протокола
 impl AsRef<str> for FileProtocolName {
     fn as_ref(&self) -> &str {
         "/p2pfile/0.1.0"
@@ -23,6 +25,7 @@ impl AsRef<str> for FileProtocolName {
 /// Какой-то запрос к нашему сервису
 #[derive(Debug, Serialize, Deserialize)]
 struct FileRequest {
+    /// По какому пути читаем файлик
     file_path: PathBuf,
 }
 
@@ -30,15 +33,18 @@ struct FileRequest {
 #[derive(Debug, Serialize, Deserialize)]
 #[serde(tag = "t", content = "c")]
 enum FileResponse {
+    /// Файлик найден
     #[serde(rename = "found")]
     Found { content: Box<[u8]> },
 
-    #[serde(rename = "not_found")]
-    NotFound,
+    /// Такого файла нету или нельзя прочитать
+    #[serde(rename = "not_available")]
+    NotAvailable,
 }
 
 ////////////////////////////////////////////////////////////////////////////////
 
+/// Отдельный трейт для возможности получения имени протокола для кодеков
 pub(super) trait CodecProtocolName: Codec {
     fn get_protocol_name(&self) -> &str;
 }
@@ -50,21 +56,26 @@ pub(super) trait CodecProtocolName: Codec {
 #[derive(Clone)]
 pub(super) struct FileCodec {
     buffer: Vec<u8>,
+    protocol_obj: <Self as Codec>::Protocol,
 }
 
 impl FileCodec {
     pub(super) fn new() -> FileCodec {
         FileCodec {
             buffer: Vec::with_capacity(128),
+            protocol_obj: <Self as Codec>::Protocol::default(),
         }
     }
 }
 
 impl CodecProtocolName for FileCodec {
     fn get_protocol_name(&self) -> &str {
+        self.protocol_obj.as_ref()
+
         // let protocol_name = <FileCodec as Codec>::Protocol::default().as_ref();
+
         // TODO: Какая-то фигня
-        <Self as Codec>::Protocol::as_ref(&self)
+        // <Self as Codec>::Protocol::default().as_ref()
     }
 }
 
@@ -79,60 +90,102 @@ impl Codec for FileCodec {
     /// Тип ответа
     type Response = FileResponse;
 
+    /// Чтение запроса из потока
     async fn read_request<T>(
         &mut self,
-        protocol: &Self::Protocol,
+        _: &Self::Protocol,
         io: &mut T,
     ) -> Result<Self::Request, IoError>
     where
         T: AsyncRead + Unpin + Send,
     {
+        // TODO: Надо ли сравнивать протокол?
+
+        // Очистим буфер в плане размера, но не емкости
         self.buffer.clear();
 
-        io.read_to_end(&mut self.buffer)?;
+        // TODO: Защита от переполнения входящего потока
+        // Вычитываем входящие данные полностью в этот буфер
+        io.read_to_end(&mut self.buffer).await?;
 
-        let req: FileRequest = bincode::deserialize(self.buffer.as_slice())
+        // Сконвертируем данные в запрос
+        let req: Self::Request = bincode::deserialize(self.buffer.as_slice())
             .map_err(|e| IoError::new(IoErrorKind::InvalidData, e))?;
 
         Ok(req)
     }
 
+    /// Обработка какого-то ответа
     async fn read_response<T>(
         &mut self,
-        protocol: &Self::Protocol,
+        _: &Self::Protocol,
         io: &mut T,
-    ) -> io::Result<Self::Response>
+    ) -> Result<Self::Response, IoError>
     where
         T: AsyncRead + Unpin + Send,
     {
-        let res: FileResponse = serde_json::from_reader(io)
-            .map_err(|e| async_std::io::Error::new(async_std::io::ErrorKind::InvalidData, e))?;
-        Ok(res)
+        // TODO: Надо ли сравнивать протокол?
+
+        // Очистим буфер в плане размера, но не емкости
+        self.buffer.clear();
+
+        // TODO: Защита от переполнения входящего потока
+        // Вычитываем входящие данные полностью в этот буфер
+        io.read_to_end(&mut self.buffer).await?;
+
+        // Сконвертируем данные в запрос
+        let req: Self::Response = bincode::deserialize(self.buffer.as_slice())
+            .map_err(|e| IoError::new(IoErrorKind::InvalidData, e))?;
+
+        Ok(req)
     }
 
+    /// Пишем непосредственно запрос
     async fn write_request<T>(
         &mut self,
-        _: &FileProtocolName,
+        _: &Self::Protocol,
         io: &mut T,
         req: Self::Request,
-    ) -> io::Result<()>
+    ) -> Result<(), IoError>
     where
-        T: async_std::io::Write + Unpin,
+        T: AsyncWrite + Unpin + Send,
     {
-        serde_json::to_writer(io, &req)
-            .map_err(|e| async_std::io::Error::new(async_std::io::ErrorKind::InvalidData, e))
+        // TODO: Надо ли сравнивать протокол?
+
+        // Очистим буфер в плане размера, но не емкости
+        self.buffer.clear();
+
+        // Сериализуем теперь запрос
+        bincode::serialize_into(&mut self.buffer, &req)
+            .map_err(|e| IoError::new(IoErrorKind::InvalidData, e))?;
+
+        // Пишем результат
+        io.write_all(&self.buffer).await?;
+
+        Ok(())
     }
 
     async fn write_response<T>(
         &mut self,
-        _: &FileProtocolName,
+        _: &Self::Protocol,
         io: &mut T,
         res: Self::Response,
-    ) -> io::Result<()>
+    ) -> Result<(), IoError>
     where
-        T: async_std::io::Write + Unpin,
+        T: AsyncWrite + Unpin + Send,
     {
-        serde_json::to_writer(io, &res)
-            .map_err(|e| async_std::io::Error::new(async_std::io::ErrorKind::InvalidData, e))
+        // TODO: Надо ли сравнивать протокол?
+
+        // Очистим буфер в плане размера, но не емкости
+        self.buffer.clear();
+
+        // Сериализуем теперь запрос
+        bincode::serialize_into(&mut self.buffer, &res)
+            .map_err(|e| IoError::new(IoErrorKind::InvalidData, e))?;
+
+        // Пишем результат
+        io.write_all(&self.buffer).await?;
+
+        Ok(())
     }
 }
