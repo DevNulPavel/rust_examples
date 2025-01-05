@@ -1,13 +1,12 @@
-use async_trait::async_trait;
+use futures::StreamExt;
 use libp2p::{
-    identity, request_response::Config as RequestResponseConfig, swarm::handler::ProtocolSupport,
-    PeerId, Swarm, Transport,
+    multiaddr::Protocol,
+    request_response::{Event, Message},
+    swarm::SwarmEvent,
+    Multiaddr,
 };
-use libp2p_research::{
-    create_swarm, error::P2PError, transport::create_transport, SwarmCreateResult,
-};
-use serde::{Deserialize, Serialize};
-use std::path::Path;
+use libp2p_research::{create_swarm, FileResponse, P2PError, SwarmCreateResult, SwarmP2PType};
+use std::net::Ipv4Addr;
 
 ////////////////////////////////////////////////////////////////////////////////
 
@@ -19,9 +18,21 @@ fn main() {
     // Сразу же выведем для мониторинга идентификатор нашего пира
     println!("Current peer id: {:?}", peer_id);
 
-    // Слушаем на всех доступных интерфейсах и портах
-    swarm.listen_on("/ip4/0.0.0.0/tcp/0".parse()?)?;
-    println!("Swarm запущен. Ожидаем входящего подключения...");
+    // Слушаем на определенном адресе и порте
+    {
+        // Пример с парсингом адреса
+        // "/ip4/0.0.0.0/tcp/0".parse()?
+
+        // TODO: Не совсем понятна здесь идея протоколов и слушающих адресов
+        let listen_address = Multiaddr::with_capacity(2)
+            .with(Protocol::Ip4(Ipv4Addr::UNSPECIFIED))
+            .with(Protocol::Tcp(9999));
+
+        // Будем слушать на определенных адресах и протоколах
+        swarm.listen_on(listen_address).expect("swarm_listen");
+
+        println!("Swarm запущен. Ожидаем входящего подключения...");
+    }
 
     // Подключаемся к другому узлу
     // let remote: Multiaddr = "/ip4/127.0.0.1/tcp/8080/p2p/12D3KooW...".parse()?;
@@ -33,50 +44,95 @@ fn main() {
         .enable_io()
         .build()
         .expect("Tokio runtime build failed")
-        .block_on(async_main(swarm));
+        .block_on(async_loop(swarm))
+        .expect("main_swarm_loop");
 }
 
 ////////////////////////////////////////////////////////////////////////////////
 
 /// Непосредственно наша исполняема асинхронная часть
-async fn async_loop(swarm: Swarm<Behaviour<FileCodec>>) -> Result<(), P2PError> {
+async fn async_loop(mut swarm: SwarmP2PType) -> Result<(), P2PError> {
     // Основной цикл
-    loop {
-        match swarm.next().await? {
-            RequestResponseEvent::Message { peer, message } => {
-                match message {
-                    RequestResponseMessage::Request {
-                        request, channel, ..
-                    } => {
-                        println!("Получен запрос на файл: {}", request.filename);
-                        // Здесь должна быть логика поиска и чтения файла
-                        // Для примера отправим заглушку
-                        let response = match std::fs::read(&request.filename) {
-                            Ok(content) => FileResponse::Found { content },
-                            Err(_) => FileResponse::NotFound,
-                        };
+    while let Some(next_event) = swarm.next().await {
+        // Обработка остальных событий
+        #[allow(clippy::single_match)]
+        match next_event {
+            // Какие-то конкретные события протокола и кодека
+            SwarmEvent::Behaviour(behaviour_event) => {
+                // Смотрим что там за событие вообще
+                match behaviour_event {
+                    // Сообщение какое-то от какого-то пира
+                    Event::Message { peer, message } => {
+                        // Смотрим на сообщения теперь
+                        match message {
+                            // Это какой-то запрос
+                            Message::Request {
+                                request, channel, ..
+                            } => {
+                                // Содержимое
+                                println!(
+                                    "File content request from peer '{}': '{}'",
+                                    peer,
+                                    request.file_path.display()
+                                );
 
-                        swarm.respond(channel, response)?;
+                                // TODO: Асинхронное чтение файлика
+                                let response = match std::fs::read(request.file_path.as_path()) {
+                                    Ok(content) => FileResponse::Found {
+                                        content: content.into_boxed_slice(),
+                                    },
+                                    Err(_) => {
+                                        // TODO: Залогировать ошибку
+                                        FileResponse::NotAvailable
+                                    }
+                                };
+
+                                // Пробуем поставить в очередь на отправку, при ошибке
+                                // нам вернется объект ответа назад
+                                let send_response_res =
+                                    swarm.behaviour_mut().send_response(channel, response);
+
+                                // Проверяем статус ответа
+                                if send_response_res.is_err() {
+                                    // TODO: Залогировать ошибку постановки в очередь отправки
+                                }
+                            }
+                            // Получен ответ
+                            Message::Response { response, .. } => {
+                                // Смотрим на наш ответ
+                                match response {
+                                    FileResponse::Found { content } => {
+                                        // Здесь можно обработать полученные данные
+                                        println!(
+                                            "File content response length: {} bytes",
+                                            content.len()
+                                        );
+                                    }
+                                    FileResponse::NotAvailable => {
+                                        eprintln!("File not available");
+                                    }
+                                }
+                            }
+                        }
                     }
-                    RequestResponseMessage::Response { response, .. } => {
-                        println!(
-                            "Получен ответ с содержимым файла: {} байт",
-                            response.content.len()
-                        );
-                        // Здесь можно обработать полученные данные
+                    // Успешно смогли отправить сообщение
+                    Event::ResponseSent { peer, .. } => {
+                        println!("Answer sent to '{}'", peer);
+                    }
+                    // Проблемы с отправкой сообщения
+                    Event::OutboundFailure { peer, error, .. } => {
+                        eprintln!("Request send to '{}' failed: {:?}", peer, error);
+                    }
+                    // Проблема с входящим сообщением
+                    Event::InboundFailure { peer, error, .. } => {
+                        eprintln!("Request receive from '{}' failed: {:?}", peer, error);
                     }
                 }
             }
-            RequestResponseEvent::OutboundFailure { peer, error, .. } => {
-                eprintln!("Ошибка при отправке запроса к {}: {:?}", peer, error);
-            }
-            RequestResponseEvent::InboundFailure { peer, error, .. } => {
-                eprintln!("Ошибка при получении запроса от {}: {:?}", peer, error);
-            }
-            RequestResponseEvent::ResponseSent { peer, .. } => {
-                println!("Ответ отправлен к {}", peer);
-            }
+            // TODO: Обработка остальных событий, например, отвала клиента и тд
             _ => {}
         }
     }
+
+    Ok(())
 }

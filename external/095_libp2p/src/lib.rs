@@ -6,7 +6,7 @@ mod transport;
 ////////////////////////////////////////////////////////////////////////////////
 
 pub use self::{
-    codec::FileCodec,
+    codec::{FileCodec, FileRequest, FileResponse},
     error::P2PError,
     swarm::{create_swarm, SwarmCreateResult, SwarmP2PType},
 };

@@ -26,7 +26,7 @@ impl AsRef<str> for FileProtocolName {
 #[derive(Debug, Serialize, Deserialize)]
 pub struct FileRequest {
     /// По какому пути читаем файлик
-    file_path: PathBuf,
+    pub file_path: PathBuf,
 }
 
 /// Какой-то ответ нашего сервиса
