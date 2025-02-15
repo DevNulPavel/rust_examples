@@ -1,0 +1,31 @@
+github_url = "https://github.com/dmerejkowsky/rusync/"
+
+[version]
+current = "0.7.2"
+regex = '''
+  (?P<major>\d+)
+  \.
+  (?P<minor>\d+)
+  \.
+  (?P<patch>\d+)
+'''
+
+[git]
+tag_template = "v{new_version}"
+message_template = "Bump to {new_version}"
+
+[[file]]
+src = "Cargo.toml"
+search = 'version = "{current_version}"'
+
+[[before_push]]
+name = "Check changelog"
+cmd = "grep -q {new_version} Changelog.md"
+
+[[before_push]]
+name = "Run tests"
+cmd = "cargo test"
+
+[[after_push]]
+name = "Publish to crates.io"
+cmd = "cargo publish"

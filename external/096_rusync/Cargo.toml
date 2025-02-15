@@ -1,0 +1,28 @@
+[package]
+name = "rusync"
+version = "0.7.2"
+authors = ["Dimitri Merejkowsky <dimitri@dmerej.info>"]
+
+readme = "README.md"
+description = "Minimalist rsync clone in Rust"
+license = "BSD-3-Clause"
+
+keywords = ["rsync"]
+categories = ["command-line-utilities"]
+
+repository = "https://github.com/dmerejkowsky/rusync"
+
+edition = "2021"
+
+[dependencies]
+anyhow = "1.0.58"
+clap = {version = "3.2.8", features = ["derive"] }
+colored = "2.0.0"
+filetime = "0.2.17"
+humansize = "1.1.1"
+humantime = "2.1.0"
+pathdiff = "0.2.1"
+terminal_size = "0.2.1"
+
+[dev-dependencies]
+tempfile = "3.3.0"
