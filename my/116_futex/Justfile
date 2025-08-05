@@ -1,7 +1,18 @@
 ########################################################################
 
+[private]
+default:
+    @just --list
+
+########################################################################
+
+FORMAT_JUSTFILE:
+    just --fmt --unstable
+
+########################################################################
 # Проверки разные по коду и форматирование
-# Так можно делать таргеты закрытыми с помощью аттрибутов: 
+# Так можно делать таргеты закрытыми с помощью аттрибутов:
+
 # - https://just.systems/man/en/chapter_32.html
 [private]
 @_FMT_CHECK_CLIPPY_BUILD:
@@ -29,11 +40,9 @@
         --all-targets
 
 ########################################################################
-
 # USE_AFTER_FREE: _FMT_CHECK_CLIPPY_BUILD
 #     {{justfile_directory()}}/target/debug/cve_rs \
 #         uaf
-
 # SEGFAULT: _FMT_CHECK_CLIPPY_BUILD
 #     {{justfile_directory()}}/target/debug/cve_rs \
 #         segfault
