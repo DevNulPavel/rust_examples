@@ -64,8 +64,11 @@ impl BinarySemaphore {
             // Лямбда перед уходом в сон
             let park_before_sleep = || {};
 
-            // Таймаут парковки потока
-            let park_timed_oud = |_park_key, _| {};
+            // Коллбек nаймаута парковки потока
+            let park_timed_out = |_park_key, _| {};
+
+            // Значение таймаута
+            let park_timeout_val = None;
 
             // Раз спинлок у нас не прокатил, то нам остается лишь припарковать поток текущий на ожидание
             unsafe {
@@ -73,13 +76,47 @@ impl BinarySemaphore {
                     park_key_usize,
                     park_validate,
                     park_before_sleep,
-                    park_timed_oud,
+                    park_timed_out,
                     DEFAULT_PARK_TOKEN,
-                    None,
+                    park_timeout_val,
                 );
             }
 
+            // Раз поток проснулся, то на новой итерации все равно будем пробовать проверять
+            // блокировку с помощью спинлока и текущего состояния
             spin.reset();
+        }
+    }
+
+    /// Функция снятие блокировки на семафоре
+    pub(super) fn release(&self) {
+        // Пробуем заменить состояние на разблокированное,
+        // если прошлое состояние было состояние блокировки
+        if self.state.swap(AVAILABLE, Ordering::Release) == TAKEN {
+            // TODO: Все бы ничего, но вроде бы как при перемещении семафора у нас же поменяется и адрес
+            // этой самой переменной, так как нигде нету гарантии пинирования.
+            //
+            // Для парковки потока нам нужен ключ какой-то.
+            // В качестве ключа попробуем использовать адрес в памяти нашей переменной состояния.
+            let park_key_usize = {
+                // Получаем указатель константный на нашу переменную с состоянием
+                let park_key_ptr: *const AtomicU32 = &self.state as *const _;
+
+                // Преобразуем указатель просто в число
+                let park_key_usize: usize = park_key_ptr as usize;
+
+                // Выдаем дальше
+                park_key_usize
+            };
+
+            // Функция коллбека перед снятием блокировки,
+            // она возвращает токен, который присваивается разблокированной функции
+            let unpark_callback_function = |_| DEFAULT_UNPARK_TOKEN;
+
+            // Тогда пробуем пробудить поток по ключу
+            unsafe {
+                unpark_one(park_key_usize, unpark_callback_function);
+            }
         }
     }
 }
