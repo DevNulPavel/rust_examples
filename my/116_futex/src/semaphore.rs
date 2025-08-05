@@ -57,13 +57,23 @@ impl BinarySemaphore {
                 park_key_usize
             };
 
+            // Специальная лямбда, которая дополнительно проверит, что блокировка нужна все еще.
+            // Вроде бы как она же и помогает от разных случайных пробуждений.
+            let park_validate = || self.state.load(Ordering::Relaxed) == TAKEN;
+
+            // Лямбда перед уходом в сон
+            let park_before_sleep = || {};
+
+            // Таймаут парковки потока
+            let park_timed_oud = |_park_key, _| {};
+
             // Раз спинлок у нас не прокатил, то нам остается лишь припарковать поток текущий на ожидание
             unsafe {
                 park(
                     park_key_usize,
-                    || self.state.load(Ordering::Relaxed) == TAKEN,
-                    || {},
-                    |_, _| {},
+                    park_validate,
+                    park_before_sleep,
+                    park_timed_oud,
                     DEFAULT_PARK_TOKEN,
                     None,
                 );
