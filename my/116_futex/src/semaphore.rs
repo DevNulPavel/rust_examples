@@ -119,4 +119,22 @@ impl BinarySemaphore {
             }
         }
     }
+
+    /// Отдельная функция, позволяющая получить guard для автоматического получения
+    pub(super) fn lock(&self) -> SemaphoreGuard<'_> {
+        self.acquire();
+        SemaphoreGuard(self)
+    }
 }
+
+////////////////////////////////////////////////////////////////////////////////
+
+pub(super) struct SemaphoreGuard<'a>(&'a BinarySemaphore);
+
+impl<'a> Drop for SemaphoreGuard<'a> {
+    fn drop(&mut self) {
+        self.0.release();
+    }
+}
+
+impl BinarySemaphore {}
