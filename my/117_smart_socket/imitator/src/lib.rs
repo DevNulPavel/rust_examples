@@ -123,7 +123,7 @@ fn main() {
 
     let listener = TcpListener::bind(server_address).expect("can't bind tcp listener");
 
-    // TODO: В клиенте тип назывался `SmartSocketClient`
+    // Эмулируем розетку
     let mut smart_socket = SmartSocket::default();
 
     while let Some(connection) = listener.incoming().next() {
