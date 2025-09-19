@@ -126,7 +126,7 @@ fn main() {
     // TODO: В клиенте тип назывался `SmartSocketClient`
     let mut smart_socket = SmartSocket::default();
 
-    while let Some (connection) = listener.incoming().next() {
+    while let Some(connection) = listener.incoming().next() {
         let mut stream = match connection {
             Ok(conn) => conn,
             Err(err) => {
@@ -145,14 +145,14 @@ fn main() {
             .unwrap_or_else(|_| "unknown".into());
         println!("Peer '{peer}' connected");
 
-        // TODO: Для поддержки сразу нескольких подключений, можно 
+        // TODO: Для поддержки сразу нескольких подключений, можно
         // было бы обернуть в тип розетки в `Arc<Mutex>`, а на каждое новое подключение
         // делать отдельный поток.
-        // А если уж совсем делать красиво и поддержку очень большого 
+        // А если уж совсем делать красиво и поддержку очень большого
         // количества подключений, то нужно переходить на асинхронный код.
 
         // TODO: Входной буфер лишь для одного байта.
-        // Можно было бы даже не делать массив для этих целей, а 
+        // Можно было бы даже не делать массив для этих целей, а
         // вычитывать один байт с проверкой размера данных для отслеживания
         // закрытия сокета.
         let mut in_buffer = [0u8];
@@ -168,7 +168,7 @@ fn main() {
                 break;
             }
 
-            println! ("Connection with {peer} lost. Waiting for new connections...");
+            println!("Connection with {peer} lost. Waiting for new connections...");
         }
     }
 }
@@ -178,7 +178,7 @@ fn main() {
 // TODO: Здесь можно для красоты сделать документацию к enum +
 // описание к каждому элементу, так как это публичный enum, да и в целом -
 // это красиво будет.
-#[derive (Default)]
+#[derive(Default)]
 struct SmartSocket {
     enabled: bool,
 }
@@ -186,20 +186,32 @@ struct SmartSocket {
 impl SmartSocket {
     fn process_command(&mut self, cmd: Command) -> Response {
         match cmd {
-            Command:: TurnOn => {
+            Command::TurnOn => {
                 self.enabled = true;
-                Response::0k
+                Response::Ok
             }
             Command::Turnoff => {
-                self enabled = false;
-                Response::0k
+                self.enabled = false;
+                Response::Ok
             }
             Command::IsEnabled => {
                 if self.enabled {
-                Response:: Enabled
+                    Response::Enabled
                 } else {
-                Response: :Disabled
+                    Response::Disabled
                 }
             }
             Command::GetPower => {
+                if self.enabled {
+                    Response::Power(220.5)
+                } else {
+                    Response::Power(0.0)
+                }
             }
+            Command::Unknown => {
+                println!("Unknown command received");
+                Response::Unknown
+            }
+        }
+    }
+}
