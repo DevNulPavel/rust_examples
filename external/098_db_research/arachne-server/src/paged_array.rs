@@ -1,26 +1,25 @@
 use std::sync::atomic::{AtomicPtr, AtomicU32, Ordering};
 
+////////////////////////////////////////////////////////////////////////////////
+
 const CHUNK_SIZE: usize = 1_000_000;
 const MAX_CHUNKS: usize = 4096; // Покрывает до 4.096 млрд пользователей (почти весь u32)
 
+////////////////////////////////////////////////////////////////////////////////
+
 /// Многостраничный массив (плоский массив)
 pub struct PagedArray {
-    // Статичный массив атомарных указателей (занимает 4096 * 8 байт = 32 КБ)
+    /// Статичный массив атомарных указателей (занимает 4096 * 8 байт = 32 КБ)
     chunks: [AtomicPtr<AtomicU32>; MAX_CHUNKS],
 }
 
-impl Default for PagedArray {
-    fn default() -> Self {
-        Self {
-            // При старте все чанки пустые (указывают на null)
-            chunks: std::array::from_fn(|_| AtomicPtr::new(std::ptr::null_mut())),
-        }
-    }
-}
 impl PagedArray {
     /// Выделяет память для индекса, если еще не аллоциорвана О(CHUNK_SIZE)
     fn ensure_allocated(&self, id: u32) {
+        // Для указанного идентификатора мы получаем индекс самого чанка в массиве
         let chunk_idx = (id as usize) / CHUNK_SIZE;
+
+        // Получаем указатель на этот самый чанк
         let ptr = self.chunks[chunk_idx].load(Ordering::Acquire);
 
         // Если чанк уже выделен, не делаем ничего
@@ -28,7 +27,7 @@ impl PagedArray {
             return;
         }
 
-        // Выделяем 8 МБ ОЗУ
+        // Выделяем 8 МБ ОЗУ в виде вектора атомик-нулей
         let mut vec = Vec::with_capacity(CHUNK_SIZE);
         for _ in 0..CHUNK_SIZE {
             vec.push(AtomicU32::new(0)); // std::alloc::alloc_zeroed?
@@ -37,18 +36,19 @@ impl PagedArray {
         // Забираем сырой указатель на данные, чтобы Rust не очистил их при выходе из скоупа
         let raw_ptr = vec.into_raw_parts().0;
 
-        // Пытаемся атомарно сохранить указатель в массив (Compare-And-Swap)
-        if self.chunks[chunk_idx]
+        // Пытаемся атомарно сохранить указатель в массив чанков (Compare-And-Swap)
+        let failed = self.chunks[chunk_idx]
             .compare_exchange(
                 std::ptr::null_mut(),
                 raw_ptr,
                 Ordering::Release,
                 Ordering::Relaxed,
             )
-            .is_err()
-        {
-            // Если два краулера одновременно сделали user_add на новой границе миллиона,
-            // второй потерпит неудачу в CAS. Ему нужно просто удалить свой кусок памяти.
+            .is_err();
+
+        // Если два краулера одновременно сделали user_add на новой границе миллиона,
+        // второй потерпит неудачу в CAS. Ему нужно просто удалить свой кусок памяти.
+        if failed {
             unsafe {
                 let _ = Vec::from_raw_parts(raw_ptr, CHUNK_SIZE, CHUNK_SIZE);
             }
@@ -59,12 +59,18 @@ impl PagedArray {
     pub fn get(&self, id: u32) -> &AtomicU32 {
         // Убеждаемся, что память выделена
         self.ensure_allocated(id);
+
+        // Вычисляем чанк
         let chunk_idx = (id as usize) / CHUNK_SIZE;
+
+        // Вычисляем смещение внутри чанка теперь
         let offset = (id as usize) % CHUNK_SIZE;
 
+        // Получаем теперь указатель на память этого самого чанка
         let ptr = self.chunks[chunk_idx].load(Ordering::Acquire);
         debug_assert!(!ptr.is_null(), "Попытка доступа к невыделенному чанку!");
 
+        // TODO: Тут смещение же нужно по 4 байта именно (u32), а не по одному?
         // Адресная арифметика: сдвигаемся на нужный оффсет
         unsafe { &*ptr.add(offset) }
     }
@@ -139,6 +145,15 @@ impl PagedArray {
                 let raw_ptr = vec.into_raw_parts().0;
                 self.chunks[chunk_idx].store(raw_ptr, Ordering::Release);
             }
+        }
+    }
+}
+
+impl Default for PagedArray {
+    fn default() -> Self {
+        Self {
+            // При старте все чанки пустые (указывают на null)
+            chunks: std::array::from_fn(|_| AtomicPtr::new(std::ptr::null_mut())),
         }
     }
 }
