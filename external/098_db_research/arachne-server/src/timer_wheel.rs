@@ -1,27 +1,54 @@
+// Сегментная очередь, которая представлена в виде связного списка сегментов
+// TODO: Является ли это оптимальным в плане фразментации памяти? Элементов же может быть оочень много
+use crossbeam_queue::SegQueue;
 use std::sync::atomic::{AtomicUsize, Ordering};
 
-use crossbeam_queue::SegQueue;
+////////////////////////////////////////////////////////////////////////////////
 
+/// Отдельный элемент с таймером
 #[derive(Debug, Clone, Copy, Default, serde::Serialize, serde::Deserialize)]
 pub struct TimerEntry {
+    /// Какой у нас идентификатор пользователя на таймере?
     pub user_id: u32,
+
+    /// Время срабатывания таймера
     pub trigger_ts: u64,
-    pub version: u32,          // Эпоха, для которой этот таймер валиден
+
+    /// Эпоха таймера
+    pub version: u32, // Эпоха, для которой этот таймер валиден
+
+    /// Истекла блокировка таймера?
     pub is_lock_timeout: bool, // Если true - значит истек лок. Если false - пришло время следующей проверки
 }
 
+////////////////////////////////////////////////////////////////////////////////
+
 #[derive(Debug)]
 pub struct HierarchicalWheel {
+    /// Очередь срабатывания в секундах
     seconds: [SegQueue<TimerEntry>; 60],
+
+    /// Очередь срабатывания в минутах
     minutes: [SegQueue<TimerEntry>; 60],
+
+    /// Срабатывание через часы
     hours: [SegQueue<TimerEntry>; 24],
-    // Считаем, что в месяце 30 дней
+
+    /// Через сколько ней будет таймер?
+    /// Считаем, что в месяце 30 дней.
     days: [SegQueue<TimerEntry>; 30],
-    // Считаем 12 месяцев (покрывает 360 дней)
+
+    /// Очереди срабатывания по месяцам.
+    /// Считаем 12 месяцев (покрывает 360 дней)
     months: [SegQueue<TimerEntry>; 12],
-    // Переполнение: все, что отложено более чем на 360 дней
+
+    /// Переполнение: все, что отложено более чем на 360 дней
     years: SegQueue<TimerEntry>,
+
+    // TODO: ???
     locked_count: AtomicUsize,
+
+    // TODO: ???
     waiting_count: AtomicUsize,
 }
 
@@ -49,83 +76,123 @@ impl HierarchicalWheel {
             self.waiting_count.fetch_add(1, Ordering::Relaxed);
         }
 
-        self.insert_internal(current_ts, entry);
+        self.inner_insert(current_ts, entry);
     }
 
-    fn insert_internal(&self, current_ts: u64, entry: TimerEntry) {
+    /// Фактическая функция добавления очередного таймера
+    fn inner_insert(&self, current_ts: u64, entry: TimerEntry) {
+        // Может быть таймер уже и так должен был сработать прямо сейчас?
         let trigger = std::cmp::max(current_ts, entry.trigger_ts);
+
+        // Сколько времени нам осталось до момента завершения работы таймера?
         let diff = trigger - current_ts;
 
+        // Осталось меньше 60 секунд?
         if diff < 60 {
+            // Размещаем в указанной секунде элемент с данными таймера
             self.seconds[(trigger % 60) as usize].push(entry);
-        } else if diff < 3600 {
+        }
+        // Время срабатывания меньше часа?
+        else if diff < 3600 {
+            // Размещаем в слот указанной минуты элемент таймера
             self.minutes[((trigger / 60) % 60) as usize].push(entry);
-        } else if diff < 86400 {
+        }
+        // Осталось меньше суток?
+        else if diff < 86400 {
+            // Размещаем в слот с указанным часом
             self.hours[((trigger / 3600) % 24) as usize].push(entry);
-        } else if diff < 2592000 {
+        }
+        // Осталось меньше 30 дней?
+        else if diff < 2592000 {
+            // Размещаем в слот указанного дня
             // 30 суток (месяц)
             self.days[((trigger / 86400) % 30) as usize].push(entry);
-        } else if diff < 31104000 {
+        }
+        // Меньше года?
+        else if diff < 31104000 {
+            // Размещаем в слот указанного месяца тогда наш элемент
             // 360 суток (год)
             self.months[((trigger / 2592000) % 12) as usize].push(entry);
-        } else {
+        }
+        // Ждать очень долго - больше года
+        else {
             // Больше 360 дней
             self.years.push(entry);
         }
     }
 
     /// Получает готовые к выдаче таймеры для текущей секунды,
-    /// выполняя каскадирование таймеров с верхних уровней.
+    /// выполняя перемещение таймеров с верхних уровней.
     pub fn tick(&self, current_ts: u64) -> Vec<TimerEntry> {
+        // Конечный массив с результатами
         let mut ready = Vec::new();
 
         // Каскадирования срабатывают строго на границах циклов.
         // Задачи спускаются вниз по иерархии в более "быстрые" слоты.
 
+        // TODO: Разве здесь подходит вызов is_multiple_of? Надо же тогда четко проверять
+        // каждую секунду тогда, иначе проверка множителя не сработает?
+        //
         // 1. Каскадируем переполнение годов (1 раз в 360 дней)
         // Используем фиксированный len() + for, так как элементы могут передобавиться обратно в years
         if current_ts > 0 && current_ts.is_multiple_of(31104000) {
+            // Извлекаем элементы и передобавляем
             let len = self.years.len();
             for _ in 0..len {
                 if let Some(task) = self.years.pop() {
-                    self.insert_internal(current_ts, task);
+                    self.inner_insert(current_ts, task);
                 }
             }
         }
 
+        // TODO: Разве здесь подходит вызов is_multiple_of? Надо же тогда четко проверять
+        // каждую секунду тогда, иначе проверка множителя не сработает?
+        //
         // 2. Каскадируем месяцы в дни (1 раз в 30 дней)
         // while let Some безопасен, так как при insert элемент гарантированно попадет в ДРУГОЙ слот
         if current_ts > 0 && current_ts.is_multiple_of(2592000) {
             let month_slot = ((current_ts / 2592000) % 12) as usize;
             while let Some(task) = self.months[month_slot].pop() {
-                self.insert_internal(current_ts, task);
+                self.inner_insert(current_ts, task);
             }
         }
 
+        // TODO: Разве здесь подходит вызов is_multiple_of? Надо же тогда четко проверять
+        // каждую секунду тогда, иначе проверка множителя не сработает?
+        //
         // 3. Каскадируем дни в часы (1 раз в 24 часа)
         if current_ts > 0 && current_ts.is_multiple_of(86400) {
             let day_slot = ((current_ts / 86400) % 30) as usize;
             while let Some(task) = self.days[day_slot].pop() {
-                self.insert_internal(current_ts, task);
+                self.inner_insert(current_ts, task);
             }
         }
 
+        // TODO: Разве здесь подходит вызов is_multiple_of? Надо же тогда четко проверять
+        // каждую секунду тогда, иначе проверка множителя не сработает?
+        //
         // 4. Каскадируем часы в минуты (1 раз в час)
         if current_ts > 0 && current_ts.is_multiple_of(3600) {
             let hour_slot = ((current_ts / 3600) % 24) as usize;
             while let Some(task) = self.hours[hour_slot].pop() {
-                self.insert_internal(current_ts, task);
+                self.inner_insert(current_ts, task);
             }
         }
 
+        // TODO: Разве здесь подходит вызов is_multiple_of? Надо же тогда четко проверять
+        // каждую секунду тогда, иначе проверка множителя не сработает?
+        //
         // 5. Каскадируем минуты в секунды (1 раз в минуту)
         if current_ts > 0 && current_ts.is_multiple_of(60) {
             let min_slot = ((current_ts / 60) % 60) as usize;
             while let Some(task) = self.minutes[min_slot].pop() {
-                self.insert_internal(current_ts, task);
+                self.inner_insert(current_ts, task);
             }
         }
 
+        // TODO: Разве здесь подходит вызов is_multiple_of? Надо же тогда четко проверять
+        // каждую секунду тогда, иначе проверка множителя не сработает?
+        //
         // 6. Выдаем готовые таймеры текущей секунды
         let sec_slot = (current_ts % 60) as usize;
         while let Some(task) = self.seconds[sec_slot].pop() {
@@ -196,6 +263,8 @@ impl HierarchicalWheel {
         wheel
     }
 }
+
+////////////////////////////////////////////////////////////////////////////////
 
 #[cfg(test)]
 mod tests {
