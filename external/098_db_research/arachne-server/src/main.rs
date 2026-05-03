@@ -1,12 +1,9 @@
-use std::{
-    sync::{
-        Arc,
-        atomic::{AtomicBool, AtomicU32, AtomicUsize, Ordering},
-    },
-    time::Instant,
-};
+mod args;
+mod paged_array;
+mod stripped_lock;
+mod timer_wheel;
 
-const CONCURRENCY_COUNT: usize = 10_000;
+////////////////////////////////////////////////////////////////////////////////
 
 use arachne_parser::ast::Expr;
 use autometrics::autometrics;
@@ -19,6 +16,13 @@ use fjall::{
     config::{BlockSizePolicy, CompressionPolicy},
 };
 use futures::{future, prelude::*, stream::FuturesUnordered};
+use std::{
+    sync::{
+        Arc,
+        atomic::{AtomicBool, AtomicU32, AtomicUsize, Ordering},
+    },
+    time::Instant,
+};
 use tarpc::{
     server::{Channel, Config},
     tokio_util::{codec::LengthDelimitedCodec, sync::CancellationToken},
@@ -35,34 +39,45 @@ use arachne_api::{
     UserReleaseStatus, UserUpdateStatus, rpc_dto,
 };
 
-mod args;
-mod paged_array;
-mod stripped_lock;
-mod timer_wheel;
+////////////////////////////////////////////////////////////////////////////////
+
+const CONCURRENCY_COUNT: usize = 10_000;
+
+////////////////////////////////////////////////////////////////////////////////
 
 #[derive(Default)]
 struct RamState {
     /// Платформы
     pub platforms: DashMap<u8, Arc<PlatformState>>,
+
     /// Задачи для full-scan для селектора
     pub backfill_queue: SegQueue<(u8, u8, u32, u32)>, // (platform_id, selector_id, start_id, end_id)
+
     /// Если сканирование не идет, уведомляем через notfiy о начале сканирования
     pub backfill_notify: tokio::sync::Notify,
 }
 
 impl RamState {
-    /// Снапшот на диск
+    /// Снапшот на диск состояния
     pub fn snapshot(&self, db_path: &str) -> anyhow::Result<()> {
         std::fs::create_dir_all(db_path)?;
 
         let instant = Instant::now();
+
         // Используем потоки для параллельного сохранения платформ на диск
         std::thread::scope(|s| {
             for p_entry in self.platforms.iter() {
                 s.spawn(move || {
+                    // Получаем идентификатор платформы
                     let platform_id = *p_entry.key();
+
+                    // Сам Arc на платформу
                     let platform = p_entry.value();
 
+                    // TODO: Учитывая, что у нас .unwrap() здесь,
+                    // то при нехватке памяти или невозможности переименования
+                    // у нас просто упадет хранилище и все
+                    //
                     // Локальная функция для атомарной записи.
                     let write_atomic = |file_path: String, data: &[u8]| {
                         let tmp_path = format!("{}.tmp", file_path);
@@ -70,47 +85,65 @@ impl RamState {
                         std::fs::rename(&tmp_path, &file_path).unwrap();
                     };
 
+                    // TODO: Запись в несколько файликов в пределах одной платформы уже не является надежным
+                    // способом и атомарным, тем более, что у нас еще и паника может быть
+                    // при записи файлика в одном из потоков
+
+                    // TODO: Получаем идентификатор какой-то максимальный
                     let max_id = platform.next_internal_id.load(Ordering::Relaxed);
 
-                    // дамп свободных ID
-                    let approx_len = platform.free_internal_ids.len();
-                    let mut free_ids = Vec::with_capacity(approx_len);
+                    // Дамп свободных ID
+                    {
+                        // TODO: ???
+                        // Дамп свободных ID
+                        let approx_len = platform.free_internal_ids.len();
 
-                    for _ in 0..approx_len {
-                        if let Some(id) = platform.free_internal_ids.pop() {
-                            free_ids.push(id);
+                        // TODO: ???
+                        let mut free_ids = Vec::with_capacity(approx_len);
+                        for _ in 0..approx_len {
+                            if let Some(id) = platform.free_internal_ids.pop() {
+                                free_ids.push(id);
+                            }
                         }
+
+                        let free_bytes = unsafe {
+                            std::slice::from_raw_parts(
+                                free_ids.as_ptr() as *const u8,
+                                free_ids.len() * 4,
+                            )
+                        };
+
+                        write_atomic(format!("{db_path}/p_{platform_id}_free.bin"), free_bytes);
                     }
 
-                    let free_bytes = unsafe {
-                        std::slice::from_raw_parts(
-                            free_ids.as_ptr() as *const u8,
-                            free_ids.len() * 4,
-                        )
-                    };
-                    write_atomic(format!("{db_path}/p_{platform_id}_free.bin"), free_bytes);
-
                     // 1. Дамп версий (Zero-copy memcpy)
-                    let versions_dump = platform.versions.dump(max_id);
-                    let bytes = unsafe {
-                        std::slice::from_raw_parts(
-                            versions_dump.as_ptr() as *const u8,
-                            versions_dump.len() * 4,
-                        )
-                    };
+                    {
+                        // 1. Дамп версий (Zero-copy memcpy)
+                        let versions_dump = platform.versions.dump(max_id);
+                        let bytes = unsafe {
+                            std::slice::from_raw_parts(
+                                versions_dump.as_ptr() as *const u8,
+                                versions_dump.len() * 4,
+                            )
+                        };
 
-                    write_atomic(format!("{db_path}/p_{platform_id}_versions.bin"), bytes);
-                    write_atomic(
-                        format!("{db_path}/p_{platform_id}_max_id.bin"),
-                        &max_id.to_be_bytes(),
-                    );
+                        write_atomic(format!("{db_path}/p_{platform_id}_versions.bin"), bytes);
+                        write_atomic(
+                            format!("{db_path}/p_{platform_id}_max_id.bin"),
+                            &max_id.to_be_bytes(),
+                        );
+                    }
 
                     // 2. Дамп очередей селекторов
                     for s_entry in platform.selectors.iter() {
+                        // Получаем идентификатор селектора и само его значение
                         let selector_id = *s_entry.key();
                         let selector = s_entry.value();
 
-                        // Массив queued_versions уже хранит точную информацию о том, кто находится в очереди.
+                        // TODO: Дамп не потоковый, а в оперативку, что не очень
+                        //
+                        // Массив queued_versions уже хранит точную информацию о том,
+                        // кто находится в очереди.
                         let q_versions = selector.queued_versions.dump(max_id);
 
                         let approx_size = selector.exact_size.load(Ordering::Relaxed);
@@ -133,6 +166,7 @@ impl RamState {
                                 pairs.len() * 8, // 8 байт на пару [id, version]
                             )
                         };
+
                         write_atomic(
                             format!("{db_path}/p_{platform_id}_s_{selector_id}_q.bin"),
                             pairs_bytes,
@@ -157,6 +191,7 @@ impl RamState {
         });
 
         tracing::info!("Dump completed at {:?}", instant.elapsed());
+
         Ok(())
     }
 
@@ -340,6 +375,8 @@ impl RamState {
         Ok(state)
     }
 }
+
+////////////////////////////////////////////////////////////////////////////////
 
 pub struct PlatformState {
     /// Версии (эпохи) пользователей

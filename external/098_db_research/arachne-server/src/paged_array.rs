@@ -119,9 +119,9 @@ impl PagedArray {
         dump
     }
 
-    // TODO: Не используется потоковое чтение, не будет ли 
+    // TODO: Не используется потоковое чтение, не будет ли
     // слишком большой аллокация из которой грузим?
-    // 
+    //
     /// Восстанавливает структуру из массива значений
     pub fn restore(dump: &[u32]) -> Self {
         // Создаем выходной объект
@@ -154,10 +154,16 @@ impl PagedArray {
 
     /// Преаллоцирует память сразу для всего диапазона (убирает накладные расходы if ptr.is_null)
     pub fn preallocate_up_to(&self, max_id: u32) {
+        // Если идентификатор до которого будет преаллокация нулевой,
+        // то выходим просто
         if max_id == 0 {
             return;
         }
+
+        // Вычисляем о какого чанка будем делать аллокацию
         let chunks_needed = (max_id as usize).div_ceil(CHUNK_SIZE);
+
+        // Идем в цикле и преаллоцируем чанки
         for chunk_idx in 0..chunks_needed {
             let ptr = self.chunks[chunk_idx].load(Ordering::Relaxed);
             if ptr.is_null() {
@@ -184,8 +190,12 @@ impl Default for PagedArray {
 // Чтобы память не утекла при штатном завершении программы
 impl Drop for PagedArray {
     fn drop(&mut self) {
+        // Перебираем чанки для уничтожения выделенной оперативки
         for chunk in &self.chunks {
+            // Указатель получаем на аллокацию
             let ptr = chunk.load(Ordering::Relaxed);
+
+            // Если есть аллокация, то уничтожаем
             if !ptr.is_null() {
                 unsafe {
                     let _ = Vec::from_raw_parts(ptr, CHUNK_SIZE, CHUNK_SIZE);

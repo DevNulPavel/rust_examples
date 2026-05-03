@@ -1,6 +1,8 @@
 use bytesize::ByteSize;
 use clap::Parser;
 
+////////////////////////////////////////////////////////////////////////////////
+
 #[derive(Parser, Debug)]
 #[command(author, version, about, long_about = None)]
 pub struct Args {
@@ -28,6 +30,8 @@ pub struct Args {
     #[arg(short, long, default_value_t = 50_000)]
     pub prefetch_limit: usize,
 }
+
+////////////////////////////////////////////////////////////////////////////////
 
 fn parse_bytesize(s: &str) -> Result<ByteSize, String> {
     s.parse::<ByteSize>().map_err(|e| e.to_string())
