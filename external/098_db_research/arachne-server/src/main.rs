@@ -202,10 +202,14 @@ impl RamState {
         let state = Self::default();
         let now = current_ts();
 
+        // Получаем из базы список платформ
         let platforms = db.keyspace("platforms", db_options)?;
+
+        // Перебираем теперь платформы
         for kv_res in platforms.iter() {
             let (k, _) = kv_res.into_inner()?;
             let platform_id = k[0];
+
             let id_db = db.keyspace(&format!("p_{platform_id}_ids"), db_options)?;
             let payload_db = db.keyspace(&format!("p_{platform_id}_payloads"), db_options)?;
 
@@ -412,12 +416,14 @@ impl PlatformState {
     }
 }
 
+////////////////////////////////////////////////////////////////////////////////
+
 pub struct SelectorState {
     /// Хранит id, готовые к выдаче в селекторе (может содержать инвалидированные id)
     pub ready_ids: SegQueue<u32>,
-    // Теневой массив: хранит версию пользователя, с которой он лежит в очереди
+    /// Теневой массив: хранит версию пользователя, с которой он лежит в очереди
     pub queued_versions: PagedArray,
-    // Точный размер очереди селектора
+    /// Точный размер очереди селектора
     pub exact_size: AtomicUsize,
     /// Предзагруженные данные, готовые к выдаче
     pub prefetch_queue: SegQueue<(u32, u32, UserPayload)>,
@@ -431,6 +437,8 @@ pub struct SelectorState {
     pub is_backfilling: AtomicBool,
 }
 
+////////////////////////////////////////////////////////////////////////////////
+
 #[inline]
 fn dispatch_user_to_selector(
     selector: &SelectorState,
@@ -439,8 +447,10 @@ fn dispatch_user_to_selector(
     payload: &UserPayload,
     now: u64,
 ) {
+    // Выполняем проверку соответствия указанного пользователя селектору
     let eval = arachne_parser::evaluator::Evaluator::evaluate(&selector.ast, &payload.meta, now);
 
+    // TODO: А проверка is_match тут нужна?
     // Если селектор подходит и время в будущем, добавляем в колесо времени
     if let Some(wake_ts) = eval.wake_up_at
         && wake_ts > now
@@ -456,11 +466,14 @@ fn dispatch_user_to_selector(
         );
     }
 
+    // Очередь
     let q_version_ptr = selector.queued_versions.get(internal_id);
 
     // Если юзер подходит
     if eval.is_match {
+        // Получим текущую версию эпохи
         let mut current = q_version_ptr.load(Ordering::Acquire);
+
         loop {
             // Если в очереди уже лежит более новая или актуальная версия - не затираем её
             if current >= version {
@@ -507,6 +520,8 @@ fn dispatch_user_to_selector(
         }
     }
 }
+
+////////////////////////////////////////////////////////////////////////////////
 
 #[derive(Clone)]
 struct Server {
@@ -701,6 +716,8 @@ impl Rpc for Server {
         platform_id: u8,
         selector_id: u8,
     ) -> Result<SelectorDeleteStatus, String> {
+        // TODO: При удалении селектора удаляются пользователи что ли все тоже?
+
         let Some(platform) = self.state.platforms.get(&platform_id) else {
             return Ok(SelectorDeleteStatus::PlatformDoesNotExist);
         };
@@ -1228,6 +1245,8 @@ impl Rpc for Server {
     }
 }
 
+////////////////////////////////////////////////////////////////////////////////
+
 fn current_ts() -> u64 {
     Utc::now().timestamp() as u64
 }
@@ -1235,6 +1254,8 @@ fn current_ts() -> u64 {
 async fn spawn(fut: impl Future<Output = ()> + Send + 'static) {
     tokio::spawn(fut);
 }
+
+////////////////////////////////////////////////////////////////////////////////
 
 async fn start_backfill_workers(state: Arc<RamState>, token: CancellationToken) {
     loop {
