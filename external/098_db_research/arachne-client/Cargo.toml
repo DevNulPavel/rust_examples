@@ -1,0 +1,23 @@
+[package]
+name = "arachne-client"
+version = "0.5.0"
+edition = "2024"
+
+[dependencies]
+arachne-parser = { path = "../parser", version = "0.1" }
+arachne-api = { path = "../arachne-api", version = "0.5" }
+futures = "0.3.32"
+rmp-serde = { workspace = true }
+rmpv = "1.3.1"
+serde = { workspace = true }
+serde_json = { workspace = true }
+serde_bytes = { workspace = true }
+thiserror = "2.0.18"
+tarpc.workspace = true
+smol_str = { workspace = true }
+tokio.workspace = true
+
+[dev-dependencies]
+bitflags = { version = "2.11.0", features = ["serde"] }
+chrono = { workspace = true, features = ["serde"] }
+isolang = { version = "2.4", features = ["serde"] }

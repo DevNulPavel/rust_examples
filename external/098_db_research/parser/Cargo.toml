@@ -1,0 +1,23 @@
+[package]
+name = "arachne-parser"
+version = "0.1.0"
+edition = "2024"
+
+[lib]
+crate-type = ["rlib"]
+
+[dependencies]
+logos = "0.16"
+lalrpop-util = "0.23"
+serde = { workspace = true }
+serde_json = { workspace = true }
+chrono = { workspace = true }
+rmp-serde = { workspace = true }
+serde_bytes = { workspace = true }
+smol_str = { workspace = true }
+
+[build-dependencies]
+lalrpop = "0.23"
+
+[dev-dependencies]
+bitflags = "2.11"

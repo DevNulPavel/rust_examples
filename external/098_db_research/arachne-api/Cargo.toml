@@ -1,0 +1,14 @@
+[package]
+name = "arachne-api"
+version = "0.5.0"
+edition = "2024"
+
+[dependencies]
+arachne-parser = { path = "../parser" }
+tarpc.workspace = true
+serde.workspace = true
+smol_str.workspace = true
+serde_bytes.workspace = true
+serde_json.workspace = true
+bitcode = { version = "0.6", features = ["serde"] }
+bytes = "1"

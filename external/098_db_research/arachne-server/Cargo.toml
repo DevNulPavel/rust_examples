@@ -1,0 +1,30 @@
+[package]
+name = "arachne-server"
+version = "0.5.0"
+edition = "2024"
+
+[dependencies]
+fjall = "3.1.3"
+arachne-parser = { path = "../parser", version = "0.1"}
+arachne-api = { path = "../arachne-api", version = "0.5"}
+tarpc.workspace = true
+tokio.workspace = true
+serde.workspace = true
+smol_str.workspace = true
+serde_bytes.workspace = true
+anyhow.workspace = true
+futures = "0.3.32"
+crossbeam-queue = "0.3"
+crossbeam-skiplist = "0.1"
+dashmap = "6.1.0"
+chrono.workspace = true
+rmp-serde.workspace = true
+tracing = "0.1"
+tracing-subscriber = { version = "0.3", features = ["env-filter"] }
+tokio-stream = { version = "0.1.18", features = ["net"] }
+clap.workspace = true
+bytesize = "2.3"
+mimalloc = "0.1"
+autometrics = { version = "3.0.0", features = ["metrics-0_24"] }
+tokio-metrics = { version = "0.5.0", features = ["rt", "metrics-rs-integration"] }
+metrics-exporter-prometheus= "0.18"

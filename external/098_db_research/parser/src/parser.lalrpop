@@ -1,0 +1,187 @@
+use crate::ast::{Expr, Comparator, FieldPath};
+use crate::lexer::Token;
+use serde_json::{Value as JsonValue, Number as JsonNumber};
+
+grammar<'input>;
+
+extern {
+    type Location = usize;
+    type Error = usize;
+
+    enum Token<'input> {
+        "AND" => Token::And,
+        "OR" => Token::Or,
+        "NOT" => Token::Not,
+        "NOW" => Token::Now,
+        "AGE" => Token::Age,
+        "EXISTS" => Token::Exists,
+        "AMONG" => Token::Among,
+        "MOD" => Token::Mod,
+        "second" => Token::Second,
+        "minute" => Token::Minute,
+        "hour" => Token::Hour,
+        "day" => Token::Day,
+        "(" => Token::LParen,
+        ")" => Token::RParen,
+        "[" => Token::LBracket,
+        "]" => Token::RBracket,
+        "," => Token::Comma,
+        "." => Token::Dot,
+        "<" => Token::Lt,
+        ">" => Token::Gt,
+        "<=" => Token::Lte,
+        ">=" => Token::Gte,
+        "==" => Token::Eq,
+        "!=" => Token::Neq,
+        "true" => Token::True,
+        "false" => Token::False,
+        "null" => Token::Null,
+        "StringLit" => Token::StringLit(<String>),
+        "Ident" => Token::Ident(<&'input str>),
+        "Number" => Token::Number(<f64>),
+        "&" => Token::BitAnd,
+        "CONTAINS" => Token::Contains,
+        "ICONTAINS" => Token::Icontains,
+        "ANY" => Token::Any,
+        "ALL" => Token::All,
+        "LEN" => Token::Len,
+    }
+}
+
+pub Query: Box<Expr> = { <e:OrExpr> => e };
+
+OrExpr: Box<Expr> = {
+    <l:OrExpr> "OR" <r:AndExpr> => Box::new(Expr::Or(l, r)),
+    AndExpr,
+};
+
+AndExpr: Box<Expr> = {
+    <l:AndExpr> "AND" <r:NotExpr> => Box::new(Expr::And(l, r)),
+    NotExpr,
+};
+
+NotExpr: Box<Expr> = {
+    "NOT" <e:PrimaryExpr> => Box::new(Expr::Not(e)),
+    PrimaryExpr,
+};
+
+PrimaryExpr: Box<Expr> = {
+    "(" <e:OrExpr> ")" => e,
+    
+    // 9. Проверка элементов массива (Any)
+    <p:Path> "ANY" "(" <e:OrExpr> ")" => {
+        Box::new(Expr::Any(p, e))
+    },
+    <p:Path> "NOT" "ANY" "(" <e:OrExpr> ")" => {
+        Box::new(Expr::Not(Box::new(Expr::Any(p, e))))
+    },
+    // 10. Проверка элементов массива (All)
+    <p:Path> "ALL" "(" <e:OrExpr> ")" => {
+        Box::new(Expr::All(p, e))
+    },
+    <p:Path> "NOT" "ALL" "(" <e:OrExpr> ")" => {
+        Box::new(Expr::Not(Box::new(Expr::All(p, e))))
+    },
+
+    // Пример: devices LEN >= 2, username LEN == 5
+    <p:Path> "LEN" <c:Comparator> <n:"Number"> => {
+        Box::new(Expr::LenComp(p, c, n as u64))
+    },
+
+    // 1. Динамический Exists
+    <p:Path> "EXISTS" => Box::new(Expr::Exists(p)),
+    <p:Path> "NOT" "EXISTS" => Box::new(Expr::NotExists(p)),
+    
+    // 2. Динамический Возраст (AGE)
+    <p:Path> "AGE" "Ident"? <c:Comparator> <d:Duration> => {
+        Box::new(Expr::AgeComp(p, c, d))
+    },
+
+    // 3. Динамическое сравнение с NOW()
+    <p:Path> <c:Comparator> "NOW" "(" ")" => {
+        Box::new(Expr::TimeCompNow(p, c))
+    },
+
+    // 4. Массивы (AMONG и NOT AMONG)
+    <p:Path> "AMONG" "[" <list:JsonList> "]" => {
+        Box::new(Expr::In(p, list))
+    },
+    <p:Path> "NOT" "AMONG" "[" <list:JsonList> "]" => {
+        Box::new(Expr::Not(Box::new(Expr::In(p, list))))
+    },
+
+    // 8. Строковые операции (справа допускается ТОЛЬКО строка)
+    <p:Path> "CONTAINS" <s:"StringLit"> => {
+        Box::new(Expr::Contains(p, s))
+    },
+    <p:Path> "ICONTAINS" <s:"StringLit"> => {
+        Box::new(Expr::Icontains(p, s))
+    },
+    <p:Path> "NOT" "CONTAINS" <s:"StringLit"> => {
+        Box::new(Expr::Not(Box::new(Expr::Contains(p, s))))
+    },
+    <p:Path> "NOT" "ICONTAINS" <s:"StringLit"> => {
+        Box::new(Expr::Not(Box::new(Expr::Icontains(p, s))))
+    },
+
+    // 5. Универсальное сравнение (score > 10, country == "US")
+    <p:Path> <c:Comparator> <v:JsonValue> => {
+        Box::new(Expr::Cmp(p, c, v))
+    },
+
+    // 5.1. Модуль (user_id MOD 10 == 5)
+    <p:Path> "MOD" <divisor:"Number"> <c:Comparator> <remainder:"Number"> => {
+        Box::new(Expr::ModComp(p, c, divisor as u64, remainder as u64))
+    },
+
+    // 6. Одиночный флаг (например, слово enabled или important)
+    <p:Path> => Box::new(Expr::Flag(p)),
+
+    // 7. Побитовое И
+    <p:Path> "&" <mask:"Number"> <comp:Comparator> <target:"Number"> => {
+        Box::new(Expr::BitComp(p, comp, mask as u64, target as u64))
+    }
+};
+
+Path: FieldPath = {
+    <mut p:Path> "." <id:"Ident"> => { p.push(id.to_string()); p },
+    // Если путь состоит из одного слова и это "SELF" — возвращаем пустой вектор
+    <id:"Ident"> => {
+        if id == "SELF" {
+            vec![] // Пустой путь указывает на корень текущего контекста
+        } else {
+            vec![id.to_string()]
+        }
+    },
+};
+
+Comparator: Comparator = {
+    "<" => Comparator::Less,
+    ">" => Comparator::Greater,
+    "<=" => Comparator::LessOrEq,
+    ">=" => Comparator::GreaterOrEq,
+    "==" => Comparator::Eq,
+    "!=" => Comparator::NotEq,
+};
+
+Duration: u64 = {
+    <n:"Number"> "second" => n as u64,
+    <n:"Number"> "minute" => (n as u64) * 60,
+    <n:"Number"> "hour" => (n as u64) * 3600,
+    <n:"Number"> "day" => (n as u64) * 86400,
+};
+
+JsonValue: JsonValue = {
+    "true" => JsonValue::Bool(true),
+    "false" => JsonValue::Bool(false),
+    "null" => JsonValue::Null,
+    <s:"StringLit"> => JsonValue::String(s),
+    <n:"Number"> => JsonValue::Number(JsonNumber::from_f64(n).unwrap()),
+};
+
+JsonList: Vec<JsonValue> = {
+    <mut list:JsonList> "," <v:JsonValue> => { list.push(v); list },
+    <v:JsonValue> => vec![v],
+    <mut list:JsonList> "," <id:"Ident"> => { list.push(JsonValue::String(id.to_string())); list },
+    <id:"Ident"> => vec![JsonValue::String(id.to_string())],
+};

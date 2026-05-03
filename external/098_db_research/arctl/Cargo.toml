@@ -1,0 +1,11 @@
+[package]
+name = "arctl"
+version = "0.2.0"
+edition = "2024"
+
+[dependencies]
+arachne-client = { path = "../arachne-client", version = "0.5"}
+clap.workspace = true
+serde_json.workspace = true
+anyhow.workspace = true
+tokio.workspace = true
