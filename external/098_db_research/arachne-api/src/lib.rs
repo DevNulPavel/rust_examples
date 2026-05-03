@@ -1,8 +1,9 @@
-use std::pin::Pin;
-
 use arachne_parser::evaluator::UserMeta;
 use bytes::{Bytes, BytesMut};
+use std::pin::Pin;
 use tarpc::tokio_serde::{Deserializer, Serializer};
+
+////////////////////////////////////////////////////////////////////////////////
 
 #[derive(serde::Serialize, serde::Deserialize, Debug, Clone, PartialEq)]
 pub enum PlatformCreateStatus {
@@ -94,6 +95,9 @@ pub enum UserDeleteStatus {
     PlatformDoesNotExist,
 }
 
+////////////////////////////////////////////////////////////////////////////////
+
+// TODO: Целых 24 байта на идентификатор пользователя без возможности настройки
 #[derive(serde::Serialize, serde::Deserialize, Debug, Clone, PartialEq, Eq, Hash)]
 #[serde(untagged)]
 pub enum UserId {
@@ -112,16 +116,25 @@ impl std::fmt::Display for UserId {
     }
 }
 
+////////////////////////////////////////////////////////////////////////////////
+
 #[derive(serde::Serialize, serde::Deserialize, Debug, Clone, PartialEq)]
 pub struct UserPayload {
     #[serde(rename = "i")]
     pub id: UserId,
+
+    // TODO: ОГРОМНАЯ проблема с фрагментацией оперативной памяти из-за
+    // тонны мелких аллокаций для каждого пользователя
     #[serde(rename = "p")]
     #[serde(with = "serde_bytes")]
     pub payload: Vec<u8>,
+
+    // TODO: Тут вообще у нас динамическое представление данных о пользователе в виде json::Value
     #[serde(rename = "m")]
     pub meta: UserMeta,
 }
+
+////////////////////////////////////////////////////////////////////////////////
 
 pub mod rpc_dto {
     use super::*;
@@ -135,8 +148,10 @@ pub mod rpc_dto {
     #[derive(serde::Serialize, serde::Deserialize, Debug, Clone, PartialEq)]
     pub struct RpcUserPayload {
         pub id: RpcUserId,
+
         #[serde(with = "serde_bytes")]
         pub payload: Vec<u8>,
+
         #[serde(with = "json_bytes_adapter")]
         pub meta: UserMeta,
     }

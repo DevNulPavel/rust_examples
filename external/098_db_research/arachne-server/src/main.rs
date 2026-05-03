@@ -1369,6 +1369,8 @@ async fn start_backfill_workers(state: Arc<RamState>, token: CancellationToken) 
     }
 }
 
+////////////////////////////////////////////////////////////////////////////////
+
 async fn start_time_ticker(state: Arc<RamState>, db: Database, token: CancellationToken) {
     let mut interval = tokio::time::interval(std::time::Duration::from_millis(100));
     let mut last_ts = current_ts() - 1;
@@ -1378,6 +1380,7 @@ async fn start_time_ticker(state: Arc<RamState>, db: Database, token: Cancellati
             _ = token.cancelled() => return,
             _ = interval.tick() => {}
         }
+
         let current = current_ts();
 
         // Защита от "пустых" вызовов в рамках одной и той же секунды
@@ -1434,6 +1437,7 @@ async fn start_time_ticker(state: Arc<RamState>, db: Database, token: Cancellati
                         }
 
                         let mut version_to_dispatch = timer.version;
+
                         // Принудительно повышаем версию (инвалидируем его во всех горячих очередях)
                         if timer.is_lock_timeout {
                             version_to_dispatch = timer.version + 1;
@@ -1500,6 +1504,8 @@ async fn start_time_ticker(state: Arc<RamState>, db: Database, token: Cancellati
     }
 }
 
+////////////////////////////////////////////////////////////////////////////////
+
 async fn start_prefetch_workers(
     state: Arc<RamState>,
     db: Database,
@@ -1515,6 +1521,7 @@ async fn start_prefetch_workers(
             .iter()
             .map(|p| (*p.key(), p.value().clone()))
             .collect();
+
         for (platform_id, platform) in platforms {
             let payload_db = match db.keyspace(&format!("p_{platform_id}_payloads"), db_options) {
                 Ok(ks) => ks,
@@ -1609,6 +1616,8 @@ async fn start_prefetch_workers(
     }
 }
 
+////////////////////////////////////////////////////////////////////////////////
+
 fn db_options() -> KeyspaceCreateOptions {
     KeyspaceCreateOptions::default()
         // Размер буфера в памяти перед сбросом на диск
@@ -1617,8 +1626,12 @@ fn db_options() -> KeyspaceCreateOptions {
         .data_block_compression_policy(CompressionPolicy::all(CompressionType::Lz4))
 }
 
+////////////////////////////////////////////////////////////////////////////////
+
 #[global_allocator]
 static GLOBAL: mimalloc::MiMalloc = mimalloc::MiMalloc;
+
+////////////////////////////////////////////////////////////////////////////////
 
 #[tokio::main]
 async fn main() -> anyhow::Result<()> {
