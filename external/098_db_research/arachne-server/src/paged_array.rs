@@ -77,21 +77,36 @@ impl PagedArray {
 
     /// Дамп массива в вектор значений
     pub fn dump(&self, max_id: u32) -> Vec<u32> {
-        let mut dump = vec![0u32; max_id as usize];
+        // TODO: Не большая ли здесь будет аллокация?
+        // Буфер для идентификаторов
+        let mut dump = vec![0_u32; max_id as usize];
+
+        // Проверка, вдруг нам передали нулевой идентификатор
         if max_id == 0 {
             return dump;
         }
 
+        // Вычисляем количество чанков, которые нам надо будет прочитать
         let chunks_count = (max_id as usize).div_ceil(CHUNK_SIZE);
+
+        // Перебираем теперь чанки нужные нам
         for chunk_idx in 0..chunks_count {
-            // Проверяем, что указатель не нулевой
+            // Получаем указатель на нужный чанк по индексу
             let ptr = self.chunks[chunk_idx].load(Ordering::Acquire);
+
+            // Проверяем, что указатель не нулевой
             if !ptr.is_null() {
+                // Индекс начала чанка
                 let start = chunk_idx * CHUNK_SIZE;
+
+                // Индекс конца чанка с у четом максимального id
                 let end = std::cmp::min(start + CHUNK_SIZE, max_id as usize);
+
+                // Количество элементов
                 let len = end - start;
+
                 unsafe {
-                    // Копируем весь чанк за одну инструкцию процессора
+                    // Копируем весь чанк за одну инструкцию процессора в выходной вектор
                     std::ptr::copy_nonoverlapping(
                         ptr as *const u32,
                         dump[start..].as_mut_ptr(),
@@ -100,12 +115,19 @@ impl PagedArray {
                 }
             }
         }
+
         dump
     }
 
+    // TODO: Не используется потоковое чтение, не будет ли 
+    // слишком большой аллокация из которой грузим?
+    // 
     /// Восстанавливает структуру из массива значений
     pub fn restore(dump: &[u32]) -> Self {
+        // Создаем выходной объект
         let pa = Self::default();
+
+        // Из дампа пробуем вы
         let chunks_count = dump.len().div_ceil(CHUNK_SIZE);
 
         for chunk_idx in 0..chunks_count {
@@ -126,6 +148,7 @@ impl PagedArray {
             let raw_ptr = vec.into_raw_parts().0;
             pa.chunks[chunk_idx].store(raw_ptr, Ordering::Relaxed);
         }
+
         pa
     }
 
