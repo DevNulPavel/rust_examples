@@ -134,6 +134,17 @@ pub struct UserPayload {
     pub meta: UserMeta,
 }
 
+#[cfg(test)]
+mod tests {
+    use crate::UserPayload;
+
+    #[test]
+    fn test_user_size() {
+        let size = size_of::<UserPayload>();
+        dbg!(&size);
+    }
+}
+
 ////////////////////////////////////////////////////////////////////////////////
 
 pub mod rpc_dto {
